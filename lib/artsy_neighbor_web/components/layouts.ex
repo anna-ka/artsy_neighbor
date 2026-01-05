@@ -5,11 +5,203 @@ defmodule ArtsyNeighborWeb.Layouts do
   """
   use ArtsyNeighborWeb, :html
 
+  alias ArtsyNeighborWeb.CustomComponents
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
   # and other static content.
   embed_templates "layouts/*"
+
+
+  @doc """
+
+  """
+
+  attr :flash, :map, required: true, doc: "the map of flash messages"
+
+  attr :current_scope, :map,
+    default: nil,
+    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+
+  slot :inner_block, required: true
+
+  def artsy_main(assigns) do
+    ~H"""
+    <!-- Site-wide announcement banner -->
+    <ArtsyNeighborWeb.CustomComponents.site_wide_banner show={true} variant="info">
+      Special Holiday Sale! Get 20% off all artwork until December 25th.
+    </ArtsyNeighborWeb.CustomComponents.site_wide_banner>
+
+    <header class="px-4 sm:px-6 lg:px-8">
+      <!-- First row: Logo + Search + Actions -->
+      <div class="navbar">
+        <div class="flex-1">
+          <a href="/" class="flex-1 flex w-fit items-center gap-2">
+            <img src={~p"/images/logo.svg"} width="36" />
+            <span class="text-sm font-semibold">Artsy Neighbor</span>
+          </a>
+        </div>
+        <nav aria-label="Site navigation" class="flex-none">
+          <ul class="flex flex-column px-1 space-x-4 items-center ">
+            <li>
+              <.button navigate={~p"/products"} >
+              <.icon name="hero-bars-4" class="size-4 mr-1" />
+              Explore
+              </.button>
+            </li>
+
+            <li>
+              <input
+                type="search"
+                placeholder="What are you looking for?"
+                class="input input-sm input-bordered w-48 md:w-64 lg:w-96"
+                name="q"
+              />
+            </li>
+
+             <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Artist Directory</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Offer art</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Purchase art</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Log in</a>
+            </li>
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Sign up</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Our mission</a>
+            </li>
+
+            <li>
+              <.theme_toggle />
+            </li>
+          </ul>
+        </nav>
+        </div>
+
+        <!-- Second row: Category links -->
+        <nav aria-label="Category navigation" class="flex flex-wrap gap-4 py-2 justify-start w-full">
+
+        <ul class="flex flex-row px-1 space-x-4 items-center">
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Explore</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Paintings</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Sculpture</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Jewelry</a>
+            </li>
+
+            <li>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Fiber art</a>
+            </li>
+
+            <li>
+              <%!-- <a href="https://phoenixframework.org/" class="btn btn-ghost">Categories</a> --%>
+              <details class="dropdown">
+                <summary class="btn btn-ghost">Other</summary>
+                <ul class="menu dropdown-content bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm">
+                  <li><a>Clothes</a></li>
+                  <li><a>Paper art</a></li>
+                  <li><a>Yarn</a></li>
+                </ul>
+            </details>
+            </li>
+          </ul>
+
+      </nav>
+
+
+
+    </header>
+
+    <!-- Main area-->
+    <main class="flex justify-center">
+      <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-artsy-bg">
+        {render_slot(@inner_block)}
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+
+          <!-- Column 1: Company Info -->
+          <div>
+            <h3 class="text-lg font-semibold mb-4">Company</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="text-gray-400 hover:text-white">About Us</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Our Mission</a></li>
+              <li>
+                <.link href={~p"/contactus"}>
+                  Contact
+                </.link>
+
+              </li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
+            </ul>
+          </div>
+
+          <!-- Column 2: Legal -->
+          <div>
+            <h3 class="text-lg font-semibold mb-4">Legal</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="text-gray-400 hover:text-white">User Agreement</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Privacy Policy</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Cookie Policy</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Terms of Service</a></li>
+            </ul>
+          </div>
+
+          <!-- Column 3: Social Media -->
+          <div>
+            <h3 class="text-lg font-semibold mb-4">Follow Us</h3>
+            <ul class="space-y-2">
+              <li><a href="#" class="text-gray-400 hover:text-white">Facebook</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Instagram</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Twitter</a></li>
+              <li><a href="#" class="text-gray-400 hover:text-white">Pinterest</a></li>
+            </ul>
+          </div>
+
+        </div>
+
+        <!-- Row 2: Divider -->
+        <div class="border-t border-gray-700 my-8"></div>
+
+        <!-- Row 3: Copyright -->
+        <div class="text-center text-gray-400">
+          <p>&copy; 2025 Artsy Neighbor. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+
+    <.flash_group flash={@flash} />
+    """
+  end
+
+
+
 
   @doc """
   Renders your app layout.

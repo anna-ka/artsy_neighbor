@@ -17,7 +17,10 @@ defmodule ArtsyNeighborWeb.Router do
   scope "/", ArtsyNeighborWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    # get "/", PageController, :home
+    live "/", HomeLive
+    live "/products", ProductLive.Index
+    get "/contactus", ContactusController, :contactus
   end
 
   # Other scopes may use custom stacks.

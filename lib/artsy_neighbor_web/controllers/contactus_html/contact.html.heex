@@ -1,0 +1,77 @@
+<Layouts.artsy_main flash={@flash}>
+  <div class="grid grid-cols-1 gap-8">
+
+    <%!-- Row 1: Hero Section --%>
+     <section class="hero">
+      <h1 class="text-4xl font-bold mt-6 text-black">We want to hear from you</h1>
+    </section>
+
+    <%!-- Contact Form --%>
+    <section>
+      <form class="max-w-2xl mx-auto space-y-6">
+
+        <%!-- Name Field --%>
+        <div>
+          <label for="name" class="block text-sm font-medium mb-2">Name</label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            required
+            class="input input-bordered w-full"
+            placeholder="Your full name"
+          />
+        </div>
+
+        <%!-- Email Field --%>
+        <div>
+          <label for="email" class="block text-sm font-medium mb-2">Email</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            class="input input-bordered w-full"
+            placeholder="your.email@example.com"
+          />
+        </div>
+
+        <%!-- Phone Field (Optional) --%>
+        <div>
+          <label for="phone" class="block text-sm font-medium mb-2">Phone (optional)</label>
+          <input
+            type="tel"
+            id="phone"
+            name="phone"
+            class="input input-bordered w-full"
+            placeholder="(555) 123-4567"
+          />
+        </div>
+
+        <%!-- Message Field --%>
+        <div>
+          <label for="message" class="block text-sm font-medium mb-2">Your message</label>
+          <textarea
+            id="message"
+            name="message"
+            required
+            rows="6"
+            class="textarea textarea-bordered w-full"
+            placeholder="Tell us what's on your mind..."
+          ></textarea>
+        </div>
+
+        <%!-- Submit Button --%>
+        <div>
+          <button type="submit" class="btn btn-primary w-full">
+            Send Message
+          </button>
+        </div>
+
+      </form>
+    </section>
+
+
+
+  </div>
+</Layouts.artsy_main>

@@ -1,0 +1,11 @@
+{
+  "elixirLS.projectDir": "artsy_neighbor/artsy_neighbor",
+  "elixirLS.dialyzerEnabled": true,
+  "elixirLS.fetchDeps": true,
+  "elixirLS.suggestSpecs": true,
+  "elixirLS.enableTestLenses": true,
+  "[elixir]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls",
+    "editor.formatOnSave": true
+  }
+}

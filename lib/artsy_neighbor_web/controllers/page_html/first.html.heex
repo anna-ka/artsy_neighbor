@@ -1,0 +1,116 @@
+<Layouts.artsy_main flash={@flash}>
+  <div class="grid grid-cols-1 gap-8">
+
+    <%!-- Row 1: Hero Section --%>
+     <section class="hero">
+      
+      <div style={"background-image: url(#{~p"/images/artist-hero.jpg"})"} class="mt-8 w-full h-96 bg-cover bg-center rounded-lg"></div>
+      <h1 class="text-4xl font-bold mt-6 text-white">Discover Unique Art from Local Artists</h1>
+    </section>
+
+    <%!-- Rows 2-3: Top Categories (3 images in a row) --%>
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Top Categories</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div
+          style={"background-image: url(#{~p"/images/pottery-cat.jpg"})"}
+          class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative">
+          <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold">Paintings</button>
+        </div>
+        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+          <span class="text-xl font-semibold">Sculpture</span>
+        </div>
+        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+          <span class="text-xl font-semibold">Jewelry</span>
+        </div>
+      </div>
+
+
+      <%!-- Collapsible section for more categories --%>
+  <div class="collapse mt-8">
+    <input type="checkbox" id="more-categories" />
+    <label for="more-categories" class="collapse-title text-lg font-medium text-right cursor-pointer">
+      See more categories ➔
+    </label>
+    <div class="collapse-content">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+          <span class="text-xl font-semibold">Fiber art</span>
+        </div>
+        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+          <span class="text-xl font-semibold">Clothing</span>
+        </div>
+        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+          <span class="text-xl font-semibold">Wall art</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+    </section>
+
+    <%!-- Row 4: Featured Products --%>
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Featured Products</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+      </div>
+    </section>
+
+    <%!-- Row 5: Our favorites (placeholder) --%>
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Our favorites</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-4">
+          <div class="bg-gray-300 h-48 rounded mb-4"></div>
+          <h3 class="font-semibold mb-2">Product Name</h3>
+          <p class="text-gray-600 text-sm mb-2">Artist Name</p>
+          <p class="font-bold">$99.99</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</Layouts.artsy_main>

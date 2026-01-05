@@ -102,4 +102,13 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
+/* Custom colors for Artsy Neighbor */
+@theme {
+  /*neutral color for the background*/
+  --color-artsy-bg: oklch(97% 0.001 106.424);
+
+  /*artsy teal for the banner*/
+  --color-artsy-teal: oklch(45% 0.085 224.283);
+}
+
 /* This file is for your main application CSS */
