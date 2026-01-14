@@ -1,0 +1,1 @@
+mix phx.gen.schema Artists.Artist artists nickname:string first_name:string last_name:string middle_name:string street:string street_number:string apt_info:string area_code:string phone:string email:string bio:text medium:array:string main_img:string img2:string img3:string img4:string img5:string 

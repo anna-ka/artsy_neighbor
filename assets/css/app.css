@@ -22,10 +22,83 @@
   We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
   on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
 @plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(97% 0 0);
+  --color-base-300: oklch(94% 0 0);
+  --color-base-content: oklch(20% 0 0);
+  --color-primary: oklch(87% 0 0);
+  --color-primary-content: oklch(26% 0 0);
+  --color-secondary: oklch(87% 0 0);
+  --color-secondary-content: oklch(26% 0 0);
+  --color-accent: oklch(87% 0 0);
+  --color-accent-content: oklch(26% 0 0);
+  --color-neutral: oklch(87% 0 0);
+  --color-neutral-content: oklch(26% 0 0);
+  --color-info: oklch(44% 0.11 240.79);
+  --color-info-content: oklch(90% 0.058 230.902);
+  --color-success: oklch(43% 0.095 166.913);
+  --color-success-content: oklch(90% 0.093 164.15);
+  --color-warning: oklch(47% 0.137 46.201);
+  --color-warning-content: oklch(92% 0.12 95.746);
+  --color-error: oklch(44% 0.177 26.899);
+  --color-error-content: oklch(88% 0.062 18.334);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 2rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "../vendor/daisyui-theme" {
+
   name: "dark";
   default: false;
   prefersdark: true;
   color-scheme: "dark";
+  --color-base-100: oklch(30.857% 0.023 264.149);
+  --color-base-200: oklch(28.036% 0.019 264.182);
+  --color-base-300: oklch(26.346% 0.018 262.177);
+  --color-base-content: oklch(82.901% 0.031 222.959);
+  --color-primary: oklch(86.133% 0.141 139.549);
+  --color-primary-content: oklch(17.226% 0.028 139.549);
+  --color-secondary: oklch(73.375% 0.165 35.353);
+  --color-secondary-content: oklch(14.675% 0.033 35.353);
+  --color-accent: oklch(74.229% 0.133 311.379);
+  --color-accent-content: oklch(14.845% 0.026 311.379);
+  --color-neutral: oklch(24.731% 0.02 264.094);
+  --color-neutral-content: oklch(82.901% 0.031 222.959);
+  --color-info: oklch(86.078% 0.142 206.182);
+  --color-info-content: oklch(17.215% 0.028 206.182);
+  --color-success: oklch(86.171% 0.142 166.534);
+  --color-success-content: oklch(17.234% 0.028 166.534);
+  --color-warning: oklch(86.163% 0.142 94.818);
+  --color-warning-content: oklch(17.232% 0.028 94.818);
+  --color-error: oklch(82.418% 0.099 33.756);
+  --color-error-content: oklch(16.483% 0.019 33.756);
+  --radius-selector: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+
+}
+
+
+@plugin "../vendor/daisyui-theme" {
+  name: "dark-old";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark-old";
   --color-base-100: oklch(30.33% 0.016 252.42);
   --color-base-200: oklch(25.26% 0.014 253.1);
   --color-base-300: oklch(20.15% 0.012 254.09);
@@ -57,10 +130,10 @@
 }
 
 @plugin "../vendor/daisyui-theme" {
-  name: "light";
-  default: true;
+  name: "light-old";
+  default: false;
   prefersdark: false;
-  color-scheme: "light";
+  color-scheme: "light-old";
   --color-base-100: oklch(98% 0 0);
   --color-base-200: oklch(96% 0.001 286.375);
   --color-base-300: oklch(92% 0.004 286.32);

@@ -7,7 +7,7 @@
 
   #mount
   def mount(_params, _session, socket) do
-    socket = assign(socket, :products, Products.list_products())
+    socket = stream(socket, :products, Products.list_products())
     {:ok, socket}
   end
 
@@ -19,9 +19,9 @@
     </section>
 
     <section>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="products-list" phx-update="stream">
 
-        <.product_card :for={product <- @products} product={product} />
+        <.product_card :for={{dom_id, product} <- @streams.products} product={product} dom_id={dom_id} />
 
         </div>
     </section>

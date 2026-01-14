@@ -11,22 +11,27 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   """
 
   attr :product, :map, required: true, doc: "An ArtsyNeighbor.Product struct"
+  attr :dom_id, :string, required: true, doc: "Required DOM id for the product card"
 
   def product_card(assigns) do
       ~H"""
-        <div class="bg-artsy-bg rounded-lg shadow-md p-3 pb-2">
-                <div class="h-60 rounded mb-2 overflow-hidden bg-gray-100 flex items-center justify-center">
-                  <img
-                    src={@product.image}
-                    alt={@product.title}
-                    class="w-full h-full object-cover"
-                  />
-                </div>
+        <.link navigate={~p"/products/#{@product}"} id={@dom_id}>
+          <div class="bg-artsy-bg rounded-lg shadow-md p-3 pb-2">
+                  <div class="h-60 rounded mb-2 overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <img
+                      src={@product.image}
+                      alt={@product.title}
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
 
-                <h3 class="font-normal text-gray-600 mb-1"><%= @product.title %></h3>
-                <p class="text-gray-600 text-sm mb-1"><%= @product.artist_name %></p>
-                <p class="text-sm text-gray-600">CA$<%= :erlang.float_to_binary(@product.price, decimals: 2) %></p>
-              </div>
+                  <h3 class="font-normal text-gray-600 mb-1"><%= @product.title %></h3>
+                  <p class="text-gray-600 text-sm mb-1"><%= @product.artist_name %></p>
+                  <p class="text-sm text-gray-600">CA$<%= :erlang.float_to_binary(@product.price, decimals: 2) %></p>
+            </div>
+
+        </.link>
+
         """
     end
 
@@ -41,11 +46,15 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
   def category_card(assigns) do
     ~H"""
+      <.link navigate={~p"/products"}>
       <div
           style={"background-image: url(#{@category.image})"}
           class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative">
           <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold"><%= @category.title %></button>
         </div>
+
+      </.link>
+
 
     """
   end
@@ -104,5 +113,74 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     </div>
     """
   end
+
+
+   @doc """
+  Renders a button with navigation support.
+
+  ## Examples
+
+      <.button_artsy>Default</.button_artsy>
+      <.button_artsy variant="primary">Primary Button</.button_artsy>
+      <.button_artsy variant="secondary">Secondary Button</.button_artsy>
+      <.button_artsy variant="outline">Outline Button</.button_artsy>
+      <.button_artsy variant="ghost">Ghost Button</.button_artsy>
+      <.button_artsy variant="danger">Delete</.button_artsy>
+      <.button_artsy size="wide">Wide Button</.button_artsy>
+      <.button_artsy size="block">Full Width Button</.button_artsy>
+      <.button_artsy navigate={~p"/"}>Home</.button_artsy>
+  """
+  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
+  attr :class, :any, default: nil
+  attr :variant, :string, default: "primary", values: ~w(primary secondary outline ghost danger soft)
+  attr :size, :string, default: "normal", values: ~w(normal wide block sm lg)
+  slot :inner_block, required: true
+
+  def button_artsy(%{rest: rest} = assigns) do
+    # Define your custom variants here
+    variants = %{
+      "primary" => "btn btn-primary",
+      "secondary" => "btn bg-artsy-teal text-white hover:bg-teal-600",
+      "outline" => "btn btn-outline",
+      "ghost" => "btn btn-ghost",
+      "danger" => "btn bg-red-600 text-white hover:bg-red-700",
+      "soft" => "btn btn-primary btn-soft"
+    }
+
+    # Define size classes
+    size_classes = %{
+      "normal" => "",
+      "wide" => "btn-wide",
+      "block" => "btn-block",
+      "sm" => "btn-sm",
+      "lg" => "btn-lg"
+    }
+
+    # If user provides custom class, use it; otherwise use variant + size
+    button_class = if assigns[:class] do
+      assigns[:class]
+    else
+      variant_class = Map.get(variants, assigns[:variant], variants["primary"])
+      size_class = Map.get(size_classes, assigns[:size], "")
+      "#{variant_class} #{size_class}" |> String.trim()
+    end
+
+    assigns = assign(assigns, :button_class, button_class)
+
+    if rest[:href] || rest[:navigate] || rest[:patch] do
+      ~H"""
+      <.link class={@button_class} {@rest}>
+        {render_slot(@inner_block)}
+      </.link>
+      """
+    else
+      ~H"""
+      <button class={@button_class} {@rest}>
+        {render_slot(@inner_block)}
+      </button>
+      """
+    end
+  end
+
 
 end

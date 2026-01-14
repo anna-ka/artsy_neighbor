@@ -5,7 +5,7 @@ defmodule ArtsyNeighborWeb.Layouts do
   """
   use ArtsyNeighborWeb, :html
 
-  alias ArtsyNeighborWeb.CustomComponents
+  # alias ArtsyNeighborWeb.CustomComponents
 
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
@@ -61,26 +61,26 @@ defmodule ArtsyNeighborWeb.Layouts do
             </li>
 
              <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Artist Directory</a>
+              <a href="/artists" class="btn btn-ghost">Artist Directory</a>
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Offer art</a>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Offer art</a>
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Purchase art</a>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Purchase art</a>
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Log in</a>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Log in</a>
             </li>
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Sign up</a>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Sign up</a>
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost text-gray-500">Our mission</a>
+              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Our mission</a>
             </li>
 
             <li>
@@ -136,7 +136,7 @@ defmodule ArtsyNeighborWeb.Layouts do
 
     <!-- Main area-->
     <main class="flex justify-center">
-      <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-artsy-bg">
+      <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
         {render_slot(@inner_block)}
       </div>
     </main>

@@ -175,5 +175,21 @@ defmodule ArtsyNeighbor.Products do
   end
 
 
+  def get_product(id) when is_integer(id) do
+    list_products()
+    |> Enum.find(fn product -> product.id == id end)
+  end
+
+  def get_product(id) when is_binary(id) do
+    id |> String.to_integer() |> get_product()
+  end
+
+  def get_featured_products(current_product) do
+    list_products()
+      |> List.delete(current_product)
+      |> Enum.take(4)
+  end
+
+
 
 end

@@ -20,8 +20,13 @@ defmodule ArtsyNeighborWeb.Router do
     # get "/", PageController, :home
     live "/", HomeLive
     live "/products", ProductLive.Index
+    live "/products/:id", ProductLive.Show
+    live "/artists", ArtistLive.Index
+    live "/artist/:id", ArtistLive.Show
     get "/contactus", ContactusController, :contactus
   end
+
+
 
   # Other scopes may use custom stacks.
   # scope "/api", ArtsyNeighborWeb do

@@ -4,15 +4,22 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.ProductCategories
-  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, category_card: 1, banner: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, category_card: 1]
 
 
   def mount(_params, _session, socket) do
-    socket = assign(socket,
-      homekey: "homevalue",
-      products: Products.list_products(),
-      categories: ProductCategories.list_categories()
-    )
+    products = Products.list_products()
+    featured_products = Enum.take(products, 4)
+    favorite_products = Enum.take(products, -4)
+
+    socket =
+      socket
+      |> assign(
+        homekey: "homevalue",
+        categories: ProductCategories.list_categories()
+        )
+      |> stream(:featured_products, featured_products)
+      |> stream(:favorite_products, favorite_products)
 
     IO.inspect(socket, label: "HomeLive mount socket")
 
@@ -64,20 +71,24 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
     <%!-- Row 4: Featured Products --%>
     <section>
+    <.link navigate={~p"/products"}>
       <h2 class="text-3xl font-bold mb-6">Featured Products</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    </.link>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="featured-products" phx-update="stream">
 
-      <.product_card :for={product <- Enum.take(@products, 4)} product={product} />
+      <.product_card :for={{dom_id, product} <- @streams.featured_products} product={product} dom_id={dom_id}/>
 
       </div>
     </section>
 
     <%!-- Row 5: Our favorites (placeholder) --%>
     <section>
+    <.link navigate={~p"/products"}>
       <h2 class="text-3xl font-bold mb-6">Our favorites</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    </.link>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="favorite-products" phx-update="stream">
 
-      <.product_card :for={product <- Enum.take(@products, -4)} product={product} />
+      <.product_card :for={{dom_id, product} <- @streams.favorite_products} product={product} dom_id={dom_id}/>
 
       </div>
     </section>
