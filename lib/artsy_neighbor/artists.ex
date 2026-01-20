@@ -4,7 +4,6 @@ defmodule ArtsyNeighbor.Artists do
   """
 
   import Ecto.Query, warn: false
-  alias ExUnit.Filters
   alias ArtsyNeighbor.Repo
 
   alias ArtsyNeighbor.Artists.Artist
@@ -116,5 +115,47 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   def sort_by(query, _), do: query
+
+  @doc """
+  Gets a single artist by ID.
+
+  ## Examples
+
+      iex> get_artist(123)
+      %Artist{}
+
+      iex> get_artist(456)
+      nil
+
+  """
+  def get_artist(id) do
+    Repo.get(Artist, id)
+  end
+
+
+  @doc """
+  Creates a new artist with the given attributes.
+  """
+  def create_artist(attrs \\ %{}) do
+    %Artist{
+    nickname: attrs.nickname,
+    first_name: attrs.first_name,
+    last_name: attrs.last_name,
+    middle_name: attrs.middle_name,
+    email: attrs.email,
+    street_address: attrs.street_address,
+    apt_info: attrs.apt_info,
+    area_code: attrs.area_code,
+    phone: attrs.phone,
+    bio: attrs.bio,
+    medium: attrs.medium,
+    main_img: attrs.main_img,
+    img2: attrs.img2,
+    img3: attrs.img3,
+    img4: attrs.img4,
+    img5: attrs.img5
+  }
+    |> Repo.insert()
+  end
 
 end

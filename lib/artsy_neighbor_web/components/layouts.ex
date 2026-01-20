@@ -29,7 +29,7 @@ defmodule ArtsyNeighborWeb.Layouts do
   def artsy_main(assigns) do
     ~H"""
     <!-- Site-wide announcement banner -->
-    <ArtsyNeighborWeb.CustomComponents.site_wide_banner show={true} variant="info">
+    <ArtsyNeighborWeb.CustomComponents.site_wide_banner show={true} variant="test">
       Special Holiday Sale! Get 20% off all artwork until December 25th.
     </ArtsyNeighborWeb.CustomComponents.site_wide_banner>
 
@@ -38,7 +38,8 @@ defmodule ArtsyNeighborWeb.Layouts do
       <div class="navbar">
         <div class="flex-1">
           <a href="/" class="flex-1 flex w-fit items-center gap-2">
-            <img src={~p"/images/logo.svg"} width="36" />
+            <%!-- <img src={~p"/images/bird_logos2.png"} width="36" /> --%>
+            <img src={~p"/images/bird_logos2.png"} width="48" />
             <span class="text-sm font-semibold">Artsy Neighbor</span>
           </a>
         </div>

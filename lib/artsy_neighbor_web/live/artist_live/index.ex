@@ -2,11 +2,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
-  alias ArtsyNeighbor.Artists.Artist
 
   def mount(_params, _session, socket) do
-
-
     {:ok, socket}
   end
 
