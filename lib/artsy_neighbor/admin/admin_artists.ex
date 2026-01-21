@@ -30,4 +30,11 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
     |> Repo.insert()
   end
 
+  @doc """
+  A helper function to get a changeset for an artist.
+  """
+  def get_changeset_for_artist(%Artist{} = artist, attrs \\ %{}) do
+    Artist.changeset(artist, attrs)
+  end
+
 end

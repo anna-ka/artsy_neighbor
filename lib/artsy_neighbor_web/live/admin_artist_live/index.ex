@@ -16,7 +16,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
   def render(assigns) do
     ~H"""
-
+    <Layouts.artsy_main flash={@flash}>
     <div class="admin-index">
 
     <.header>
@@ -120,7 +120,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
     </div>
     </div>
-
+    </Layouts.artsy_main>
     """
   end
 

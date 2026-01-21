@@ -137,25 +137,19 @@ defmodule ArtsyNeighbor.Artists do
   Creates a new artist with the given attributes.
   """
   def create_artist(attrs \\ %{}) do
-    %Artist{
-    nickname: attrs.nickname,
-    first_name: attrs.first_name,
-    last_name: attrs.last_name,
-    middle_name: attrs.middle_name,
-    email: attrs.email,
-    street_address: attrs.street_address,
-    apt_info: attrs.apt_info,
-    area_code: attrs.area_code,
-    phone: attrs.phone,
-    bio: attrs.bio,
-    medium: attrs.medium,
-    main_img: attrs.main_img,
-    img2: attrs.img2,
-    img3: attrs.img3,
-    img4: attrs.img4,
-    img5: attrs.img5
-  }
+    %Artist{}
+    |> Artist.changeset(attrs)
     |> Repo.insert()
   end
+
+  @doc """
+  A helper function to get a changeset for an artist.
+  """
+  def get_changeset_for_artist(%Artist{} = artist, attrs \\ %{}) do
+    Artist.changeset(artist, attrs)
+  end
+
+
+
 
 end

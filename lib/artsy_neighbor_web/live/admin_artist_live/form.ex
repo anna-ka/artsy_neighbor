@@ -38,10 +38,21 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           |> assign(:form, to_form(changeset, as: "artist"))
         {:noreply, socket}
     end
-
   end
 
-  # Helper function to parse comma-separated medium string into array
+  def handle_event("validate", %{"artist" => artist_params}, socket) do
+    # Parse comma-separated medium string into array
+    artist_params = parse_medium_field(artist_params)
+    changeset = AdminArtists.get_changeset_for_artist(%Artist{}, artist_params)
+    socket =
+      socket
+      |> assign(:form, to_form(changeset, action: :validate) )
+
+    {:noreply, socket}
+  end
+
+
+  #Helper function to parse comma-separated medium string into array.
   defp parse_medium_field(params) do
     case params["medium"] do
       medium when is_binary(medium) ->
@@ -61,33 +72,37 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   def render(assigns) do
     ~H"""
+    <Layouts.artsy_main flash={@flash}>
       <div class="admin-index">
       <.header>
         <%= @page_title  %>
       </.header>
 
-      <.form for={@form} id="artist_form" phx-submit="save">
+      <.form for={@form} id="artist_form" phx-submit="save" phx-change="validate">
 
         <%!-- Nickname --%>
         <.input
           field={@form[:nickname]}
-          label="Nickname"
+          label={raw("Nickname <span class=\"text-error\">*</span>")}
           placeholder="Artist's display name"
           required
+          phx-debounce="blur"
         />
 
         <%!-- First Name --%>
         <.input
           field={@form[:first_name]}
-          label="First Name"
+          label={raw("First Name <span class=\"text-error\">*</span>")}
           required
+          phx-debounce="blur"
         />
 
         <%!-- Last Name --%>
         <.input
           field={@form[:last_name]}
-          label="Last Name"
+          label={raw("Last Name <span class=\"text-error\">*</span>")}
           required
+          phx-debounce="blur"
         />
 
         <%!-- Middle Name --%>
@@ -100,24 +115,27 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
         <.input
           field={@form[:email]}
           type="email"
-          label="Email"
+          label={raw("Email <span class=\"text-error\">*</span>")}
           required
+          phx-debounce="blur"
         />
 
         <%!-- Phone --%>
         <.input
           field={@form[:phone]}
           type="tel"
-          label="Phone"
+          label={raw("Phone <span class=\"text-error\">*</span>")}
           placeholder="e.g., 416-555-0101"
           required
+          phx-debounce="blur"
         />
 
         <%!-- Street Address --%>
         <.input
           field={@form[:street_address]}
-          label="Street Address"
+          label={raw("Street Address <span class=\"text-error\">*</span>")}
           required
+          phx-debounce="blur"
         />
 
 
@@ -126,38 +144,42 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           field={@form[:apt_info]}
           label="Apartment/Unit"
           placeholder="e.g., Suite 3B, Unit 405"
+          phx-debounce="blur"
         />
 
         <%!-- Area Code / Neighborhood --%>
         <.input
           field={@form[:area_code]}
-          label="Area Code / Neighborhood"
+          label={raw("Area Code / Neighborhood <span class=\"text-error\">*</span>")}
           placeholder="e.g., M5V 2T6"
           required
+          phx-debounce="blur"
         />
 
         <%!-- Bio --%>
         <.input
           field={@form[:bio]}
           type="textarea"
-          label="Bio"
+          label={raw("Bio <span class=\"text-error\">*</span>")}
           rows="4"
           required
+          phx-debounce="blur"
         />
 
         <%!-- Medium (array of strings) --%>
         <.input
           field={@form[:medium]}
-          label="Mediums (comma-separated)"
+          label={raw("Mediums (comma-separated) <span class=\"text-error\">*</span>")}
           placeholder="e.g., Oil painting, Acrylic painting, Mixed media"
           phx-debounce="blur"
           required
+          phx-debounce="blur"
         />
 
         <%!-- Main Image URL --%>
         <.input
           field={@form[:main_img]}
-          label="Main Image URL"
+          label={raw("Main Image URL <span class=\"text-error\">*</span>")}
           placeholder="/uploads/artists/1/profile.jpg"
           required
         />
@@ -195,6 +217,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           Back
         </.back>
       </div>
+      </Layouts.artsy_main>
     """
   end
 end
