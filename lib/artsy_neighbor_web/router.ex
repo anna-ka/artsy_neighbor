@@ -26,7 +26,8 @@ defmodule ArtsyNeighborWeb.Router do
     live "/artists/:id", ArtistLive.Show
 
     live "/admin/artists", AdminArtistLive.Index
-    live "/admin/artists/new", AdminArtistLive.Form
+    live "/admin/artists/new", AdminArtistLive.Form, :new
+    live "/admin/artists/:id/edit", AdminArtistLive.Form, :edit
 
     get "/contactus", ContactusController, :contactus
   end

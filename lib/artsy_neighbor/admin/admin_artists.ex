@@ -6,7 +6,6 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
 
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
-
   alias ArtsyNeighbor.Artists.Artist
 
   @doc """
@@ -35,6 +34,20 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   """
   def get_changeset_for_artist(%Artist{} = artist, attrs \\ %{}) do
     Artist.changeset(artist, attrs)
+  end
+
+  def get_artist(id) do
+    Repo.get!(Artist, id)
+  end
+
+  def update_artist(%Artist{} = artist, attrs \\ %{}) do
+    artist
+    |> get_changeset_for_artist(attrs)
+    |> Repo.update()
+  end
+
+  def delete_artist(%Artist{} = artist) do
+    Repo.delete(artist)
   end
 
 end

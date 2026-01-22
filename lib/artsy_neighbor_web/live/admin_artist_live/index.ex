@@ -3,7 +3,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
   use ArtsyNeighborWeb, :live_view
 
-  # alias ArtsyNeighbor.Admin.AdminArtists
+  alias ArtsyNeighbor.Admin.AdminArtists
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1]
 
   def mount(_params, _session, socket) do
@@ -14,9 +14,28 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:ok, socket}
   end
 
+  @doc """
+  Handles deletion of an artist.
+  """
+  def handle_event("delete", %{"id" => id}, socket) do
+    artist = AdminArtists.get_artist(id)
+    {:ok, _} = AdminArtists.delete_artist(artist)
+
+    message = "Artist profile for #{artist.nickname} is deleted successfully."
+
+    socket =
+      socket
+      |> stream_delete(:artists, artist)
+      |> put_flash(:info, message)
+
+    {:noreply, socket}
+  end
+
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_wide flash={@flash}>
+
+
     <div class="admin-index">
 
     <.header>
@@ -106,11 +125,21 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
         </:col>
 
         <%!-- Actions --%>
-        <:col :let={{_dom_id, _artist}} label="Actions" col_class="w-36">
+        <:col :let={{_dom_id, artist}} label="Actions" col_class="w-36">
           <div class="flex gap-2">
+          <.link navigate={~p"/artists/#{artist}"}>
             <button class="btn btn-ghost btn-xs">view</button>
+          </.link>
+
+          <.link navigate={~p"/admin/artists/#{artist}/edit"}>
             <button class="btn btn-ghost btn-xs">edit</button>
+          </.link>
+          <.link phx-click="delete"
+                phx-value-id={artist.id}
+                data-confirm={"Are you sure you want to delete artist #{artist.nickname}?"}>
             <button class="btn btn-ghost btn-xs text-error">delete</button>
+          </.link>
+
           </div>
         </:col>
 
@@ -120,7 +149,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
     </div>
     </div>
-    </Layouts.artsy_main>
+    </Layouts.artsy_wide>
     """
   end
 

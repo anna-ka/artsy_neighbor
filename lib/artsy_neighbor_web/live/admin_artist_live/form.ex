@@ -9,21 +9,69 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    {:ok, apply_action(socket, socket.assigns.live_action, params)}
+  end
 
-    changeset = Artist.changeset(%Artist{}, %{})
-    socket =
-      socket
-      |> assign(:page_title, "New Artist")
-      |> assign(:form, to_form(changeset, as: "artist"))
+  defp apply_action(socket, :edit, %{"id" => id}) do
+    artist = AdminArtists.get_artist(id)
 
-    {:ok, socket}
+    # Convert medium array to comma-separated string for display in form
+    artist_with_string_medium = Map.update!(artist, :medium, fn medium_list ->
+      if is_list(medium_list) do
+        Enum.join(medium_list, ", ")
+      else
+        medium_list
+      end
+
+    end)
+
+    changeset = AdminArtists.get_changeset_for_artist(artist_with_string_medium)
+
+    socket
+    |> assign(:page_title, "Edit Artist")
+    |> assign(:form, to_form(changeset))
+    |> assign(:artist, artist)
+  end
+
+  defp apply_action(socket, :new, _params) do
+    changeset = AdminArtists.get_changeset_for_artist(%Artist{}, %{})
+
+    socket
+    |> assign(:page_title, "New Artist")
+    |> assign(:form, to_form(changeset))
+    |> assign(:artist, %Artist{})
+
   end
 
   def handle_event("save", %{"artist" => artist_params}, socket) do
     # Parse comma-separated medium string into array
     artist_params = parse_medium_field(artist_params)
+    save_artist(socket, socket.assigns.live_action, artist_params)
+  end
 
+  # Handles saving edits to an existing artist.
+  # artist_params - parameters submitted from the form. This map
+  # must include field "medium" as an array of strings
+  # (as returned by parse_medium_field/1 ).
+  defp save_artist(socket, :edit, artist_params) do
+    case AdminArtists.update_artist(socket.assigns.artist, artist_params) do
+      {:ok, _artist} ->
+        socket =
+          socket
+          |> put_flash( :info, "Artist profile is updated successfully.")
+          |> push_navigate(to: ~p"/admin/artists")
+        {:noreply, socket}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        socket =
+          socket
+          |> assign(:form, to_form(changeset))
+        {:noreply, socket}
+    end
+  end
+
+  defp save_artist(socket, :new, artist_params) do
     case AdminArtists.create_artist(artist_params) do
       {:ok, _artist} ->
         socket =
@@ -35,7 +83,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
       {:error, %Ecto.Changeset{} = changeset} ->
         socket =
           socket
-          |> assign(:form, to_form(changeset, as: "artist"))
+          |> assign(:form, to_form(changeset))
         {:noreply, socket}
     end
   end
@@ -43,7 +91,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   def handle_event("validate", %{"artist" => artist_params}, socket) do
     # Parse comma-separated medium string into array
     artist_params = parse_medium_field(artist_params)
-    changeset = AdminArtists.get_changeset_for_artist(%Artist{}, artist_params)
+    changeset = AdminArtists.get_changeset_for_artist(socket.assigns.artist, artist_params)
     socket =
       socket
       |> assign(:form, to_form(changeset, action: :validate) )
@@ -73,7 +121,12 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   def render(assigns) do
     ~H"""
     <Layouts.artsy_main flash={@flash}>
-      <div class="admin-index">
+      <div class="w-full px-8 py-8">
+
+      <%!-- {inspect(@live_action)}
+
+      <pre>{inspect(@artist, pretty: true, width: 80, label: "Artist")}</pre> --%>
+
       <.header>
         <%= @page_title  %>
       </.header>
@@ -171,7 +224,6 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           field={@form[:medium]}
           label={raw("Mediums (comma-separated) <span class=\"text-error\">*</span>")}
           placeholder="e.g., Oil painting, Acrylic painting, Mixed media"
-          phx-debounce="blur"
           required
           phx-debounce="blur"
         />

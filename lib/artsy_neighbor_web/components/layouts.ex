@@ -15,18 +15,13 @@ defmodule ArtsyNeighborWeb.Layouts do
 
 
   @doc """
-
+  Base layout with navigation and footer.
+  This is used as a wrapper by artsy_main and artsy_wide layouts.
   """
-
   attr :flash, :map, required: true, doc: "the map of flash messages"
-
-  attr :current_scope, :map,
-    default: nil,
-    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-
   slot :inner_block, required: true
 
-  def artsy_main(assigns) do
+  def navlayout(assigns) do
     ~H"""
     <!-- Site-wide announcement banner -->
     <ArtsyNeighborWeb.CustomComponents.site_wide_banner show={true} variant="test">
@@ -130,17 +125,10 @@ defmodule ArtsyNeighborWeb.Layouts do
           </ul>
 
       </nav>
-
-
-
     </header>
 
-    <!-- Main area-->
-    <main class="flex justify-center">
-      <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
-        {render_slot(@inner_block)}
-      </div>
-    </main>
+    <!-- Main content area (customized by child layouts) -->
+    {render_slot(@inner_block)}
 
     <!-- Footer -->
     <footer class="bg-gray-900 text-white py-12">
@@ -198,6 +186,54 @@ defmodule ArtsyNeighborWeb.Layouts do
     </footer>
 
     <.flash_group flash={@flash} />
+    """
+  end
+
+  @doc """
+  Standard content layout with max-width constraint.
+  Uses navlayout for navigation and footer.
+  """
+  attr :flash, :map, required: true, doc: "the map of flash messages"
+
+  attr :current_scope, :map,
+    default: nil,
+    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+
+  slot :inner_block, required: true
+
+  def artsy_main(assigns) do
+    ~H"""
+    <.navlayout flash={@flash}>
+      <main class="flex justify-center">
+        <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    </.navlayout>
+    """
+  end
+
+  @doc """
+  Full-width content layout for admin tables and wide content.
+  Uses navlayout for navigation and footer.
+  """
+  attr :flash, :map, required: true, doc: "the map of flash messages"
+
+  attr :current_scope, :map,
+    default: nil,
+    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+
+  slot :inner_block, required: true
+
+  def artsy_wide(assigns) do
+    ~H"""
+    <.navlayout flash={@flash}>
+      <main class="w-full">
+        <div class="w-full py-20 bg-base-100">
+          {render_slot(@inner_block)}
+        </div>
+      </main>
+    </.navlayout>
     """
   end
 
