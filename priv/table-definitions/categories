@@ -1,0 +1,1 @@
+mix phx.gen.live Categories Categories.Category categories name:string:unique description:text main_img:string slug:string:unique

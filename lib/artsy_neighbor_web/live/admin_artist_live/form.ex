@@ -50,6 +50,30 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     save_artist(socket, socket.assigns.live_action, artist_params)
   end
 
+   def handle_event("validate", %{"artist" => artist_params}, socket) do
+    # Store the original medium string before parsing
+    original_medium_string = artist_params["medium"]
+
+    # Parse comma-separated medium string into array for validation
+    artist_params = parse_medium_field(artist_params)
+    changeset = AdminArtists.get_changeset_for_artist(socket.assigns.artist, artist_params)
+
+    # Convert medium back to string for form display
+    changeset =
+      if is_binary(original_medium_string) do
+        Ecto.Changeset.put_change(changeset, :medium, original_medium_string)
+      else
+        changeset
+      end
+
+    socket =
+      socket
+      |> assign(:form, to_form(changeset, action: :validate))
+
+    {:noreply, socket}
+  end
+
+
   # Handles saving edits to an existing artist.
   # artist_params - parameters submitted from the form. This map
   # must include field "medium" as an array of strings
@@ -88,16 +112,6 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     end
   end
 
-  def handle_event("validate", %{"artist" => artist_params}, socket) do
-    # Parse comma-separated medium string into array
-    artist_params = parse_medium_field(artist_params)
-    changeset = AdminArtists.get_changeset_for_artist(socket.assigns.artist, artist_params)
-    socket =
-      socket
-      |> assign(:form, to_form(changeset, action: :validate) )
-
-    {:noreply, socket}
-  end
 
 
   #Helper function to parse comma-separated medium string into array.

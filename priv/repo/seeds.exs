@@ -12,6 +12,7 @@
 
 alias ArtsyNeighbor.Repo
 alias ArtsyNeighbor.Artists.Artist
+alias ArtsyNeighbor.Categories.Category
 
 # Clear existing artists
 Repo.delete_all(Artist)
@@ -135,3 +136,60 @@ Enum.each(artists, fn artist_attrs ->
 end)
 
 IO.puts("Seeded #{length(artists)} artists successfully!")
+
+# Clear existing categories
+Repo.delete_all(Category)
+
+# Seed Categories
+categories = [
+  %{
+    name: "Paintings",
+    description: "Beautiful paintings by local artists",
+    main_img: "/images/cat-painting.jpg",
+    slug: "paintings"
+  },
+  %{
+    name: "Sculptures",
+    description: "Unique sculptures from talented artisans",
+    main_img: "/images/cat-sculpture.jpg",
+    slug: "sculptures"
+  },
+  %{
+    name: "Jewelry",
+    description: "Handcrafted jewelry pieces",
+    main_img: "/images/cat-jewelry.jpg",
+    slug: "jewelry"
+  },
+  %{
+    name: "Pottery",
+    description: "Artistic pottery creations",
+    main_img: "/images/pottery-cat.jpg",
+    slug: "pottery"
+  },
+  %{
+    name: "Fiber Art",
+    description: "Beautiful textile art and crafts",
+    main_img: "/images/cat-sewing.jpg",
+    slug: "fiber-art"
+  },
+  %{
+    name: "Clothing",
+    description: "Unique clothing designs by local designers",
+    main_img: "/images/cat-sewing.jpg",
+    slug: "clothing"
+  },
+  %{
+    name: "Other Art",
+    description: "Other unique art forms",
+    main_img: "/images/wall_art.jpg",
+    slug: "other-art"
+  }
+]
+
+Enum.each(categories, fn category_attrs ->
+  %Category{}
+  |> Category.changeset(category_attrs)
+  |> Repo.insert!()
+end)
+
+IO.puts("Seeded #{length(categories)} categories successfully!")

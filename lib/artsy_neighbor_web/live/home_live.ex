@@ -3,7 +3,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
-  alias ArtsyNeighbor.ProductCategories
+  alias ArtsyNeighbor.Categories
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, category_card: 1]
 
 
@@ -16,7 +16,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
       socket
       |> assign(
         homekey: "homevalue",
-        categories: ProductCategories.list_categories()
+        categories: Categories.list_categories()
         )
       |> stream(:featured_products, featured_products)
       |> stream(:favorite_products, favorite_products)

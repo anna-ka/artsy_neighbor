@@ -1,0 +1,4 @@
+mix phx.gen.live Products Products.Product products title:string price:decimal main_img:string img2:string img3:string img4:string img5:string
+
+
+mix phx.gen.live Products Products.Product products title:string price:decimal main_img:string img2:string img3:string img4:string img5:string

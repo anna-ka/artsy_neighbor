@@ -42,20 +42,25 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     Used on the home page.
     """
 
-  attr :category, :map, required: true, doc: "Category name of type ArtsyNeighbor.ProductCategory struct"
+  attr :category, :map, required: true, doc: "Category of type ArtsyNeighbor.Categories.Category struct"
 
   def category_card(assigns) do
+    # Provide a placeholder if main_img is nil or empty
+    image_url = case assigns.category.main_img do
+      nil -> "/images/placeholder-category.jpg"
+      "" -> "/images/placeholder-category.jpg"
+      url -> url
+    end
+    assigns = assign(assigns, :image_url, image_url)
+
     ~H"""
       <.link navigate={~p"/products"}>
       <div
-          style={"background-image: url(#{@category.image})"}
-          class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative">
-          <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold"><%= @category.title %></button>
+          style={"background-image: url(#{@image_url})"}
+          class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative bg-gray-200">
+          <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold"><%= @category.name %></button>
         </div>
-
       </.link>
-
-
     """
   end
 

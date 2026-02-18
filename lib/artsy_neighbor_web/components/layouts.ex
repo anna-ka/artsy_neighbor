@@ -33,8 +33,9 @@ defmodule ArtsyNeighborWeb.Layouts do
       <div class="navbar">
         <div class="flex-1">
           <a href="/" class="flex-1 flex w-fit items-center gap-2">
-            <%!-- <img src={~p"/images/bird_logos2.png"} width="36" /> --%>
-            <img src={~p"/images/bird_logos2.png"} width="48" />
+            <%!-- <img src={~p"/images/bird_logos2.png"} width="88" /> --%>
+            <%!-- <img src={~p"/images/coral-colors-logo.png"} width="128" /> --%>
+            <img src={~p"/images/fish-logo-removebg-preview.png"} width="128" />
             <span class="text-sm font-semibold">Artsy Neighbor</span>
           </a>
         </div>
