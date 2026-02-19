@@ -14,20 +14,29 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   attr :dom_id, :string, default: nil, doc: "Optional DOM id for the product card (required when using streams)"
 
   def product_card(assigns) do
+    image_path =
+      assigns.product.product_images
+      |> Enum.sort_by(fn img -> img.position end)
+      |> List.first()
+      |> case do
+        nil -> "/images/placeholder-product.jpg"
+        img -> img.path
+      end
+
       ~H"""
         <.link navigate={~p"/products/#{@product}"} id={@dom_id}>
           <div class="bg-artsy-bg rounded-lg shadow-md p-3 pb-2">
                   <div class="h-60 rounded mb-2 overflow-hidden bg-gray-100 flex items-center justify-center">
                     <img
-                      src={@product.image}
+                      src={image_path}
                       alt={@product.title}
                       class="w-full h-full object-cover"
                     />
                   </div>
 
                   <h3 class="font-normal text-gray-600 mb-1"><%= @product.title %></h3>
-                  <p class="text-gray-600 text-sm mb-1"><%= @product.artist_name %></p>
-                  <p class="text-sm text-gray-600">CA$<%= :erlang.float_to_binary(@product.price, decimals: 2) %></p>
+                  <p class="text-gray-600 text-sm mb-1"><%= @product.artist.nickname %></p>
+                  <p class="text-sm text-gray-600">CA$<%= Decimal.to_string(@product.price) %></p>
             </div>
 
         </.link>
@@ -51,12 +60,12 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       "" -> "/images/placeholder-category.jpg"
       url -> url
     end
-    assigns = assign(assigns, :image_url, image_url)
+
 
     ~H"""
       <.link navigate={~p"/products"}>
       <div
-          style={"background-image: url(#{@image_url})"}
+          style={"background-image: url(#{image_url})"}
           class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative bg-gray-200">
           <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold"><%= @category.name %></button>
         </div>

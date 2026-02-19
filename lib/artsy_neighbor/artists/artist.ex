@@ -20,6 +20,8 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :img4, :string
     field :img5, :string
 
+    has_many :products, ArtsyNeighbor.Products.Product
+
     timestamps(type: :utc_datetime)
   end
 

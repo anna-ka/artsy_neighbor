@@ -1,4 +1,8 @@
-mix phx.gen.live Products Products.Product products title:string price:decimal main_img:string img2:string img3:string img4:string img5:string
+#mix phx.gen.live Products Products.Product products title:string price:decimal main_img:string img2:string img3:string img4:string img5:string
 
 
-mix phx.gen.live Products Products.Product products title:string price:decimal main_img:string img2:string img3:string img4:string img5:string
+mix phx.gen.live Products Products.Product products title:string descr:text details:text price:decimal artist_id:references:artists category_id:references:categories
+
+mix phx.gen.live Products Products.ProductImage product_images path:string position:integer product_id:references:products 
+
+mix phx.gen.live Products Products.ProductOption product_options name:string descr:text values:array:string product_id:references:products

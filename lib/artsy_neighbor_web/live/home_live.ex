@@ -8,7 +8,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
 
   def mount(_params, _session, socket) do
-    products = Products.list_products()
+    products = Products.list_products_with_associations()
     featured_products = Enum.take(products, 4)
     favorite_products = Enum.take(products, -4)
 
@@ -16,7 +16,8 @@ defmodule ArtsyNeighborWeb.HomeLive do
       socket
       |> assign(
         homekey: "homevalue",
-        categories: Categories.list_categories()
+        categories: Categories.list_categories(),
+        show_more_categories: false
         )
       |> stream(:featured_products, featured_products)
       |> stream(:favorite_products, favorite_products)
@@ -50,22 +51,21 @@ defmodule ArtsyNeighborWeb.HomeLive do
       </div>
 
 
-      <%!-- Collapsible section for more categories --%>
-    <div class="collapse mt-8">
-    <input type="checkbox" id="more-categories" />
-    <label for="more-categories" class="collapse-title text-lg font-medium text-right cursor-pointer">
-      See more categories ➔
-    </label>
-    <div class="collapse-content">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-      <.category_card :for={category <- Enum.take(@categories, -3)} category={category} />
-
-
+      <%!-- More categories --%>
+      <div :if={@show_more_categories} class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+        <.category_card :for={category <- Enum.slice(@categories, 3, 6)} category={category} />
       </div>
-    </div>
-    </div>
 
+      <div class="flex justify-between items-center mt-6">
+        <button :if={length(@categories) > 3}
+          phx-click="toggle_more_categories"
+          class="text-lg font-medium cursor-pointer hover:underline">
+          <%= if @show_more_categories, do: "See less categories ↑", else: "See more categories ➔" %>
+        </button>
+        <.link navigate={~p"/categories"} class="text-lg font-medium hover:underline">
+          See all categories →
+        </.link>
+      </div>
 
     </section>
 
@@ -96,6 +96,10 @@ defmodule ArtsyNeighborWeb.HomeLive do
     </div>
     </Layouts.artsy_main>
     """
+  end
+
+  def handle_event("toggle_more_categories", _, socket) do
+    {:noreply, assign(socket, :show_more_categories, !socket.assigns.show_more_categories)}
   end
 
   def handle_event(_event, _, socket) do

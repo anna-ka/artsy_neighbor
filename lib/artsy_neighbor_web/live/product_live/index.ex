@@ -7,7 +7,7 @@
 
   #mount
   def mount(_params, _session, socket) do
-    socket = stream(socket, :products, Products.list_products())
+    socket = stream(socket, :products, Products.list_products_with_associations())
     {:ok, socket}
   end
 

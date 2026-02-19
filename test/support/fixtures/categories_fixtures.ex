@@ -1,32 +1,21 @@
 defmodule ArtsyNeighbor.CategoriesFixtures do
   @moduledoc """
-  This module defines test helpers for creating
-  entities via the `ArtsyNeighbor.Categories` context.
+  Test helpers for creating category entities.
   """
 
-  @doc """
-  Generate a unique category name.
-  """
-  def unique_category_name, do: "some name#{System.unique_integer([:positive])}"
+  def unique_category_name, do: "Category #{System.unique_integer([:positive])}"
+  def unique_category_slug, do: "category-#{System.unique_integer([:positive])}"
 
-  @doc """
-  Generate a unique category slug.
-  """
-  def unique_category_slug, do: "some slug#{System.unique_integer([:positive])}"
-
-  @doc """
-  Generate a category.
-  """
   def category_fixture(attrs \\ %{}) do
     {:ok, category} =
       attrs
       |> Enum.into(%{
-        description: "some description",
-        main_img: "some main_img",
         name: unique_category_name(),
+        description: "A valid category description for testing.",
+        main_img: "/images/test-category.jpg",
         slug: unique_category_slug()
       })
-      |> ArtsyNeighbor.Categories.create_category()
+      |> ArtsyNeighbor.Admin.AdminCategories.create_category()
 
     category
   end

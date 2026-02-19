@@ -2,14 +2,18 @@ defmodule ArtsyNeighbor.CategoriesTest do
   use ArtsyNeighbor.DataCase
 
   alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.Categories.Category
 
-  describe "categories" do
-    alias ArtsyNeighbor.Categories.Categories.Category
+  import ArtsyNeighbor.CategoriesFixtures
 
-    import ArtsyNeighbor.CategoriesFixtures
+  @valid_attrs %{
+    name: "Paintings",
+    description: "Beautiful paintings by local artists.",
+    main_img: "/images/paintings.jpg",
+    slug: "paintings"
+  }
 
-    @invalid_attrs %{name: nil, description: nil, main_img: nil, slug: nil}
-
+  describe "read operations" do
     test "list_categories/0 returns all categories" do
       category = category_fixture()
       assert Categories.list_categories() == [category]
@@ -20,46 +24,99 @@ defmodule ArtsyNeighbor.CategoriesTest do
       assert Categories.get_category!(category.id) == category
     end
 
-    test "create_category/1 with valid data creates a category" do
-      valid_attrs = %{name: "some name", description: "some description", main_img: "some main_img", slug: "some slug"}
+    test "get_category!/1 raises when category does not exist" do
+      assert_raise Ecto.NoResultsError, fn -> Categories.get_category!(0) end
+    end
+  end
 
-      assert {:ok, %Category{} = category} = Categories.create_category(valid_attrs)
-      assert category.name == "some name"
-      assert category.description == "some description"
-      assert category.main_img == "some main_img"
-      assert category.slug == "some slug"
+  describe "Category changeset - required fields" do
+    test "valid changeset with all fields" do
+      changeset = Category.changeset(%Category{}, @valid_attrs)
+      assert changeset.valid?
     end
 
-    test "create_category/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Categories.create_category(@invalid_attrs)
+    test "requires name" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :name, nil))
+      assert "can't be blank" in errors_on(changeset).name
     end
 
-    test "update_category/2 with valid data updates the category" do
-      category = category_fixture()
-      update_attrs = %{name: "some updated name", description: "some updated description", main_img: "some updated main_img", slug: "some updated slug"}
-
-      assert {:ok, %Category{} = category} = Categories.update_category(category, update_attrs)
-      assert category.name == "some updated name"
-      assert category.description == "some updated description"
-      assert category.main_img == "some updated main_img"
-      assert category.slug == "some updated slug"
+    test "requires description" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :description, nil))
+      assert "can't be blank" in errors_on(changeset).description
     end
 
-    test "update_category/2 with invalid data returns error changeset" do
-      category = category_fixture()
-      assert {:error, %Ecto.Changeset{}} = Categories.update_category(category, @invalid_attrs)
-      assert category == Categories.get_category!(category.id)
+    test "requires slug" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, nil))
+      assert "can't be blank" in errors_on(changeset).slug
     end
 
-    test "delete_category/1 deletes the category" do
-      category = category_fixture()
-      assert {:ok, %Category{}} = Categories.delete_category(category)
-      assert_raise Ecto.NoResultsError, fn -> Categories.get_category!(category.id) end
+    test "allows main_img to be nil" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :main_img, nil))
+      assert changeset.valid?
+    end
+  end
+
+  describe "Category changeset - slug format" do
+    test "accepts lowercase letters and numbers" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "fiber-art2"))
+      assert changeset.valid?
     end
 
-    test "change_category/1 returns a category changeset" do
-      category = category_fixture()
-      assert %Ecto.Changeset{} = Categories.change_category(category)
+    test "accepts hyphens between words" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "fiber-art"))
+      assert changeset.valid?
+    end
+
+    test "rejects slug with spaces" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "some slug"))
+      assert errors_on(changeset).slug != []
+    end
+
+    test "rejects slug with uppercase letters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "Paintings"))
+      assert errors_on(changeset).slug != []
+    end
+
+    test "rejects slug with leading hyphen" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "-paintings"))
+      assert errors_on(changeset).slug != []
+    end
+
+    test "rejects slug with trailing hyphen" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "paintings-"))
+      assert errors_on(changeset).slug != []
+    end
+
+    test "rejects slug with special characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, "paint!ngs"))
+      assert errors_on(changeset).slug != []
+    end
+  end
+
+  describe "Category changeset - length validations" do
+    test "rejects description shorter than 10 characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :description, "Short"))
+      assert errors_on(changeset).description != []
+    end
+
+    test "accepts description of exactly 10 characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :description, "1234567890"))
+      assert changeset.valid?
+    end
+
+    test "rejects name longer than 100 characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 101)))
+      assert errors_on(changeset).name != []
+    end
+
+    test "accepts name of exactly 100 characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 100)))
+      assert changeset.valid?
+    end
+
+    test "rejects slug longer than 50 characters" do
+      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, String.duplicate("a", 51)))
+      assert errors_on(changeset).slug != []
     end
   end
 end

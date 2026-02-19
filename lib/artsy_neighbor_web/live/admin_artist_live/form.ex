@@ -4,17 +4,16 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   alias ArtsyNeighbor.Admin.AdminArtists
   alias ArtsyNeighbor.Artists.Artist
-  # alias ArtsyNeighbor.Repo
-  # alias ArtsyNeighbor.Artists
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
+  @impl true
   def mount(params, _session, socket) do
     {:ok, apply_action(socket, socket.assigns.live_action, params)}
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    artist = AdminArtists.get_artist(id)
+    artist = AdminArtists.get_artist!(id)
 
     # Convert medium array to comma-separated string for display in form
     artist_with_string_medium = Map.update!(artist, :medium, fn medium_list ->
@@ -26,7 +25,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
     end)
 
-    changeset = AdminArtists.get_changeset_for_artist(artist_with_string_medium)
+    changeset = AdminArtists.change_artist(artist_with_string_medium)
 
     socket
     |> assign(:page_title, "Edit Artist")
@@ -35,7 +34,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp apply_action(socket, :new, _params) do
-    changeset = AdminArtists.get_changeset_for_artist(%Artist{}, %{})
+    changeset = AdminArtists.change_artist(%Artist{}, %{})
 
     socket
     |> assign(:page_title, "New Artist")
@@ -44,19 +43,21 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   end
 
+  @impl true
   def handle_event("save", %{"artist" => artist_params}, socket) do
     # Parse comma-separated medium string into array
     artist_params = parse_medium_field(artist_params)
     save_artist(socket, socket.assigns.live_action, artist_params)
   end
 
-   def handle_event("validate", %{"artist" => artist_params}, socket) do
+  @impl true
+  def handle_event("validate", %{"artist" => artist_params}, socket) do
     # Store the original medium string before parsing
     original_medium_string = artist_params["medium"]
 
     # Parse comma-separated medium string into array for validation
     artist_params = parse_medium_field(artist_params)
-    changeset = AdminArtists.get_changeset_for_artist(socket.assigns.artist, artist_params)
+    changeset = AdminArtists.change_artist(socket.assigns.artist, artist_params)
 
     # Convert medium back to string for form display
     changeset =
@@ -100,7 +101,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
       {:ok, _artist} ->
         socket =
           socket
-          |> put_flash( :info, "Artist profile is  created successfully.")
+          |> put_flash(:info, "Artist profile is created successfully.")
           |> push_navigate(to: ~p"/admin/artists")
         {:noreply, socket}
 
@@ -132,14 +133,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     end
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <Layouts.artsy_main flash={@flash}>
       <div class="w-full px-8 py-8">
-
-      <%!-- {inspect(@live_action)}
-
-      <pre>{inspect(@artist, pretty: true, width: 80, label: "Artist")}</pre> --%>
 
       <.header>
         <%= @page_title  %>

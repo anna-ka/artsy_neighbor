@@ -6,6 +6,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   alias ArtsyNeighbor.Admin.AdminArtists
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1]
 
+  @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
@@ -14,11 +15,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:ok, socket}
   end
 
-  @doc """
-  Handles deletion of an artist.
-  """
+  @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    artist = AdminArtists.get_artist(id)
+    artist = AdminArtists.get_artist!(id)
     {:ok, _} = AdminArtists.delete_artist(artist)
 
     message = "Artist profile for #{artist.nickname} is deleted successfully."
@@ -31,6 +30,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:noreply, socket}
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
     <Layouts.artsy_wide flash={@flash}>

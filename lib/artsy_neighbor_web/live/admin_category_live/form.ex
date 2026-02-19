@@ -1,13 +1,14 @@
 defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
   use ArtsyNeighborWeb, :live_view
 
-  alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.Admin.AdminCategories
   alias ArtsyNeighbor.Categories.Category
+
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.artsy_main flash={@flash}>
       <.header>
         {@page_title}
         <:subtitle>Use this form to manage category records in your database.</:subtitle>
@@ -17,13 +18,16 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
         <.input field={@form[:name]} type="text" label="Name" />
         <.input field={@form[:description]} type="textarea" label="Description" />
         <.input field={@form[:main_img]} type="text" label="Main img" />
+        <div :if={@form[:main_img].value not in [nil, ""]} class="mt-2 mb-4">
+          <img src={@form[:main_img].value} alt="Category image preview" class="h-40 object-cover rounded" />
+        </div>
         <.input field={@form[:slug]} type="text" label="Slug" />
         <footer>
           <.button phx-disable-with="Saving..." variant="primary">Save Category</.button>
           <.button navigate={return_path(@return_to, @category)}>Cancel</.button>
         </footer>
       </.form>
-    </Layouts.app>
+    </Layouts.artsy_main>
     """
   end
 
@@ -39,12 +43,12 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
   defp return_to(_), do: "index"
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    category = Categories.get_category!(id)
+    category = AdminCategories.get_category!(id)
 
     socket
     |> assign(:page_title, "Edit Category")
     |> assign(:category, category)
-    |> assign(:form, to_form(Categories.change_category(category)))
+    |> assign(:form, to_form(AdminCategories.change_category(category)))
   end
 
   defp apply_action(socket, :new, _params) do
@@ -53,21 +57,22 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
     socket
     |> assign(:page_title, "New Category")
     |> assign(:category, category)
-    |> assign(:form, to_form(Categories.change_category(category)))
+    |> assign(:form, to_form(AdminCategories.change_category(category)))
   end
 
   @impl true
   def handle_event("validate", %{"category" => category_params}, socket) do
-    changeset = Categories.change_category(socket.assigns.category, category_params)
+    changeset = AdminCategories.change_category(socket.assigns.category, category_params)
     {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
   end
 
+  @impl true
   def handle_event("save", %{"category" => category_params}, socket) do
     save_category(socket, socket.assigns.live_action, category_params)
   end
 
   defp save_category(socket, :edit, category_params) do
-    case Categories.update_category(socket.assigns.category, category_params) do
+    case AdminCategories.update_category(socket.assigns.category, category_params) do
       {:ok, category} ->
         {:noreply,
          socket
@@ -80,7 +85,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
   end
 
   defp save_category(socket, :new, category_params) do
-    case Categories.create_category(category_params) do
+    case AdminCategories.create_category(category_params) do
       {:ok, category} ->
         {:noreply,
          socket
@@ -92,6 +97,6 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
     end
   end
 
-  defp return_path("index", _category), do: ~p"/categories"
-  defp return_path("show", category), do: ~p"/categories/#{category}"
+  defp return_path("index", _category), do: ~p"/admin/categories"
+  defp return_path("show", category), do: ~p"/admin/categories/#{category}"
 end

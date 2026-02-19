@@ -1,0 +1,24 @@
+To run just the category tests:
+
+
+mix test test/artsy_neighbor/categories_test.exs test/artsy_neighbor/admin/admin_categories_test.exs
+To run all tests:
+
+
+mix test
+To run a single test file:
+
+
+mix test test/artsy_neighbor/categories_test.exs
+To run a specific test by line number (useful when one test fails and you want to rerun just that one):
+
+
+mix test test/artsy_neighbor/categories_test.exs:45
+To run with more verbose output (shows each test name):
+
+
+mix test --trace
+One heads-up: if you run mix test (all tests), the generated category_live_test.exs will likely fail since it tests routes/functionality that doesn't exist yet. You can skip it for now by running only the two new files, or by running just the context tests directory:
+
+
+mix test test/artsy_neighbor/

@@ -13,13 +13,23 @@
 alias ArtsyNeighbor.Repo
 alias ArtsyNeighbor.Artists.Artist
 alias ArtsyNeighbor.Categories.Category
+alias ArtsyNeighbor.Products.Product
+alias ArtsyNeighbor.Products.ProductImage
 
-# Clear existing artists
+# ============================================================
+# Cleanup (order matters: products cascade to images/options)
+# ============================================================
+
+Repo.delete_all(Product)
 Repo.delete_all(Artist)
+Repo.delete_all(Category)
 
-# Seed Artists
-artists = [
-  %{
+# ============================================================
+# Artists
+# ============================================================
+
+elena = %Artist{}
+  |> Artist.changeset(%{
     nickname: "Elena_Oils",
     first_name: "Elena",
     last_name: "Martinez",
@@ -36,8 +46,11 @@ artists = [
     img3: "/uploads/artists/1/studio-2.jpg",
     img4: nil,
     img5: nil
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+tom = %Artist{}
+  |> Artist.changeset(%{
     nickname: "TomSculpts",
     first_name: "Thomas",
     last_name: "Chen",
@@ -54,8 +67,11 @@ artists = [
     img3: nil,
     img4: nil,
     img5: nil
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+sarah = %Artist{}
+  |> Artist.changeset(%{
     nickname: "SarahInks",
     first_name: "Sarah",
     last_name: "Thompson",
@@ -72,8 +88,11 @@ artists = [
     img3: "/uploads/artists/3/workspace.jpg",
     img4: "/uploads/artists/3/gallery.jpg",
     img5: nil
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+raj = %Artist{}
+  |> Artist.changeset(%{
     nickname: "Raj_Ceramics",
     first_name: "Rajesh",
     last_name: "Patel",
@@ -90,8 +109,11 @@ artists = [
     img3: "/uploads/artists/4/studio.jpg",
     img4: nil,
     img5: nil
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+maria = %Artist{}
+  |> Artist.changeset(%{
     nickname: "MariaFiber",
     first_name: "Maria",
     last_name: "Rodriguez",
@@ -108,8 +130,11 @@ artists = [
     img3: "/uploads/artists/5/workspace.jpg",
     img4: "/uploads/artists/5/gallery-show.jpg",
     img5: "/uploads/artists/5/process.jpg"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+david = %Artist{}
+  |> Artist.changeset(%{
     nickname: "David_Photos",
     first_name: "David",
     last_name: "Kim",
@@ -126,70 +151,290 @@ artists = [
     img3: nil,
     img4: nil,
     img5: nil
-  }
-]
-
-Enum.each(artists, fn artist_attrs ->
-  %Artist{}
-  |> Artist.changeset(artist_attrs)
+  })
   |> Repo.insert!()
-end)
 
-IO.puts("Seeded #{length(artists)} artists successfully!")
+IO.puts("Seeded 6 artists successfully!")
 
-# Clear existing categories
-Repo.delete_all(Category)
+# ============================================================
+# Categories
+# ============================================================
 
-# Seed Categories
-categories = [
-  %{
+paintings = %Category{}
+  |> Category.changeset(%{
     name: "Paintings",
-    description: "Beautiful paintings by local artists",
+    description: "Beautiful paintings by local artists. Explore a diverse range of styles and mediums, from vibrant oil paintings to delicate watercolors.",
     main_img: "/images/cat-painting.jpg",
     slug: "paintings"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+sculptures = %Category{}
+  |> Category.changeset(%{
     name: "Sculptures",
     description: "Unique sculptures from talented artisans",
     main_img: "/images/cat-sculpture.jpg",
     slug: "sculptures"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+jewelry = %Category{}
+  |> Category.changeset(%{
     name: "Jewelry",
     description: "Handcrafted jewelry pieces",
     main_img: "/images/cat-jewelry.jpg",
     slug: "jewelry"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+pottery = %Category{}
+  |> Category.changeset(%{
     name: "Pottery",
     description: "Artistic pottery creations",
     main_img: "/images/pottery-cat.jpg",
     slug: "pottery"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+fiber_art = %Category{}
+  |> Category.changeset(%{
     name: "Fiber Art",
     description: "Beautiful textile art and crafts",
     main_img: "/images/cat-sewing.jpg",
     slug: "fiber-art"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+clothing = %Category{}
+  |> Category.changeset(%{
     name: "Clothing",
     description: "Unique clothing designs by local designers",
     main_img: "/images/cat-sewing.jpg",
     slug: "clothing"
-  },
-  %{
+  })
+  |> Repo.insert!()
+
+other_art = %Category{}
+  |> Category.changeset(%{
     name: "Other Art",
     description: "Other unique art forms",
     main_img: "/images/wall_art.jpg",
     slug: "other-art"
-  }
-]
-
-Enum.each(categories, fn category_attrs ->
-  %Category{}
-  |> Category.changeset(category_attrs)
+  })
   |> Repo.insert!()
-end)
 
-IO.puts("Seeded #{length(categories)} categories successfully!")
+IO.puts("Seeded 7 categories successfully!")
+
+# ============================================================
+# Products
+# ============================================================
+
+abstract_sunset = %Product{}
+  |> Product.changeset(%{
+    title: "Abstract Sunset",
+    descr: "Abstract",
+    details: "Details coming soon.",
+    price: 299.99,
+    artist_id: elena.id,
+    category_id: paintings.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/painting.jpg", position: 1, product_id: abstract_sunset.id}) |> Repo.insert!()
+
+mountain_serenity = %Product{}
+  |> Product.changeset(%{
+    title: "Mountain Serenity",
+    descr: "Landscape",
+    details: "Details coming soon.",
+    price: 349.99,
+    artist_id: elena.id,
+    category_id: paintings.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/ocean-painting.jpg", position: 1, product_id: mountain_serenity.id}) |> Repo.insert!()
+
+urban_dreams = %Product{}
+  |> Product.changeset(%{
+    title: "Urban Dreams",
+    descr: "Modern",
+    details: "Details coming soon.",
+    price: 275.00,
+    artist_id: elena.id,
+    category_id: paintings.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/urban-painting.jpg", position: 1, product_id: urban_dreams.id}) |> Repo.insert!()
+
+silver_necklace = %Product{}
+  |> Product.changeset(%{
+    title: "Handcrafted Silver Necklace",
+    descr: "Necklaces",
+    details: "Details coming soon.",
+    price: 125.50,
+    artist_id: sarah.id,
+    category_id: jewelry.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: silver_necklace.id}) |> Repo.insert!()
+
+turquoise_piece = %Product{}
+  |> Product.changeset(%{
+    title: "Turquoise Statement Piece",
+    descr: "Necklaces",
+    details: "Details coming soon.",
+    price: 189.99,
+    artist_id: sarah.id,
+    category_id: jewelry.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: turquoise_piece.id}) |> Repo.insert!()
+
+beaded_necklace = %Product{}
+  |> Product.changeset(%{
+    title: "Artisan Beaded Necklace",
+    descr: "Necklaces",
+    details: "Details coming soon.",
+    price: 95.00,
+    artist_id: sarah.id,
+    category_id: jewelry.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: beaded_necklace.id}) |> Repo.insert!()
+
+ceramic_mug = %Product{}
+  |> Product.changeset(%{
+    title: "Handmade Ceramic Mug",
+    descr: "Drinkware",
+    details: "Details coming soon.",
+    price: 35.00,
+    artist_id: raj.id,
+    category_id: pottery.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: ceramic_mug.id}) |> Repo.insert!()
+
+rustic_mug = %Product{}
+  |> Product.changeset(%{
+    title: "Rustic Coffee Mug",
+    descr: "Drinkware",
+    details: "Details coming soon.",
+    price: 42.50,
+    artist_id: raj.id,
+    category_id: pottery.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: rustic_mug.id}) |> Repo.insert!()
+
+ceramic_cat = %Product{}
+  |> Product.changeset(%{
+    title: "Ceramic Cat Sculpture",
+    descr: "Figurines",
+    details: "Details coming soon.",
+    price: 125.00,
+    artist_id: raj.id,
+    category_id: sculptures.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/pottery-cat.jpg", position: 1, product_id: ceramic_cat.id}) |> Repo.insert!()
+
+wool_sweater = %Product{}
+  |> Product.changeset(%{
+    title: "Hand-Knit Wool Sweater",
+    descr: "Sweaters",
+    details: "Details coming soon.",
+    price: 145.00,
+    artist_id: maria.id,
+    category_id: clothing.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: wool_sweater.id}) |> Repo.insert!()
+
+cable_knit = %Product{}
+  |> Product.changeset(%{
+    title: "Cozy Cable Knit",
+    descr: "Sweaters",
+    details: "Details coming soon.",
+    price: 165.00,
+    artist_id: maria.id,
+    category_id: clothing.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: cable_knit.id}) |> Repo.insert!()
+
+artisan_cardigan = %Product{}
+  |> Product.changeset(%{
+    title: "Artisan Cardigan",
+    descr: "Wearables",
+    details: "Details coming soon.",
+    price: 178.50,
+    artist_id: maria.id,
+    category_id: fiber_art.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: artisan_cardigan.id}) |> Repo.insert!()
+
+sunset_reflection = %Product{}
+  |> Product.changeset(%{
+    title: "Sunset Reflection",
+    descr: "Impressionist",
+    details: "Details coming soon.",
+    price: 425.00,
+    artist_id: elena.id,
+    category_id: paintings.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/painting.jpg", position: 1, product_id: sunset_reflection.id}) |> Repo.insert!()
+
+silver_moon = %Product{}
+  |> Product.changeset(%{
+    title: "Silver Moon Necklace",
+    descr: "Necklaces",
+    details: "Details coming soon.",
+    price: 215.00,
+    artist_id: sarah.id,
+    category_id: jewelry.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: silver_moon.id}) |> Repo.insert!()
+
+mug_set = %Product{}
+  |> Product.changeset(%{
+    title: "Morning Brew Mug Set",
+    descr: "Drinkware",
+    details: "Details coming soon.",
+    price: 85.00,
+    artist_id: raj.id,
+    category_id: pottery.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: mug_set.id}) |> Repo.insert!()
+
+handwoven_pullover = %Product{}
+  |> Product.changeset(%{
+    title: "Handwoven Pullover",
+    descr: "Sweaters",
+    details: "Details coming soon.",
+    price: 195.00,
+    artist_id: maria.id,
+    category_id: clothing.id
+  })
+  |> Repo.insert!()
+
+%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: handwoven_pullover.id}) |> Repo.insert!()
+
+IO.puts("Seeded 16 products with images successfully!")

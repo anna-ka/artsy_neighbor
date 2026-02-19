@@ -4,7 +4,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   Admin context module for managing artists.
   """
 
-  import Ecto.Query, warn: false
+  import Ecto.Query
   alias ArtsyNeighbor.Repo
   alias ArtsyNeighbor.Artists.Artist
 
@@ -32,17 +32,17 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   @doc """
   A helper function to get a changeset for an artist.
   """
-  def get_changeset_for_artist(%Artist{} = artist, attrs \\ %{}) do
+  def change_artist(%Artist{} = artist, attrs \\ %{}) do
     Artist.changeset(artist, attrs)
   end
 
-  def get_artist(id) do
+  def get_artist!(id) do
     Repo.get!(Artist, id)
   end
 
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
     artist
-    |> get_changeset_for_artist(attrs)
+    |> change_artist(attrs)
     |> Repo.update()
   end
 

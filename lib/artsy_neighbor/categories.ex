@@ -37,18 +37,7 @@ defmodule ArtsyNeighbor.Categories do
   """
   def get_category!(id), do: Repo.get!(Category, id)
 
-  @doc """
-  Creates a category.
 
-  ## Examples
-
-      iex> create_category(%{field: value})
-      {:ok, %Category{}}
-
-      iex> create_category(%{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
 
 
 end

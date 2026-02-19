@@ -10,21 +10,23 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   end
 
   def handle_params(%{"id" => id}, _uri, socket) do
-    product = Products.get_product(id)
+    product = Products.get_product_with_associations!(id)
+    images = Products.list_images_for_product(product.id)
 
     # Get other products by this artist
-    products_by_artist = Products.list_products()
-      |> Enum.filter(fn p -> p.artist_name == product.artist_name && p.id != product.id end)
+    products_by_artist = Products.get_products_by_artist(product.artist_id)
+      |> Enum.reject(fn p -> p.id == product.id end)
       |> Enum.take(4)
 
     # Get similar products (same category, different artist)
-    similar_products = Products.list_products()
-      |> Enum.filter(fn p -> p.category == product.category && p.id != product.id && p.artist_name != product.artist_name end)
+    similar_products = Products.get_products_by_category(product.category_id)
+      |> Enum.reject(fn p -> p.id == product.id || p.artist_id == product.artist_id end)
       |> Enum.take(4)
 
     socket =
       socket
         |> assign(:product, product)
+        |> assign(:images, images)
         |> assign(:page_title, product.title)
         |> assign(:products_by_artist, products_by_artist)
         |> assign(:similar_products, similar_products)
@@ -47,7 +49,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             <%!-- Main Image --%>
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
-                src={@product.image}
+                src={List.first(@images, %{path: "/images/placeholder-product.jpg"}).path}
                 alt={@product.title}
                 class="w-full h-full object-contain"
               />
@@ -69,10 +71,10 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
             <%!-- Thumbnail Gallery --%>
             <div class="grid grid-cols-4 gap-2">
-              <%= for _i <- 1..4 do %>
+              <%= for image <- @images do %>
                 <div class="aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 border-transparent hover:border-primary flex items-center justify-center">
                   <img
-                    src={@product.image}
+                    src={image.path}
                     alt={"#{@product.title} - thumbnail"}
                     class="w-full h-full object-contain"
                   />
@@ -87,14 +89,14 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           <%!--  Title and Artist --%>
           <div class="mb-5">
             <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @product.title %></h1>
-            <p class="text-xl text-base-content/70">by <%= @product.artist_name %></p>
+            <p class="text-xl text-base-content/70">by <%= @product.artist.nickname %></p>
           </div>
 
           <div > <%!-- Price --%>
             <div class="rounded-lg  mb-5 bg-base-100">
               <%!-- <h2 class="text-sm font-semibold text-base-content/60 mb-2">Price</h2> --%>
               <p class="text-3xl font-bold text-base-content">
-                CA$<%= :erlang.float_to_binary(@product.price, decimals: 2) %>
+                CA$<%= Decimal.to_string(@product.price) %>
               </p>
             </div>
 
@@ -136,7 +138,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             <div class="rounded-lg bg-base-100 mt-6">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
               <p class="text-base-content/80 leading-relaxed">
-                This beautiful <%= String.downcase(@product.category) %> piece showcases exceptional craftsmanship
+                This beautiful <%= String.downcase(@product.category.name) %> piece showcases exceptional craftsmanship
                 and artistic vision. Each detail has been carefully considered to create a unique work of art
                 that will enhance any space.
               </p>
@@ -167,7 +169,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
         <%!-- More by This Artist Section --%>
         <div :if={length(@products_by_artist) > 0} class="mb-12">
-          <h2 class="text-2xl font-bold mb-6 text-base-content">More by <%= @product.artist_name %></h2>
+          <h2 class="text-2xl font-bold mb-6 text-base-content">More by <%= @product.artist.nickname %></h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <.product_card :for={product <- @products_by_artist} product={product} />
           </div>
