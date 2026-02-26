@@ -66,7 +66,7 @@ defmodule ArtsyNeighborWeb.Layouts do
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Purchase art</a>
+              <a href={~p"/products"} class="btn btn-ghost">Purchase art</a>
             </li>
 
             <li>
@@ -93,7 +93,7 @@ defmodule ArtsyNeighborWeb.Layouts do
         <ul class="flex flex-row px-1 space-x-4 items-center">
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Explore</a>
+              <a href={~p"/categories"} class="btn btn-ghost">Explore</a>
             </li>
 
             <li>

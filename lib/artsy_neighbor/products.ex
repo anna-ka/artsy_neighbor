@@ -33,6 +33,59 @@ defmodule ArtsyNeighbor.Products do
   end
 
 
+  @doc """
+  Filters products based on the provided filter criteria.
+  All products are loaded with associations.
+  """
+  def filter_products(filter) do
+    Product
+    |> join(:inner, [p], a in assoc(p, :artist), as: :artist)
+    |> join(:inner, [p], c in assoc(p, :category), as: :category)
+    |> with_category(filter["category_id"])
+    |> with_artist(filter["artist"])
+    |> with_string(filter["search"])
+    |> sort_by(filter["sort_by"])
+    |> preload([:product_images, :artist, :category])
+    |> Repo.all()
+  end
+
+  # Returns the list of products that have particular category.
+  defp with_category(query, nil), do: query
+  defp with_category(query, ""), do: query
+  defp with_category(query, category_id) do
+    id = String.to_integer(category_id)
+    where(query, [p], p.category_id == ^id)
+  end
+
+  # Returns the list of products that have a particular artist's nickname.
+  defp with_artist(query, nil), do: query
+  defp with_artist(query, ""), do: query
+  defp with_artist(query, artist_name) do
+    search = "%#{artist_name}%"
+    where(query, [artist: a], ilike(a.nickname, ^search))
+  end
+
+  # Returns the list of products that have a particular string
+  # in their title, or in their category name or description.
+  defp with_string(query, nil), do: query
+  defp with_string(query, ""), do: query
+  defp with_string(query, string) do
+    search = "%#{string}%"
+    query
+    |> where([p], ilike(p.title, ^search))
+    |> or_where([category: c], ilike(c.name, ^search))
+    |> or_where([category: c], ilike(c.description, ^search))
+  end
+
+  # Sorts the products. Supported: "price_asc", "price_desc", "artist", "category".
+  # Defaults to title order.
+  defp sort_by(query, "price_asc"), do: order_by(query, [p], asc: p.price)
+  defp sort_by(query, "price_desc"), do: order_by(query, [p], desc: p.price)
+  defp sort_by(query, "artist"), do: order_by(query, [artist: a], asc: a.nickname)
+  defp sort_by(query, "category"), do: order_by(query, [category: c], asc: c.name)
+  defp sort_by(query, _), do: order_by(query, [p], asc: p.title)
+
+
 
   @doc """
   Gets a single product.
@@ -87,14 +140,14 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.all()
   end
 
-  @doc"""
-  Gets products by a specific category.
+  @doc """
+  Returns products that have a specific category.
   ## Examples
 
       iex> get_products_by_category(category_id)
       [%Product{category_id: category_id, ...}, ...]
 
-   """
+  """
   def get_products_by_category(category_id) do
     Product
     |> where([p], p.category_id == ^category_id)
@@ -168,19 +221,15 @@ defmodule ArtsyNeighbor.Products do
     Product.changeset(product, attrs)
   end
 
+
+
+
   @doc """
-  Returns the list of product_images.
-
-  ## Examples
-
-      iex> list_product_images()
-      [%ProductImage{}, ...]
-
+  Returns all product images.
   """
   def list_product_images do
     Repo.all(ProductImage)
   end
-
 
   @doc """
   Returns the list of product images for a specific product, ordered by position.

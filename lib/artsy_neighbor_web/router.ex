@@ -47,6 +47,11 @@ defmodule ArtsyNeighborWeb.Router do
     live "/admin/artists/new", AdminArtistLive.Form, :new
     live "/admin/artists/:id/edit", AdminArtistLive.Form, :edit
 
+    live "/admin/products", AdminProductLive.Index, :index
+    live "/admin/products/new", AdminProductLive.Form, :new
+    live "/admin/products/:id", AdminProductLive.Show, :show
+    live "/admin/products/:id/edit", AdminProductLive.Form, :edit
+
     live "/admin/categories", AdminCategoryLive.Index, :index
     live "/admin/categories/new", AdminCategoryLive.Form, :new
     live "/admin/categories/:id", AdminCategoryLive.Show, :show

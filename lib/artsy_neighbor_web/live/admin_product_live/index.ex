@@ -1,4 +1,4 @@
-defmodule ArtsyNeighborWeb.ProductLive.AdminIndex do
+defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
@@ -10,7 +10,7 @@ defmodule ArtsyNeighborWeb.ProductLive.AdminIndex do
       <.header>
         Listing Products
         <:actions>
-          <.button variant="primary" navigate={~p"/products/new"}>
+          <.button variant="primary" navigate={~p"/admin/products/new"}>
             <.icon name="hero-plus" /> New Product
           </.button>
         </:actions>
@@ -19,7 +19,7 @@ defmodule ArtsyNeighborWeb.ProductLive.AdminIndex do
       <.table
         id="products"
         rows={@streams.products}
-        row_click={fn {_id, product} -> JS.navigate(~p"/products/#{product}") end}
+        row_click={fn {_id, product} -> JS.navigate(~p"/admin/products/#{product}") end}
       >
         <:col :let={{_id, product}} label="Title">{product.title}</:col>
         <:col :let={{_id, product}} label="Descr">{product.descr}</:col>
@@ -27,9 +27,9 @@ defmodule ArtsyNeighborWeb.ProductLive.AdminIndex do
         <:col :let={{_id, product}} label="Price">{product.price}</:col>
         <:action :let={{_id, product}}>
           <div class="sr-only">
-            <.link navigate={~p"/products/#{product}"}>Show</.link>
+            <.link navigate={~p"/admin/products/#{product}"}>Show</.link>
           </div>
-          <.link navigate={~p"/products/#{product}/edit"}>Edit</.link>
+          <.link navigate={~p"/admin/products/#{product}/edit"}>Edit</.link>
         </:action>
         <:action :let={{id, product}}>
           <.link

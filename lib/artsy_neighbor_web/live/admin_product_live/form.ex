@@ -1,4 +1,4 @@
-defmodule ArtsyNeighborWeb.ProductLive.AdminForm do
+defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
@@ -92,6 +92,6 @@ defmodule ArtsyNeighborWeb.ProductLive.AdminForm do
     end
   end
 
-  defp return_path("index", _product), do: ~p"/products"
-  defp return_path("show", product), do: ~p"/products/#{product}"
+  defp return_path("index", _product), do: ~p"/admin/products"
+  defp return_path("show", product), do: ~p"/admin/products/#{product}"
 end

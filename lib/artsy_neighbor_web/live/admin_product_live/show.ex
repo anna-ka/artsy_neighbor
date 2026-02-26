@@ -1,4 +1,4 @@
-defmodule ArtsyNeighborWeb.ProductLive.AdminShow do
+defmodule ArtsyNeighborWeb.AdminProductLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
@@ -11,10 +11,10 @@ defmodule ArtsyNeighborWeb.ProductLive.AdminShow do
         Product {@product.id}
         <:subtitle>This is a product record from your database.</:subtitle>
         <:actions>
-          <.button navigate={~p"/products"}>
+          <.button navigate={~p"/admin/products"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/products/#{@product}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/admin/products/#{@product}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> Edit product
           </.button>
         </:actions>

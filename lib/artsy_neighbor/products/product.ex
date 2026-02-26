@@ -20,6 +20,13 @@ defmodule ArtsyNeighbor.Products.Product do
   def changeset(product, attrs) do
     product
     |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id])
-    |> validate_required([:title, :descr, :details, :price])
+    |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
+    |> validate_length(:title, min: 3, max: 100,
+        min_message: "Title must be at least 3 characters long.",
+        max_message: "Title must be at most 100 characters long.")
+    |> validate_length(:descr, min: 10, max: 2000,
+        min_message: "Description must be at least 10 characters long.",
+        max_message: "Description must be at most 2000 characters long.")
+    |> validate_number(:price, greater_than: 0, message: "Price must be greater than zero.")
   end
 end
