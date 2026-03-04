@@ -10,28 +10,53 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   end
 
   def handle_params(%{"id" => id}, _uri, socket) do
-    product = Products.get_product_with_associations!(id)
-    images = Products.list_images_for_product(product.id)
+    case Products.get_product_with_associations(id) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Product not found.")
+         |> push_navigate(to: ~p"/products")}
 
-    # Get other products by this artist
-    products_by_artist = Products.get_products_by_artist(product.artist_id)
-      |> Enum.reject(fn p -> p.id == product.id end)
-      |> Enum.take(4)
+      product ->
+        images = Products.list_images_for_product(product.id)
 
-    # Get similar products (same category, different artist)
-    similar_products = Products.get_products_by_category(product.category_id)
-      |> Enum.reject(fn p -> p.id == product.id || p.artist_id == product.artist_id end)
-      |> Enum.take(4)
+        products_by_artist =
+          Products.get_products_by_artist(product.artist_id)
+          |> Enum.reject(fn p -> p.id == product.id end)
+          |> Enum.take(4)
 
-    socket =
-      socket
-        |> assign(:product, product)
-        |> assign(:images, images)
-        |> assign(:page_title, product.title)
-        |> assign(:products_by_artist, products_by_artist)
-        |> assign(:similar_products, similar_products)
+        similar_products =
+          Products.get_products_by_category(product.category_id)
+          |> Enum.reject(fn p -> p.id == product.id || p.artist_id == product.artist_id end)
+          |> Enum.take(4)
 
-    {:noreply, socket}
+        socket =
+          socket
+          |> assign(:product, product)
+          |> assign(:images, images)
+          |> assign(:current_image_index, 0)
+          |> assign(:page_title, product.title)
+          |> assign(:products_by_artist, products_by_artist)
+          |> assign(:similar_products, similar_products)
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("prev_image", _, socket) do
+    count = length(socket.assigns.images)
+    new_index = rem(socket.assigns.current_image_index - 1 + count, count)
+    {:noreply, assign(socket, :current_image_index, new_index)}
+  end
+
+  def handle_event("next_image", _, socket) do
+    count = length(socket.assigns.images)
+    new_index = rem(socket.assigns.current_image_index + 1, count)
+    {:noreply, assign(socket, :current_image_index, new_index)}
+  end
+
+  def handle_event("select_image", %{"index" => index}, socket) do
+    {:noreply, assign(socket, :current_image_index, String.to_integer(index))}
   end
 
   def render(assigns) do
@@ -49,20 +74,26 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             <%!-- Main Image --%>
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
-                src={List.first(@images, %{path: "/images/placeholder-product.jpg"}).path}
+                src={Enum.at(@images, @current_image_index, %{path: "/images/placeholder-product.jpg"}).path}
                 alt={@product.title}
                 class="w-full h-full object-contain"
               />
 
               <%!-- Left Arrow --%>
-              <button class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                :if={length(@images) > 1}
+                phx-click="prev_image"
+                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
 
               <%!-- Right Arrow --%>
-              <button class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                :if={length(@images) > 1}
+                phx-click="next_image"
+                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
@@ -71,11 +102,16 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
             <%!-- Thumbnail Gallery --%>
             <div class="grid grid-cols-4 gap-2">
-              <%= for image <- @images do %>
-                <div class="aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 border-transparent hover:border-primary flex items-center justify-center">
+              <%= for {image, idx} <- Enum.with_index(@images) do %>
+                <div
+                  phx-click="select_image"
+                  phx-value-index={idx}
+                  class={["aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
+                    if(idx == @current_image_index, do: "border-primary", else: "border-transparent hover:border-primary")
+                  ]}>
                   <img
                     src={image.path}
-                    alt={"#{@product.title} - thumbnail"}
+                    alt={"#{@product.title} - thumbnail #{idx + 1}"}
                     class="w-full h-full object-contain"
                   />
                 </div>
@@ -123,24 +159,40 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
               <p class="text-lg text-base-content"><%= @product.category %> · <%= @product.subcategory %></p>
             </div> --%>
 
-            <%!-- Materials (placeholder) --%>
-            <div class="rounded-lg bg-base-100 space-y-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials: oil on canvas.</h2>
-            </div>
 
-            <%!-- Dimensions (placeholder) --%>
-            <div class="rounded-lg bg-base-100">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions: 8 1/10 × 29 1/2 in | 46 × 75 cm.</h2>
-            </div>
 
 
             <%!-- Product Description (placeholder) --%>
             <div class="rounded-lg bg-base-100 mt-6">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
               <p class="text-base-content/80 leading-relaxed">
-                This beautiful <%= String.downcase(@product.category.name) %> piece showcases exceptional craftsmanship
-                and artistic vision. Each detail has been carefully considered to create a unique work of art
-                that will enhance any space.
+                <%= @product.descr %>
+              </p>
+            </div>
+
+            <%!-- Dimensions --%>
+            <div :if={@product.width || @product.length || @product.height} class="rounded-lg bg-base-100 mt-6">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions</h2>
+              <p class="text-base-content/80">
+                <%= [
+                  @product.width  && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
+                  @product.length && "L: #{Decimal.to_string(@product.length)} #{@product.units}",
+                  @product.height && "H: #{Decimal.to_string(@product.height)} #{@product.units}"
+                ] |> Enum.filter(& &1) |> Enum.join("; ") %>
+              </p>
+            </div>
+
+            <%!-- Materials --%>
+            <div :if={@product.materials} class="rounded-lg bg-base-100 mt-6">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials</h2>
+              <p class="text-base-content/80"><%= @product.materials %></p>
+            </div>
+
+            <%!-- Details (placeholder) --%>
+            <div class="rounded-lg bg-base-100 space-y-6">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
+              <p class="text-base-content/80 leading-relaxed">
+                <%= @product.details %>
               </p>
             </div>
 

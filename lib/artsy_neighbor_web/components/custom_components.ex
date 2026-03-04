@@ -62,7 +62,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     end)
 
     ~H"""
-      <.link navigate={~p"/products"}>
+      <.link navigate={~p"/products?#{[category_id: @category.id]}"}>
       <div
           style={"background-image: url(#{@image_url})"}
           class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative bg-gray-200">

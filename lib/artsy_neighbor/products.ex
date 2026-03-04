@@ -123,6 +123,14 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.preload([:product_images, :product_options, :artist, :category])
   end
 
+  # Returns nil if product does not exist.
+  def get_product_with_associations(id) do
+    case Repo.get(Product, id) do
+      nil -> nil
+      product -> Repo.preload(product, [:product_images, :product_options, :artist, :category])
+    end
+  end
+
 
   @doc"""
   Gets products by a specific artist.

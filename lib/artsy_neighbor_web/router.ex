@@ -17,10 +17,7 @@ defmodule ArtsyNeighborWeb.Router do
   scope "/", ArtsyNeighborWeb do
     pipe_through :browser
 
-    # get "/", PageController, :home
-    live "/", HomeLive
-    live "/products", ProductLive.Index
-    live "/products/:id", ProductLive.Show
+
 
     #generated
     # live "/products", ProductLive.Index, :index
@@ -29,16 +26,21 @@ defmodule ArtsyNeighborWeb.Router do
     # live "/products/:id/edit", ProductLive.Form, :edit
 
     #generated
-    live "/product_images", ProductImageLive.Index, :index
-    live "/product_images/new", ProductImageLive.Form, :new
-    live "/product_images/:id", ProductImageLive.Show, :show
-    live "/product_images/:id/edit", ProductImageLive.Form, :edit
+    # live "/product_images", ProductImageLive.Index, :index
+    # live "/product_images/new", ProductImageLive.Form, :new
+    # live "/product_images/:id", ProductImageLive.Show, :show
+    # live "/product_images/:id/edit", ProductImageLive.Form, :edit
 
     #generated
-    live "/product_options", ProductOptionLive.Index, :index
-    live "/product_options/new", ProductOptionLive.Form, :new
-    live "/product_options/:id", ProductOptionLive.Show, :show
-    live "/product_options/:id/edit", ProductOptionLive.Form, :edit
+    # live "/product_options", ProductOptionLive.Index, :index
+    # live "/product_options/new", ProductOptionLive.Form, :new
+    # live "/product_options/:id", ProductOptionLive.Show, :show
+    # live "/product_options/:id/edit", ProductOptionLive.Form, :edit
+
+    # get "/", PageController, :home
+    live "/", HomeLive
+    live "/products", ProductLive.Index
+    live "/products/:id", ProductLive.Show
 
     live "/artists", ArtistLive.Index
     live "/artists/:id", ArtistLive.Show

@@ -17,9 +17,10 @@
 
     socket =
       socket
-      |> stream(:products, Products.filter_products(params))
+      |> stream(:products, Products.filter_products(params), reset: true)
       |> assign(categories: categories)
-      |> assign( form: to_form(params) )
+      |> assign(form: to_form(params))
+      |> assign(from_category: Map.has_key?(params, "category_id"))
 
     {:noreply, socket}
   end
@@ -29,6 +30,9 @@
     <Layouts.artsy_main flash={@flash}>
 
      <section>
+      <.link :if={@from_category} navigate={~p"/categories"} class="btn btn-ghost btn-sm mb-4">
+        <.icon name="hero-arrow-left" class="size-4" /> Back to Categories
+      </.link>
       <h1 class="text-4xl font-bold mt-6 text-black">List of products</h1>
     </section>
 
@@ -99,7 +103,7 @@
 
           <%!-- Reset --%>
           <div>
-            <.link navigate={~p"/products"} class="btn btn-ghost">Clear</.link>
+            <.link patch={~p"/products"} class="btn btn-ghost">Clear</.link>
           </div>
 
         </div>
@@ -123,7 +127,7 @@
       |> Map.take(["search", "category_id", "artist", "sort_by"])
       |> Map.reject(fn {_k, v} -> v in [nil, ""] end)
 
-    socket = push_navigate(socket, to: ~p"/products?#{params}")
+    socket = push_patch(socket, to: ~p"/products?#{params}")
 
    {:noreply, socket}
  end

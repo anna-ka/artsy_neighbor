@@ -10,29 +10,33 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   end
 
   def handle_params(%{"id" => id}, _uri, socket) do
-    artist = Artists.get_artist(id)
+    case Artists.get_artist(id) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Artist not found.")
+         |> push_navigate(to: ~p"/artists")}
 
-    # Get products by this artist
-    products_by_artist = Products.list_products()
-      |> Enum.filter(fn p -> p.artist_name == artist.nickname end)
-      |> Enum.take(8)
+      artist ->
+        products_by_artist = Products.get_products_by_artist(artist.id)
 
-    # Prepare gallery images for carousel
-    gallery_images = [artist.img2, artist.img3, artist.img4, artist.img5]
-      |> Enum.filter(fn x -> x end)
-      |> Enum.with_index(2)
+        gallery_images =
+          [artist.img2, artist.img3, artist.img4, artist.img5]
+          |> Enum.filter(fn x -> x end)
+          |> Enum.with_index(2)
 
-    total_slides = length(gallery_images) + 1
+        total_slides = length(gallery_images) + 1
 
-    socket =
-      socket
-        |> assign(:artist, artist)
-        |> assign(:page_title, artist.nickname)
-        |> assign(:products_by_artist, products_by_artist)
-        |> assign(:gallery_images, gallery_images)
-        |> assign(:total_slides, total_slides)
+        socket =
+          socket
+          |> assign(:artist, artist)
+          |> assign(:page_title, artist.nickname)
+          |> assign(:products_by_artist, products_by_artist)
+          |> assign(:gallery_images, gallery_images)
+          |> assign(:total_slides, total_slides)
 
-    {:noreply, socket}
+        {:noreply, socket}
+    end
   end
 
   def render(assigns) do
