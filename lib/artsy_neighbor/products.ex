@@ -47,6 +47,9 @@ defmodule ArtsyNeighbor.Products do
     |> sort_by(filter["sort_by"])
     |> preload([:product_images, :artist, :category])
     |> Repo.all()
+
+
+
   end
 
   # Returns the list of products that have particular category.

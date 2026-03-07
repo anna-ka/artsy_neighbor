@@ -12,3 +12,5 @@ alias ArtsyNeighbor.Products.ProductImage
 
 import Ecto.Query
 import Ecto.Changeset
+
+alias ArtsyNeighbor.Accounts.User

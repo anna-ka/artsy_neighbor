@@ -134,6 +134,23 @@ defmodule ArtsyNeighbor.Artists do
 
 
   @doc """
+  Gets a single artist by artist ID, bang version.
+  Throws `Ecto.NoResultsError` if the Artist does not exist.
+  """
+  def get_artist!(id) do
+    Repo.get!(Artist, id)
+  end
+
+  @doc """
+  Gets a single artist by user ID.
+  Returns nil if the Artist does not exist.
+  Needed for associating artists with user accounts.
+  """
+  def get_artist_by_user_id(user_id) do
+    Repo.get_by(Artist, user_id: user_id)
+  end
+
+  @doc """
   Creates a new artist with the given attributes.
   """
   def create_artist(attrs \\ %{}) do
@@ -144,12 +161,27 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   A helper function to get a changeset for an artist.
+  Does not make any changes to DB.
   """
-  def get_changeset_for_artist(%Artist{} = artist, attrs \\ %{}) do
+  def change_artist(%Artist{} = artist, attrs \\ %{}) do
     Artist.changeset(artist, attrs)
   end
 
+  @doc """
+  Updates an existing artist with the given attributes.
+  """
+  def update_artist(%Artist{} = artist, attrs \\ %{}) do
+    artist
+    |> change_artist(attrs)
+    |> Repo.update()
+  end
 
+  @doc """
+  Deletes an artist.
+  """
+  def delete_artist(%Artist{} = artist) do
+    Repo.delete(artist)
+  end
 
 
 end

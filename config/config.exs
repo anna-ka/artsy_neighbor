@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :artsy_neighbor, :scopes,
+  user: [
+    default: true,
+    module: ArtsyNeighbor.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :id,
+    schema_table: :users,
+    test_data_fixture: ArtsyNeighbor.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :artsy_neighbor,
   ecto_repos: [ArtsyNeighbor.Repo],
   generators: [timestamp_type: :utc_datetime]

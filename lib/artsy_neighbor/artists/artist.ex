@@ -21,6 +21,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :img5, :string
 
     has_many :products, ArtsyNeighbor.Products.Product
+    belongs_to :user, ArtsyNeighbor.Accounts.User
 
     timestamps(type: :utc_datetime)
   end

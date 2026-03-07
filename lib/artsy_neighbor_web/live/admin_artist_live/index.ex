@@ -3,22 +3,24 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
   use ArtsyNeighborWeb, :live_view
 
-  alias ArtsyNeighbor.Admin.AdminArtists
+  alias ArtsyNeighbor.Artists
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1]
+
+  on_mount {ArtsyNeighborWeb.UserAuth, :require_authenticated}
 
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign( :page_title, "Admin - Artists")
-      |> stream(:artists, ArtsyNeighbor.Admin.AdminArtists.list_artists())
+      |> stream(:artists, Artists.list_artists())
     {:ok, socket}
   end
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    artist = AdminArtists.get_artist!(id)
-    {:ok, _} = AdminArtists.delete_artist(artist)
+    artist = Artists.get_artist!(id)
+    {:ok, _} = Artists.delete_artist(artist)
 
     message = "Artist profile for #{artist.nickname} is deleted successfully."
 

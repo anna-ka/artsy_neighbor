@@ -2,7 +2,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   use ArtsyNeighborWeb, :live_view
 
-  alias ArtsyNeighbor.Admin.AdminArtists
+  alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
@@ -13,7 +13,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    artist = AdminArtists.get_artist!(id)
+    artist = Artists.get_artist!(id)
 
     # Convert medium array to comma-separated string for display in form
     artist_with_string_medium = Map.update!(artist, :medium, fn medium_list ->
@@ -25,7 +25,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
     end)
 
-    changeset = AdminArtists.change_artist(artist_with_string_medium)
+    changeset = Artists.change_artist(artist_with_string_medium)
 
     socket
     |> assign(:page_title, "Edit Artist")
@@ -34,7 +34,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp apply_action(socket, :new, _params) do
-    changeset = AdminArtists.change_artist(%Artist{}, %{})
+    changeset = Artists.change_artist(%Artist{}, %{})
 
     socket
     |> assign(:page_title, "New Artist")
@@ -57,7 +57,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
     # Parse comma-separated medium string into array for validation
     artist_params = parse_medium_field(artist_params)
-    changeset = AdminArtists.change_artist(socket.assigns.artist, artist_params)
+    changeset = Artists.change_artist(socket.assigns.artist, artist_params)
 
     # Convert medium back to string for form display
     changeset =
@@ -80,7 +80,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   # must include field "medium" as an array of strings
   # (as returned by parse_medium_field/1 ).
   defp save_artist(socket, :edit, artist_params) do
-    case AdminArtists.update_artist(socket.assigns.artist, artist_params) do
+    case Artists.update_artist(socket.assigns.artist, artist_params) do
       {:ok, _artist} ->
         socket =
           socket
@@ -97,7 +97,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp save_artist(socket, :new, artist_params) do
-    case AdminArtists.create_artist(artist_params) do
+    case Artists.create_artist(artist_params) do
       {:ok, _artist} ->
         socket =
           socket

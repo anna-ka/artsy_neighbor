@@ -1,0 +1,22 @@
+mix phx.gen.auth Accounts User users --hashing-lib argon2
+
+ --hashing-lib option.
+The following values are supported:
+
+  • bcrypt - bcrypt_elixir (https://hex.pm/packages/bcrypt_elixir)
+  • pbkdf2 - pbkdf2_elixir (https://hex.pm/packages/pbkdf2_elixir)
+  • argon2 argon2_elixir (https://hex.pm/packages/argon2_elixir)
+
+
+
+  Please re-fetch your dependencies with the following command:
+
+    $ mix deps.get
+
+Remember to update your repository by running migrations:
+
+    $ mix ecto.migrate
+
+Once you are ready, visit "/users/register"
+to create your account and then access "/dev/mailbox" to
+see the account confirmation email.
