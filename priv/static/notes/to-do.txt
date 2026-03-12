@@ -1,0 +1,6 @@
+March 9, 2026
+
+Fix /vendor/profile/edit route in the router (VendorLive.ProfileForm → VendorLive.Profile.Form)
+Add user_id injection in save_artist(:new, ...)
+Then test the full create/edit profile flow
+Take your time!

@@ -45,7 +45,7 @@ defmodule ArtsyNeighbor.Products do
     |> with_artist(filter["artist"])
     |> with_string(filter["search"])
     |> sort_by(filter["sort_by"])
-    |> preload([:product_images, :artist, :category])
+    |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
 
 
@@ -123,16 +123,18 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product_with_associations!(id) do
     Repo.get!(Product, id)
-    |> Repo.preload([:product_images, :product_options, :artist, :category])
+    |> Repo.preload([:product_options, :artist, :category, product_images: images_by_position()])
   end
 
   # Returns nil if product does not exist.
   def get_product_with_associations(id) do
     case Repo.get(Product, id) do
       nil -> nil
-      product -> Repo.preload(product, [:product_images, :product_options, :artist, :category])
+      product -> Repo.preload(product, [:product_options, :artist, :category, product_images: images_by_position()])
     end
   end
+
+  defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
 
 
   @doc"""
@@ -147,7 +149,7 @@ defmodule ArtsyNeighbor.Products do
   def get_products_by_artist(artist_id) do
     Product
     |> where([p], p.artist_id == ^artist_id)
-    |> preload([:product_images, :artist, :category])
+    |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
   end
 
@@ -328,6 +330,17 @@ defmodule ArtsyNeighbor.Products do
   """
   def delete_product_image(%ProductImage{} = product_image) do
     Repo.delete(product_image)
+  end
+
+  @doc """
+  Swaps the position values of two ProductImage records in a single transaction.
+  Used to move images up or down in the display order.
+  """
+  def swap_image_positions(%ProductImage{} = a, %ProductImage{} = b) do
+    Repo.transaction(fn ->
+      {:ok, _} = update_product_image(a, %{position: b.position})
+      {:ok, _} = update_product_image(b, %{position: a.position})
+    end)
   end
 
   @doc """

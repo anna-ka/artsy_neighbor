@@ -2,7 +2,7 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Categories
-  import ArtsyNeighborWeb.CustomComponents, only: [ category_card: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [ category_card: 1, back: 1]
 
   @impl true
   def render(assigns) do
@@ -12,6 +12,9 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
         Product Categories
 
       </.header>
+
+
+
 
       <div class="grid grid-cols-1 gap-8">
       <%!-- Categories (3 images in a row) --%>

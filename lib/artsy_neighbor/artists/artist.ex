@@ -44,7 +44,8 @@ defmodule ArtsyNeighbor.Artists.Artist do
         :img2,
         :img3,
         :img4,
-        :img5])
+        :img5,
+        :user_id])
     |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :main_img, :email, :street_address, :area_code, :medium])
     |> validate_length(:bio, min: 75, message: "Bio must be at least 75 characters long.")
     |> validate_length(:first_name, min: 2, message: "First name must be at least 2 characters long.")
@@ -52,6 +53,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_email()
     |> validate_phone()
     |> validate_canadian_postal_code()
+    |> assoc_constraint(:user)
   end
 
   # Validates email format

@@ -3,13 +3,16 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
-  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-    {:ok, socket}
+
+    {:ok, assign(socket, return_to: nil, return_label: nil)}
   end
 
-  def handle_params(%{"id" => id}, _uri, socket) do
+  def handle_params(%{"id" => id} = params, _uri, socket) do
+    # IO.inspect(params, label: "params")
+
     case Artists.get_artist(id) do
       nil ->
         {:noreply,
@@ -29,6 +32,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
         socket =
           socket
+          |> assign(:return_to, Map.get(params, "return_to"))
+          |> assign(:return_label, Map.get(params, "return_label"))
           |> assign(:artist, artist)
           |> assign(:page_title, artist.nickname)
           |> assign(:products_by_artist, products_by_artist)
@@ -42,6 +47,16 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   def render(assigns) do
     ~H"""
     <Layouts.artsy_main flash={@flash}>
+
+    <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
+    <%= inspect(@return_label) %>
+    </pre> --%>
+
+      <div>
+      <.back :if={@return_to && @return_label} navigate={@return_to}>
+        {@return_label}
+      </.back>
+      </div>
 
       <%!-- Top Section: Artist Profile with bg-base-100 --%>
       <div class="bg-base-100">

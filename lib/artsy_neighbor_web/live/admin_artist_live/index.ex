@@ -4,9 +4,8 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1, back: 1]
 
-  on_mount {ArtsyNeighborWeb.UserAuth, :require_authenticated}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -35,10 +34,19 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_wide flash={@flash}>
+    <Layouts.artsy_wide flash={@flash} variant="admin">
+
+
 
 
     <div class="admin-index">
+
+    <div>
+    <.back navigate={~p"/admin"}>
+          Admin Dashboard
+        </.back>
+    </div>
+
 
     <.header>
           <%= @page_title  %>

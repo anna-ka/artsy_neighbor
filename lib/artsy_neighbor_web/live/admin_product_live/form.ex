@@ -90,8 +90,15 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} variant="admin">
       <div class="w-full px-8 py-8">
+
+        <div class="div">
+        <.back navigate={return_path(@return_to, @product)}>
+          Back
+        </.back>
+
+        </div>
 
         <.header>
           <%= @page_title %>

@@ -19,6 +19,7 @@ defmodule ArtsyNeighborWeb.Layouts do
   This is used as a wrapper by artsy_main and artsy_wide layouts.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role"
   slot :inner_block, required: true
 
   def navlayout(assigns) do
@@ -28,7 +29,10 @@ defmodule ArtsyNeighborWeb.Layouts do
       Special Holiday Sale! Get 20% off all artwork until December 25th.
     </ArtsyNeighborWeb.CustomComponents.site_wide_banner>
 
-    <header class="px-4 sm:px-6 lg:px-8">
+    <header class={["px-4 sm:px-6 lg:px-8",
+      @variant == "admin" && "bg-neutral text-neutral-content",
+      @variant == "vendor" && "bg-info text-info-content "
+    ]}>
       <!-- First row: Logo + Search + Actions -->
       <div class="navbar">
         <div class="flex-1">
@@ -62,7 +66,7 @@ defmodule ArtsyNeighborWeb.Layouts do
             </li>
 
             <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Offer art</a>
+              <a href={~p"/offer-art"} class="btn btn-ghost">Offer art</a>
             </li>
 
             <li>
@@ -195,16 +199,16 @@ defmodule ArtsyNeighborWeb.Layouts do
   Uses navlayout for navigation and footer.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
-
   attr :current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
 
   slot :inner_block, required: true
 
   def artsy_main(assigns) do
     ~H"""
-    <.navlayout flash={@flash}>
+    <.navlayout flash={@flash} variant={@variant}>
       <main class="flex justify-center">
         <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
           {render_slot(@inner_block)}
@@ -214,21 +218,25 @@ defmodule ArtsyNeighborWeb.Layouts do
     """
   end
 
+
   @doc """
   Full-width content layout for admin tables and wide content.
   Uses navlayout for navigation and footer.
+
+  Mostly used for redering very wide tables.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
   attr :current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
+  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
 
   slot :inner_block, required: true
 
   def artsy_wide(assigns) do
     ~H"""
-    <.navlayout flash={@flash}>
+    <.navlayout flash={@flash} variant={@variant}>
       <main class="w-full">
         <div class="w-full py-20 bg-base-100">
           {render_slot(@inner_block)}

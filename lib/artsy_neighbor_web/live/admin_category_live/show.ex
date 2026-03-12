@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} variant="admin">
       <.header>
         Category {@category.id}
         <:subtitle>This is a category record from your database.</:subtitle>

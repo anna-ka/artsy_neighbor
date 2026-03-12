@@ -62,9 +62,28 @@ defmodule ArtsyNeighborWeb.Router do
     live "/categories", CategoryLive.Index, :index
     live "/categories/:id", CategoryLive.Show, :show
 
+    live "/offer-art", OfferArtLive
+
     get "/contactus", ContactusController, :contactus
   end
 
+
+  # Vendor (artist) pages — authenticated users only
+  scope "/", ArtsyNeighborWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_vendor,
+      on_mount: [
+        {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
+        {ArtsyNeighborWeb.UserAuth, :require_authenticated}
+      ] do
+      live "/vendor", VendorLive.Dashboard
+      live "/vendor/profile/new", VendorLive.Profile.Form, :new
+      live "/vendor/profile/edit", VendorLive.Profile.Form, :edit
+      live "/vendor/products/new", VendorLive.ProductForm, :new
+      live "/vendor/products/:id/edit", VendorLive.ProductForm, :edit
+    end
+  end
 
   #scope for admin panels
   scope "/", ArtsyNeighborWeb do
@@ -76,6 +95,8 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :require_admin}
       ] do
+
+        live "/admin", AdminLive.Dashboard
 
         live "/admin/artists", AdminArtistLive.Index
         live "/admin/artists/new", AdminArtistLive.Form, :new

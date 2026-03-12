@@ -106,7 +106,7 @@ defmodule ArtsyNeighbor.Accounts do
   def sudo_mode?(_user, _minutes), do: false
 
   @doc """
-  Checks if the user is an admin.
+  Checks if the user has administrator priviledges.
   """
   def admin?(user_id) do
     Repo.exists?(from a in Admin, where: a.user_id == ^user_id)

@@ -136,8 +136,15 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} variant="admin">
       <div class="w-full px-8 py-8">
+
+      <div >
+      <.back navigate={~p"/admin/artists"}>
+          Back
+        </.back>
+      </div>
+
 
       <.header>
         <%= @page_title  %>

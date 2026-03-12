@@ -3,13 +3,13 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
-  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-    {:ok, socket}
+    {:ok, assign(socket, return_to: nil, return_label: nil)}
   end
 
-  def handle_params(%{"id" => id}, _uri, socket) do
+  def handle_params(%{"id" => id}=params, _uri, socket) do
     case Products.get_product_with_associations(id) do
       nil ->
         {:noreply,
@@ -32,6 +32,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
         socket =
           socket
+          |> assign(:return_to, Map.get(params, "return_to"))
+          |> assign(:return_label, Map.get(params, "return_label"))
           |> assign(:product, product)
           |> assign(:images, images)
           |> assign(:current_image_index, 0)
@@ -62,6 +64,13 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   def render(assigns) do
     ~H"""
     <Layouts.artsy_main flash={@flash}>
+
+      <div>
+        <.back :if={@return_to && @return_label} navigate={@return_to}>
+          {@return_label}
+        </.back>
+      </div>
+
       <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
 
 

@@ -3,7 +3,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Categories
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1, back: 1]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -52,8 +52,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_wide flash={@flash}>
+    <Layouts.artsy_wide flash={@flash} variant="admin">
       <div class="admin-index">
+
+      <div>
+        <.back navigate={~p"/admin"}>
+              Admin Dashboard
+        </.back>
+      </div>
 
         <.header>
           <%= @page_title %>
