@@ -14,9 +14,12 @@ defmodule ArtsyNeighbor.Products.Product do
     field :units,     :string, default: "cm"
     field :materials, :string
 
-    belongs_to :category, ArtsyNeighbor.Categories.Category
-    belongs_to :artist, ArtsyNeighbor.Artists.Artist
-    has_many :product_images, ArtsyNeighbor.Products.ProductImage
+    field :position, :integer
+
+    belongs_to :category,   ArtsyNeighbor.Categories.Category
+    belongs_to :artist,     ArtsyNeighbor.Artists.Artist
+    belongs_to :collection, ArtsyNeighbor.Products.ProductCollection
+    has_many :product_images,  ArtsyNeighbor.Products.ProductImage
     has_many :product_options, ArtsyNeighbor.Products.ProductOption
 
     timestamps(type: :utc_datetime)
@@ -25,7 +28,7 @@ defmodule ArtsyNeighbor.Products.Product do
   @doc false
   def changeset(product, attrs) do
     product
-    |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id, :width, :length, :height, :units, :materials])
+    |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id, :collection_id, :position, :width, :length, :height, :units, :materials])
     |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
     |> validate_length(:title, min: 3, max: 100,
         min_message: "Title must be at least 3 characters long.",

@@ -36,7 +36,9 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     |> assign(:product, product)
     |> assign(:existing_images, [])  # no existing images for a new product
     |> assign(:form, to_form(Products.change_product(product)))
+    |> assign(:new_collection_form_open, false)
     |> assign_categories()
+    |> assign_collections()
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
@@ -55,13 +57,23 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
       |> assign(:product, product)
       |> assign(:existing_images, product.product_images)
       |> assign(:form, to_form(Products.change_product(product)))
+      |> assign(:new_collection_form_open, false)
       |> assign_categories()
+      |> assign_collections()
     end
   end
 
   defp assign_categories(socket) do
     categories = Categories.list_categories() |> Enum.map(fn c -> {c.name, c.id} end)
     assign(socket, :categories, categories)
+  end
+
+  defp assign_collections(socket) do
+    artist = socket.assigns.current_scope.artist
+    collections =
+      Products.list_collections_for_artist(artist.id)
+      |> Enum.map(fn c -> {c.name, c.id} end)
+    assign(socket, :collections, collections)
   end
 
   @impl true
@@ -73,6 +85,44 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   @impl true
   def handle_event("save", %{"product" => product_params}, socket) do
     save_product(socket, socket.assigns.live_action, product_params)
+  end
+
+  @impl true
+  def handle_event("toggle_new_collection_form", _params, socket) do
+    {:noreply, assign(socket, new_collection_form_open: !socket.assigns.new_collection_form_open)}
+  end
+
+  @impl true
+  def handle_event("save_new_collection", %{"name" => name}, socket) do
+    artist = socket.assigns.current_scope.artist
+    name = String.trim(name)
+
+    if name == "" do
+      {:noreply, socket}
+    else
+      all_collections = Products.list_collections_for_artist(artist.id)
+      max_pos = all_collections |> Enum.map(& &1.position) |> Enum.max(fn -> 0 end)
+
+      case Products.create_collection(%{name: name, position: max_pos + 1, artist_id: artist.id}) do
+        {:ok, new_collection} ->
+          updated_collections =
+            Products.list_collections_for_artist(artist.id)
+            |> Enum.map(fn c -> {c.name, c.id} end)
+
+          # Auto-select the new collection in the product form
+          updated_changeset =
+            socket.assigns.form.source
+            |> Ecto.Changeset.put_change(:collection_id, new_collection.id)
+
+          {:noreply, socket
+            |> assign(:collections, updated_collections)
+            |> assign(:form, to_form(updated_changeset))
+            |> assign(:new_collection_form_open, false)}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Could not create collection.")}
+      end
+    end
   end
 
   # cancel_upload removes one pending file from the upload queue.
@@ -283,6 +333,18 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             options={@categories}
           />
 
+          <%!-- Collection (vendor-defined shelf) --%>
+          <.input
+            field={@form[:collection_id]}
+            type="select"
+            label="Collection"
+            prompt="Select a collection"
+            options={@collections}
+          />
+          <button type="button" phx-click="toggle_new_collection_form" class="btn btn-ghost btn-xs -mt-2 mb-2">
+            + New collection
+          </button>
+
           <%!-- Dimensions --%>
           <div class="grid grid-cols-3 gap-4">
             <.input field={@form[:width]}  type="number" label="Width"  step="any" phx-debounce="blur" />
@@ -428,6 +490,28 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
         </.back>
 
       </div>
+
+      <%!-- New collection modal — lives outside the product <form> to avoid nested forms --%>
+      <div :if={@new_collection_form_open} class="modal modal-open">
+        <div class="modal-box max-w-sm">
+          <h3 class="font-semibold text-lg mb-4">New Collection</h3>
+          <form phx-submit="save_new_collection">
+            <input
+              type="text"
+              name="name"
+              placeholder="e.g. Watercolours, Large Format"
+              class="input input-bordered w-full"
+              autofocus
+            />
+            <div class="modal-action">
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              <button type="button" phx-click="toggle_new_collection_form" class="btn btn-ghost btn-sm">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-backdrop" phx-click="toggle_new_collection_form"></div>
+      </div>
+
     </Layouts.artsy_main>
     """
   end

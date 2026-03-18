@@ -14,6 +14,7 @@ alias ArtsyNeighbor.Repo
 alias ArtsyNeighbor.Artists.Artist
 alias ArtsyNeighbor.Categories.Category
 alias ArtsyNeighbor.Products.Product
+alias ArtsyNeighbor.Products.ProductCollection
 alias ArtsyNeighbor.Products.ProductImage
 
 # ============================================================
@@ -49,6 +50,10 @@ elena = %Artist{}
   })
   |> Repo.insert!()
 
+elena_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: elena.id})
+  |> Repo.insert!()
+
 tom = %Artist{}
   |> Artist.changeset(%{
     nickname: "TomSculpts",
@@ -68,6 +73,10 @@ tom = %Artist{}
     img4: nil,
     img5: nil
   })
+  |> Repo.insert!()
+
+_tom_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: tom.id})
   |> Repo.insert!()
 
 sarah = %Artist{}
@@ -91,6 +100,10 @@ sarah = %Artist{}
   })
   |> Repo.insert!()
 
+sarah_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: sarah.id})
+  |> Repo.insert!()
+
 raj = %Artist{}
   |> Artist.changeset(%{
     nickname: "Raj_Ceramics",
@@ -110,6 +123,10 @@ raj = %Artist{}
     img4: nil,
     img5: nil
   })
+  |> Repo.insert!()
+
+raj_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: raj.id})
   |> Repo.insert!()
 
 maria = %Artist{}
@@ -133,6 +150,10 @@ maria = %Artist{}
   })
   |> Repo.insert!()
 
+maria_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: maria.id})
+  |> Repo.insert!()
+
 david = %Artist{}
   |> Artist.changeset(%{
     nickname: "David_Photos",
@@ -154,7 +175,11 @@ david = %Artist{}
   })
   |> Repo.insert!()
 
-IO.puts("Seeded 6 artists successfully!")
+_david_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: david.id})
+  |> Repo.insert!()
+
+IO.puts("Seeded 6 artists and their default collections successfully!")
 
 # ============================================================
 # Categories
@@ -237,6 +262,8 @@ abstract_sunset = %Product{}
     price: 299.99,
     artist_id: elena.id,
     category_id: paintings.id,
+    collection_id: elena_collection.id,
+    position: 1,
     width: 60,
     length: 90,
     units: "cm",
@@ -256,6 +283,8 @@ mountain_serenity = %Product{}
     price: 349.99,
     artist_id: elena.id,
     category_id: paintings.id,
+    collection_id: elena_collection.id,
+    position: 2,
     width: 45,
     length: 60,
     units: "cm",
@@ -275,6 +304,8 @@ urban_dreams = %Product{}
     price: 275.00,
     artist_id: elena.id,
     category_id: paintings.id,
+    collection_id: elena_collection.id,
+    position: 3,
     width: 50,
     length: 70,
     units: "cm",
@@ -292,6 +323,8 @@ silver_necklace = %Product{}
     price: 125.50,
     artist_id: sarah.id,
     category_id: jewelry.id,
+    collection_id: sarah_collection.id,
+    position: 1,
     length: 45,
     units: "cm",
     materials: "Sterling silver, handmade chain"
@@ -309,7 +342,9 @@ turquoise_piece = %Product{}
     details: "Details coming soon.",
     price: 189.99,
     artist_id: sarah.id,
-    category_id: jewelry.id
+    category_id: jewelry.id,
+    collection_id: sarah_collection.id,
+    position: 2
   })
   |> Repo.insert!()
 
@@ -322,7 +357,9 @@ beaded_necklace = %Product{}
     details: "Details coming soon.",
     price: 95.00,
     artist_id: sarah.id,
-    category_id: jewelry.id
+    category_id: jewelry.id,
+    collection_id: sarah_collection.id,
+    position: 3
   })
   |> Repo.insert!()
 
@@ -336,6 +373,8 @@ ceramic_mug = %Product{}
     price: 35.00,
     artist_id: raj.id,
     category_id: pottery.id,
+    collection_id: raj_collection.id,
+    position: 1,
     width: 9,
     height: 11,
     units: "cm",
@@ -354,7 +393,9 @@ rustic_mug = %Product{}
     details: "Details coming soon.",
     price: 42.50,
     artist_id: raj.id,
-    category_id: pottery.id
+    category_id: pottery.id,
+    collection_id: raj_collection.id,
+    position: 2
   })
   |> Repo.insert!()
 
@@ -367,7 +408,9 @@ ceramic_cat = %Product{}
     details: "Details coming soon.",
     price: 125.00,
     artist_id: raj.id,
-    category_id: sculptures.id
+    category_id: sculptures.id,
+    collection_id: raj_collection.id,
+    position: 3
   })
   |> Repo.insert!()
 
@@ -380,7 +423,9 @@ wool_sweater = %Product{}
     details: "Details coming soon.",
     price: 145.00,
     artist_id: maria.id,
-    category_id: clothing.id
+    category_id: clothing.id,
+    collection_id: maria_collection.id,
+    position: 1
   })
   |> Repo.insert!()
 
@@ -393,7 +438,9 @@ cable_knit = %Product{}
     details: "Details coming soon.",
     price: 165.00,
     artist_id: maria.id,
-    category_id: clothing.id
+    category_id: clothing.id,
+    collection_id: maria_collection.id,
+    position: 2
   })
   |> Repo.insert!()
 
@@ -406,7 +453,9 @@ artisan_cardigan = %Product{}
     details: "Details coming soon.",
     price: 178.50,
     artist_id: maria.id,
-    category_id: fiber_art.id
+    category_id: fiber_art.id,
+    collection_id: maria_collection.id,
+    position: 3
   })
   |> Repo.insert!()
 
@@ -421,7 +470,9 @@ sunset_reflection = %Product{}
     details: "Details coming soon.",
     price: 425.00,
     artist_id: elena.id,
-    category_id: paintings.id
+    category_id: paintings.id,
+    collection_id: elena_collection.id,
+    position: 4
   })
   |> Repo.insert!()
 
@@ -434,7 +485,9 @@ silver_moon = %Product{}
     details: "Details coming soon.",
     price: 215.00,
     artist_id: sarah.id,
-    category_id: jewelry.id
+    category_id: jewelry.id,
+    collection_id: sarah_collection.id,
+    position: 4
   })
   |> Repo.insert!()
 
@@ -447,7 +500,9 @@ mug_set = %Product{}
     details: "Details coming soon.",
     price: 85.00,
     artist_id: raj.id,
-    category_id: pottery.id
+    category_id: pottery.id,
+    collection_id: raj_collection.id,
+    position: 4
   })
   |> Repo.insert!()
 
@@ -460,7 +515,9 @@ handwoven_pullover = %Product{}
     details: "Details coming soon.",
     price: 195.00,
     artist_id: maria.id,
-    category_id: clothing.id
+    category_id: clothing.id,
+    collection_id: maria_collection.id,
+    position: 4
   })
   |> Repo.insert!()
 

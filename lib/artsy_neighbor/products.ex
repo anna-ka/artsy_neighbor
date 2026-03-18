@@ -9,6 +9,7 @@ defmodule ArtsyNeighbor.Products do
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Products.ProductOption
   alias ArtsyNeighbor.Products.ProductImage
+  alias ArtsyNeighbor.Products.ProductCollection
 
   @doc """
   Returns the list of products.
@@ -123,14 +124,14 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product_with_associations!(id) do
     Repo.get!(Product, id)
-    |> Repo.preload([:product_options, :artist, :category, product_images: images_by_position()])
+    |> Repo.preload([:product_options, :artist, :category, :collection, product_images: images_by_position()])
   end
 
   # Returns nil if product does not exist.
   def get_product_with_associations(id) do
     case Repo.get(Product, id) do
       nil -> nil
-      product -> Repo.preload(product, [:product_options, :artist, :category, product_images: images_by_position()])
+      product -> Repo.preload(product, [:product_options, :artist, :category, :collection, product_images: images_by_position()])
     end
   end
 
@@ -149,7 +150,7 @@ defmodule ArtsyNeighbor.Products do
   def get_products_by_artist(artist_id) do
     Product
     |> where([p], p.artist_id == ^artist_id)
-    |> preload([:artist, :category, product_images: ^images_by_position()])
+    |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
     |> Repo.all()
   end
 
@@ -203,6 +204,18 @@ defmodule ArtsyNeighbor.Products do
     product
     |> Product.changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Assigns sequential positions (1, 2, 3…) to a list of products in the given
+  order, in a single transaction. Used to reorder products within a collection.
+  Works correctly even when some or all products currently have nil positions.
+  """
+  def swap_product_positions(%Product{} = a, %Product{} = b) do
+    Repo.transaction(fn ->
+      {:ok, _} = update_product(a, %{position: b.position})
+      {:ok, _} = update_product(b, %{position: a.position})
+    end)
   end
 
   @doc """
@@ -448,5 +461,96 @@ defmodule ArtsyNeighbor.Products do
   """
   def change_product_option(%ProductOption{} = product_option, attrs \\ %{}) do
     ProductOption.changeset(product_option, attrs)
+  end
+
+
+  # ============================================================
+  # ProductCollection functions
+  # ============================================================
+
+  @doc """
+  Returns all collections for an artist, ordered by position.
+  Each collection has its products preloaded (ordered by position nulls last, then title).
+  """
+  def list_collections_for_artist(artist_id) do
+    ProductCollection
+    |> where([c], c.artist_id == ^artist_id)
+    |> order_by([c], asc: c.position)
+    |> preload([products: ^products_by_position()])
+    |> Repo.all()
+  end
+
+  # Returns a query for products ordered by position (nulls last), then title.
+  defp products_by_position do
+    from(p in Product,
+      order_by: [asc_nulls_last: p.position, asc: p.title],
+      preload: [:category, product_images: ^from(i in ProductImage, order_by: [asc: i.position])]
+    )
+  end
+
+  @doc """
+  Gets a single collection. Raises if it does not exist.
+  """
+  def get_collection!(id), do: Repo.get!(ProductCollection, id)
+
+  @doc """
+  Creates a collection.
+  """
+  def create_collection(attrs) do
+    %ProductCollection{}
+    |> ProductCollection.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a collection.
+  """
+  def update_collection(%ProductCollection{} = collection, attrs) do
+    collection
+    |> ProductCollection.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a collection and reassigns its products to the artist's "All Works"
+  collection. Both operations run in a single transaction so neither happens
+  without the other.
+  """
+  def delete_collection(%ProductCollection{} = collection) do
+    # Find the "All Works" fallback collection for this artist (if it exists and
+    # is not the collection being deleted).
+    default_id =
+      ProductCollection
+      |> where([c], c.artist_id == ^collection.artist_id)
+      |> where([c], c.name == "All Works")
+      |> where([c], c.id != ^collection.id)
+      |> select([c], c.id)
+      |> Repo.one()
+
+    Repo.transaction(fn ->
+      # Reassign all products in this collection to the default (or nil if none).
+      from(p in Product, where: p.collection_id == ^collection.id)
+      |> Repo.update_all(set: [collection_id: default_id])
+
+      Repo.delete!(collection)
+    end)
+  end
+
+  @doc """
+  Returns a changeset for tracking collection changes.
+  """
+  def change_collection(%ProductCollection{} = collection, attrs \\ %{}) do
+    ProductCollection.changeset(collection, attrs)
+  end
+
+  @doc """
+  Swaps the position values of two ProductCollection records in a single transaction.
+  Used to reorder collections on the vendor dashboard.
+  """
+  def swap_collection_positions(%ProductCollection{} = a, %ProductCollection{} = b) do
+    Repo.transaction(fn ->
+      {:ok, _} = update_collection(a, %{position: b.position})
+      {:ok, _} = update_collection(b, %{position: a.position})
+    end)
   end
 end

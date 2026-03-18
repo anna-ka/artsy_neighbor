@@ -5,8 +5,10 @@ defmodule ArtsyNeighbor.Artists do
 
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
+  alias Ecto.Multi
 
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Products.ProductCollection
 
   @doc """
   Returns the list of all artists.
@@ -151,12 +153,26 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Creates a new artist with the given attributes.
+  Creates a new artist with the given attributes, and atomically inserts a
+  default "All Works" collection for the new artist.
+  Returns {:ok, %{artist: artist, collection: collection}} or {:error, step, changeset, _}.
   """
   def create_artist(attrs \\ %{}) do
-    %Artist{}
-    |> Artist.changeset(attrs)
-    |> Repo.insert()
+    Multi.new()
+    |> Multi.insert(:artist, Artist.changeset(%Artist{}, attrs))
+    |> Multi.insert(:collection, fn %{artist: artist} ->
+      ProductCollection.changeset(%ProductCollection{}, %{
+        name: "All Works",
+        position: 1,
+        artist_id: artist.id
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{artist: artist}} -> {:ok, artist}
+      {:error, :artist, changeset, _} -> {:error, changeset}
+      {:error, :collection, _changeset, _} -> {:error, :collection_creation_failed}
+    end
   end
 
   @doc """

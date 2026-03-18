@@ -82,6 +82,8 @@ defmodule ArtsyNeighborWeb.Router do
       live "/vendor/profile/edit", VendorLive.Profile.Form, :edit
       live "/vendor/products/new", VendorLive.ProductForm, :new
       live "/vendor/products/:id/edit", VendorLive.ProductForm, :edit
+      live "/vendor/collections/new", VendorLive.CollectionForm, :new
+      live "/vendor/collections/:id/edit", VendorLive.CollectionForm, :edit
     end
   end
 
