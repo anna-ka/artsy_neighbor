@@ -1,4 +1,5 @@
-defmodule ArtsyNeighborWeb.ArtistLive.Show do
+defmodule ArtsyNeighborWeb.ArtistLive.Store do
+
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
@@ -6,40 +7,24 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-
-    {:ok, assign(socket, return_to: nil, return_label: nil)}
+    {:ok, socket}
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
-    # IO.inspect(params, label: "params")
 
-    case Artists.get_artist(id) do
+    #get collections for the artist
+    artist = Artists.get_artist(id)
+    case artist do
       nil ->
-        {:noreply,
+         {:noreply,
          socket
-         |> put_flash(:error, "Artist not found.")
-         |> push_navigate(to: ~p"/artists")}
-
+        |> put_flash(:error, "Artist not found.")
+        |> push_navigate(to: ~p"/artists")}
       artist ->
-        collections = Products.list_collections_for_artist(artist.id)
-
-        # For the ribbon: when multiple collections exist, exclude the first product
-        # from each collection (already visible as the collection card background).
-        ribbon_products =
-          if length(collections) > 1 do
-            featured_ids =
-              collections
-              |> Enum.map(fn c -> List.first(c.products) end)
-              |> Enum.filter(& &1)
-              |> MapSet.new(& &1.id)
-
-            collections
-            |> Enum.flat_map(& &1.products)
-            |> Enum.reject(fn p -> MapSet.member?(featured_ids, p.id) end)
-          else
-            []
-          end
-
+        categories = ArtsyNeighbor.Categories.list_categories() |> Enum.map(fn cat -> {cat.name, cat.id} end)
+        collections = Products.list_collections_for_artist_no_preloads(artist.id) |> Enum.map(fn c -> {c.name, c.id} end)
+        #products = Products.get_products_by_artist(artist.id)
+        products = Products.filter_artist_products(artist.id, params)
         gallery_images =
           [artist.img2, artist.img3, artist.img4, artist.img5]
           |> Enum.filter(fn x -> x end)
@@ -49,40 +34,61 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
         socket =
           socket
-          |> assign(:return_to, Map.get(params, "return_to"))
-          |> assign(:return_label, Map.get(params, "return_label"))
           |> assign(:artist, artist)
-          |> assign(:page_title, artist.nickname)
-          |> assign(:collections, collections)
-          |> assign(:ribbon_products, ribbon_products)
           |> assign(:gallery_images, gallery_images)
           |> assign(:total_slides, total_slides)
+          |> assign(:collections, collections)
+          |> assign(:products, products)
+          |> assign(:categories, categories)
+          |> assign(form: to_form(params))
 
-        {:noreply, socket}
-    end
+          {:noreply, socket}
+      end
+
   end
+
+  def handle_event("filter", params, socket) do
+  IO.inspect(params, label: "Filter form submitted with params")
+    # socket =
+    #   socket
+    #   |> assign(form: to_form(params))
+    #   |> stream(:products, Products.filter_products(params), reset: true)
+
+
+    params =
+      params
+      |> Map.take(["search", "category_id", "collection_id", "artist", "sort_by"])
+      |> Map.reject(fn {_k, v} -> v in [nil, ""] end)
+
+    socket = push_patch(socket, to: ~p"/artists/#{socket.assigns.artist}/store?#{params}")
+
+   {:noreply, socket}
+ end
 
   def render(assigns) do
     ~H"""
     <Layouts.artsy_main flash={@flash}>
 
-    <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
+    <!-- top section -->
+     <section>
+
+     <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
     <%= inspect(@return_label) %>
     </pre> --%>
 
-      <div>
+      <%!-- <div>
       <.back :if={@return_to && @return_label} navigate={@return_to}>
         {@return_label}
       </.back>
-      </div>
+      </div> --%>
 
       <%!-- Top Section: Artist Profile with bg-base-100 --%>
       <div class="bg-base-100">
         <div class="max-w-7xl mx-auto px-4 py-8">
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
             <%!-- Left Column: Image Carousel --%>
-            <div>
+             <div class="lg:col-span-1">
               <%!-- DaisyUI Carousel --%>
               <div class="carousel carousel-center w-full rounded-lg bg-base-300">
                 <%!-- Main Image --%>
@@ -124,11 +130,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
             </div>
 
             <%!-- Right Column: Artist Information --%>
-            <div>
+             <div class="lg:col-span-2">
 
               <%!-- Name and Nickname --%>
               <div class="mb-6">
-                <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @artist.nickname %></h1>
+                <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @artist.nickname %> Store</h1>
               </div>
 
               <%!-- Neighborhood Badge --%>
@@ -159,12 +165,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
               </div>
 
               <%!-- Contact Buttons --%>
-              <div class="flex flex-col items-center gap-3 mb-8">
+              <div :if={nil} class="flex flex-col items-center gap-3 mb-8">
                 <.button_artsy variant="primary" size="wide">
                   Contact Artist
                 </.button_artsy>
 
-                <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"}>
+                <.button_artsy :if={nil}  variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"}>
                   View Shop
                 </.button_artsy>
               </div>
@@ -173,74 +179,94 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           </div>
         </div>
       </div>
+    </section>
 
-      <%!-- Bottom Section: Works --%>
-      <div class="bg-base-200 py-12">
-        <div class="max-w-7xl mx-auto px-4">
+    <!-- Bottom Section with products -->
 
-          <.header>
-            Collections by <%= @artist.nickname %>
-          </.header>
 
-          <%= if length(@collections) == 1 do %>
-            <%!-- Single collection: flat product grid, no heading --%>
+    <section class="my-6"> <!-- filter form-->
+      <%!-- FCC FORM --%>
+      <.filter_form form={@form} categories={@categories} collections={@collections} artist_id={@artist.id}/>
+    </section> <!-- filter form-->
+
+
+    <section>
+      <div class="bg-base-200 py-12"> <%!-- Bottom Section: Works --%>
+
+       <%!--  flat product grid, no heading --%>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <.product_card :for={product <- hd(@collections).products} product={product} />
+              <.product_card :for={product <- @products} product={product} />
             </div>
-          <% else %>
-            <%!-- Multiple collections: one card per collection, like category cards --%>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <%= for collection <- @collections do %>
-                <% first_img =
-                    collection.products
-                    |> List.first()
-                    |> case do
-                      nil -> nil
-                      p -> p.product_images |> List.first() |> case do
-                        nil -> nil
-                        img -> img.path
-                      end
-                    end %>
-                <div
-                  style={"background-image: url(#{first_img || "/images/placeholder-category.jpg"})"}
-                  class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center bg-gray-200">
-                  <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold">
-                    <%= collection.name %>
-                  </button>
-                </div>
-              <% end %>
-            </div>
-          <% end %>
 
-        </div>
-      </div>
+      </div> <%!-- Bottom Section: Works --%>
 
-      <%!-- Ribbon: more works (excludes featured collection images shown above) --%>
-      <div :if={length(@ribbon_products) > 0} class="bg-base-100 py-12">
-        <div class="max-w-7xl mx-auto px-4">
-          <h2 class="text-2xl font-bold text-base-content mb-6">More Works</h2>
-          <div class="relative flex items-center">
-            <button
-              class="btn btn-circle btn-sm absolute left-0 z-10 shadow"
-              onclick="this.nextElementSibling.scrollBy({left: -320, behavior: 'smooth'})">
-              ❮
-            </button>
-            <div class="flex overflow-x-auto scroll-smooth gap-4 py-2 px-10">
-              <div :for={product <- @ribbon_products} class="flex-none w-64">
-                <.product_card product={product} />
-              </div>
-            </div>
-            <button
-              class="btn btn-circle btn-sm absolute right-0 z-10 shadow"
-              onclick="this.previousElementSibling.scrollBy({left: 320, behavior: 'smooth'})">
-              ❯
-            </button>
-          </div>
-        </div>
-      </div>
-
+    </section>
     </Layouts.artsy_main>
     """
   end
+
+
+  @doc """
+  Renders the product filtering form. Expect "form" in the assigns.
+
+  """
+
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :categories, :list, required: true
+  attr :collections, :list, required: true
+  attr :artist_id, :integer, required: true
+
+ def filter_form(assigns) do
+  ~H"""
+    <.form for={@form} id="filter-form" phx-change="filter" phx-submit="filter">
+        <div class="flex flex-wrap gap-4 items-end">
+
+          <%!-- Search --%>
+          <div class="flex-1 min-w-48">
+            <.input field={@form[:search]}
+              type="text"
+              label="Search"
+              placeholder="Search products..."
+              autocomplete="off"
+              phx-debounce="1000"/>
+          </div>
+
+          <%!-- Filter by Category --%>
+          <div class="min-w-48">
+            <.input field={@form[:category_id]} type="select" label="Category" prompt="All categories" options={@categories} />
+          </div>
+
+          <%!-- Filter by Artist --%>
+          <div class="min-w-48">
+            <.input field={@form[:collection_id]} type="select" label="Collection" prompt="All collections by artist" options={@collections} />
+          </div>
+
+          <%!-- Sort By --%>
+          <div class="min-w-48">
+            <.input
+              field={@form[:sort_by]}
+              type="select"
+              label="Sort by"
+              prompt="Default"
+              options={[
+                {"Price: Low to High", "price_asc"},
+                {"Price: High to Low", "price_desc"},
+                {"Collection", "collection"},
+                {"Category", "category"}
+              ]}
+            />
+          </div>
+
+          <%!-- Reset --%>
+          <div>
+            <.link patch={~p"/artists/#{@artist_id}/store"} class="btn btn-ghost">Clear</.link>
+
+          </div>
+
+        </div>
+      </.form>
+  """
+ end
+
 
 end

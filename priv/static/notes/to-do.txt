@@ -4,3 +4,18 @@ Fix /vendor/profile/edit route in the router (VendorLive.ProfileForm → VendorL
 Add user_id injection in save_artist(:new, ...)
 Then test the full create/edit profile flow
 Take your time!
+
+Claude created ordering or products and collections in vendor dashboard:
+
+Clean. Here's what was done:
+
+products.ex — new reorder_products/1 function that assigns positions 1, 2, 3… to a list of products in a single transaction. Works even when all positions are currently nil.
+
+dashboard.ex — template:
+
+Product loop changed to Enum.with_index(collection.products) to expose product_index
+New narrow first column with ↑/↓ buttons; each button carries both phx-value-productid and phx-value-collectionid so the handler knows which list to reorder
+dashboard.ex — two new handlers:
+
+Build the new order with List.delete_at + List.insert_at (avoids nil swap issues entirely)
+Call Products.reorder_products(new_order), then reload all collections

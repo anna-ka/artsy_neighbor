@@ -35,3 +35,17 @@ artsy_neighbor-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# macOS Finder metadata
+.DS_Store
+
+# User-uploaded files (served from priv/static/uploads at runtime,
+# but should not be stored in version control)
+/priv/static/uploads/products/*
+!/priv/static/uploads/products/.gitkeep
+
+# Static images checked in during development (not for production)
+/priv/static/images/
+
+# Personal notes
+/priv/static/notes/
+

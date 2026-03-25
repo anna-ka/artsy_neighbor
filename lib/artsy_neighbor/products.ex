@@ -45,13 +45,28 @@ defmodule ArtsyNeighbor.Products do
     |> with_category(filter["category_id"])
     |> with_artist(filter["artist"])
     |> with_string(filter["search"])
+    |> with_artist_search_term(filter["search"])
     |> sort_by(filter["sort_by"])
     |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
-
-
-
   end
+
+  @doc """
+    Filters products for a specific artist based on the provided filter criteria.
+    All products are loaded with associations.
+  """
+  def filter_artist_products(artist_id, filter) do
+    Product
+    |> where([p], p.artist_id == ^artist_id)
+    |> join(:inner, [p], c in assoc(p, :category), as: :category)
+    |> with_category(filter["category_id"])
+    |> with_collection(filter["collection_id"])
+    |> with_string(filter["search"])
+    |> sort_by(filter["sort_by"])
+    |> preload([:artist, :category, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
 
   # Returns the list of products that have particular category.
   defp with_category(query, nil), do: query
@@ -59,6 +74,14 @@ defmodule ArtsyNeighbor.Products do
   defp with_category(query, category_id) do
     id = String.to_integer(category_id)
     where(query, [p], p.category_id == ^id)
+  end
+
+  # Returns the list of products that have particular collection (artist-defined).
+  defp with_collection(query, nil), do: query
+  defp with_collection(query, ""), do: query
+  defp with_collection(query, collection_id) do
+    id = String.to_integer(collection_id)
+    where(query, [p], p.collection_id == ^id)
   end
 
   # Returns the list of products that have a particular artist's nickname.
@@ -69,16 +92,24 @@ defmodule ArtsyNeighbor.Products do
     where(query, [artist: a], ilike(a.nickname, ^search))
   end
 
+  defp with_artist_search_term(query, nil), do: query
+  defp with_artist_search_term(query, ""), do: query
+  defp with_artist_search_term(query, search_term) do
+    search = "%#{search_term}%"
+    or_where(query, [artist: a], ilike(a.nickname, ^search))
+  end
+
   # Returns the list of products that have a particular string
   # in their title, or in their category name or description.
   defp with_string(query, nil), do: query
   defp with_string(query, ""), do: query
   defp with_string(query, string) do
     search = "%#{string}%"
-    query
-    |> where([p], ilike(p.title, ^search))
-    |> or_where([category: c], ilike(c.name, ^search))
-    |> or_where([category: c], ilike(c.description, ^search))
+    where(query, [p, category: c],
+      ilike(p.title, ^search) or
+      ilike(c.name, ^search) or
+      ilike(c.description, ^search)
+    )
   end
 
   # Sorts the products. Supported: "price_asc", "price_desc", "artist", "category".
@@ -87,6 +118,7 @@ defmodule ArtsyNeighbor.Products do
   defp sort_by(query, "price_desc"), do: order_by(query, [p], desc: p.price)
   defp sort_by(query, "artist"), do: order_by(query, [artist: a], asc: a.nickname)
   defp sort_by(query, "category"), do: order_by(query, [category: c], asc: c.name)
+  defp sort_by(query, "collection"), do: order_by(query, [collection: c], asc: c.position)
   defp sort_by(query, _), do: order_by(query, [p], asc: p.title)
 
 
@@ -480,11 +512,23 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.all()
   end
 
+
+  @doc """
+  Returns all collections for an artist, ordered by position.
+  Does not preload products. Used when only collection names and IDs are needed (e.g. for filter dropdown).
+  """
+  def list_collections_for_artist_no_preloads(artist_id) do
+    ProductCollection
+    |> where([c], c.artist_id == ^artist_id)
+    |> order_by([c], asc: c.position)
+    |> Repo.all()
+  end
+
   # Returns a query for products ordered by position (nulls last), then title.
   defp products_by_position do
     from(p in Product,
       order_by: [asc_nulls_last: p.position, asc: p.title],
-      preload: [:category, product_images: ^from(i in ProductImage, order_by: [asc: i.position])]
+      preload: [:artist, :category, product_images: ^from(i in ProductImage, order_by: [asc: i.position])]
     )
   end
 

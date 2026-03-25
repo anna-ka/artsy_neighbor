@@ -31,7 +31,7 @@ defmodule ArtsyNeighborWeb.Endpoint do
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
-  if Code.ensure_loaded?(Tidewave) do
+  if Mix.env() == :dev do
     plug Tidewave
   end
 
