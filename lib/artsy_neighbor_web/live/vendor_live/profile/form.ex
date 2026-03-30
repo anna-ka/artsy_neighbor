@@ -359,6 +359,28 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
         />
 
         <%!-- ============================================================
+             ANNOUNCEMENT
+             ============================================================ --%>
+        <div class="divider mt-6">Announcement Banner</div>
+        <p class="text-sm text-base-content/60 mb-4">
+          Optional short message shown at the top of your public profile and store pages.
+          Use it for news like new collections, upcoming events, or availability changes.
+        </p>
+        <.input
+          field={@form[:announcement]}
+          type="textarea"
+          label="Announcement text"
+          placeholder="e.g. I'll be at the Toronto Art Fair, booth 42 — come say hi!"
+          rows="2"
+          phx-debounce="blur"
+        />
+        <.input
+          field={@form[:announcement_active]}
+          type="checkbox"
+          label="Show this announcement on my public pages"
+        />
+
+        <%!-- ============================================================
              PROFILE IMAGE UPLOADS
              ============================================================ --%>
         <div class="divider mt-6">Profile Images</div>

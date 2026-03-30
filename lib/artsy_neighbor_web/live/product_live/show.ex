@@ -135,6 +135,12 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           <div class="mb-5">
             <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @product.title %></h1>
             <p class="text-xl text-base-content/70">by <%= @product.artist.nickname %></p>
+            <div :if={@product.unique_work} class="flex items-center gap-1 mt-2 text-sm text-base-content/60">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              <span>Unique work — one of a kind</span>
+            </div>
           </div>
 
           <div > <%!-- Price --%>

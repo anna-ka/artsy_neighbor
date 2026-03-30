@@ -21,6 +21,8 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :homepage, :string
     field :instagram, :string
     field :facebook, :string
+    field :announcement, :string
+    field :announcement_active, :boolean, default: false
 
     has_many :products, ArtsyNeighbor.Products.Product
     has_many :artist_images, ArtsyNeighbor.Artists.ArtistImage
@@ -49,7 +51,9 @@ defmodule ArtsyNeighbor.Artists.Artist do
         :status,
         :homepage,
         :instagram,
-        :facebook])
+        :facebook,
+        :announcement,
+        :announcement_active])
     |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :email,
                         :street_address, :area_code, :medium])
     |> validate_length(:bio, min: 75, message: "Bio must be at least 75 characters long.")

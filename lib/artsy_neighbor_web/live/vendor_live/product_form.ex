@@ -324,6 +324,13 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             phx-debounce="blur"
           />
 
+          <%!-- Unique Work --%>
+          <.input
+            field={@form[:unique_work]}
+            type="checkbox"
+            label="This is a unique, one-of-a-kind work (e.g. original painting or sculpture)"
+          />
+
           <%!-- Category --%>
           <.input
             field={@form[:category_id]}

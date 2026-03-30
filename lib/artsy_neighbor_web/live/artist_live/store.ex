@@ -118,6 +118,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
                 <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @artist.nickname %> Store</h1>
               </div>
 
+              <%!-- Announcement Banner --%>
+              <div :if={@artist.announcement_active && @artist.announcement not in [nil, ""]}
+                   class="alert alert-info mb-6 text-sm">
+                <%= @artist.announcement %>
+              </div>
+
               <%!-- Neighborhood Badge --%>
               <div class="mb-6">
                 <div class="badge badge-secondary badge-outline badge-lg">
@@ -143,6 +149,37 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
                 <p class="text-base-content/80 leading-relaxed">
                   <%= @artist.bio %>
                 </p>
+              </div>
+
+              <%!-- Delivery Options --%>
+              <div :if={@artist.delivery_options != []} class="mb-6">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Options</h2>
+                <ul class="space-y-1">
+                  <%= for option <- @artist.delivery_options do %>
+                    <li class="text-sm text-base-content/80">
+                      <span class="font-medium"><%= delivery_option_label(option) %></span>
+                      <%= if (get_in(@artist.delivery_info, [option]) || "") != "" do %>
+                        <span class="text-base-content/60"> — <%= get_in(@artist.delivery_info, [option]) %></span>
+                      <% end %>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+
+              <%!-- Social Media / Online Presence --%>
+              <div :if={@artist.homepage || @artist.instagram || @artist.facebook} class="mb-6">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Online</h2>
+                <div class="flex flex-wrap gap-3">
+                  <a :if={@artist.homepage} href={@artist.homepage} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                    🌐 Website
+                  </a>
+                  <a :if={@artist.instagram} href={@artist.instagram} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                    📷 Instagram
+                  </a>
+                  <a :if={@artist.facebook} href={@artist.facebook} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                    📘 Facebook
+                  </a>
+                </div>
               </div>
 
               <%!-- Contact Buttons --%>
@@ -249,5 +286,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
   """
  end
 
+  defp delivery_option_label("pickup"),          do: "Pickup at the artist's studio"
+  defp delivery_option_label("artist_delivery"), do: "Artist delivers"
+  defp delivery_option_label("shipping"),        do: "Shipping"
+  defp delivery_option_label("other"),           do: "Other"
+  defp delivery_option_label(other),             do: other
 
 end

@@ -324,6 +324,24 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
             />
           </div>
 
+          <%!-- ===== ANNOUNCEMENT ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Announcement Banner</h3>
+            <.input
+              field={@form[:announcement]}
+              type="textarea"
+              label="Announcement text"
+              placeholder="e.g. New collection dropping this weekend!"
+              rows="2"
+              phx-debounce="blur"
+            />
+            <.input
+              field={@form[:announcement_active]}
+              type="checkbox"
+              label="Show this announcement on public pages"
+            />
+          </div>
+
           <%!-- ===== IMAGES ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
             <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Images</h3>

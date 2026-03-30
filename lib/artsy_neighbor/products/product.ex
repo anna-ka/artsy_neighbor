@@ -15,6 +15,7 @@ defmodule ArtsyNeighbor.Products.Product do
     field :materials, :string
 
     field :position, :integer
+    field :unique_work, :boolean, default: false
 
     belongs_to :category,   ArtsyNeighbor.Categories.Category
     belongs_to :artist,     ArtsyNeighbor.Artists.Artist
@@ -28,7 +29,7 @@ defmodule ArtsyNeighbor.Products.Product do
   @doc false
   def changeset(product, attrs) do
     product
-    |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id, :collection_id, :position, :width, :length, :height, :units, :materials])
+    |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id, :collection_id, :position, :width, :length, :height, :units, :materials, :unique_work])
     |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
     |> validate_length(:title, min: 3, max: 100,
         min_message: "Title must be at least 3 characters long.",
