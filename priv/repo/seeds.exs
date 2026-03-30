@@ -12,6 +12,9 @@
 
 alias ArtsyNeighbor.Repo
 alias ArtsyNeighbor.Artists.Artist
+alias ArtsyNeighbor.Artists.ArtistImage
+alias ArtsyNeighbor.Accounts.User
+alias ArtsyNeighbor.Accounts.Admin
 alias ArtsyNeighbor.Categories.Category
 alias ArtsyNeighbor.Products.Product
 alias ArtsyNeighbor.Products.ProductCollection
@@ -24,6 +27,8 @@ alias ArtsyNeighbor.Products.ProductImage
 Repo.delete_all(Product)
 Repo.delete_all(Artist)
 Repo.delete_all(Category)
+Repo.delete_all(Admin)
+Repo.delete_all(User)
 
 # ============================================================
 # Artists
@@ -42,17 +47,24 @@ elena = %Artist{}
     phone: "416-555-0101",
     bio: "Contemporary oil painter specializing in vibrant landscapes and abstract compositions. My work explores the relationship between color, light, and emotion.",
     medium: ["Oil painting", "Acrylic painting", "Mixed media"],
-    main_img: "/uploads/artists/1/profile.jpg",
-    img2: "/uploads/artists/1/studio-1.jpg",
-    img3: "/uploads/artists/1/studio-2.jpg",
-    img4: nil,
-    img5: nil
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 elena_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: elena.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: elena.id})
   |> Repo.insert!()
+
+Enum.each([
+  {"/uploads/artists/1/profile.jpg", 1},
+  {"/uploads/artists/1/studio-1.jpg", 2},
+  {"/uploads/artists/1/studio-2.jpg", 3}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: elena.id}) |> Repo.insert!()
+end)
 
 tom = %Artist{}
   |> Artist.changeset(%{
@@ -67,17 +79,23 @@ tom = %Artist{}
     phone: "647-555-0202",
     bio: "Sculptor working primarily with clay and wood. I create organic forms inspired by nature and the human experience.",
     medium: ["Clay sculpture", "Wood carving", "Bronze casting"],
-    main_img: "/uploads/artists/2/profile.jpg",
-    img2: "/uploads/artists/2/workshop.jpg",
-    img3: nil,
-    img4: nil,
-    img5: nil
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 _tom_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: tom.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: tom.id})
   |> Repo.insert!()
+
+Enum.each([
+  {"/uploads/artists/2/profile.jpg", 1},
+  {"/uploads/artists/2/workshop.jpg", 2}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: tom.id}) |> Repo.insert!()
+end)
 
 sarah = %Artist{}
   |> Artist.changeset(%{
@@ -92,17 +110,25 @@ sarah = %Artist{}
     phone: "416-555-0303",
     bio: "Watercolor artist and illustrator. I specialize in botanical illustrations and dreamy landscapes with a focus on delicate details.",
     medium: ["Watercolor", "Ink drawing", "Digital illustration"],
-    main_img: "/uploads/artists/3/profile.jpg",
-    img2: "/uploads/artists/3/studio.jpg",
-    img3: "/uploads/artists/3/workspace.jpg",
-    img4: "/uploads/artists/3/gallery.jpg",
-    img5: nil
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 sarah_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: sarah.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: sarah.id})
   |> Repo.insert!()
+
+Enum.each([
+  {"/uploads/artists/3/profile.jpg", 1},
+  {"/uploads/artists/3/studio.jpg", 2},
+  {"/uploads/artists/3/workspace.jpg", 3},
+  {"/uploads/artists/3/gallery.jpg", 4}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: sarah.id}) |> Repo.insert!()
+end)
 
 raj = %Artist{}
   |> Artist.changeset(%{
@@ -117,17 +143,24 @@ raj = %Artist{}
     phone: "647-555-0404",
     bio: "Ceramic artist creating functional pottery and decorative pieces. My work combines traditional techniques with contemporary design.",
     medium: ["Ceramics", "Pottery", "Porcelain"],
-    main_img: "/uploads/artists/4/profile.jpg",
-    img2: "/uploads/artists/4/kiln.jpg",
-    img3: "/uploads/artists/4/studio.jpg",
-    img4: nil,
-    img5: nil
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 raj_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: raj.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: raj.id})
   |> Repo.insert!()
+
+Enum.each([
+  {"/uploads/artists/4/profile.jpg", 1},
+  {"/uploads/artists/4/kiln.jpg", 2},
+  {"/uploads/artists/4/studio.jpg", 3}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: raj.id}) |> Repo.insert!()
+end)
 
 maria = %Artist{}
   |> Artist.changeset(%{
@@ -142,17 +175,26 @@ maria = %Artist{}
     phone: "416-555-0505",
     bio: "Textile artist and weaver. I create intricate wall hangings and fiber art pieces using natural dyes and traditional weaving techniques.",
     medium: ["Textile art", "Weaving", "Fiber sculpture"],
-    main_img: "/uploads/artists/5/profile.jpg",
-    img2: "/uploads/artists/5/loom.jpg",
-    img3: "/uploads/artists/5/workspace.jpg",
-    img4: "/uploads/artists/5/gallery-show.jpg",
-    img5: "/uploads/artists/5/process.jpg"
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 maria_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: maria.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: maria.id})
   |> Repo.insert!()
+
+Enum.each([
+  {"/uploads/artists/5/profile.jpg", 1},
+  {"/uploads/artists/5/loom.jpg", 2},
+  {"/uploads/artists/5/workspace.jpg", 3},
+  {"/uploads/artists/5/gallery-show.jpg", 4},
+  {"/uploads/artists/5/process.jpg", 5}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: maria.id}) |> Repo.insert!()
+end)
 
 david = %Artist{}
   |> Artist.changeset(%{
@@ -167,19 +209,82 @@ david = %Artist{}
     phone: "647-555-0606",
     bio: "Fine art photographer focusing on urban landscapes and street photography. I capture the beauty in everyday moments.",
     medium: ["Photography", "Digital art", "Printmaking"],
-    main_img: "/uploads/artists/6/profile.jpg",
-    img2: "/uploads/artists/6/darkroom.jpg",
-    img3: nil,
-    img4: nil,
-    img5: nil
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
   })
   |> Repo.insert!()
 
 _david_collection = %ProductCollection{}
-  |> ProductCollection.changeset(%{name: "All Works", position: 1, artist_id: david.id})
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: david.id})
   |> Repo.insert!()
 
-IO.puts("Seeded 6 artists and their default collections successfully!")
+Enum.each([
+  {"/uploads/artists/6/profile.jpg", 1},
+  {"/uploads/artists/6/darkroom.jpg", 2}
+], fn {path, pos} ->
+  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: david.id}) |> Repo.insert!()
+end)
+
+anna = %Artist{}
+  |> Artist.changeset(%{
+    nickname: "Anna's Magnificent Art Studio",
+    first_name: "Anna",
+    last_name: "Kazantseva",
+    middle_name: nil,
+    email: "mmacondo@gmail.com",
+    street_address: "456 Spadina Avenue",
+    apt_info: "Suite 12",
+    area_code: "M5T 2C2",
+    phone: "647-555-0606",
+    bio: "I am mostly an oil painter though sometimes I work in watercolor and do some fiber art. I capture the beauty in everyday moments.",
+    medium: ["Oil painting", "Acrylic painting", "Mixed media"],
+    status: "active",
+    status_changed_at: ~U[2026-03-25 19:00:00Z],
+    delivery_options: ["pickup"],
+    delivery_info: %{}
+  })
+  |> Repo.insert!()
+
+_anna_collection = %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: anna.id})
+  |> Repo.insert!()
+
+%ArtistImage{}
+  |> ArtistImage.changeset(%{path: "/images/Crow-Wolfgang-Heubeck.webp", position: 1, artist_id: anna.id})
+  |> Repo.insert!()
+
+# ============================================================
+# Admin user account (dev only — reads credentials from .env)
+# ============================================================
+
+if Mix.env() == :dev do
+  admin_email    = System.get_env("SEED_ADMIN_EMAIL")    || raise "SEED_ADMIN_EMAIL is not set. Add it to your .env file."
+  admin_password = System.get_env("SEED_ADMIN_PASSWORD") || raise "SEED_ADMIN_PASSWORD is not set. Add it to your .env file."
+
+  anna_user =
+    %User{}
+    |> User.registration_changeset(%{email: admin_email, username: "annak"})
+    |> User.password_changeset(%{password: admin_password})
+    |> User.confirm_changeset()
+    |> Repo.insert!()
+
+  # Link anna artist to the user account
+  anna
+  |> Artist.changeset(%{user_id: anna_user.id})
+  |> Repo.update!()
+
+  # Grant admin privileges
+  %Admin{}
+  |> Ecto.Changeset.cast(%{user_id: anna_user.id}, [:user_id])
+  |> Ecto.Changeset.validate_required([:user_id])
+  |> Repo.insert!()
+
+  IO.puts("Seeded admin user account successfully!")
+end
+
+IO.puts("Seeded 7 artists, their default collections, and artist images successfully!")
 
 # ============================================================
 # Categories

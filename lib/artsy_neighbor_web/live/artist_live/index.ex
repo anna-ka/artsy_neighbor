@@ -110,7 +110,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
           <%!-- DaisyUI figure for image --%>
           <figure class="aspect-square">
             <img
-              src={@artist.main_img}
+              src={@artist.artist_images |> Enum.sort_by(& &1.position) |> List.first() |> case do
+                nil -> "/images/avatar-placeholder.png"
+                img -> img.path
+              end}
               alt={@artist.nickname}
               class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
             />

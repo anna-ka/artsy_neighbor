@@ -25,17 +25,13 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
         collections = Products.list_collections_for_artist_no_preloads(artist.id) |> Enum.map(fn c -> {c.name, c.id} end)
         #products = Products.get_products_by_artist(artist.id)
         products = Products.filter_artist_products(artist.id, params)
-        gallery_images =
-          [artist.img2, artist.img3, artist.img4, artist.img5]
-          |> Enum.filter(fn x -> x end)
-          |> Enum.with_index(2)
-
-        total_slides = length(gallery_images) + 1
+        artist_images = Enum.sort_by(artist.artist_images, & &1.position)
+        total_slides = length(artist_images)
 
         socket =
           socket
           |> assign(:artist, artist)
-          |> assign(:gallery_images, gallery_images)
+          |> assign(:artist_images, artist_images)
           |> assign(:total_slides, total_slides)
           |> assign(:collections, collections)
           |> assign(:products, products)
@@ -91,30 +87,16 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
              <div class="lg:col-span-1">
               <%!-- DaisyUI Carousel --%>
               <div class="carousel carousel-center w-full rounded-lg bg-base-300">
-                <%!-- Main Image --%>
-                <div id="slide1" class="carousel-item relative w-full aspect-square">
-                  <img
-                    src={@artist.main_img}
-                    alt={@artist.nickname}
-                    class="w-full h-full object-cover"
-                  />
-                  <div class="absolute flex justify-between transform -translate-y-1/2 left-2 right-2 top-1/2">
-                    <a href={"#slide#{@total_slides}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❮</a>
-                    <a href="#slide2" class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❯</a>
-                  </div>
-                </div>
-
-                <%!-- Additional Images --%>
-                <%= for {img, index} <- @gallery_images do %>
+                <%= for {img, index} <- Enum.with_index(@artist_images, 1) do %>
                   <div id={"slide#{index}"} class="carousel-item relative w-full aspect-square">
                     <img
-                      src={img}
-                      alt={"#{@artist.nickname} - gallery #{index}"}
+                      src={img.path}
+                      alt={"#{@artist.nickname} - image #{index}"}
                       class="w-full h-full object-cover"
                     />
                     <div class="absolute flex justify-between transform -translate-y-1/2 left-2 right-2 top-1/2">
-                      <a href={"#slide#{index - 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❮</a>
-                      <a href={"#slide#{if index < @total_slides, do: index + 1, else: 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❯</a>
+                      <a href={"#slide#{if index == 1, do: @total_slides, else: index - 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❮</a>
+                      <a href={"#slide#{if index == @total_slides, do: 1, else: index + 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❯</a>
                     </div>
                   </div>
                 <% end %>
@@ -122,8 +104,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
 
               <%!-- Carousel Indicators (Dots) --%>
               <div class="flex justify-center w-full py-4 gap-2">
-                <a href="#slide1" class="btn btn-xs">1</a>
-                <%= for {_img, index} <- @gallery_images do %>
+                <%= for {_img, index} <- Enum.with_index(@artist_images, 1) do %>
                   <a href={"#slide#{index}"} class="btn btn-xs"><%= index %></a>
                 <% end %>
               </div>

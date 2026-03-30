@@ -49,3 +49,6 @@ npm-debug.log
 # Personal notes
 /priv/static/notes/
 
+#environment variables
+.env
+

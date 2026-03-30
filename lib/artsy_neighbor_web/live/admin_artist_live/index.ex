@@ -12,7 +12,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     socket =
       socket
       |> assign( :page_title, "Admin - Artists")
-      |> stream(:artists, Artists.list_artists())
+      |> stream(:artists, Artists.list_artists_with_images())
     {:ok, socket}
   end
 
@@ -64,7 +64,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
           <div class="avatar">
             <div class="mask mask-squircle h-12 w-12">
               <img
-                src={artist.main_img}
+                src={artist.artist_images |> Enum.sort_by(& &1.position) |> List.first() |> then(fn img -> if img, do: img.path, else: "/images/avatar-placeholder.png" end)}
                 alt={artist.nickname} />
             </div>
           </div>
@@ -88,6 +88,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
         <%!-- Middle Name --%>
         <:col :let={{_dom_id, artist}} label="Middle" col_class="w-24">
           <%= artist.middle_name %>
+        </:col>
+
+        <!-- Profile status -->
+        <:col :let={{_dom_id, artist}} label="Status" col_class="w-24">
+          <%= artist.status %>
         </:col>
 
         <%!-- Email --%>

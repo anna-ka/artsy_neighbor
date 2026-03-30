@@ -9,6 +9,10 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   @impl true
   def mount(params, _session, socket) do
+    socket =
+      socket
+      |> allow_upload(:profile_images, accept: ~w(.jpg .jpeg .png .webp), max_entries: 5, max_file_size: 5_000_000)
+
     {:ok, apply_action(socket, socket.assigns.live_action, params)}
   end
 
@@ -22,15 +26,15 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
       else
         medium_list
       end
-
     end)
 
     changeset = Artists.change_artist(artist_with_string_medium)
 
     socket
-    |> assign(:page_title, "Edit Artist")
+    |> assign(:page_title, "Edit Artist Profile")
     |> assign(:form, to_form(changeset))
     |> assign(:artist, artist)
+    |> assign(:existing_profile_images, artist.artist_images)
   end
 
   defp apply_action(socket, :new, _params) do
@@ -40,12 +44,63 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     |> assign(:page_title, "New Artist")
     |> assign(:form, to_form(changeset))
     |> assign(:artist, %Artist{})
+    |> assign(:existing_profile_images, [])
+  end
 
+  @impl true
+  def handle_event("cancel_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :profile_images, ref)}
+  end
+
+  @impl true
+  def handle_event("move_image_up", %{"imageid" => id}, socket) do
+    id = String.to_integer(id)
+    images = socket.assigns.existing_profile_images
+    index = Enum.find_index(images, fn img -> img.id == id end)
+
+    if index && index > 0 do
+      Artists.swap_image_positions(Enum.at(images, index), Enum.at(images, index - 1))
+      {:noreply, reload_existing_images(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("move_image_down", %{"imageid" => id}, socket) do
+    id = String.to_integer(id)
+    images = socket.assigns.existing_profile_images
+    index = Enum.find_index(images, fn img -> img.id == id end)
+
+    if index && index < length(images) - 1 do
+      Artists.swap_image_positions(Enum.at(images, index), Enum.at(images, index + 1))
+      {:noreply, reload_existing_images(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_image", %{"imageid" => id}, socket) do
+    id = String.to_integer(id)
+    images = socket.assigns.existing_profile_images
+    image = Enum.find(images, fn img -> img.id == id end)
+
+    if image do
+      Artists.delete_artist_image(image)
+      {:noreply, reload_existing_images(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp reload_existing_images(socket) do
+    artist = Artists.get_artist!(socket.assigns.artist.id)
+    assign(socket, :existing_profile_images, artist.artist_images)
   end
 
   @impl true
   def handle_event("save", %{"artist" => artist_params}, socket) do
-    # Parse comma-separated medium string into array
     artist_params = parse_medium_field(artist_params)
     save_artist(socket, socket.assigns.live_action, artist_params)
   end
@@ -67,59 +122,78 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
         changeset
       end
 
-    socket =
-      socket
-      |> assign(:form, to_form(changeset, action: :validate))
-
-    {:noreply, socket}
+    {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
   end
 
-
-  # Handles saving edits to an existing artist.
-  # artist_params - parameters submitted from the form. This map
-  # must include field "medium" as an array of strings
-  # (as returned by parse_medium_field/1 ).
   defp save_artist(socket, :edit, artist_params) do
     case Artists.update_artist(socket.assigns.artist, artist_params) do
-      {:ok, _artist} ->
-        socket =
-          socket
-          |> put_flash( :info, "Artist profile is updated successfully.")
-          |> push_navigate(to: ~p"/admin/artists")
-        {:noreply, socket}
+      {:ok, artist} ->
+        existing_count = length(socket.assigns.existing_profile_images)
+
+        upload_dir = Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+        File.mkdir_p!(upload_dir)
+
+        image_paths =
+          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
+            ext = Path.extname(entry.client_name)
+            filename = "#{Ecto.UUID.generate()}#{ext}"
+            File.cp!(tmp_path, Path.join(upload_dir, filename))
+            {:ok, "/uploads/artist_profiles/#{filename}"}
+          end)
+
+        image_paths
+        |> Enum.with_index(existing_count + 1)
+        |> Enum.each(fn {path, position} ->
+          Artists.create_artist_image(artist, %{path: path, position: position})
+        end)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Artist profile is updated successfully.")
+         |> push_navigate(to: ~p"/admin/artists")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        socket =
-          socket
-          |> assign(:form, to_form(changeset))
-        {:noreply, socket}
+        {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
 
   defp save_artist(socket, :new, artist_params) do
     case Artists.create_artist(artist_params) do
-      {:ok, _artist} ->
-        socket =
-          socket
-          |> put_flash(:info, "Artist profile is created successfully.")
-          |> push_navigate(to: ~p"/admin/artists")
-        {:noreply, socket}
+      {:ok, artist} ->
+        upload_dir = Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+        File.mkdir_p!(upload_dir)
+
+        image_paths =
+          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
+            ext = Path.extname(entry.client_name)
+            filename = "#{Ecto.UUID.generate()}#{ext}"
+            File.cp!(tmp_path, Path.join(upload_dir, filename))
+            {:ok, "/uploads/artist_profiles/#{filename}"}
+          end)
+
+        image_paths
+        |> Enum.with_index(1)
+        |> Enum.each(fn {path, position} ->
+          Artists.create_artist_image(artist, %{path: path, position: position})
+        end)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Artist profile is created successfully.")
+         |> push_navigate(to: ~p"/admin/artists")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        socket =
-          socket
-          |> assign(:form, to_form(changeset))
-        {:noreply, socket}
+        {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
 
+  defp error_to_string(:too_large),     do: "File too large (max 5 MB)"
+  defp error_to_string(:too_many_files), do: "Too many files (max 5)"
+  defp error_to_string(:not_accepted),  do: "File type not accepted (jpg, png, webp only)"
 
-
-  #Helper function to parse comma-separated medium string into array.
   defp parse_medium_field(params) do
     case params["medium"] do
       medium when is_binary(medium) ->
-        # Split by comma, trim whitespace, and remove empty strings
         medium_list =
           medium
           |> String.split(",")
@@ -139,156 +213,228 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     <Layouts.artsy_main flash={@flash} variant="admin">
       <div class="w-full px-8 py-8">
 
-      <div >
-      <.back navigate={~p"/admin/artists"}>
+        <.back navigate={~p"/admin/artists"}>
           Back
         </.back>
-      </div>
 
+        <.header>
+          <%= @page_title %>
+        </.header>
 
-      <.header>
-        <%= @page_title  %>
-      </.header>
+        <.form for={@form} id="artist_form" phx-submit="save" phx-change="validate">
 
-      <.form for={@form} id="artist_form" phx-submit="save" phx-change="validate">
+          <%!-- ===== IDENTITY ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Identity</h3>
+            <.input
+              field={@form[:nickname]}
+              label={raw("Nickname <span class=\"text-error\">*</span>")}
+              placeholder="Artist's display name"
+              required
+              phx-debounce="blur"
+            />
+            <div class="grid grid-cols-3 gap-4">
+              <.input
+                field={@form[:first_name]}
+                label={raw("First Name <span class=\"text-error\">*</span>")}
+                required
+                phx-debounce="blur"
+              />
+              <.input
+                field={@form[:middle_name]}
+                label="Middle Name"
+                phx-debounce="blur"
+              />
+              <.input
+                field={@form[:last_name]}
+                label={raw("Last Name <span class=\"text-error\">*</span>")}
+                required
+                phx-debounce="blur"
+              />
+            </div>
+          </div>
 
-        <%!-- Nickname --%>
-        <.input
-          field={@form[:nickname]}
-          label={raw("Nickname <span class=\"text-error\">*</span>")}
-          placeholder="Artist's display name"
-          required
-          phx-debounce="blur"
-        />
+          <%!-- ===== CONTACT ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Contact</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <.input
+                field={@form[:email]}
+                type="email"
+                label={raw("Email <span class=\"text-error\">*</span>")}
+                required
+                phx-debounce="blur"
+              />
+              <.input
+                field={@form[:phone]}
+                type="tel"
+                label={raw("Phone <span class=\"text-error\">*</span>")}
+                placeholder="e.g., 416-555-0101"
+                required
+                phx-debounce="blur"
+              />
+            </div>
+          </div>
 
-        <%!-- First Name --%>
-        <.input
-          field={@form[:first_name]}
-          label={raw("First Name <span class=\"text-error\">*</span>")}
-          required
-          phx-debounce="blur"
-        />
+          <%!-- ===== LOCATION ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Location</h3>
+            <div class="grid grid-cols-3 gap-4">
+              <div class="col-span-2">
+                <.input
+                  field={@form[:street_address]}
+                  label={raw("Street Address <span class=\"text-error\">*</span>")}
+                  required
+                  phx-debounce="blur"
+                />
+              </div>
+              <.input
+                field={@form[:apt_info]}
+                label="Apartment/Unit"
+                placeholder="e.g., Suite 3B"
+                phx-debounce="blur"
+              />
+            </div>
+            <.input
+              field={@form[:area_code]}
+              label={raw("Area Code / Neighborhood <span class=\"text-error\">*</span>")}
+              placeholder="e.g., M5V 2T6"
+              required
+              phx-debounce="blur"
+            />
+          </div>
 
-        <%!-- Last Name --%>
-        <.input
-          field={@form[:last_name]}
-          label={raw("Last Name <span class=\"text-error\">*</span>")}
-          required
-          phx-debounce="blur"
-        />
+          <%!-- ===== ARTIST PROFILE ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Artist Profile</h3>
+            <.input
+              field={@form[:bio]}
+              type="textarea"
+              label={raw("Bio <span class=\"text-error\">*</span>")}
+              rows="4"
+              required
+              phx-debounce="blur"
+            />
+            <.input
+              field={@form[:medium]}
+              label={raw("Mediums (comma-separated) <span class=\"text-error\">*</span>")}
+              placeholder="e.g., Oil painting, Acrylic painting, Mixed media"
+              required
+              phx-debounce="blur"
+            />
+          </div>
 
-        <%!-- Middle Name --%>
-        <.input
-          field={@form[:middle_name]}
-          label="Middle Name"
-        />
+          <%!-- ===== IMAGES ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Images</h3>
+            <p class="text-sm text-base-content/60 mb-4">
+              Accepted formats: jpg, png, webp · max 5 MB each · up to 5 images total.
+            </p>
 
-        <%!-- Email --%>
-        <.input
-          field={@form[:email]}
-          type="email"
-          label={raw("Email <span class=\"text-error\">*</span>")}
-          required
-          phx-debounce="blur"
-        />
+            <%!-- Existing images with up/down reorder buttons --%>
+            <div :if={@existing_profile_images != []} class="mb-4">
+              <p class="text-sm text-base-content/60 mb-2">Current images:</p>
+              <div class="flex flex-col gap-3">
+                <div
+                  :for={{img, index} <- Enum.with_index(@existing_profile_images)}
+                  class="flex items-center gap-3"
+                >
+                  <img src={img.path} class="w-24 h-24 object-cover rounded-lg border border-base-300" />
+                  <div class="flex flex-col gap-1 tooltip tooltip-right" data-tip="Use arrows to reorder images">
+                    <button
+                      :if={index > 0}
+                      type="button"
+                      phx-click="move_image_up"
+                      phx-value-imageid={img.id}
+                      class="btn btn-ghost btn-xs"
+                    >↑</button>
+                    <button
+                      :if={index < length(@existing_profile_images) - 1}
+                      type="button"
+                      phx-click="move_image_down"
+                      phx-value-imageid={img.id}
+                      class="btn btn-ghost btn-xs"
+                    >↓</button>
+                  </div>
+                  <button
+                    type="button"
+                    phx-click="delete_image"
+                    phx-value-imageid={img.id}
+                    class="btn btn-ghost btn-xs text-error"
+                  >✕</button>
+                </div>
+              </div>
+            </div>
 
-        <%!-- Phone --%>
-        <.input
-          field={@form[:phone]}
-          type="tel"
-          label={raw("Phone <span class=\"text-error\">*</span>")}
-          placeholder="e.g., 416-555-0101"
-          required
-          phx-debounce="blur"
-        />
+            <%!-- Upload new images --%>
+            <.live_file_input
+              upload={@uploads.profile_images}
+              class="file-input file-input-bordered w-full"
+            />
+            <p class="text-xs text-base-content/50 mt-1">New images are appended after existing ones. Save first, then reorder.</p>
 
-        <%!-- Street Address --%>
-        <.input
-          field={@form[:street_address]}
-          label={raw("Street Address <span class=\"text-error\">*</span>")}
-          required
-          phx-debounce="blur"
-        />
+            <div class="space-y-3 mt-3">
+              <div :for={entry <- @uploads.profile_images.entries} class="flex items-center gap-3">
+                <.live_img_preview entry={entry} class="w-16 h-16 object-cover rounded-lg border border-base-300" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm truncate">{entry.client_name}</p>
+                  <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
+                </div>
+                <button
+                  type="button"
+                  phx-click="cancel_upload"
+                  phx-value-ref={entry.ref}
+                  class="btn btn-ghost btn-xs text-error"
+                >✕</button>
+                <p :for={err <- upload_errors(@uploads.profile_images, entry)} class="text-error text-xs">
+                  {error_to_string(err)}
+                </p>
+              </div>
+            </div>
 
+            <p :for={err <- upload_errors(@uploads.profile_images)} class="text-error text-sm mt-2">
+              {error_to_string(err)}
+            </p>
+          </div>
 
-        <%!-- Apartment Info --%>
-        <.input
-          field={@form[:apt_info]}
-          label="Apartment/Unit"
-          placeholder="e.g., Suite 3B, Unit 405"
-          phx-debounce="blur"
-        />
+          <%!-- ===== ONLINE PRESENCE ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Online Presence</h3>
+            <div class="grid grid-cols-3 gap-4">
+              <.input field={@form[:homepage]}  label="Homepage"  placeholder="https://..." />
+              <.input field={@form[:facebook]}  label="Facebook"  placeholder="https://facebook.com/..." />
+              <.input field={@form[:instagram]} label="Instagram" placeholder="https://instagram.com/..." />
+            </div>
+          </div>
 
-        <%!-- Area Code / Neighborhood --%>
-        <.input
-          field={@form[:area_code]}
-          label={raw("Area Code / Neighborhood <span class=\"text-error\">*</span>")}
-          placeholder="e.g., M5V 2T6"
-          required
-          phx-debounce="blur"
-        />
+          <%!-- ===== STATUS ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Profile Status</h3>
+            <.input
+              field={@form[:status]}
+              type="select"
+              label="Status"
+              options={
+                Ecto.Enum.values(ArtsyNeighbor.Artists.Artist, :status)
+                |> Enum.map(fn x -> {String.capitalize(to_string(x)), x} end)
+              }
+            />
+          </div>
 
-        <%!-- Bio --%>
-        <.input
-          field={@form[:bio]}
-          type="textarea"
-          label={raw("Bio <span class=\"text-error\">*</span>")}
-          rows="4"
-          required
-          phx-debounce="blur"
-        />
+          <div class="mt-6">
+            <.button_artsy variant="primary" disable_with="Submitting...">
+              Save Artist
+            </.button_artsy>
+          </div>
 
-        <%!-- Medium (array of strings) --%>
-        <.input
-          field={@form[:medium]}
-          label={raw("Mediums (comma-separated) <span class=\"text-error\">*</span>")}
-          placeholder="e.g., Oil painting, Acrylic painting, Mixed media"
-          required
-          phx-debounce="blur"
-        />
+        </.form>
 
-        <%!-- Main Image URL --%>
-        <.input
-          field={@form[:main_img]}
-          label={raw("Main Image URL <span class=\"text-error\">*</span>")}
-          placeholder="/uploads/artists/1/profile.jpg"
-          required
-        />
-
-        <%!-- Additional Image URLs --%>
-        <.input
-          field={@form[:img2]}
-          label="Image 2 URL"
-        />
-
-        <.input
-          field={@form[:img3]}
-
-          label="Image 3 URL"
-        />
-
-        <.input
-          field={@form[:img4]}
-          label="Image 4 URL"
-        />
-
-        <.input
-          field={@form[:img5]}
-          label="Image 5 URL"
-        />
-
-        <.button_artsy variant="primary" disable_with="Submitting...">
-          Save Artist
-        </.button_artsy>
-
-
-      </.form>
-
-      <.back navigate={~p"/admin/artists"}>
+        <.back navigate={~p"/admin/artists"}>
           Back
         </.back>
+
       </div>
-      </Layouts.artsy_main>
+    </Layouts.artsy_main>
     """
   end
 end

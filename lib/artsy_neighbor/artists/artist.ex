@@ -14,13 +14,16 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :email, :string
     field :bio, :string
     field :medium, {:array, :string}
-    field :main_img, :string, default: "/images/avatar-placeholder.png"
-    field :img2, :string
-    field :img3, :string
-    field :img4, :string
-    field :img5, :string
+    field :delivery_options, {:array, :string}, default: ["pickup"]
+    field :delivery_info, :map, default: %{}
+    field :status, Ecto.Enum, values: [:active, :inactive, :removed], default: :inactive
+    field :status_changed_at, :utc_datetime
+    field :homepage, :string
+    field :instagram, :string
+    field :facebook, :string
 
     has_many :products, ArtsyNeighbor.Products.Product
+    has_many :artist_images, ArtsyNeighbor.Artists.ArtistImage
     belongs_to :user, ArtsyNeighbor.Accounts.User
 
     timestamps(type: :utc_datetime)
@@ -40,13 +43,15 @@ defmodule ArtsyNeighbor.Artists.Artist do
         :phone,
         :bio,
         :medium,
-        :main_img,
-        :img2,
-        :img3,
-        :img4,
-        :img5,
-        :user_id])
-    |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :main_img, :email, :street_address, :area_code, :medium])
+        :user_id,
+        :delivery_options,
+        :delivery_info,
+        :status,
+        :homepage,
+        :instagram,
+        :facebook])
+    |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :email,
+                        :street_address, :area_code, :medium])
     |> validate_length(:bio, min: 75, message: "Bio must be at least 75 characters long.")
     |> validate_length(:first_name, min: 2, message: "First name must be at least 2 characters long.")
     |> validate_length(:last_name, min: 2, message: "Last name must be at least 2 characters long.")
@@ -54,7 +59,80 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_phone()
     |> validate_canadian_postal_code()
     |> assoc_constraint(:user)
+    |> maybe_set_status_changed_at()
+    |> maybe_validate_delivery_options()
+    |> validate_url(:homepage)
+    |> validate_url(:instagram)
+    |> validate_url(:facebook)
   end
+
+  # If the status field has changed, update the status_changed_at timestamp
+  defp maybe_set_status_changed_at(changeset) do
+    if Ecto.Changeset.changed?(changeset, :status) do
+      Ecto.Changeset.put_change(changeset, :status_changed_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    else
+      changeset
+    end
+  end
+
+  #Verifies that delivery options are valid if they have changed
+  defp maybe_validate_delivery_options(changeset) do
+    if Ecto.Changeset.changed?(changeset, :delivery_options) do
+        changeset
+          |> validate_inclusion( :delivery_options, ["pickup", "artist_delivery", "shipping", "other"],
+            message: "Delivery options must be one of: pickup, local_delivery, shipping")
+          |> maybe_validate_delivery_info()
+    else
+      changeset
+    end
+  end
+
+
+  # Validates that delivery_info keys match the selected delivery_options and that notes are not too long.
+  defp maybe_validate_delivery_info(changeset) do
+
+    delivery_options = Ecto.Changeset.get_field(changeset, :delivery_options) || []
+    delivery_info = Ecto.Changeset.get_field(changeset, :delivery_info) || %{}
+
+    invalid_keys = Map.keys(delivery_info) -- delivery_options
+
+    if invalid_keys == [] do
+        changeset
+        |> validate_delivery_notes_length()
+    else
+      Ecto.Changeset.add_error(changeset, :delivery_info,
+        "contains notes for unknown delivery options: #{Enum.join(invalid_keys, ", ")}")
+    end
+  end
+
+  # Checks that each delivery note value is not too long (max 500 chars).
+  # Iterates map values since validate_length only works on strings/lists.
+  defp validate_delivery_notes_length(changeset) do
+    delivery_info = Ecto.Changeset.get_field(changeset, :delivery_info) || %{}
+
+    Enum.reduce(delivery_info, changeset, fn {key, value}, acc ->
+      if is_binary(value) && String.length(value) > 500 do
+        Ecto.Changeset.add_error(acc, :delivery_info,
+          "note for '#{key}' must be 500 characters or fewer")
+      else
+        acc
+      end
+    end)
+  end
+
+
+
+  # Validates that a field contains a properly formatted URL
+  defp validate_url(changeset, field) do
+    if Ecto.Changeset.changed?(changeset, field) do
+      validate_format(changeset, field,
+        ~r/^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-._~:\/?#\[\]@!$&'()*+,;=]*)?$/,
+        message: "must be a valid URL (e.g., https://www.example.com)")
+    else
+      changeset
+    end
+  end
+
 
   # Validates email format
   defp validate_email(changeset) do

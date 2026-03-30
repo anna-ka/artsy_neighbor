@@ -8,10 +8,12 @@ defmodule ArtsyNeighbor.Artists do
   alias Ecto.Multi
 
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
 
   @doc """
-  Returns the list of all artists.
+  Returns the list of all artists. Associations not preloaded by default.
+   Artists are ordered by their main medium (first element in the medium array) and then by
 
   ## Examples
 
@@ -26,6 +28,31 @@ defmodule ArtsyNeighbor.Artists do
     |> Repo.all()
   end
 
+
+  @doc """
+    Returns the list of all artists with their associated images preloaded.
+    Artists are ordered by their main medium (first element in the medium array) and then by area code.
+    ## Examples
+
+        iex> list_artists_with_images()
+        [%Artist{artist_images: [%ArtistImage{}, ...]}, ...]
+
+   """
+  def list_artists_with_images do
+    Artist
+    |> order_by([a], fragment("?[1]", a.medium))
+    |> order_by(asc: :area_code)
+    |> Repo.all()
+    |> Repo.preload([:artist_images])
+  end
+
+  @doc """
+  Returns the list of artists filtered by the given status.
+  If status is nil, returns all artists.
+  """
+  def with_status(query, nil), do: query
+  def with_status(query, status), do: where(query, [a], a.status == ^status)
+
   @doc """
   Filters artists by the given area code.
   """
@@ -33,6 +60,7 @@ defmodule ArtsyNeighbor.Artists do
     Artist
     |> where([a], a.area_code == ^area_code)
     |> Repo.all()
+    |> Repo.preload([:artist_images])
   end
 
   @doc """
@@ -43,6 +71,7 @@ defmodule ArtsyNeighbor.Artists do
     Artist
     |> where([a], fragment("EXISTS (SELECT 1 FROM unnest(?) AS m WHERE m ILIKE ?)", a.medium, ^search_term))
     |> Repo.all()
+    |> Repo.preload([:artist_images])
   end
 
 
@@ -51,6 +80,7 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Filters artists based on provided parameters.
+  It shows only active artists by default, but can be extended to include other statuses if needed.
 
   Suported parameters:
     - "q_name": filters by artist nickname
@@ -60,17 +90,19 @@ defmodule ArtsyNeighbor.Artists do
       iex> filter_artists(%{"q_name" => "Elena", "q_medium" => "Oil"})
       [%Artist{}, ...]
   """
-  def filter_artists(filter_params) do
+  def filter_artists(filter_params ) do
 
     q_name = String.trim( filter_params["q_name"] || "")
     q_medium = String.trim( filter_params["q_medium"] || "")
     sort_term = String.trim( filter_params["sort_by"] || "" )
 
     Artist
+    |> with_status(:active)
     |> with_nickname(q_name)
     |> with_medium(q_medium)
     |> sort_by(sort_term)
     |> Repo.all()
+    |> Repo.preload([:artist_images])
 
   end
 
@@ -132,6 +164,7 @@ defmodule ArtsyNeighbor.Artists do
   """
   def get_artist(id) do
     Repo.get(Artist, id)
+    |> Repo.preload([:artist_images])
   end
 
 
@@ -141,6 +174,7 @@ defmodule ArtsyNeighbor.Artists do
   """
   def get_artist!(id) do
     Repo.get!(Artist, id)
+    |> Repo.preload([:artist_images])
   end
 
   @doc """
@@ -154,7 +188,7 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Creates a new artist with the given attributes, and atomically inserts a
-  default "All Works" collection for the new artist.
+  default "Uncategorized" collection for the new artist.
   Returns {:ok, %{artist: artist, collection: collection}} or {:error, step, changeset, _}.
   """
   def create_artist(attrs \\ %{}) do
@@ -162,7 +196,7 @@ defmodule ArtsyNeighbor.Artists do
     |> Multi.insert(:artist, Artist.changeset(%Artist{}, attrs))
     |> Multi.insert(:collection, fn %{artist: artist} ->
       ProductCollection.changeset(%ProductCollection{}, %{
-        name: "All Works",
+        name: "Uncategorized",
         position: 1,
         artist_id: artist.id
       })
@@ -198,6 +232,54 @@ defmodule ArtsyNeighbor.Artists do
   def delete_artist(%Artist{} = artist) do
     Repo.delete(artist)
   end
+
+  @doc """
+  Creates a new ArtistImage for the given artist.
+  artist_id is injected from the Artist struct — never from form params.
+  """
+  def create_artist_image(%Artist{} = artist, attrs \\ %{}) do
+    %ArtistImage{}
+    |> ArtistImage.changeset(Map.put(attrs, :artist_id, artist.id))
+    |> Repo.insert()
+  end
+
+  @doc """
+  Returns all images for the given artist, ordered by position ascending.
+  """
+  def get_images_for_artist(%Artist{} = artist) do
+    ArtistImage
+    |> where(artist_id: ^artist.id)
+    |> order_by(:position)
+    |> Repo.all()
+  end
+
+  @doc """
+  Swaps the position values of two ArtistImage records atomically.
+  Used for reordering images up/down in the profile form.
+  """
+  def swap_image_positions(%ArtistImage{} = img1, %ArtistImage{} = img2) do
+    Repo.transaction(fn ->
+      {:ok, _} = update_artist_image(img1, %{position: img2.position})
+      {:ok, _} = update_artist_image(img2, %{position: img1.position})
+    end)
+  end
+
+  @doc """
+  Updates an ArtistImage with the given attributes.
+  """
+  def update_artist_image(%ArtistImage{} = artist_image, attrs \\ %{}) do
+    artist_image
+    |> ArtistImage.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes an ArtistImage record.
+  """
+  def delete_artist_image(%ArtistImage{} = artist_image) do
+    Repo.delete(artist_image)
+  end
+
 
 
 end

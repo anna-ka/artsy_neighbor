@@ -12,6 +12,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
          |> redirect(to: ~p"/vendor/profile/new")}
 
       artist ->
+        artist = ArtsyNeighbor.Artists.get_artist!(artist.id)
         products = Products.get_products_by_artist(artist.id)
         collections = Products.list_collections_for_artist(artist.id)
 
@@ -46,7 +47,10 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
         <div class="card card-side bg-base-200 shadow-sm">
           <figure class="w-32 shrink-0">
             <img
-              src={@artist.main_img}
+              src={@artist.artist_images |> Enum.sort_by(& &1.position) |> List.first() |> case do
+                nil -> "/images/avatar-placeholder.png"
+                img -> img.path
+              end}
               alt={@artist.nickname}
               class="h-full w-full object-cover"
             />
@@ -80,14 +84,6 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
             </div>
           </div>
 
-          <%= if @products == [] do %>
-            <div class="text-center py-16 border border-dashed border-base-300 rounded-box">
-              <p class="text-base-content/60 mb-4">You haven't listed any products yet.</p>
-              <.link navigate={~p"/vendor/products/new"} class="btn btn-primary">
-                Add your first product
-              </.link>
-            </div>
-          <% else %>
             <%!-- One section per collection --%>
             <div class="space-y-8">
               <div :for={{collection, index} <- Enum.with_index(@collections)}>
@@ -127,12 +123,12 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                     >
                       Edit collection
                     </.link>
-                    <%!-- "All Works" is the protected default — disallow deletion --%>
+                    <%!-- "Uncategorized" is the protected default — disallow deletion --%>
                     <.link
-                      :if={collection.name != "All Works"}
+                      :if={collection.name != "Uncategorized"}
                       phx-click="delete_collection"
                       phx-value-id={collection.id}
-                      data-confirm={"Delete \"#{collection.name}\"? Its products will be moved to your All Works collection."}
+                      data-confirm={"Delete \"#{collection.name}\"? Its products will be moved to your Uncategorized collection."}
                       class="text-xs text-warning hover:underline"
                     >
                       Delete collection
@@ -153,6 +149,12 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                       </tr>
                     </thead>
                     <tbody>
+                      <tr :if={collection.products == []}>
+                        <td colspan="5" class="text-center text-base-content/50 py-6">
+                          No products yet.
+                          <.link navigate={~p"/vendor/products/new"} class="link link-primary ml-1">Add one</.link>
+                        </td>
+                      </tr>
                       <tr :for={{product, product_index} <- Enum.with_index(collection.products)}>
                         <%!-- Arrow column — reorder products within this collection --%>
                         <td class="w-8">
@@ -221,7 +223,6 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
 
               </div>
             </div>
-          <% end %>
         </div>
 
       </div>
