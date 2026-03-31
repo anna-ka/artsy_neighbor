@@ -13,13 +13,19 @@ defmodule ArtsyNeighborWeb.ArtistLive.Store do
   def handle_params(%{"id" => id} = params, _uri, socket) do
 
     #get collections for the artist
-    artist = Artists.get_artist(id)
-    case artist do
-      nil ->
-         {:noreply,
+    case Artists.get_artist(id) do
+      %{status: status} when status != :active ->
+        {:noreply,
          socket
-        |> put_flash(:error, "Artist not found.")
-        |> push_navigate(to: ~p"/artists")}
+         |> put_flash(:error, "Artist not found.")
+         |> push_navigate(to: ~p"/artists")}
+
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Artist not found.")
+         |> push_navigate(to: ~p"/artists")}
+
       artist ->
         categories = ArtsyNeighbor.Categories.list_categories() |> Enum.map(fn cat -> {cat.name, cat.id} end)
         collections = Products.list_collections_for_artist_no_preloads(artist.id) |> Enum.map(fn c -> {c.name, c.id} end)

@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
     case socket.assigns.current_scope.artist do
@@ -21,7 +22,8 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
            artist: artist,
            products: products,
            collections: collections,
-           page_title: "Artist Dashboard"
+           page_title: "Artist Dashboard",
+           confirming_status: false
          )}
     end
   end
@@ -57,12 +59,62 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
           </figure>
           <div class="card-body">
             <h2 class="card-title">{@artist.nickname}</h2>
+              <%!-- Status badge + toggle (hidden while confirming) --%>
+              <div :if={not @confirming_status} class="flex items-center gap-3">
+                <.status_badge status={@artist.status}/>
+                <.button_artsy
+                  :if={@artist.status != :removed}
+                  phx-click="confirm_status_toggle"
+                  variant="secondary"
+                >
+                  <%= if @artist.status == :active, do: "De-activate profile", else: "Activate profile" %>
+                </.button_artsy>
+                <p :if={@artist.status == :active} class="text-xs text-base-content/50">
+                  Your profile is visible to the public
+                </p>
+                <p :if={@artist.status == :inactive} class="text-xs text-base-content/50">
+                  Your profile is hidden from the public
+                </p>
+              </div>
+
+              <%!-- Inline confirmation — shown after clicking the button --%>
+              <div :if={@confirming_status} class="rounded-lg border border-warning bg-warning/10 p-4 space-y-3">
+                <%= if @artist.status == :active do %>
+                  <p class="font-semibold">Hide your profile from the public?</p>
+                  <p class="text-sm">
+                    If you de-activate, visitors will no longer be able to find you or see your products.
+                    Your work will not be lost — you can reactivate at any time.
+                  </p>
+                  <div class="flex gap-3">
+                    <.button_artsy phx-click="toggle_status" variant="warning">
+                      Yes, hide my profile
+                    </.button_artsy>
+                    <.button_artsy phx-click="cancel_status_toggle" variant="ghost">
+                      Cancel
+                    </.button_artsy>
+                  </div>
+                <% else %>
+                  <p class="font-semibold">Make your profile visible to the public?</p>
+                  <p class="text-sm">
+                    Your profile and all your products will become visible to visitors.
+                    You can hide them again at any time.
+                  </p>
+                  <div class="flex gap-3">
+                    <.button_artsy phx-click="toggle_status" variant="primary">
+                      Yes, show my profile
+                    </.button_artsy>
+                    <.button_artsy phx-click="cancel_status_toggle" variant="ghost">
+                      Cancel
+                    </.button_artsy>
+                  </div>
+                <% end %>
+              </div>
             <p class="text-sm text-base-content/70">{@artist.area_code}</p>
             <p class="text-sm text-base-content/70">{Enum.join(@artist.medium, " · ")}</p>
             <p class="line-clamp-3">{@artist.bio}</p>
             <div class="card-actions mt-2">
-            <.link navigate={~p"/artists/#{@artist.id}" <> "?" <> URI.encode_query(return_to: "/vendor", return_label: "Artist Dashboard")} class="btn btn-ghost btn-xs">
-                View public profile →
+            <.link navigate={~p"/artists/#{@artist.id}" <> "?" <> URI.encode_query(return_to: "/vendor", return_label: "Artist Dashboard", preview: "1")} class="btn btn-ghost btn-xs">
+                Preview public profile →
              </.link>
             </div>
           </div>
@@ -230,6 +282,56 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     """
   end
 
+  attr :status, :atom, values: [:active, :inactive, :removed], default: :inactive
+  attr :class, :string, default: nil
+
+  def status_badge(assigns) do
+    ~H"""
+    <span class={[
+      "w-fit rounded-md px-2 py-1 text-xs font-medium uppercase inline-block border",
+      @status == :active   && "text-lime-600 border-lime-600",
+      @status == :inactive && "text-amber-600 border-amber-600",
+      @status == :removed  && "text-gray-500 border-gray-400",
+      @class
+    ]}>
+      {@status}
+    </span>
+    """
+  end
+
+
+  def handle_event("confirm_status_toggle", _params, socket) do
+    {:noreply, assign(socket, :confirming_status, true)}
+  end
+
+  def handle_event("cancel_status_toggle", _params, socket) do
+    {:noreply, assign(socket, :confirming_status, false)}
+  end
+
+  def handle_event("toggle_status", _params, socket) do
+    artist = socket.assigns.artist
+    new_status = if artist.status == :active, do: :inactive, else: :active
+
+    case ArtsyNeighbor.Artists.update_artist(artist, %{status: new_status}) do
+      {:ok, updated_artist} ->
+        message = if new_status == :active,
+          do: "Your profile is now visible to the public.",
+          else: "Your profile is now hidden from the public."
+
+        {:noreply,
+         socket
+         |> assign(:artist, updated_artist)
+         |> assign(:confirming_status, false)
+         |> put_flash(:info, message)}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> assign(:confirming_status, false)
+         |> put_flash(:error, "Something went wrong. Please try again.")}
+    end
+  end
+
   def handle_event("move_product_up", %{"productid" => pid, "collectionid" => cid}, socket) do
     product_id = String.to_integer(pid)
     coll_id = String.to_integer(cid)
@@ -294,7 +396,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
       collections = Products.list_collections_for_artist(socket.assigns.artist.id)
       {:noreply,
        socket
-       |> put_flash(:info, "Collection deleted. Its products have been moved to All Works.")
+       |> put_flash(:info, "Collection deleted. Its products have been moved to Uncategorized.")
        |> assign(collections: collections)}
     else
       {:noreply, put_flash(socket, :error, "You are not authorized to delete this collection.")}

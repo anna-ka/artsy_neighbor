@@ -11,9 +11,26 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
-    # IO.inspect(params, label: "params")
+    preview = Map.get(params, "preview") == "1"
+    viewer_artist = socket.assigns.current_scope && socket.assigns.current_scope.artist
 
     case Artists.get_artist(id) do
+      %{status: status} = artist when status != :active ->
+        owner_previewing = preview && viewer_artist && viewer_artist.id == artist.id
+
+        if owner_previewing do
+          socket =
+            socket
+            |> load_artist_assigns(artist, params)
+            |> put_flash(:info, "Preview — your profile is not yet visible to the public.")
+          {:noreply, socket}
+        else
+          {:noreply,
+           socket
+           |> put_flash(:error, "Artist not found.")
+           |> push_navigate(to: ~p"/artists")}
+        end
+
       nil ->
         {:noreply,
          socket
@@ -21,41 +38,39 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
          |> push_navigate(to: ~p"/artists")}
 
       artist ->
-        collections = Products.list_collections_for_artist(artist.id)
-
-        # For the ribbon: when multiple collections exist, exclude the first product
-        # from each collection (already visible as the collection card background).
-        ribbon_products =
-          if length(collections) > 1 do
-            featured_ids =
-              collections
-              |> Enum.map(fn c -> List.first(c.products) end)
-              |> Enum.filter(& &1)
-              |> MapSet.new(& &1.id)
-
-            collections
-            |> Enum.flat_map(& &1.products)
-            |> Enum.reject(fn p -> MapSet.member?(featured_ids, p.id) end)
-          else
-            []
-          end
-
-        artist_images = Enum.sort_by(artist.artist_images, & &1.position)
-        total_slides = length(artist_images)
-
-        socket =
-          socket
-          |> assign(:return_to, Map.get(params, "return_to"))
-          |> assign(:return_label, Map.get(params, "return_label"))
-          |> assign(:artist, artist)
-          |> assign(:page_title, artist.nickname)
-          |> assign(:collections, collections)
-          |> assign(:ribbon_products, ribbon_products)
-          |> assign(:artist_images, artist_images)
-          |> assign(:total_slides, total_slides)
-
-        {:noreply, socket}
+        {:noreply, load_artist_assigns(socket, artist, params)}
     end
+  end
+
+  defp load_artist_assigns(socket, artist, params) do
+    collections = Products.list_collections_for_artist(artist.id)
+
+    ribbon_products =
+      if length(collections) > 1 do
+        featured_ids =
+          collections
+          |> Enum.map(fn c -> List.first(c.products) end)
+          |> Enum.filter(& &1)
+          |> MapSet.new(& &1.id)
+
+        collections
+        |> Enum.flat_map(& &1.products)
+        |> Enum.reject(fn p -> MapSet.member?(featured_ids, p.id) end)
+      else
+        []
+      end
+
+    artist_images = Enum.sort_by(artist.artist_images, & &1.position)
+
+    socket
+    |> assign(:return_to, Map.get(params, "return_to"))
+    |> assign(:return_label, Map.get(params, "return_label"))
+    |> assign(:artist, artist)
+    |> assign(:page_title, artist.nickname)
+    |> assign(:collections, collections)
+    |> assign(:ribbon_products, ribbon_products)
+    |> assign(:artist_images, artist_images)
+    |> assign(:total_slides, length(artist_images))
   end
 
   defp create_return_to_params(assigns) do
