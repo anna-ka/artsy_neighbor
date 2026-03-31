@@ -27,7 +27,7 @@
 
  def render(assigns) do
    ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
 
      <section>
       <.link :if={@from_category} navigate={~p"/categories"} class="btn btn-ghost btn-sm mb-4">

@@ -4,6 +4,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Accounts
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
@@ -35,6 +36,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     |> assign(:form, to_form(changeset))
     |> assign(:artist, artist)
     |> assign(:existing_profile_images, artist.artist_images)
+    |> assign(:users, Accounts.list_users())
   end
 
   defp apply_action(socket, :new, _params) do
@@ -45,6 +47,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     |> assign(:form, to_form(changeset))
     |> assign(:artist, %Artist{})
     |> assign(:existing_profile_images, [])
+    |> assign(:users, Accounts.list_users())
   end
 
   @impl true
@@ -210,7 +213,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin">
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories}>
       <div class="w-full px-8 py-8">
 
         <.back navigate={~p"/admin/artists"}>
@@ -226,6 +229,13 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           <%!-- ===== IDENTITY ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
             <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Identity</h3>
+            <.input
+              field={@form[:user_id]}
+              type="select"
+              label={raw("Linked User Account <span class=\"text-error\">*</span>")}
+              options={Enum.map(@users, fn u -> {"#{u.username} (#{u.email})", u.id} end)}
+              prompt="— select a user —"
+            />
             <.input
               field={@form[:nickname]}
               label={raw("Nickname <span class=\"text-error\">*</span>")}

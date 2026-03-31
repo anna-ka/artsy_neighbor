@@ -58,9 +58,13 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     end
   end
 
+  defp create_return_to_params(assigns) do
+    URI.encode_query(return_to: "/artists/#{assigns.artist.id}", return_label: "Artist profile")
+  end
+
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
 
     <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
     <%= inspect(@return_label) %>
@@ -182,7 +186,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
                   Contact Artist
                 </.button_artsy>
 
-                <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"}>
+                <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"<> "?" <> create_return_to_params(assigns)}>
                   View Shop
                 </.button_artsy>
               </div>

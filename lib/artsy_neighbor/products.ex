@@ -566,7 +566,7 @@ defmodule ArtsyNeighbor.Products do
     default_id =
       ProductCollection
       |> where([c], c.artist_id == ^collection.artist_id)
-      |> where([c], c.name == "All Works")
+      |> where([c], c.name == ^ArtsyNeighbor.Artists.default_collection_name())
       |> where([c], c.id != ^collection.id)
       |> select([c], c.id)
       |> Repo.one()

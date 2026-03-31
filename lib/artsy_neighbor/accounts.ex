@@ -11,6 +11,15 @@ defmodule ArtsyNeighbor.Accounts do
   ## Database getters
 
   @doc """
+  Returns all users ordered by username.
+  """
+  def list_users do
+    User
+    |> order_by(asc: :username)
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a user by email.
 
   ## Examples

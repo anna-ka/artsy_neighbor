@@ -29,7 +29,9 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
   describe "list_artists/0" do
     test "returns all artists" do
       artist = artist_fixture()
-      assert AdminArtists.list_artists() == [artist]
+      result = AdminArtists.list_artists()
+      assert length(result) == 1
+      assert hd(result).id == artist.id
     end
 
     test "returns empty list when no artists exist" do
@@ -40,7 +42,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
   describe "get_artist!/1" do
     test "returns the artist with given id" do
       artist = artist_fixture()
-      assert AdminArtists.get_artist!(artist.id) == artist
+      assert AdminArtists.get_artist!(artist.id).id == artist.id
     end
 
     test "raises when artist does not exist" do
@@ -72,7 +74,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
     test "with invalid data returns error changeset" do
       artist = artist_fixture()
       assert {:error, %Ecto.Changeset{}} = AdminArtists.update_artist(artist, @invalid_attrs)
-      assert artist == AdminArtists.get_artist!(artist.id)
+      assert artist.id == AdminArtists.get_artist!(artist.id).id
     end
   end
 

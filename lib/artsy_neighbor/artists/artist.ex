@@ -81,11 +81,22 @@ defmodule ArtsyNeighbor.Artists.Artist do
 
   #Verifies that delivery options are valid if they have changed
   defp maybe_validate_delivery_options(changeset) do
-    if Ecto.Changeset.changed?(changeset, :delivery_options) do
-        changeset
-          |> validate_inclusion( :delivery_options, ["pickup", "artist_delivery", "shipping", "other"],
-            message: "Delivery options must be one of: pickup, local_delivery, shipping")
-          |> maybe_validate_delivery_info()
+    options_changed = Ecto.Changeset.changed?(changeset, :delivery_options)
+    info_changed = Ecto.Changeset.changed?(changeset, :delivery_info)
+
+    if options_changed || info_changed do
+      valid_options = ["pickup", "artist_delivery", "shipping", "other"]
+
+      changeset
+      |> validate_change(:delivery_options, fn :delivery_options, options ->
+        invalid = Enum.reject(options, &(&1 in valid_options))
+        if invalid == [] do
+          []
+        else
+          [delivery_options: "Delivery options must be one of: pickup, artist_delivery, shipping, other"]
+        end
+      end)
+      |> maybe_validate_delivery_info()
     else
       changeset
     end

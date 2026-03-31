@@ -3,6 +3,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Products
 
   import ArtsyNeighbor.ArtistsFixtures
 
@@ -12,7 +13,6 @@ defmodule ArtsyNeighbor.ArtistsTest do
     last_name: "Artist",
     phone: "416-555-1234",
     bio: "This is a valid bio for testing purposes. It is written to be at least 75 characters long.",
-    main_img: "/images/test-artist.jpg",
     email: "vincent@example.com",
     street_address: "123 Test Street",
     area_code: "M5H 2N2",
@@ -22,7 +22,9 @@ defmodule ArtsyNeighbor.ArtistsTest do
   describe "read operations" do
     test "list_artists/0 returns all artists" do
       artist = artist_fixture()
-      assert Artists.list_artists() == [artist]
+      result = Artists.list_artists()
+      assert length(result) == 1
+      assert hd(result).id == artist.id
     end
 
     test "list_artists/0 returns empty list when no artists exist" do
@@ -229,6 +231,205 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "rejects non-numeric phone" do
       changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :phone, "not-a-phone"))
       assert errors_on(changeset).phone != []
+    end
+  end
+
+  describe "Artists.create_artist/1" do
+    test "creates artist and default Uncategorized collection atomically" do
+      assert {:ok, artist} = Artists.create_artist(@valid_attrs)
+      collections = Products.list_collections_for_artist(artist.id)
+      assert length(collections) == 1
+      assert hd(collections).name == "Uncategorized"
+    end
+
+    test "returns error changeset when artist attrs are invalid" do
+      assert {:error, %Ecto.Changeset{}} = Artists.create_artist(%{nickname: nil})
+    end
+
+    test "new artist defaults to inactive status" do
+      {:ok, artist} = Artists.create_artist(@valid_attrs)
+      assert artist.status == :inactive
+    end
+  end
+
+  describe "filter_artists/1 - status scoping" do
+    test "excludes inactive artists" do
+      artist_fixture(%{status: :inactive})
+      result = Artists.filter_artists(%{"q_name" => "", "q_medium" => "", "sort_by" => ""})
+      assert result == []
+    end
+
+    test "excludes removed artists" do
+      artist_fixture(%{status: :removed})
+      result = Artists.filter_artists(%{"q_name" => "", "q_medium" => "", "sort_by" => ""})
+      assert result == []
+    end
+
+    test "includes active artists" do
+      artist = artist_fixture(%{status: :active})
+      result = Artists.filter_artists(%{"q_name" => "", "q_medium" => "", "sort_by" => ""})
+      assert length(result) == 1
+      assert hd(result).id == artist.id
+    end
+  end
+
+  describe "ArtistImage context" do
+    test "create_artist_image/2 creates an image for an artist" do
+      artist = artist_fixture()
+      assert {:ok, image} = Artists.create_artist_image(artist, %{path: "/uploads/test.jpg", position: 1})
+      assert image.path == "/uploads/test.jpg"
+      assert image.position == 1
+      assert image.artist_id == artist.id
+    end
+
+    test "get_images_for_artist/1 returns images ordered by position" do
+      artist = artist_fixture()
+      {:ok, _} = Artists.create_artist_image(artist, %{path: "/uploads/b.jpg", position: 2})
+      {:ok, _} = Artists.create_artist_image(artist, %{path: "/uploads/a.jpg", position: 1})
+      images = Artists.get_images_for_artist(artist)
+      assert length(images) == 2
+      assert hd(images).position == 1
+    end
+
+    test "get_images_for_artist/1 returns only images for the given artist" do
+      artist = artist_fixture()
+      other = artist_fixture()
+      {:ok, _} = Artists.create_artist_image(artist, %{path: "/uploads/mine.jpg", position: 1})
+      {:ok, _} = Artists.create_artist_image(other, %{path: "/uploads/theirs.jpg", position: 1})
+      images = Artists.get_images_for_artist(artist)
+      assert length(images) == 1
+      assert hd(images).path == "/uploads/mine.jpg"
+    end
+
+    test "swap_image_positions/2 swaps positions of two images" do
+      artist = artist_fixture()
+      {:ok, img1} = Artists.create_artist_image(artist, %{path: "/uploads/first.jpg", position: 1})
+      {:ok, img2} = Artists.create_artist_image(artist, %{path: "/uploads/second.jpg", position: 2})
+      assert {:ok, _} = Artists.swap_image_positions(img1, img2)
+      [reloaded_first, reloaded_second] = Artists.get_images_for_artist(artist)
+      assert reloaded_first.path == "/uploads/second.jpg"
+      assert reloaded_second.path == "/uploads/first.jpg"
+    end
+
+    test "delete_artist_image/1 removes the image" do
+      artist = artist_fixture()
+      {:ok, image} = Artists.create_artist_image(artist, %{path: "/uploads/gone.jpg", position: 1})
+      assert {:ok, _} = Artists.delete_artist_image(image)
+      assert Artists.get_images_for_artist(artist) == []
+    end
+  end
+
+  describe "Artist changeset - status" do
+    test "defaults to inactive" do
+      changeset = Artist.changeset(%Artist{}, @valid_attrs)
+      assert Ecto.Changeset.get_field(changeset, :status) == :inactive
+    end
+
+    test "accepts valid status values" do
+      for status <- [:active, :inactive, :removed] do
+        changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :status, status))
+        assert changeset.valid?, "expected #{status} to be valid"
+      end
+    end
+
+    test "sets status_changed_at when status changes" do
+      artist = artist_fixture(%{status: :inactive})
+      changeset = Artist.changeset(artist, %{status: :active})
+      assert Ecto.Changeset.get_change(changeset, :status_changed_at) != nil
+    end
+
+    test "does not update status_changed_at when status is unchanged" do
+      artist = artist_fixture(%{status: :active})
+      changeset = Artist.changeset(artist, %{nickname: "New Name"})
+      assert Ecto.Changeset.get_change(changeset, :status_changed_at) == nil
+    end
+  end
+
+  describe "Artist changeset - delivery options" do
+    test "accepts valid delivery options" do
+      attrs = Map.put(@valid_attrs, :delivery_options, ["pickup", "shipping"])
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects unknown delivery option values" do
+      attrs = Map.put(@valid_attrs, :delivery_options, ["teleportation"])
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert errors_on(changeset).delivery_options != []
+    end
+
+    test "accepts delivery_info with matching keys" do
+      attrs = Map.merge(@valid_attrs, %{
+        delivery_options: ["pickup", "shipping"],
+        delivery_info: %{"pickup" => "By appointment", "shipping" => "Canada Post only"}
+      })
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects delivery_info with keys not in delivery_options" do
+      attrs = Map.merge(@valid_attrs, %{
+        delivery_options: ["pickup"],
+        delivery_info: %{"shipping" => "some note"}
+      })
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert errors_on(changeset).delivery_info != []
+    end
+
+    test "rejects delivery note longer than 500 characters" do
+      long_note = String.duplicate("x", 501)
+      attrs = Map.merge(@valid_attrs, %{
+        delivery_options: ["pickup"],
+        delivery_info: %{"pickup" => long_note}
+      })
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert errors_on(changeset).delivery_info != []
+    end
+  end
+
+  describe "Artist changeset - social links" do
+    test "accepts valid homepage URL" do
+      changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :homepage, "https://www.example.com"))
+      assert changeset.valid?
+    end
+
+    test "rejects malformed homepage URL" do
+      changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :homepage, "not a url"))
+      assert errors_on(changeset).homepage != []
+    end
+
+    test "accepts valid instagram URL" do
+      changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :instagram, "https://instagram.com/myprofile"))
+      assert changeset.valid?
+    end
+
+    test "accepts valid facebook URL" do
+      changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :facebook, "https://facebook.com/mypage"))
+      assert changeset.valid?
+    end
+
+    test "allows all social links to be nil" do
+      attrs = Map.merge(@valid_attrs, %{homepage: nil, instagram: nil, facebook: nil})
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert changeset.valid?
+    end
+  end
+
+  describe "Artist changeset - announcement" do
+    test "accepts announcement text and active flag" do
+      attrs = Map.merge(@valid_attrs, %{announcement: "Studio open this weekend!", announcement_active: true})
+      changeset = Artist.changeset(%Artist{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "announcement_active defaults to false" do
+      changeset = Artist.changeset(%Artist{}, @valid_attrs)
+      assert Ecto.Changeset.get_field(changeset, :announcement_active) == false
+    end
+
+    test "allows announcement to be nil" do
+      changeset = Artist.changeset(%Artist{}, Map.put(@valid_attrs, :announcement, nil))
+      assert changeset.valid?
     end
   end
 

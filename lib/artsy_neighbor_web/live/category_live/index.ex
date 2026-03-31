@@ -7,7 +7,7 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
       <.header>
         Product Categories
 

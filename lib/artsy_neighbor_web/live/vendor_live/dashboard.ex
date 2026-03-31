@@ -32,7 +32,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor">
+    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories}>
       <div class="space-y-10">
 
         <%!-- Header --%>

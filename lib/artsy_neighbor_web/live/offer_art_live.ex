@@ -7,7 +7,7 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
 
       <%!-- Hero --%>
       <div class="text-center py-16 border-b border-base-300">

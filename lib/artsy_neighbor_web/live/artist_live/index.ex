@@ -19,7 +19,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
       <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
 
         <%!-- Page Header --%>
@@ -103,7 +103,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
 
   def artist_card(assigns) do
     ~H"""
-      <.link navigate={~p"/artists/#{@artist}"} id={@dom_id}>
+      <.link navigate={~p"/artists/#{@artist}?#{[return_to: "/artists", return_label: "Artist Directory"]}"} id={@dom_id}>
         <%!-- DaisyUI Card Component --%>
         <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
 

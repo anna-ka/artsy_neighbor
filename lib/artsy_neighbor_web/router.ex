@@ -51,32 +51,39 @@ defmodule ArtsyNeighborWeb.Router do
     # live "/product_options/:id", ProductOptionLive.Show, :show
     # live "/product_options/:id/edit", ProductOptionLive.Form, :edit
 
-    # get "/", PageController, :home
-    live "/", HomeLive
-    live "/products", ProductLive.Index
-    live "/products/:id", ProductLive.Show
-
-    live "/artists", ArtistLive.Index
-    live "/artists/:id", ArtistLive.Show
-    live "/artists/:id/store", ArtistLive.Store
-
-    live "/categories", CategoryLive.Index, :index
-    live "/categories/:id", CategoryLive.Show, :show
-
-    live "/offer-art", OfferArtLive
-
     get "/contactus", ContactusController, :contactus
+
+    live_session :public,
+      on_mount: [
+        {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
+        {ArtsyNeighborWeb.UserAuth, :load_categories}
+      ] do
+      live "/", HomeLive
+      live "/products", ProductLive.Index
+      live "/products/:id", ProductLive.Show
+
+      live "/artists", ArtistLive.Index
+      live "/artists/:id", ArtistLive.Show
+      live "/artists/:id/store", ArtistLive.Store
+
+      live "/categories", CategoryLive.Index, :index
+      live "/categories/:id", CategoryLive.Show, :show
+
+      live "/offer-art", OfferArtLive
+    end
   end
 
 
   # Vendor (artist) pages — authenticated users only
   scope "/", ArtsyNeighborWeb do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user, :require_vendor_user]
 
     live_session :require_vendor,
       on_mount: [
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
-        {ArtsyNeighborWeb.UserAuth, :require_authenticated}
+        {ArtsyNeighborWeb.UserAuth, :require_authenticated},
+        {ArtsyNeighborWeb.UserAuth, :require_vendor},
+        {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/vendor", VendorLive.Dashboard
       live "/vendor/profile/new", VendorLive.Profile.Form, :new
@@ -96,7 +103,8 @@ defmodule ArtsyNeighborWeb.Router do
       on_mount: [
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
-        {ArtsyNeighborWeb.UserAuth, :require_admin}
+        {ArtsyNeighborWeb.UserAuth, :require_admin},
+        {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
 
         live "/admin", AdminLive.Dashboard
@@ -151,7 +159,10 @@ defmodule ArtsyNeighborWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :require_authenticated_user,
-      on_mount: [{ArtsyNeighborWeb.UserAuth, :require_authenticated}] do
+      on_mount: [
+        {ArtsyNeighborWeb.UserAuth, :require_authenticated},
+        {ArtsyNeighborWeb.UserAuth, :load_categories}
+      ] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end
@@ -163,7 +174,10 @@ defmodule ArtsyNeighborWeb.Router do
     pipe_through [:browser]
 
     live_session :current_user,
-      on_mount: [{ArtsyNeighborWeb.UserAuth, :mount_current_scope}] do
+      on_mount: [
+        {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
+        {ArtsyNeighborWeb.UserAuth, :load_categories}
+      ] do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

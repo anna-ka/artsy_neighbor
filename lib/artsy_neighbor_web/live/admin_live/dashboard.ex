@@ -21,7 +21,7 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin">
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories}>
       <div class="space-y-10">
 
         <%!-- Header --%>

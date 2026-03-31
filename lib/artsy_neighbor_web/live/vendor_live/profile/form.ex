@@ -240,7 +240,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor">
+    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories}>
       <div class="w-full px-8 py-8">
 
       <div>

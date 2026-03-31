@@ -22,6 +22,16 @@ defmodule ArtsyNeighbor.Categories do
   end
 
   @doc """
+  List of all categories ordered by insertion time.
+  In practice, this means most important categories (those created first) will be listed first.
+  """
+  def list_categories_ordered_by_time do
+    Category
+    |> order_by(asc: :inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a single category.
 
   Raises `Ecto.NoResultsError` if the Category does not exist.

@@ -7,6 +7,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   import Ecto.Query
   alias ArtsyNeighbor.Repo
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Artists
 
   @doc """
   Returns the list of all artists sorted by time of insertion.
@@ -24,9 +25,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   def create_artist(attrs \\ %{}) do
-    %Artist{}
-    |> Artist.changeset(attrs)
-    |> Repo.insert()
+    Artists.create_artist(attrs)
   end
 
   @doc """

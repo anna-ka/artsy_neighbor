@@ -31,7 +31,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
     <div class="grid grid-cols-1 gap-8">
 
     <%!-- Row 1: Hero Section --%>

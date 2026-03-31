@@ -20,6 +20,7 @@ defmodule ArtsyNeighborWeb.Layouts do
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role"
+  attr :nav_categories, :list, default: [], doc: "list of categories for the nav category bar"
   slot :inner_block, required: true
 
   def navlayout(assigns) do
@@ -35,101 +36,110 @@ defmodule ArtsyNeighborWeb.Layouts do
     ]}>
       <!-- First row: Logo + Search + Actions -->
       <div class="navbar">
-        <div class="flex-1">
-          <a href="/" class="flex-1 flex w-fit items-center gap-2">
+        <div class="flex-1 flex items-center gap-2">
+          <a href="/" class="flex w-fit items-center gap-2">
             <%!-- <img src={~p"/images/bird_logos2.png"} width="88" /> --%>
             <%!-- <img src={~p"/images/coral-colors-logo.png"} width="128" /> --%>
             <img src={~p"/images/fish-logo-removebg-preview.png"} width="128" />
             <span class="text-sm font-semibold">Artsy Neighbor</span>
           </a>
+
+          <.button navigate={~p"/products"}>
+            <.icon name="hero-bars-4" class="size-4 mr-1" />
+            Explore
+          </.button>
+
+          <input
+            type="search"
+            placeholder="What are you looking for?"
+            class="input input-sm input-bordered w-48 md:w-64 lg:w-96"
+            name="q"
+          />
         </div>
-        <nav aria-label="Site navigation" class="flex-none">
-          <ul class="flex flex-column px-1 space-x-4 items-center ">
-            <li>
-              <.button navigate={~p"/products"} >
-              <.icon name="hero-bars-4" class="size-4 mr-1" />
-              Explore
-              </.button>
-            </li>
+        <nav aria-label="Site navigation" class="flex-none flex items-center gap-2">
+          <!-- Scrollable: nav links + theme toggle -->
 
-            <li>
-              <input
-                type="search"
-                placeholder="What are you looking for?"
-                class="input input-sm input-bordered w-48 md:w-64 lg:w-96"
-                name="q"
-              />
-            </li>
+          <!-- Scrollable: nav links + theme toggle -->
+          <div
+            class="relative flex items-center"
+            id="site-nav-scroll"
+            phx-hook="CategoryScroll"
+          >
+            <button class="btn btn-ghost btn-sm px-1 flex-none" data-scroll-dir="-1" aria-label="Scroll left">
+              <.icon name="hero-chevron-left" class="size-4" />
+            </button>
 
-             <li>
-              <a href="/artists" class="btn btn-ghost">Artist Directory</a>
-            </li>
+            <ul
+              data-scroll-inner
+              class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 max-w-xs md:max-w-sm lg:max-w-lg [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+            >
+              <li class="flex-none">
+                <a href="/artists" class="btn btn-ghost btn-sm whitespace-nowrap">Artist Directory</a>
+              </li>
+              <li class="flex-none">
+                <a href={~p"/offer-art"} class="btn btn-ghost btn-sm whitespace-nowrap">Offer art</a>
+              </li>
+              <li class="flex-none">
+                <a href={~p"/products"} class="btn btn-ghost btn-sm whitespace-nowrap">Purchase art</a>
+              </li>
+              <li class="flex-none">
+                <a href={~p"/users/log-in"} class="btn btn-ghost btn-sm whitespace-nowrap">Log in</a>
+              </li>
+              <li class="flex-none">
+                <a href={~p"/users/register"} class="btn btn-ghost btn-sm whitespace-nowrap">Sign up</a>
+              </li>
+              <li class="flex-none">
+                <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost btn-sm whitespace-nowrap">Our mission</a>
+              </li>
+              <li class="flex-none">
+                <.theme_toggle />
+              </li>
+            </ul>
 
-            <li>
-              <a href={~p"/offer-art"} class="btn btn-ghost">Offer art</a>
-            </li>
-
-            <li>
-              <a href={~p"/products"} class="btn btn-ghost">Purchase art</a>
-            </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Log in</a>
-            </li>
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Sign up</a>
-            </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Our mission</a>
-            </li>
-
-            <li>
-              <.theme_toggle />
-            </li>
-          </ul>
+            <button class="btn btn-ghost btn-sm px-1 flex-none" data-scroll-dir="1" aria-label="Scroll right">
+              <.icon name="hero-chevron-right" class="size-4" />
+            </button>
+          </div>
         </nav>
         </div>
 
-        <!-- Second row: Category links -->
-        <nav aria-label="Category navigation" class="flex flex-wrap gap-4 py-2 justify-start w-full">
+        <!-- Second row: Category links (scrollable) -->
+        <nav
+          aria-label="Category navigation"
+          class="relative flex items-center w-full py-1"
+          id="category-nav"
+          phx-hook="CategoryScroll"
+        >
+          <button
+            class="btn btn-ghost btn-sm px-1 flex-none"
+            data-scroll-dir="-1"
+            aria-label="Scroll categories left"
+          >
+            <.icon name="hero-chevron-left" class="size-4" />
+          </button>
 
-        <ul class="flex flex-row px-1 space-x-4 items-center">
-
-            <li>
-              <a href={~p"/categories"} class="btn btn-ghost">Explore</a>
+          <ul
+            data-scroll-inner
+            class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+          >
+            <li class="flex-none">
+              <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
             </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Paintings</a>
-            </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Sculpture</a>
-            </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Jewelry</a>
-            </li>
-
-            <li>
-              <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">Fiber art</a>
-            </li>
-
-            <li>
-              <%!-- <a href="https://phoenixframework.org/" class="btn btn-ghost">Categories</a> --%>
-              <details class="dropdown">
-                <summary class="btn btn-ghost">Other</summary>
-                <ul class="menu dropdown-content bg-base-100 rounded-box z-1 w-52 p-2 shadow-sm">
-                  <li><a>Clothes</a></li>
-                  <li><a>Paper art</a></li>
-                  <li><a>Yarn</a></li>
-                </ul>
-            </details>
+            <li :for={category <- @nav_categories} class="flex-none">
+              <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
+                {category.name}
+              </.link>
             </li>
           </ul>
 
-      </nav>
+          <button
+            class="btn btn-ghost btn-sm px-1 flex-none"
+            data-scroll-dir="1"
+            aria-label="Scroll categories right"
+          >
+            <.icon name="hero-chevron-right" class="size-4" />
+          </button>
+        </nav>
     </header>
 
     <!-- Main content area (customized by child layouts) -->
@@ -203,12 +213,13 @@ defmodule ArtsyNeighborWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+  attr :nav_categories, :list, default: []
 
   slot :inner_block, required: true
 
   def artsy_main(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant}>
+    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories}>
       <main class="flex justify-center">
         <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
           {render_slot(@inner_block)}
@@ -231,12 +242,13 @@ defmodule ArtsyNeighborWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+  attr :nav_categories, :list, default: []
 
   slot :inner_block, required: true
 
   def artsy_wide(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant}>
+    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories}>
       <main class="w-full">
         <div class="w-full py-20 bg-base-100">
           {render_slot(@inner_block)}

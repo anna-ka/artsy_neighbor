@@ -11,6 +11,9 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
 
+  @doc "The name of the default collection created for every new artist."
+  def default_collection_name, do: "Uncategorized"
+
   @doc """
   Returns the list of all artists. Associations not preloaded by default.
    Artists are ordered by their main medium (first element in the medium array) and then by
@@ -196,7 +199,7 @@ defmodule ArtsyNeighbor.Artists do
     |> Multi.insert(:artist, Artist.changeset(%Artist{}, attrs))
     |> Multi.insert(:collection, fn %{artist: artist} ->
       ProductCollection.changeset(%ProductCollection{}, %{
-        name: "Uncategorized",
+        name: default_collection_name(),
         position: 1,
         artist_id: artist.id
       })

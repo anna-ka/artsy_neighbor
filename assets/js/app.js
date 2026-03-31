@@ -25,11 +25,22 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/artsy_neighbor"
 import topbar from "../vendor/topbar"
 
+const CategoryScroll = {
+  mounted() {
+    const inner = this.el.querySelector("[data-scroll-inner]")
+    this.el.querySelectorAll("[data-scroll-dir]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        inner.scrollBy({ left: parseInt(btn.dataset.scrollDir) * 200, behavior: "smooth" })
+      })
+    })
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, CategoryScroll},
 })
 
 // Show progress bar on live navigation and form submits

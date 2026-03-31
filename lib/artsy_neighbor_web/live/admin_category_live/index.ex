@@ -30,7 +30,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_wide flash={@flash} variant="admin">
+    <Layouts.artsy_wide flash={@flash} variant="admin" nav_categories={@nav_categories}>
       <div class="admin-index">
 
        <div>

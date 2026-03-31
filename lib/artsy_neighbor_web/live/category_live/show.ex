@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.CategoryLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
       <div class="mb-6">
         <.link navigate={~p"/categories"} class="text-sm hover:underline">
           ← All categories

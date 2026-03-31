@@ -6,6 +6,7 @@ defmodule ArtsyNeighborWeb.UserAuth do
 
   alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Accounts.Scope
+  alias ArtsyNeighbor.Categories
 
   # Make the remember me cookie valid for 14 days. This should match
   # the session validity setting in UserToken.
@@ -244,6 +245,24 @@ defmodule ArtsyNeighborWeb.UserAuth do
     end
   end
 
+  def on_mount(:require_vendor, _params, _session, socket) do
+
+    if socket.assigns.current_scope && socket.assigns.current_scope.artist do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "You must be logged in as an artist (vendor) to access this page.")
+        |> Phoenix.LiveView.redirect(to: ~p"/")
+
+      {:halt, socket}
+    end
+  end
+
+  def on_mount(:load_categories, _params, _session, socket) do
+    {:cont, Phoenix.Component.assign_new(socket, :nav_categories, fn -> Categories.list_categories_ordered_by_time() end)}
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -305,6 +324,23 @@ defmodule ArtsyNeighborWeb.UserAuth do
     else
       conn
       |> put_flash(:error, "You must be logged in as an administrator in to access this page.")
+      |> redirect(to: ~p"/")
+      |> halt()
+    end
+  end
+
+  @doc """
+  Plug for routes that require an administrator to be authenticated.
+  """
+  def require_vendor_user(conn, _opts) do
+    if conn.assigns.current_scope
+      && conn.assigns.current_scope.user
+      && conn.assigns.current_scope.artist
+    do
+      conn
+    else
+      conn
+      |> put_flash(:error, "You must be logged in as an artist (vendor) in to access this page.")
       |> redirect(to: ~p"/")
       |> halt()
     end
