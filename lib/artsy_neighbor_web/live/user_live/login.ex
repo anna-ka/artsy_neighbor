@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.UserLive.Login do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
@@ -88,7 +88,7 @@ defmodule ArtsyNeighborWeb.UserLive.Login do
           </.button>
         </.form>
       </div>
-    </Layouts.app>
+    </Layouts.artsy_main>
     """
   end
 

@@ -8,7 +8,7 @@ defmodule ArtsyNeighborWeb.UserLive.Settings do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
       <div class="text-center">
         <.header>
           Account Settings
@@ -62,7 +62,7 @@ defmodule ArtsyNeighborWeb.UserLive.Settings do
           Save Password
         </.button>
       </.form>
-    </Layouts.app>
+    </Layouts.artsy_main>
     """
   end
 
