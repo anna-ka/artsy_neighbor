@@ -14,3 +14,9 @@ import Ecto.Query
 import Ecto.Changeset
 
 alias ArtsyNeighbor.Accounts.User
+
+alias ArtsyNeighbor.Accounts
+alias ArtsyNeighbor.Accounts.Scope
+alias ArtsyNeighbor.Conversations
+alias ArtsyNeighbor.Conversations.Conversation
+alias ArtsyNeighbor.Conversations.ConversationEvent

@@ -19,3 +19,14 @@ dashboard.ex — two new handlers:
 
 Build the new order with List.delete_at + List.insert_at (avoids nil swap issues entirely)
 Call Products.reorder_products(new_order), then reload all collections
+
+
+March 31:
+
+
+
+Vendor dashboard: active/inactive status toggle, profile preview
+Admin: all three status values for artists
+Image filenames: switch to UUID in vendor_live/product_form.ex
+Nav UI: the small-screen scrolling issue (deferred)
+File storage: S3/Tigris before deployment

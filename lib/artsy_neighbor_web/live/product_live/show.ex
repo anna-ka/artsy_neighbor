@@ -3,6 +3,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Conversations
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
@@ -59,6 +60,17 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   def handle_event("select_image", %{"index" => index}, socket) do
     {:noreply, assign(socket, :current_image_index, String.to_integer(index))}
+  end
+
+  @doc """
+    Handles the "Message Seller" button click.
+    Finds or creates a conversation between the current user (buyer) and the artist (seller), then navigates to that conversation's page.
+  """
+  def handle_event("message_seller", _params, socket) do
+    artist_id = socket.assigns.product.artist_id
+    buyer_id = socket.assigns.current_scope.user.id
+    {:ok, conversation} = Conversations.find_or_create_conversation(buyer_id, artist_id)
+    {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
   end
 
   def render(assigns) do
@@ -151,7 +163,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
               </p>
             </div>
 
-            <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
+            <%= if @current_scope.user do %>
+              <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
                 <.button_artsy variant="primary" size="block" navigate>
                   Buy
                 </.button_artsy>
@@ -160,10 +173,22 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
                   or
                 </div-->
 
-                <.button_artsy variant="secondary" size="block" navigate>
+                <.button_artsy variant="secondary" size="block" phx-click="message_seller">
                   Message Seller
                 </.button_artsy>
             </div>
+
+            <% else %>
+            <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
+               <.button_artsy variant="primary" size="block" navigate={~p"/users/log-in"}>
+                  Register to Buy or to Message Seller
+                </.button_artsy>
+            </div>
+
+            <% end %>
+
+
+
           </div>
 
           <div >

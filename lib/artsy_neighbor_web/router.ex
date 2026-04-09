@@ -74,7 +74,7 @@ defmodule ArtsyNeighborWeb.Router do
   end
 
 
-  # Vendor (artist) pages — authenticated users only
+  # Vendor (artist) pages — authenticated artists only
   scope "/", ArtsyNeighborWeb do
     pipe_through [:browser, :require_authenticated_user, :require_vendor_user]
 
@@ -160,11 +160,15 @@ defmodule ArtsyNeighborWeb.Router do
 
     live_session :require_authenticated_user,
       on_mount: [
+        {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+
+      live "/messages/:id", ConversationLive.Show, :show
+
     end
 
     post "/users/update-password", UserSessionController, :update_password

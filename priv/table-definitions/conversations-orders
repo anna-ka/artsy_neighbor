@@ -1,0 +1,7 @@
+mix phx.gen.context Conversations Conversation conversations buyer_id:references:users artist_id:references:artists last_event_at:utc_datetime
+
+mix phx.gen.context Orders Order orders conversation_id:references:conversations buyer_id:references:users artist_id:references:artists status:string delivery_method:string delivery_address:string subtotal:decimal platform_fee:decimal total:decimal complete_token:string complete_token_at:utc_datetime
+
+mix phx.gen.context Conversations ConversationEvent conversation_events conversation_id:references:conversations order_id:references:orders actor_id:references:users actor_type:string event_type:string body:text from_status:string to_status:string
+
+mix phx.gen.context Orders OrderItem order_items order_id:references:orders product_id:references:products quantity:integer unit_price:decimal product_title:string return_policy_snapshot:string selected_options:map
