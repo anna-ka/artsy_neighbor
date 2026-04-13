@@ -153,7 +153,7 @@ defmodule ArtsyNeighborWeb.Router do
     end
   end
 
-  ## Authentication routes
+  ## Authenticated user routes
 
   scope "/", ArtsyNeighborWeb do
     pipe_through [:browser, :require_authenticated_user]
@@ -167,6 +167,7 @@ defmodule ArtsyNeighborWeb.Router do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
 
+      live "/messages", ConversationLive.Index
       live "/messages/:id", ConversationLive.Show, :show
 
     end

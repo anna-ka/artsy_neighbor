@@ -12,7 +12,7 @@ defmodule ArtsyNeighbor.Conversations do
 
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
-  alias ArtsyNeighbor.Accounts.Scope
+
 
   @doc """
   Subscribes to scoped notifications about any conversation changes.
@@ -24,16 +24,22 @@ defmodule ArtsyNeighbor.Conversations do
     * {:deleted, %Conversation{}}
 
   """
-  def subscribe_conversations(%Scope{} = scope) do
-    key = scope.user.id
-
-    Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{key}:conversations")
+  def subscribe_to_conversation(conversation_id) do
+    Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "conversation:#{conversation_id}")
   end
 
-  defp broadcast_conversation(%Scope{} = scope, message) do
-    key = scope.user.id
+  defp broadcast_to_conversation(conversation_id, message) do
+    Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "conversation:#{conversation_id}", message)
+  end
 
-    Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "user:#{key}:conversations", message)
+  # Subscribe to inbox updates for a user
+  def subscribe_to_user_conversations(user_id) do
+    Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{user_id}")
+  end
+
+  # Private broadcast helper
+  defp broadcast_to_user(user_id, message) do
+    Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "user:#{user_id}", message)
   end
 
   @doc"""
@@ -57,9 +63,15 @@ defmodule ArtsyNeighbor.Conversations do
   def find_or_create_conversation(buyer_id, artist_id) do
     case Repo.get_by(Conversation, buyer_id: buyer_id, artist_id: artist_id) do
       nil ->
-        %Conversation{}
-        |> Conversation.changeset(%{buyer_id: buyer_id, artist_id: artist_id})
-        |> Repo.insert()
+        case %Conversation{}
+             |> Conversation.changeset(%{buyer_id: buyer_id, artist_id: artist_id})
+             |> Repo.insert() do
+          {:ok, conversation} ->
+            artist = Repo.get!(ArtsyNeighbor.Artists.Artist, conversation.artist_id)
+            broadcast_to_user(artist.user_id, {:new_conversation, conversation})
+            {:ok, conversation}
+          error -> error
+        end
       conversation ->
         {:ok, conversation}
     end
@@ -72,7 +84,8 @@ defmodule ArtsyNeighbor.Conversations do
   def list_conversations_for_buyer(user_id) do
     Repo.all(
       from c in Conversation,
-      where: c.buyer_id == ^user_id
+      where: c.buyer_id == ^user_id,
+      preload: [artist: :artist_images]
       )
   end
 
@@ -82,7 +95,8 @@ defmodule ArtsyNeighbor.Conversations do
   def list_conversations_for_artist(artist_id) do
     Repo.all(
       from c in Conversation,
-      where: c.artist_id == ^artist_id
+      where: c.artist_id == ^artist_id,
+      preload: [:buyer]
       )
   end
 
@@ -92,7 +106,8 @@ defmodule ArtsyNeighbor.Conversations do
   def list_conversations_for_user(user_id) do
     Repo.all(
       from c in Conversation,
-      where: c.buyer_id == ^user_id or c.artist_id == ^user_id
+      where: c.buyer_id == ^user_id or c.artist_id == ^user_id,
+      preload: [:buyer, artist: :artist_images]
       )
   end
 
@@ -108,6 +123,17 @@ defmodule ArtsyNeighbor.Conversations do
   """
   def get_conversation(id) do
     Repo.get(Conversation, id)
+  end
+
+  @doc """
+  Gets a conversation by its ID with buyer and artist (+ artist images) preloaded.
+  Returns nil if not found.
+  """
+  def get_conversation_with_participants(id) do
+    case Repo.get(Conversation, id) do
+      nil -> nil
+      conversation -> Repo.preload(conversation, [:buyer, artist: :artist_images])
+    end
   end
 
   @doc """
@@ -157,9 +183,9 @@ defmodule ArtsyNeighbor.Conversations do
     Creates a new conversation event of type "message" with the given attributes.
     Attributes should include: conversation_id, actor_id, actor_type, body.
   """
-  def create_message_event(conversation_id, actor_id, actor_type, body) do
+  def create_message_event(conversation, actor_id, actor_type, body) do
     %ConversationEvent{
-      conversation_id: conversation_id,
+      conversation_id: conversation.id,
       actor_id: actor_id,
       actor_type: actor_type,
       event_type: "message",
@@ -167,6 +193,51 @@ defmodule ArtsyNeighbor.Conversations do
     }
     |> ConversationEvent.changeset(%{})
     |> Repo.insert()
+    |> case do
+      {:ok, conv_event} ->
+        broadcast_to_conversation(conversation.id, {:new_message, conv_event})
+        # artist = Repo.get!(ArtsyNeighbor.Artists.Artist, ...)
+
+        # recipient_user_id =
+        #   if actor_type == :buyer, do: artist.user_id, else: buyer_id
+        # broadcast_to_user(recipient_user_id, {:conversation_updated, conv_event})
+
+        case actor_type do
+          :buyer ->
+            artist_user_id = conversation.artist.user_id
+            IO.inspect(artist_user_id, label: "broadcasting to artist user_id")
+            broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
+          :vendor ->
+            conversation = Repo.preload(conversation, :buyer)
+            buyer_id = conversation.buyer_id
+            broadcast_to_user(buyer_id, {:conversation_updated, conv_event})
+          :system ->
+            conversation = Repo.preload(conversation, :buyer, :artist)
+            buyer_id = conversation.buyer_id
+            artist_user_id = conversation.artist.user_id
+
+            broadcast_to_user(buyer_id, {:conversation_updated, conv_event})
+            broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
+
+        end
+
+        {:ok, conv_event}
+      {:error, changeset} ->
+        {:error, changeset}
+
+    end
+  end
+
+  def preload_participants(conversation) do
+    Repo.preload(conversation, [:buyer, artist: :artist_images])
+  end
+
+  @doc """
+  DEV ONLY: Deletes a conversation and all its events.
+  """
+  def delete_conversation_dev(conversation) do
+    Repo.delete_all(from e in ConversationEvent, where: e.conversation_id == ^conversation.id)
+    Repo.delete(conversation)
   end
 
 end
