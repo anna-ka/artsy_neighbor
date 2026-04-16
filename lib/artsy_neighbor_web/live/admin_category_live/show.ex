@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
       <.header>
         Category {@category.id}
         <:subtitle>This is a category record from your database.</:subtitle>

@@ -14,6 +14,7 @@ defmodule ArtsyNeighbor.Conversations do
   alias ArtsyNeighbor.Conversations.ConversationEvent
 
 
+
   @doc """
   Subscribes to scoped notifications about any conversation changes.
 
@@ -85,8 +86,10 @@ defmodule ArtsyNeighbor.Conversations do
     Repo.all(
       from c in Conversation,
       where: c.buyer_id == ^user_id,
+      # Most recently active conversations first; nil last_event_at (no messages yet) sinks to bottom.
+      order_by: [desc_nulls_last: c.last_event_at],
       preload: [artist: :artist_images]
-      )
+    )
   end
 
   @doc """
@@ -96,8 +99,10 @@ defmodule ArtsyNeighbor.Conversations do
     Repo.all(
       from c in Conversation,
       where: c.artist_id == ^artist_id,
+      # Most recently active conversations first; nil last_event_at sinks to bottom.
+      order_by: [desc_nulls_last: c.last_event_at],
       preload: [:buyer]
-      )
+    )
   end
 
   @doc """
@@ -195,37 +200,120 @@ defmodule ArtsyNeighbor.Conversations do
     |> Repo.insert()
     |> case do
       {:ok, conv_event} ->
+        # Stamp last_event_at on the conversation so unread queries work.
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+        Repo.update_all(
+          from(c in Conversation, where: c.id == ^conversation.id),
+          set: [last_event_at: now]
+        )
+
+        # Notify the conversation thread (for the live chat view).
         broadcast_to_conversation(conversation.id, {:new_message, conv_event})
-        # artist = Repo.get!(ArtsyNeighbor.Artists.Artist, ...)
 
-        # recipient_user_id =
-        #   if actor_type == :buyer, do: artist.user_id, else: buyer_id
-        # broadcast_to_user(recipient_user_id, {:conversation_updated, conv_event})
-
+        # Notify the recipient(s) inbox so the unread dot appears.
         case actor_type do
           :buyer ->
+            # Buyer sent the message — notify the artist's user inbox.
             artist_user_id = conversation.artist.user_id
-            IO.inspect(artist_user_id, label: "broadcasting to artist user_id")
-            broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
+              broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
+
           :vendor ->
-            conversation = Repo.preload(conversation, :buyer)
-            buyer_id = conversation.buyer_id
-            broadcast_to_user(buyer_id, {:conversation_updated, conv_event})
+            # Vendor sent the message — notify the buyer's inbox.
+            conversation = Repo.preload(conversation, [:buyer])
+            broadcast_to_user(conversation.buyer_id, {:conversation_updated, conv_event})
+
           :system ->
-            conversation = Repo.preload(conversation, :buyer, :artist)
-            buyer_id = conversation.buyer_id
-            artist_user_id = conversation.artist.user_id
-
-            broadcast_to_user(buyer_id, {:conversation_updated, conv_event})
-            broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
-
+            # System event — notify both parties.
+            conversation = Repo.preload(conversation, [:buyer, :artist])
+            broadcast_to_user(conversation.buyer_id, {:conversation_updated, conv_event})
+            broadcast_to_user(conversation.artist.user_id, {:conversation_updated, conv_event})
         end
 
         {:ok, conv_event}
+
       {:error, changeset} ->
         {:error, changeset}
-
     end
+  end
+
+  @doc """
+  Marks a conversation as read for the given role (:buyer or :vendor),
+  then broadcasts {:marked_read, conversation_id} to the user's inbox topic
+  so the unread dot disappears in real time.
+  """
+  def mark_conversation_read(conversation, role, user_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    # Choose the right column based on who is reading.
+    field = case role do
+      :buyer  -> :buyer_last_read_at
+      :vendor -> :vendor_last_read_at
+    end
+
+    conversation
+    |> Ecto.Changeset.change([{field, now}])
+    |> Repo.update()
+
+    # Tell the inbox LiveView to remove this conversation from the unread set.
+    broadcast_to_user(user_id, {:marked_read, conversation.id})
+
+    :ok
+  end
+
+  @doc """
+  Returns a list of conversation IDs that have unread messages for the given buyer.
+  Unread = last_event_at is newer than buyer_last_read_at, or buyer never opened it (nil).
+  """
+  def list_unread_conversation_ids_for_buyer(user_id) do
+    Repo.all(
+      from c in Conversation,
+      where: c.buyer_id == ^user_id,
+      where: not is_nil(c.last_event_at) and
+             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at),
+      select: c.id
+    )
+  end
+
+  @doc """
+  Returns a list of conversation IDs that have unread messages for the given artist (vendor).
+  Unread = last_event_at is newer than vendor_last_read_at, or vendor never opened it (nil).
+  """
+  def list_unread_conversation_ids_for_artist(artist_id) do
+    Repo.all(
+      from c in Conversation,
+      where: c.artist_id == ^artist_id,
+      where: not is_nil(c.last_event_at) and
+             (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at),
+      select: c.id
+    )
+  end
+
+  @doc """
+  Returns true if the user has any unread conversations, false otherwise.
+  Checks both their buyer conversations and (if they are a vendor) their artist conversations.
+  artist_id should be nil if the user has no artist profile.
+  """
+  def has_unread_conversations?(user_id, artist_id) do
+    buyer_has_unread = Repo.exists?(
+      from c in Conversation,
+      where: c.buyer_id == ^user_id,
+      where: not is_nil(c.last_event_at) and
+             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
+    )
+
+    vendor_has_unread =
+      if artist_id do
+        Repo.exists?(
+          from c in Conversation,
+          where: c.artist_id == ^artist_id,
+          where: not is_nil(c.last_event_at) and
+                 (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at)
+        )
+      else
+        false
+      end
+
+    buyer_has_unread or vendor_has_unread
   end
 
   def preload_participants(conversation) do

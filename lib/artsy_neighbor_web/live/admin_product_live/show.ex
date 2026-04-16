@@ -52,7 +52,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
       <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
 
         <%!-- Admin Actions Header --%>

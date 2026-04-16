@@ -56,6 +56,7 @@ defmodule ArtsyNeighborWeb.Router do
     live_session :public,
       on_mount: [
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
+        {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/", HomeLive
@@ -83,6 +84,7 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :require_vendor},
+        {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/vendor", VendorLive.Dashboard
@@ -104,6 +106,7 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :require_admin},
+        {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
 
@@ -162,6 +165,7 @@ defmodule ArtsyNeighborWeb.Router do
       on_mount: [
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
+        {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/users/settings", UserLive.Settings, :edit

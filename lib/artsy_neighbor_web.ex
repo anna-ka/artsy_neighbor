@@ -53,6 +53,26 @@ defmodule ArtsyNeighborWeb do
       use Phoenix.LiveView
 
       unquote(html_helpers())
+
+      # Inject fallback handle_info clauses for inbox badge PubSub messages.
+      # @before_compile runs after the module body is compiled, so these clauses
+      # appear LAST and only fire when no earlier clause matched.
+      # LiveViews with their own logic for these messages (e.g. ConversationLive.Index)
+      # define clauses before this and match first — the fallbacks are never reached there.
+      @before_compile {ArtsyNeighborWeb, :__inject_badge_handlers__}
+    end
+  end
+
+  @doc false
+  defmacro __inject_badge_handlers__(_env) do
+    quote do
+      # These messages are sent to subscribed LiveViews by the :load_unread_badge
+      # on_mount hook (via {:cont, socket}) after it updates has_unread_messages.
+      # Returning {:noreply, socket} completes the handle_info cycle so Phoenix
+      # LiveView pushes the diff to the client.
+      def handle_info({:conversation_updated, _}, socket), do: {:noreply, socket}
+      def handle_info({:marked_read, _}, socket), do: {:noreply, socket}
+      def handle_info({:new_conversation, _}, socket), do: {:noreply, socket}
     end
   end
 

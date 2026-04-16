@@ -75,7 +75,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
 
       <div>
         <.back :if={@return_to && @return_label} navigate={@return_to}>

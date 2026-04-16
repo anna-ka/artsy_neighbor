@@ -34,7 +34,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
       <div class="space-y-10">
 
         <%!-- Header --%>
@@ -86,7 +86,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                     Your work will not be lost — you can reactivate at any time.
                   </p>
                   <div class="flex gap-3">
-                    <.button_artsy phx-click="toggle_status" variant="warning">
+                    <.button_artsy phx-click="toggle_status" variant="primary">
                       Yes, hide my profile
                     </.button_artsy>
                     <.button_artsy phx-click="cancel_status_toggle" variant="ghost">

@@ -21,6 +21,8 @@ defmodule ArtsyNeighborWeb.Layouts do
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role"
   attr :nav_categories, :list, default: [], doc: "list of categories for the nav category bar"
+  attr :current_scope, :map, default: nil
+  attr :has_unread, :boolean, default: false
   slot :inner_block, required: true
 
   def navlayout(assigns) do
@@ -82,10 +84,16 @@ defmodule ArtsyNeighborWeb.Layouts do
               <li class="flex-none">
                 <a href={~p"/products"} class="btn btn-ghost btn-sm whitespace-nowrap">Purchase art</a>
               </li>
-              <li class="flex-none">
+              <li :if={@current_scope && @current_scope.user} class="flex-none">
+                <.link navigate={~p"/messages"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
+                  Messages
+                  <span :if={@has_unread} class="badge badge-error badge-xs absolute -top-0.5 -right-0.5"></span>
+                </.link>
+              </li>
+              <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
                 <a href={~p"/users/log-in"} class="btn btn-ghost btn-sm whitespace-nowrap">Log in</a>
               </li>
-              <li class="flex-none">
+              <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
                 <a href={~p"/users/register"} class="btn btn-ghost btn-sm whitespace-nowrap">Sign up</a>
               </li>
               <li class="flex-none">
@@ -214,12 +222,13 @@ defmodule ArtsyNeighborWeb.Layouts do
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
   attr :nav_categories, :list, default: []
+  attr :has_unread, :boolean, default: false
 
   slot :inner_block, required: true
 
   def artsy_main(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories}>
+    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread}>
       <main class="flex justify-center">
         <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
           {render_slot(@inner_block)}

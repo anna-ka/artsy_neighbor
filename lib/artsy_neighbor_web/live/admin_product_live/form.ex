@@ -174,7 +174,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
       <div class="w-full px-8 py-8">
 
         <.back navigate={~p"/admin/products"}>

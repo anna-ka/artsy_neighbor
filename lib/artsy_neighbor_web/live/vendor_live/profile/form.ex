@@ -135,12 +135,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
     end
   end
 
-  defp reload_existing_images(socket) do
-    artist = Artists.get_artist!(socket.assigns.artist.id)
-    assign(socket, :existing_profile_images, Enum.sort_by(artist.artist_images, & &1.position))
-  end
-
-  @impl true
+   @impl true
   def handle_event("save", %{"artist" => artist_params}, socket) do
     artist_params = parse_medium_field(artist_params)
 
@@ -168,6 +163,13 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
     {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
   end
+
+
+  defp reload_existing_images(socket) do
+    artist = Artists.get_artist!(socket.assigns.artist.id)
+    assign(socket, :existing_profile_images, Enum.sort_by(artist.artist_images, & &1.position))
+  end
+
 
   defp save_artist(socket, :edit, artist_params) do
     case Artists.update_artist(socket.assigns.artist, artist_params) do
@@ -240,7 +242,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories}>
+    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
       <div class="w-full px-8 py-8">
 
       <div>

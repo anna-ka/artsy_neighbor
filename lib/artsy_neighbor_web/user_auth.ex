@@ -7,6 +7,7 @@ defmodule ArtsyNeighborWeb.UserAuth do
   alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.Conversations
 
   # Make the remember me cookie valid for 14 days. This should match
   # the session validity setting in UserToken.
@@ -194,6 +195,11 @@ defmodule ArtsyNeighborWeb.UserAuth do
       on user_token.
       Redirects to login page if there's no logged user.
 
+    * `:load_unread_badge` - Sets has_unread_messages from a DB query so the
+      nav badge shows correctly on page load. For all pages except
+      ConversationLive.Index, also subscribes to the user's inbox topic and
+      attaches a hook to keep the badge updated in real time.
+
   ## Examples
 
   Use the `on_mount` lifecycle macro in LiveViews to mount or authenticate
@@ -261,6 +267,60 @@ defmodule ArtsyNeighborWeb.UserAuth do
 
   def on_mount(:load_categories, _params, _session, socket) do
     {:cont, Phoenix.Component.assign_new(socket, :nav_categories, fn -> Categories.list_categories_ordered_by_time() end)}
+  end
+
+  def on_mount(:load_unread_badge, _params, _session, socket) do
+    user   = socket.assigns.current_scope.user
+    artist = socket.assigns.current_scope.artist
+
+    # Not logged in — set badge to false and skip subscription entirely.
+    if user == nil do
+      {:cont, Phoenix.Component.assign(socket, :has_unread_messages, false)}
+    else
+      # Query the DB once for the initial state — covers the page-load case.
+      has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
+      socket = Phoenix.Component.assign(socket, :has_unread_messages, has_unread)
+
+      # ConversationLive.Index manages its own subscription and real-time badge updates.
+      # For all other pages we set up the subscription and a handle_info hook here.
+      if socket.view == ArtsyNeighborWeb.ConversationLive.Index do
+        {:cont, socket}
+      else
+        socket =
+          if Phoenix.LiveView.connected?(socket) do
+            Conversations.subscribe_to_user_conversations(user.id)
+            socket
+          else
+            socket
+          end
+
+        socket = Phoenix.LiveView.attach_hook(socket, :unread_badge, :handle_info, fn
+          # A new message arrived for this user — light up the badge.
+          # {:cont, socket} lets the message flow through to handle_info so Phoenix
+          # LiveView completes the cycle and pushes the diff to the client.
+          {:conversation_updated, _event}, socket ->
+            {:cont, Phoenix.Component.assign(socket, :has_unread_messages, true)}
+
+          # The user opened a conversation — re-check whether any unread remain.
+          {:marked_read, _conversation_id}, socket ->
+            user       = socket.assigns.current_scope.user
+            artist     = socket.assigns.current_scope.artist
+            has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
+            {:cont, Phoenix.Component.assign(socket, :has_unread_messages, has_unread)}
+
+          # A new conversation was created (vendor inbox update).
+          # Not relevant outside the Index page — pass through so the diff cycle completes.
+          {:new_conversation, _conversation}, socket ->
+            {:cont, socket}
+
+          # Any other message — pass through to the LiveView's own handle_info.
+          _other, socket ->
+            {:cont, socket}
+        end)
+
+        {:cont, socket}
+      end
+    end
   end
 
   def on_mount(:require_sudo_mode, _params, session, socket) do

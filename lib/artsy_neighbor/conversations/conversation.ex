@@ -3,7 +3,13 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
   import Ecto.Changeset
 
   schema "conversations" do
-    field :last_event_at, :utc_datetime
+    # When the last message or system event was posted — used to detect unread.
+    field :last_event_at,      :utc_datetime
+
+    # When each party last opened this conversation.
+    # nil = never opened = always treated as unread.
+    field :buyer_last_read_at,  :utc_datetime
+    field :vendor_last_read_at, :utc_datetime
 
     belongs_to :artist, ArtsyNeighbor.Artists.Artist, foreign_key: :artist_id
     belongs_to :buyer, ArtsyNeighbor.Accounts.User, foreign_key: :buyer_id

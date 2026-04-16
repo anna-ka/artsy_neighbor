@@ -68,7 +68,8 @@ defmodule ArtsyNeighbor.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:tidewave, "~> 0.5", only: [:dev]},
-      {:argon2_elixir, "~> 4.0"}
+      {:argon2_elixir, "~> 4.0"},
+      {:tzdata, "~> 1.1"}
     ]
   end
 
