@@ -270,13 +270,14 @@ defmodule ArtsyNeighborWeb.UserAuth do
   end
 
   def on_mount(:load_unread_badge, _params, _session, socket) do
-    user   = socket.assigns.current_scope.user
-    artist = socket.assigns.current_scope.artist
+    current_scope = socket.assigns.current_scope
 
-    # Not logged in — set badge to false and skip subscription entirely.
-    if user == nil do
+    # Not logged in — current_scope is nil for unauthenticated users on public pages.
+    if is_nil(current_scope) || is_nil(current_scope.user) do
       {:cont, Phoenix.Component.assign(socket, :has_unread_messages, false)}
     else
+      user   = current_scope.user
+      artist = current_scope.artist
       # Query the DB once for the initial state — covers the page-load case.
       has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
       socket = Phoenix.Component.assign(socket, :has_unread_messages, has_unread)
