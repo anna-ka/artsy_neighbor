@@ -299,8 +299,17 @@ defmodule ArtsyNeighborWeb.UserAuth do
           # A new message arrived for this user — light up the badge.
           # {:cont, socket} lets the message flow through to handle_info so Phoenix
           # LiveView completes the cycle and pushes the diff to the client.
-          {:conversation_updated, _event}, socket ->
-            {:cont, Phoenix.Component.assign(socket, :has_unread_messages, true)}
+          {:conversation_updated, event}, socket ->
+            open_conversation = Map.get(socket.assigns, :conversation)
+            already_viewing = open_conversation && open_conversation.id == event.conversation_id
+            if already_viewing do
+              role    = socket.assigns.current_role
+              user_id = socket.assigns.current_scope.user.id
+              Conversations.mark_conversation_read(open_conversation, role, user_id)
+              {:cont, socket}
+            else
+              {:cont, Phoenix.Component.assign(socket, :has_unread_messages, true)}
+            end
 
           # The user opened a conversation — re-check whether any unread remain.
           {:marked_read, _conversation_id}, socket ->

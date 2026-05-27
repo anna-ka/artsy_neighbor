@@ -163,7 +163,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
               </p>
             </div>
 
-            <%= if @current_scope.user do %>
+            <%= if @current_scope && @current_scope.user do %>
               <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
                 <.button_artsy variant="primary" size="block" navigate>
                   Buy
@@ -181,7 +181,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             <% else %>
             <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
                <.button_artsy variant="primary" size="block" navigate={~p"/users/log-in"}>
-                  Register to Buy or to Message Seller
+                  Log-in to Buy or to Message Seller
                 </.button_artsy>
             </div>
 

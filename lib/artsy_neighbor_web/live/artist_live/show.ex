@@ -3,6 +3,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Conversations
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
@@ -75,6 +76,17 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
   defp create_return_to_params(assigns) do
     URI.encode_query(return_to: "/artists/#{assigns.artist.id}", return_label: "Artist profile")
+  end
+
+  @doc """
+    Handles the "Contact Artist" button click.
+    Finds or creates a conversation between the current user (buyer) and the artist (seller), then navigates to that conversation's page.
+  """
+  def handle_event("message_artist", _params, socket) do
+    artist_id = socket.assigns.artist.id
+    buyer_id = socket.assigns.current_scope.user.id
+    {:ok, conversation} = Conversations.find_or_create_conversation(buyer_id, artist_id)
+    {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
   end
 
   def render(assigns) do
@@ -197,9 +209,17 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
               <%!-- Contact Buttons --%>
               <div class="flex flex-col items-center gap-3 mb-8">
-                <.button_artsy variant="primary" size="wide">
+
+              <%= if @current_scope && @current_scope.user do %>
+                <.button_artsy variant="primary" size="wide" phx-click="message_artist">
                   Contact Artist
                 </.button_artsy>
+              <% else %>
+               <.button_artsy variant="primary" size="wide" navigate={~p"/users/log-in"}>
+                  Log-in to Message Artist
+                </.button_artsy>
+
+              <% end %>
 
                 <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"<> "?" <> create_return_to_params(assigns)}>
                   View Shop
