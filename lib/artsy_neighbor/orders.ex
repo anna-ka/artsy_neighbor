@@ -149,6 +149,71 @@ defmodule ArtsyNeighbor.Orders do
   def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
 
   @doc """
+  Amends an order by replacing its items with a new list.
+  items is a list of %{product: product, quantity: integer}.
+  Only allowed when the order is :requested or :confirmed.
+  Always resets status to :requested and clears the pickup token so the
+  vendor must re-confirm the amended total before a new token is issued.
+  Posts a system ConversationEvent showing the new total.
+  """
+  def amend_order(%Order{status: status} = order, items)
+      when status in [:requested, :confirmed] do
+    {subtotal, platform_fee, total} = calculate_totals(items)
+
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{
+      status: :requested,
+      subtotal: subtotal,
+      platform_fee: platform_fee,
+      total: total,
+      complete_token: nil,
+      complete_token_at: nil
+    }))
+    |> Multi.run(:delete_items, fn _repo, %{order: updated_order} ->
+      Repo.delete_all(from(i in OrderItem, where: i.order_id == ^updated_order.id))
+      {:ok, :deleted}
+    end)
+    |> Multi.run(:order_items, fn _repo, %{order: updated_order} ->
+      results =
+        Enum.map(items, fn %{product: product, quantity: quantity} ->
+          %OrderItem{}
+          |> OrderItem.changeset(%{
+            order_id: updated_order.id,
+            product_id: product.id,
+            quantity: quantity,
+            unit_price: product.price,
+            product_title: product.title,
+            return_policy_snapshot: "All sales final unless item is significantly not as described."
+          })
+          |> Repo.insert()
+        end)
+
+      case Enum.find(results, fn {k, _} -> k == :error end) do
+        nil -> {:ok, Enum.map(results, fn {:ok, item} -> item end)}
+        {:error, changeset} -> {:error, changeset}
+      end
+    end)
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: :buyer,
+        order_id: updated_order.id,
+        from_status: to_string(order.status),
+        to_status: "requested"
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order}} -> {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  def amend_order(%Order{}, _items), do: {:error, :wrong_state}
+
+  @doc """
   Cancels an order. Can be called by either party.
   actor_type must be :buyer or :vendor.
   Posts a system ConversationEvent recording who cancelled.
