@@ -27,6 +27,6 @@ defmodule ArtsyNeighbor.Conversations.ConversationEvent do
   def status_change_changeset(event, attrs) do
     event
     |> cast(attrs, [:actor_type, :from_status, :to_status, :conversation_id, :order_id, :actor_id])
-    |> validate_required([:actor_type, :from_status, :to_status, :conversation_id])
+    |> validate_required([:actor_type, :to_status, :conversation_id])
   end
 end

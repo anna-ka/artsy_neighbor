@@ -1,286 +1,215 @@
 defmodule ArtsyNeighbor.Orders do
-  @moduledoc """
-  The Orders context.
-  """
-
   import Ecto.Query, warn: false
+  alias Ecto.Multi
   alias ArtsyNeighbor.Repo
 
   alias ArtsyNeighbor.Orders.Order
-  alias ArtsyNeighbor.Accounts.Scope
-
-  @doc """
-  Subscribes to scoped notifications about any order changes.
-
-  The broadcasted messages match the pattern:
-
-    * {:created, %Order{}}
-    * {:updated, %Order{}}
-    * {:deleted, %Order{}}
-
-  """
-  def subscribe_orders(%Scope{} = scope) do
-    key = scope.user.id
-
-    Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{key}:orders")
-  end
-
-  defp broadcast_order(%Scope{} = scope, message) do
-    key = scope.user.id
-
-    Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "user:#{key}:orders", message)
-  end
-
-  @doc """
-  Returns the list of orders.
-
-  ## Examples
-
-      iex> list_orders(scope)
-      [%Order{}, ...]
-
-  """
-  def list_orders(%Scope{} = scope) do
-    Repo.all_by(Order, user_id: scope.user.id)
-  end
-
-  @doc """
-  Gets a single order.
-
-  Raises `Ecto.NoResultsError` if the Order does not exist.
-
-  ## Examples
-
-      iex> get_order!(scope, 123)
-      %Order{}
-
-      iex> get_order!(scope, 456)
-      ** (Ecto.NoResultsError)
-
-  """
-  def get_order!(%Scope{} = scope, id) do
-    Repo.get_by!(Order, id: id, user_id: scope.user.id)
-  end
-
-  @doc """
-  Creates a order.
-
-  ## Examples
-
-      iex> create_order(scope, %{field: value})
-      {:ok, %Order{}}
-
-      iex> create_order(scope, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def create_order(%Scope{} = scope, attrs) do
-    with {:ok, order = %Order{}} <-
-           %Order{}
-           |> Order.changeset(attrs, scope)
-           |> Repo.insert() do
-      broadcast_order(scope, {:created, order})
-      {:ok, order}
-    end
-  end
-
-  @doc """
-  Updates a order.
-
-  ## Examples
-
-      iex> update_order(scope, order, %{field: new_value})
-      {:ok, %Order{}}
-
-      iex> update_order(scope, order, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def update_order(%Scope{} = scope, %Order{} = order, attrs) do
-    true = order.user_id == scope.user.id
-
-    with {:ok, order = %Order{}} <-
-           order
-           |> Order.changeset(attrs, scope)
-           |> Repo.update() do
-      broadcast_order(scope, {:updated, order})
-      {:ok, order}
-    end
-  end
-
-  @doc """
-  Deletes a order.
-
-  ## Examples
-
-      iex> delete_order(scope, order)
-      {:ok, %Order{}}
-
-      iex> delete_order(scope, order)
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def delete_order(%Scope{} = scope, %Order{} = order) do
-    true = order.user_id == scope.user.id
-
-    with {:ok, order = %Order{}} <-
-           Repo.delete(order) do
-      broadcast_order(scope, {:deleted, order})
-      {:ok, order}
-    end
-  end
-
-  @doc """
-  Returns an `%Ecto.Changeset{}` for tracking order changes.
-
-  ## Examples
-
-      iex> change_order(scope, order)
-      %Ecto.Changeset{data: %Order{}}
-
-  """
-  def change_order(%Scope{} = scope, %Order{} = order, attrs \\ %{}) do
-    true = order.user_id == scope.user.id
-
-    Order.changeset(order, attrs, scope)
-  end
-
   alias ArtsyNeighbor.Orders.OrderItem
-  alias ArtsyNeighbor.Accounts.Scope
+  alias ArtsyNeighbor.Conversations.Conversation
+  alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Accounts.User
 
   @doc """
-  Subscribes to scoped notifications about any order_item changes.
-
-  The broadcasted messages match the pattern:
-
-    * {:created, %OrderItem{}}
-    * {:updated, %OrderItem{}}
-    * {:deleted, %OrderItem{}}
-
+  Creates an order within an existing conversation.
+  items is a list of %{product: product, quantity: integer}.
+  Atomically inserts the order, order items, a system ConversationEvent,
+  and stamps conversation.last_event_at.
   """
-  def subscribe_order_items(%Scope{} = scope) do
-    key = scope.user.id
+  def create_order(conversation, buyer, artist, items, delivery_method \\ :pickup) do
+    vendor_user = Repo.get!(User, artist.user_id)
+    {subtotal, platform_fee, total} = calculate_totals(items)
 
-    Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{key}:order_items")
-  end
+    Multi.new()
+    |> Multi.insert(:order, Order.changeset(%Order{}, %{
+      conversation_id: conversation.id,
+      buyer_id: buyer.id,
+      artist_id: artist.id,
+      status: :requested,
+      delivery_method: delivery_method,
+      subtotal: subtotal,
+      platform_fee: platform_fee,
+      total: total,
+      buyer_email: buyer.email,
+      vendor_email: vendor_user.email,
+      artist_name: artist.nickname
+    }))
+    |> Multi.run(:order_items, fn _repo, %{order: order} ->
+      results =
+        Enum.map(items, fn %{product: product, quantity: quantity} ->
+          %OrderItem{}
+          |> OrderItem.changeset(%{
+            order_id: order.id,
+            product_id: product.id,
+            quantity: quantity,
+            unit_price: product.price,
+            product_title: product.title,
+            return_policy_snapshot: "All sales final unless item is significantly not as described."
+          })
+          |> Repo.insert()
+        end)
 
-  defp broadcast_order_item(%Scope{} = scope, message) do
-    key = scope.user.id
-
-    Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "user:#{key}:order_items", message)
-  end
-
-  @doc """
-  Returns the list of order_items.
-
-  ## Examples
-
-      iex> list_order_items(scope)
-      [%OrderItem{}, ...]
-
-  """
-  def list_order_items(%Scope{} = scope) do
-    Repo.all_by(OrderItem, user_id: scope.user.id)
-  end
-
-  @doc """
-  Gets a single order_item.
-
-  Raises `Ecto.NoResultsError` if the Order item does not exist.
-
-  ## Examples
-
-      iex> get_order_item!(scope, 123)
-      %OrderItem{}
-
-      iex> get_order_item!(scope, 456)
-      ** (Ecto.NoResultsError)
-
-  """
-  def get_order_item!(%Scope{} = scope, id) do
-    Repo.get_by!(OrderItem, id: id, user_id: scope.user.id)
-  end
-
-  @doc """
-  Creates a order_item.
-
-  ## Examples
-
-      iex> create_order_item(scope, %{field: value})
-      {:ok, %OrderItem{}}
-
-      iex> create_order_item(scope, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def create_order_item(%Scope{} = scope, attrs) do
-    with {:ok, order_item = %OrderItem{}} <-
-           %OrderItem{}
-           |> OrderItem.changeset(attrs, scope)
-           |> Repo.insert() do
-      broadcast_order_item(scope, {:created, order_item})
-      {:ok, order_item}
+      case Enum.find(results, fn {k, _} -> k == :error end) do
+        nil -> {:ok, Enum.map(results, fn {:ok, item} -> item end)}
+        {:error, changeset} -> {:error, changeset}
+      end
+    end)
+    |> Multi.run(:event, fn _repo, %{order: order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: conversation.id,
+        actor_type: :buyer,
+        actor_id: buyer.id,
+        order_id: order.id,
+        to_status: "requested"
+      })
+      |> Repo.insert()
+    end)
+    |> Multi.run(:stamp_conversation, fn _repo, _changes ->
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      Repo.update_all(
+        from(c in Conversation, where: c.id == ^conversation.id),
+        set: [last_event_at: now]
+      )
+      {:ok, :stamped}
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order}} -> {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
   @doc """
-  Updates a order_item.
-
-  ## Examples
-
-      iex> update_order_item(scope, order_item, %{field: new_value})
-      {:ok, %OrderItem{}}
-
-      iex> update_order_item(scope, order_item, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
+  Vendor confirms the order. Generates a pickup token and posts a system event.
+  Only works when the order is in :requested state.
   """
-  def update_order_item(%Scope{} = scope, %OrderItem{} = order_item, attrs) do
-    true = order_item.user_id == scope.user.id
+  def confirm_order(%Order{status: :requested} = order) do
+    token = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    with {:ok, order_item = %OrderItem{}} <-
-           order_item
-           |> OrderItem.changeset(attrs, scope)
-           |> Repo.update() do
-      broadcast_order_item(scope, {:updated, order_item})
-      {:ok, order_item}
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{
+      status: :confirmed,
+      complete_token: token,
+      complete_token_at: now
+    }))
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: :vendor,
+        order_id: updated_order.id,
+        from_status: "requested",
+        to_status: "confirmed"
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order}} -> {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  def confirm_order(%Order{}), do: {:error, :wrong_state}
+
+
+
+  @doc """
+  Buyer completes the pickup by providing the token from the vendor.
+  Uses constant-time comparison to prevent timing attacks.
+  """
+  def complete_pickup(%Order{complete_token: nil}, _token), do: {:error, :invalid_token}
+
+  def complete_pickup(%Order{status: :confirmed, delivery_method: :pickup} = order, token) do
+    if Plug.Crypto.secure_compare(order.complete_token, token) do
+      Multi.new()
+      |> Multi.update(:order, Order.changeset(order, %{status: :completed}))
+      |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+        %ConversationEvent{event_type: :status_change}
+        |> ConversationEvent.status_change_changeset(%{
+          conversation_id: updated_order.conversation_id,
+          actor_type: :buyer,
+          order_id: updated_order.id,
+          from_status: "confirmed",
+          to_status: "completed"
+        })
+        |> Repo.insert()
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{order: order}} -> {:ok, order}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    else
+      {:error, :invalid_token}
+    end
+  end
+
+  def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
+
+  @doc """
+  Cancels an order. Can be called by either party.
+  actor_type must be :buyer or :vendor.
+  Posts a system ConversationEvent recording who cancelled.
+  """
+  def cancel_order(%Order{} = order, actor_type) when actor_type in [:buyer, :vendor] do
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{status: :cancelled}))
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: actor_type,
+        order_id: updated_order.id,
+        from_status: to_string(order.status),
+        to_status: "cancelled"
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order}} -> {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
   @doc """
-  Deletes a order_item.
-
-  ## Examples
-
-      iex> delete_order_item(scope, order_item)
-      {:ok, %OrderItem{}}
-
-      iex> delete_order_item(scope, order_item)
-      {:error, %Ecto.Changeset{}}
-
+  Fetches a single order by id with items, buyer, and artist preloaded.
+  Raises Ecto.NoResultsError if not found.
   """
-  def delete_order_item(%Scope{} = scope, %OrderItem{} = order_item) do
-    true = order_item.user_id == scope.user.id
-
-    with {:ok, order_item = %OrderItem{}} <-
-           Repo.delete(order_item) do
-      broadcast_order_item(scope, {:deleted, order_item})
-      {:ok, order_item}
-    end
+  def get_order!(id) do
+    Order
+    |> Repo.get!(id)
+    |> Repo.preload([:items, :buyer, :artist])
   end
 
-  @doc """
-  Returns an `%Ecto.Changeset{}` for tracking order_item changes.
+  @doc "Returns all orders for a buyer, sorted newest first."
+  def list_orders_for_buyer(user_id) do
+    Order
+    |> where([o], o.buyer_id == ^user_id)
+    |> order_by([o], desc: o.inserted_at)
+    |> preload([:items])
+    |> Repo.all()
+  end
 
-  ## Examples
+  @doc "Returns all orders for an artist (vendor), sorted newest first."
+  def list_orders_for_artist(artist_id) do
+    Order
+    |> where([o], o.artist_id == ^artist_id)
+    |> order_by([o], desc: o.inserted_at)
+    |> preload([:items])
+    |> Repo.all()
+  end
 
-      iex> change_order_item(scope, order_item)
-      %Ecto.Changeset{data: %OrderItem{}}
+  defp calculate_totals(items) do
+    subtotal =
+      Enum.reduce(items, Decimal.new(0), fn %{product: p, quantity: q}, acc ->
+        Decimal.add(acc, Decimal.mult(p.price, Decimal.new(q)))
+      end)
 
-  """
-  def change_order_item(%Scope{} = scope, %OrderItem{} = order_item, attrs \\ %{}) do
-    true = order_item.user_id == scope.user.id
-
-    OrderItem.changeset(order_item, attrs, scope)
+    platform_fee = Decimal.mult(subtotal, Decimal.new("0.05")) |> Decimal.round(2)
+    total = Decimal.add(subtotal, platform_fee)
+    {subtotal, platform_fee, total}
   end
 end
