@@ -4,6 +4,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Orders
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
@@ -70,6 +71,15 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     artist_id = socket.assigns.product.artist_id
     buyer_id = socket.assigns.current_scope.user.id
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer_id, artist_id)
+    {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
+  end
+
+  def handle_event("request_to_buy", _params, socket) do
+    product = socket.assigns.product
+    buyer   = socket.assigns.current_scope.user
+    artist  = product.artist
+    {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+    {:ok, _order} = Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}])
     {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
   end
 
@@ -165,8 +175,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
             <%= if @current_scope && @current_scope.user do %>
               <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
-                <.button_artsy variant="primary" size="block" navigate>
-                  Buy
+                <.button_artsy variant="primary" size="block" phx-click="request_to_buy">
+                  Request to Buy
                 </.button_artsy>
 
                 <!--div class="text-base-content/80">

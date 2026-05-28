@@ -54,13 +54,21 @@ defmodule ArtsyNeighbor.Orders do
       end
     end)
     |> Multi.run(:event, fn _repo, %{order: order} ->
+      item_summary =
+        case items do
+          [%{product: p, quantity: 1}] -> p.title
+          [%{product: p, quantity: q}] -> "#{p.title} ×#{q}"
+          _ -> "#{length(items)} items"
+        end
+
       %ConversationEvent{event_type: :status_change}
       |> ConversationEvent.status_change_changeset(%{
         conversation_id: conversation.id,
         actor_type: :buyer,
         actor_id: buyer.id,
         order_id: order.id,
-        to_status: "requested"
+        to_status: "requested",
+        body: "I'd like to buy #{item_summary} — CA$#{total}"
       })
       |> Repo.insert()
     end)
@@ -100,7 +108,8 @@ defmodule ArtsyNeighbor.Orders do
         actor_type: :vendor,
         order_id: updated_order.id,
         from_status: "requested",
-        to_status: "confirmed"
+        to_status: "confirmed",
+        body: "Order confirmed — CA$#{updated_order.total}. I'll send you the pickup link when you're ready."
       })
       |> Repo.insert()
     end)
@@ -132,7 +141,8 @@ defmodule ArtsyNeighbor.Orders do
           actor_type: :buyer,
           order_id: updated_order.id,
           from_status: "confirmed",
-          to_status: "completed"
+          to_status: "completed",
+          body: "Pickup completed — thank you!"
         })
         |> Repo.insert()
       end)
@@ -200,7 +210,8 @@ defmodule ArtsyNeighbor.Orders do
         actor_type: :buyer,
         order_id: updated_order.id,
         from_status: to_string(order.status),
-        to_status: "requested"
+        to_status: "requested",
+        body: "Order updated — new total CA$#{total}"
       })
       |> Repo.insert()
     end)
@@ -228,7 +239,8 @@ defmodule ArtsyNeighbor.Orders do
         actor_type: actor_type,
         order_id: updated_order.id,
         from_status: to_string(order.status),
-        to_status: "cancelled"
+        to_status: "cancelled",
+        body: "Order cancelled."
       })
       |> Repo.insert()
     end)
