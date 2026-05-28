@@ -52,7 +52,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
               {buyer.username || buyer.email, nil}
             end
 
-          msg_changeset = ConversationEvent.changeset(%ConversationEvent{}, %{})
+          msg_changeset = ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
 
           socket =
             socket
@@ -150,7 +150,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   def handle_event("validate_msg", %{"conversation_event" => params}, socket) do
     changeset =
       %ConversationEvent{}
-      |> ConversationEvent.changeset(params)
+      |> ConversationEvent.message_changeset(params)
       |> Map.put(:action, :validate)
     {:noreply, assign(socket, :form, to_form(changeset))}
   end
@@ -169,7 +169,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       ) do
 
       {:ok, _event} ->
-        msg_changeset = ConversationEvent.changeset(%ConversationEvent{}, %{})
+        msg_changeset = ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
         {:noreply,
           socket
           |> assign(:form, to_form(msg_changeset))

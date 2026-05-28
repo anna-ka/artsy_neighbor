@@ -52,7 +52,7 @@ defmodule ArtsyNeighbor.Conversations do
   @doc """  Returns a changeset for a conversation event.
   """
   def change_conversation_event(%ConversationEvent{} = conversation_event, attrs \\ %{}) do
-    ConversationEvent.changeset(conversation_event, attrs)
+    ConversationEvent.message_changeset(conversation_event, attrs)
   end
 
 
@@ -180,7 +180,7 @@ defmodule ArtsyNeighbor.Conversations do
   """
   def create_conversation_event(attrs) do
     %ConversationEvent{}
-    |> ConversationEvent.changeset(attrs)
+    |> ConversationEvent.message_changeset(attrs)
     |> Repo.insert()
   end
 
@@ -189,14 +189,13 @@ defmodule ArtsyNeighbor.Conversations do
     Attributes should include: conversation_id, actor_id, actor_type, body.
   """
   def create_message_event(conversation, actor_id, actor_type, body) do
-    %ConversationEvent{
+    %ConversationEvent{event_type: :message}
+    |> ConversationEvent.message_changeset(%{
       conversation_id: conversation.id,
       actor_id: actor_id,
       actor_type: actor_type,
-      event_type: "message",
       body: body
-    }
-    |> ConversationEvent.changeset(%{})
+    })
     |> Repo.insert()
     |> case do
       {:ok, conv_event} ->

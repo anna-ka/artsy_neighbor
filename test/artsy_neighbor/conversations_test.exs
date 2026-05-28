@@ -101,7 +101,7 @@ defmodule ArtsyNeighbor.ConversationsTest do
       assert event.body == "Hello!"
       assert event.actor_type == :buyer
       assert event.actor_id == buyer.id
-      assert event.event_type == "message"
+      assert event.event_type == :message
       assert event.conversation_id == conv.id
     end
 
