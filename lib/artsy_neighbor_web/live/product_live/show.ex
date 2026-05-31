@@ -8,7 +8,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, return_to: nil, return_label: nil)}
+    {:ok, assign(socket, return_to: nil, return_label: nil, pending_duplicate_product: nil)}
   end
 
   def handle_params(%{"id" => id}=params, _uri, socket) do
@@ -79,8 +79,36 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     buyer   = socket.assigns.current_scope.user
     artist  = product.artist
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+
+    if Orders.has_open_order_for_product?(conversation.id, product.id) do
+      if product.unique_work do
+        # Unique work — block entirely, no second request allowed.
+        {:noreply,
+         socket
+         |> put_flash(:error, "This is a unique work and you have already requested to purchase it.")}
+      else
+        # Non-unique — ask for confirmation before creating a second order.
+        {:noreply, assign(socket, :pending_duplicate_product, {conversation, product})}
+      end
+    else
+      {:ok, _order} = Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}])
+      {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
+    end
+  end
+
+  def handle_event("confirm_duplicate_purchase", _params, socket) do
+    {conversation, product} = socket.assigns.pending_duplicate_product
+    buyer  = socket.assigns.current_scope.user
+    artist = product.artist
     {:ok, _order} = Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}])
-    {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
+    {:noreply,
+     socket
+     |> assign(:pending_duplicate_product, nil)
+     |> push_navigate(to: ~p"/messages/#{conversation.id}")}
+  end
+
+  def handle_event("dismiss_duplicate", _params, socket) do
+    {:noreply, assign(socket, :pending_duplicate_product, nil)}
   end
 
   def render(assigns) do
@@ -174,6 +202,20 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             </div>
 
             <%= if @current_scope && @current_scope.user do %>
+
+              <%!-- Duplicate order confirmation panel --%>
+              <div :if={@pending_duplicate_product} class="mb-4 bg-warning/10 border-l-4 border-warning rounded-r-lg px-4 py-3 text-sm text-base-content">
+                <p class="font-semibold mb-3">You have already requested to buy this item. Would you like to request a second copy?</p>
+                <div class="flex gap-2">
+                  <.button_artsy variant="primary" size="sm" phx-click="confirm_duplicate_purchase">
+                    Yes, request another
+                  </.button_artsy>
+                  <.button_artsy variant="secondary" size="sm" phx-click="dismiss_duplicate">
+                    No, cancel
+                  </.button_artsy>
+                </div>
+              </div>
+
               <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
                 <.button_artsy variant="primary" size="block" phx-click="request_to_buy">
                   Request to Buy

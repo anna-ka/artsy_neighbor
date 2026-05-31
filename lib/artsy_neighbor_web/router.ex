@@ -174,6 +174,8 @@ defmodule ArtsyNeighborWeb.Router do
       live "/messages", ConversationLive.Index
       live "/messages/:id", ConversationLive.Show, :show
 
+      live "/orders/:id/complete-purchase/:token", OrderLive.Complete
+
     end
 
     post "/users/update-password", UserSessionController, :update_password

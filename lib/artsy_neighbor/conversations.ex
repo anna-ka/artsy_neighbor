@@ -33,6 +33,22 @@ defmodule ArtsyNeighbor.Conversations do
     Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "conversation:#{conversation_id}", message)
   end
 
+  @doc """
+  Broadcasts an order status-change event to the conversation thread and to the
+  other party's inbox (for the unread dot). Called by the Orders context after
+  each state transition so the live chat updates in real time.
+  """
+  def broadcast_order_event(conversation_id, %ConversationEvent{} = event) do
+    broadcast_to_conversation(conversation_id, {:new_message, event})
+
+    conversation = Repo.get!(Conversation, conversation_id) |> Repo.preload(artist: [])
+    case event.actor_type do
+      :buyer  -> broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
+      :vendor -> broadcast_to_user(conversation.buyer_id, {:conversation_updated, event})
+      _       -> :ok
+    end
+  end
+
   # Subscribe to inbox updates for a user
   def subscribe_to_user_conversations(user_id) do
     Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{user_id}")

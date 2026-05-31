@@ -5,6 +5,7 @@ defmodule ArtsyNeighbor.Orders do
 
   alias ArtsyNeighbor.Orders.Order
   alias ArtsyNeighbor.Orders.OrderItem
+  alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Accounts.User
@@ -68,7 +69,7 @@ defmodule ArtsyNeighbor.Orders do
         actor_id: buyer.id,
         order_id: order.id,
         to_status: "requested",
-        body: "I'd like to buy #{item_summary} — CA$#{total}"
+        body: "Buyer requested to purchase #{item_summary} — CA$#{total}"
       })
       |> Repo.insert()
     end)
@@ -82,7 +83,9 @@ defmodule ArtsyNeighbor.Orders do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{order: order}} -> {:ok, order}
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
@@ -115,7 +118,9 @@ defmodule ArtsyNeighbor.Orders do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{order: order}} -> {:ok, order}
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
@@ -217,7 +222,9 @@ defmodule ArtsyNeighbor.Orders do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{order: order}} -> {:ok, order}
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
@@ -230,6 +237,17 @@ defmodule ArtsyNeighbor.Orders do
   Posts a system ConversationEvent recording who cancelled.
   """
   def cancel_order(%Order{} = order, actor_type) when actor_type in [:buyer, :vendor] do
+    order = Repo.preload(order, :items)
+
+    item_summary =
+      case order.items do
+        [%{product_title: title, quantity: 1}] -> title
+        [%{product_title: title, quantity: q}] -> "#{title} ×#{q}"
+        items -> "#{length(items)} items"
+      end
+
+    actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
+
     Multi.new()
     |> Multi.update(:order, Order.changeset(order, %{status: :cancelled}))
     |> Multi.run(:event, fn _repo, %{order: updated_order} ->
@@ -240,25 +258,90 @@ defmodule ArtsyNeighbor.Orders do
         order_id: updated_order.id,
         from_status: to_string(order.status),
         to_status: "cancelled",
-        body: "Order cancelled."
+        body: "#{actor_label} cancelled the order for #{item_summary} — CA$#{order.total}"
       })
       |> Repo.insert()
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{order: order}} -> {:ok, order}
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
   @doc """
-  Fetches a single order by id with items, buyer, and artist preloaded.
-  Raises Ecto.NoResultsError if not found.
+  Posts a pick-up schedule as a status_change event in the conversation.
+  Does not change the order status (stays :confirmed).
+  details is a map with keys: date, time, address, instructions, completion_url.
   """
+  def schedule_pickup(%Order{status: :confirmed} = order, details) do
+    %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url} = details
+
+    instruction_line = if instructions && instructions != "", do: "\n\nSpecial instructions: #{instructions}", else: ""
+
+    body = """
+    Pick-up scheduled!
+
+    Date: #{date}
+    Time: #{time}
+    Address: #{address}#{instruction_line}
+
+    To complete the purchase, use this link once you have your item in hand:
+    #{completion_url}
+
+    ⚠️ Only click the link when you have received your item and are ready to complete the transaction.
+    """
+
+    %ConversationEvent{event_type: :status_change}
+    |> ConversationEvent.status_change_changeset(%{
+      conversation_id: order.conversation_id,
+      actor_type: :vendor,
+      order_id: order.id,
+      to_status: "confirmed",
+      body: String.trim(body)
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, event} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, event}
+      error -> error
+    end
+  end
+
+  def schedule_pickup(%Order{}, _details), do: {:error, :wrong_state}
+
+  @doc """
+  Returns true if the conversation already has an open order (:requested or
+  :confirmed) that contains the given product. Used to detect duplicate requests.
+  """
+  def has_open_order_for_product?(conversation_id, product_id) do
+    Repo.exists?(
+      from o in Order,
+        join: i in OrderItem, on: i.order_id == o.id,
+        where: o.conversation_id == ^conversation_id,
+        where: o.status in [:requested, :confirmed],
+        where: i.product_id == ^product_id
+    )
+  end
+
+  @doc "Returns open (:requested or :confirmed) orders for a conversation, newest first, with items preloaded."
+  def list_open_orders_for_conversation(conversation_id) do
+    Order
+    |> where([o], o.conversation_id == ^conversation_id)
+    |> where([o], o.status in [:requested, :confirmed])
+    |> order_by([o], desc: o.inserted_at)
+    |> preload(items: [product: :product_images])
+    |> Repo.all()
+  end
+
+  @doc "Fetches a single order by id with items, buyer, and artist preloaded. Raises if not found."
   def get_order!(id) do
     Order
     |> Repo.get!(id)
-    |> Repo.preload([:items, :buyer, :artist])
+    |> Repo.preload([:buyer, :artist, items: [product: :product_images]])
   end
 
   @doc "Returns all orders for a buyer, sorted newest first."

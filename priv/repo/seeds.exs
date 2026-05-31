@@ -19,11 +19,19 @@ alias ArtsyNeighbor.Categories.Category
 alias ArtsyNeighbor.Products.Product
 alias ArtsyNeighbor.Products.ProductCollection
 alias ArtsyNeighbor.Products.ProductImage
+alias ArtsyNeighbor.Orders.OrderItem
+alias ArtsyNeighbor.Orders.Order
+alias ArtsyNeighbor.Conversations.ConversationEvent
+alias ArtsyNeighbor.Conversations.Conversation
 
 # ============================================================
-# Cleanup (order matters: products cascade to images/options)
+# Cleanup (most-dependent tables first)
 # ============================================================
 
+Repo.delete_all(OrderItem)
+Repo.delete_all(ConversationEvent)
+Repo.delete_all(Order)
+Repo.delete_all(Conversation)
 Repo.delete_all(Product)
 Repo.delete_all(Artist)
 Repo.delete_all(Category)
@@ -282,6 +290,31 @@ if Mix.env() == :dev do
   |> Repo.insert!()
 
   IO.puts("Seeded admin user account successfully!")
+
+  # Create user accounts for all other seed artists
+  seed_password = "DevPassword1!"
+
+  for {artist, email, username} <- [
+    {elena, "elena@example.com",  "elena"},
+    {tom,   "thomas@example.com", "thomas"},
+    {sarah, "sarah@example.com",  "sarah"},
+    {raj,   "rajesh@example.com", "rajesh"},
+    {maria, "maria@example.com",  "maria"},
+    {david, "david@example.com",  "david"}
+  ] do
+    user =
+      %User{}
+      |> User.registration_changeset(%{email: email, username: username})
+      |> User.password_changeset(%{password: seed_password})
+      |> User.confirm_changeset()
+      |> Repo.insert!()
+
+    artist
+    |> Artist.changeset(%{user_id: user.id})
+    |> Repo.update!()
+  end
+
+  IO.puts("Seeded user accounts for 6 seed artists (password: #{seed_password})")
 end
 
 IO.puts("Seeded 7 artists, their default collections, and artist images successfully!")
