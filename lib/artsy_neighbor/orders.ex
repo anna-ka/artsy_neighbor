@@ -164,69 +164,110 @@ defmodule ArtsyNeighbor.Orders do
   def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
 
   @doc """
+  Adds a product to an open order, incrementing its quantity if already present
+  or appending a new line item at the current product price.
+  Resets status to :requested and clears the pickup token.
+  """
+  def add_item_to_order(%Order{status: status} = order, product)
+      when status in [:requested, :confirmed] do
+    order = Repo.preload(order, :items)
+
+    specs =
+      case Enum.find(order.items, &(&1.product_id == product.id)) do
+        nil ->
+          to_specs(order.items) ++
+            [%{product_id: product.id, product_title: product.title, quantity: 1, unit_price: product.price}]
+
+        found ->
+          Enum.map(order.items, fn item ->
+            spec = to_spec(item)
+            if item.id == found.id, do: %{spec | quantity: spec.quantity + 1}, else: spec
+          end)
+      end
+
+    {_, _, total} = calculate_totals_from_specs(specs)
+    do_amend(order, specs, :buyer, "Item added to order — new total CA$#{total}")
+  end
+
+  def add_item_to_order(%Order{}, _product), do: {:error, :wrong_state}
+
+  @doc """
+  Removes one unit of an order item (decrements quantity, or removes the line
+  entirely if quantity is 1). Cancels the whole order if no items remain.
+  actor_type must be :buyer or :vendor.
+  """
+  def remove_order_item(%Order{status: status} = order, order_item_id, actor_type)
+      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor, :system] do
+    order = Repo.preload(order, :items)
+
+    case Enum.find(order.items, &(&1.id == order_item_id)) do
+      nil ->
+        {:error, :not_found}
+
+      item ->
+        actor_label = case actor_type do
+          :buyer -> "Buyer"
+          :vendor -> "Vendor"
+          :system -> "System"
+        end
+
+        if item.quantity > 1 do
+          new_qty = item.quantity - 1
+          specs = Enum.map(order.items, fn i ->
+            spec = to_spec(i)
+            if i.id == item.id, do: %{spec | quantity: new_qty}, else: spec
+          end)
+          {_, _, total} = calculate_totals_from_specs(specs)
+          do_amend(order, specs, actor_type, "#{actor_label} decremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}")
+        else
+          specs = order.items |> Enum.reject(&(&1.id == order_item_id)) |> to_specs()
+          if Enum.empty?(specs) do
+            cancel_order(order, actor_type)
+          else
+            {_, _, total} = calculate_totals_from_specs(specs)
+            do_amend(order, specs, actor_type, "#{actor_label} removed #{item.product_title} from the order — new total CA$#{total}")
+          end
+        end
+    end
+  end
+
+  def remove_order_item(%Order{}, _item_id, _actor), do: {:error, :wrong_state}
+
+  @doc "Increments the quantity of an existing order item by 1, keeping the snapshot price."
+  def increment_order_item(%Order{status: status} = order, order_item_id)
+      when status in [:requested, :confirmed] do
+    order = Repo.preload(order, :items)
+
+    case Enum.find(order.items, &(&1.id == order_item_id)) do
+      nil ->
+        {:error, :not_found}
+
+      item ->
+        new_qty = item.quantity + 1
+        specs = Enum.map(order.items, fn i ->
+          spec = to_spec(i)
+          if i.id == item.id, do: %{spec | quantity: new_qty}, else: spec
+        end)
+        {_, _, total} = calculate_totals_from_specs(specs)
+        do_amend(order, specs, :buyer, "Buyer incremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}")
+    end
+  end
+
+  def increment_order_item(%Order{}, _item_id), do: {:error, :wrong_state}
+
+  @doc """
   Amends an order by replacing its items with a new list.
   items is a list of %{product: product, quantity: integer}.
-  Only allowed when the order is :requested or :confirmed.
-  Always resets status to :requested and clears the pickup token so the
-  vendor must re-confirm the amended total before a new token is issued.
-  Posts a system ConversationEvent showing the new total.
+  Prices are taken from the product struct (use add_item_to_order / remove_order_item
+  to preserve snapshot prices for existing items).
   """
   def amend_order(%Order{status: status} = order, items)
       when status in [:requested, :confirmed] do
-    {subtotal, platform_fee, total} = calculate_totals(items)
-
-    Multi.new()
-    |> Multi.update(:order, Order.changeset(order, %{
-      status: :requested,
-      subtotal: subtotal,
-      platform_fee: platform_fee,
-      total: total,
-      complete_token: nil,
-      complete_token_at: nil
-    }))
-    |> Multi.run(:delete_items, fn _repo, %{order: updated_order} ->
-      Repo.delete_all(from(i in OrderItem, where: i.order_id == ^updated_order.id))
-      {:ok, :deleted}
+    specs = Enum.map(items, fn %{product: p, quantity: q} ->
+      %{product_id: p.id, product_title: p.title, quantity: q, unit_price: p.price}
     end)
-    |> Multi.run(:order_items, fn _repo, %{order: updated_order} ->
-      results =
-        Enum.map(items, fn %{product: product, quantity: quantity} ->
-          %OrderItem{}
-          |> OrderItem.changeset(%{
-            order_id: updated_order.id,
-            product_id: product.id,
-            quantity: quantity,
-            unit_price: product.price,
-            product_title: product.title,
-            return_policy_snapshot: "All sales final unless item is significantly not as described."
-          })
-          |> Repo.insert()
-        end)
-
-      case Enum.find(results, fn {k, _} -> k == :error end) do
-        nil -> {:ok, Enum.map(results, fn {:ok, item} -> item end)}
-        {:error, changeset} -> {:error, changeset}
-      end
-    end)
-    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
-      %ConversationEvent{event_type: :status_change}
-      |> ConversationEvent.status_change_changeset(%{
-        conversation_id: updated_order.conversation_id,
-        actor_type: :buyer,
-        order_id: updated_order.id,
-        from_status: to_string(order.status),
-        to_status: "requested",
-        body: "Order updated — new total CA$#{total}"
-      })
-      |> Repo.insert()
-    end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
-        {:ok, order}
-      {:error, _step, reason, _changes} -> {:error, reason}
-    end
+    {_, _, total} = calculate_totals_from_specs(specs)
+    do_amend(order, specs, :buyer, "Order updated — new total CA$#{total}")
   end
 
   def amend_order(%Order{}, _items), do: {:error, :wrong_state}
@@ -236,7 +277,7 @@ defmodule ArtsyNeighbor.Orders do
   actor_type must be :buyer or :vendor.
   Posts a system ConversationEvent recording who cancelled.
   """
-  def cancel_order(%Order{} = order, actor_type) when actor_type in [:buyer, :vendor] do
+  def cancel_order(%Order{} = order, actor_type) when actor_type in [:buyer, :vendor, :system] do
     order = Repo.preload(order, :items)
 
     item_summary =
@@ -246,7 +287,13 @@ defmodule ArtsyNeighbor.Orders do
         items -> "#{length(items)} items"
       end
 
-    actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
+    actor_label =case actor_type do
+      :buyer -> "Buyer"
+      :vendor -> "Vendor"
+      :system -> "System"
+    end
+
+    # actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
 
     Multi.new()
     |> Multi.update(:order, Order.changeset(order, %{status: :cancelled}))
@@ -272,12 +319,13 @@ defmodule ArtsyNeighbor.Orders do
   end
 
   @doc """
-  Posts a pick-up schedule as a status_change event in the conversation.
-  Does not change the order status (stays :confirmed).
+  Schedules a pick-up for a confirmed order. Saves the pickup details on the order
+  and posts a status_change event with the completion link.
   details is a map with keys: date, time, address, instructions, completion_url.
   """
   def schedule_pickup(%Order{status: :confirmed} = order, details) do
     %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url} = details
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     instruction_line = if instructions && instructions != "", do: "\n\nSpecial instructions: #{instructions}", else: ""
 
@@ -294,24 +342,77 @@ defmodule ArtsyNeighbor.Orders do
     ⚠️ Only click the link when you have received your item and are ready to complete the transaction.
     """
 
-    %ConversationEvent{event_type: :status_change}
-    |> ConversationEvent.status_change_changeset(%{
-      conversation_id: order.conversation_id,
-      actor_type: :vendor,
-      order_id: order.id,
-      to_status: "confirmed",
-      body: String.trim(body)
-    })
-    |> Repo.insert()
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{
+      pickup_date: date,
+      pickup_time: time,
+      pickup_address: address,
+      pickup_instructions: (if instructions == "", do: nil, else: instructions),
+      pickup_scheduled_at: now
+    }))
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: :vendor,
+        order_id: updated_order.id,
+        to_status: "confirmed",
+        body: String.trim(body)
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
     |> case do
-      {:ok, event} ->
+      {:ok, %{event: event}} ->
         Conversations.broadcast_order_event(order.conversation_id, event)
         {:ok, event}
-      error -> error
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
   def schedule_pickup(%Order{}, _details), do: {:error, :wrong_state}
+
+  @doc """
+  Cancels a previously scheduled pick-up, clearing the pickup details and
+  returning the order to :confirmed state (status unchanged). Posts a
+  status_change event so both parties are notified.
+  """
+  def cancel_pickup(%Order{status: :confirmed, pickup_scheduled_at: scheduled_at} = order, actor_type)
+      when not is_nil(scheduled_at) and actor_type in [:buyer, :vendor] do
+    body =
+      if actor_type == :buyer,
+        do: "Buyer requested a new pick-up time. Please agree on a new time and reschedule.",
+        else: "Vendor cancelled the pick-up. Please agree on a new time."
+
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{
+      pickup_date: nil,
+      pickup_time: nil,
+      pickup_address: nil,
+      pickup_instructions: nil,
+      pickup_scheduled_at: nil
+    }))
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: actor_type,
+        order_id: updated_order.id,
+        to_status: "confirmed",
+        body: body
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  def cancel_pickup(%Order{}, _actor_type), do: {:error, :wrong_state}
 
   @doc """
   Returns true if the conversation already has an open order (:requested or
@@ -325,6 +426,16 @@ defmodule ArtsyNeighbor.Orders do
         where: o.status in [:requested, :confirmed],
         where: i.product_id == ^product_id
     )
+  end
+
+  @doc "Returns the single most-recent open order for a conversation, or nil. Used when adding items."
+  def get_open_order_for_conversation(conversation_id) do
+    Order
+    |> where([o], o.conversation_id == ^conversation_id)
+    |> where([o], o.status in [:requested, :confirmed])
+    |> order_by([o], desc: o.inserted_at)
+    |> limit(1)
+    |> Repo.one()
   end
 
   @doc "Returns open (:requested or :confirmed) orders for a conversation, newest first, with items preloaded."
@@ -362,14 +473,89 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.all()
   end
 
-  defp calculate_totals(items) do
-    subtotal =
-      Enum.reduce(items, Decimal.new(0), fn %{product: p, quantity: q}, acc ->
-        Decimal.add(acc, Decimal.mult(p.price, Decimal.new(q)))
-      end)
+  # Converts an OrderItem to a price-explicit amendment spec, preserving the
+  # snapshot unit_price so price changes on the product don't affect open orders.
+  defp to_spec(%OrderItem{} = item) do
+    %{product_id: item.product_id, product_title: item.product_title,
+      quantity: item.quantity, unit_price: item.unit_price}
+  end
 
+  defp to_specs(items), do: Enum.map(items, &to_spec/1)
+
+  defp calculate_totals_from_specs(specs) do
+    subtotal =
+      Enum.reduce(specs, Decimal.new(0), fn %{unit_price: price, quantity: q}, acc ->
+        Decimal.add(acc, Decimal.mult(price, Decimal.new(q)))
+      end)
     platform_fee = Decimal.mult(subtotal, Decimal.new("0.05")) |> Decimal.round(2)
     total = Decimal.add(subtotal, platform_fee)
     {subtotal, platform_fee, total}
+  end
+
+  # Used by create_order only (new items always use current product price).
+  defp calculate_totals(items) do
+    specs = Enum.map(items, fn %{product: p, quantity: q} ->
+      %{unit_price: p.price, quantity: q}
+    end)
+    calculate_totals_from_specs(specs)
+  end
+
+  # Internal workhorse for all amendment paths.
+  # specs is a list of %{product_id, product_title, quantity, unit_price}.
+  defp do_amend(%Order{} = order, specs, actor_type, event_body) do
+    {subtotal, platform_fee, total} = calculate_totals_from_specs(specs)
+
+    Multi.new()
+    |> Multi.update(:order, Order.changeset(order, %{
+      status: :requested,
+      subtotal: subtotal,
+      platform_fee: platform_fee,
+      total: total,
+      complete_token: nil,
+      complete_token_at: nil
+    }))
+    |> Multi.run(:delete_items, fn _repo, %{order: updated_order} ->
+      Repo.delete_all(from(i in OrderItem, where: i.order_id == ^updated_order.id))
+      {:ok, :deleted}
+    end)
+    |> Multi.run(:order_items, fn _repo, %{order: updated_order} ->
+      results =
+        Enum.map(specs, fn spec ->
+          %OrderItem{}
+          |> OrderItem.changeset(%{
+            order_id: updated_order.id,
+            product_id: spec.product_id,
+            quantity: spec.quantity,
+            unit_price: spec.unit_price,
+            product_title: spec.product_title,
+            return_policy_snapshot: "All sales final unless item is significantly not as described."
+          })
+          |> Repo.insert()
+        end)
+
+      case Enum.find(results, fn {k, _} -> k == :error end) do
+        nil -> {:ok, Enum.map(results, fn {:ok, item} -> item end)}
+        {:error, changeset} -> {:error, changeset}
+      end
+    end)
+    |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+      %ConversationEvent{event_type: :status_change}
+      |> ConversationEvent.status_change_changeset(%{
+        conversation_id: updated_order.conversation_id,
+        actor_type: actor_type,
+        order_id: updated_order.id,
+        from_status: to_string(order.status),
+        to_status: "requested",
+        body: event_body
+      })
+      |> Repo.insert()
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{order: order, event: event}} ->
+        Conversations.broadcast_order_event(order.conversation_id, event)
+        {:ok, order}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 end

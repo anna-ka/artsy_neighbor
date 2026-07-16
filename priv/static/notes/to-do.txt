@@ -30,3 +30,9 @@ Admin: all three status values for artists
 Image filenames: switch to UUID in vendor_live/product_form.ex
 Nav UI: the small-screen scrolling issue (deferred)
 File storage: S3/Tigris before deployment
+
+
+May 30, 2026
+Artist profiles
+firstname@example.com email and password DevPassword1!
+ 

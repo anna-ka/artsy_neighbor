@@ -16,9 +16,16 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
           Artsy Neighbor connects local artists with art lovers nearby.
           Create your artist profile and start selling today — no fees to get started.
         </p>
-        <.link navigate={~p"/vendor"} class="btn btn-primary btn-lg">
-          Go to Artist Dashboard
-        </.link>
+        <.link navigate={~p"/users/register"} class="btn btn-primary btn-lg">
+            Create an account
+          </.link>
+
+        <span class="mx-2">or visit your</span>
+
+         <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
+            Artist Dashboard
+          </.link>
+
       </div>
 
       <%!-- Benefits --%>
@@ -79,11 +86,14 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
       <div class="text-center py-16">
         <h2 class="text-3xl font-bold mb-4">Ready to start?</h2>
         <div class="flex justify-center gap-4">
-          <.link navigate={~p"/vendor"} class="btn btn-primary btn-lg">
-            Artist Dashboard
-          </.link>
-          <.link navigate={~p"/users/register"} class="btn btn-outline btn-lg">
+          <.link navigate={~p"/users/register"} class="btn btn-primary btn-lg">
             Create an account
+          </.link>
+
+        <span class="mx-2">or visit your</span>
+
+         <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
+            Artist Dashboard
           </.link>
         </div>
       </div>

@@ -88,7 +88,6 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/vendor", VendorLive.Dashboard
-      live "/vendor/profile/new", VendorLive.Profile.Form, :new
       live "/vendor/profile/edit", VendorLive.Profile.Form, :edit
       live "/vendor/products/new", VendorLive.ProductForm, :new
       live "/vendor/products/:id/edit", VendorLive.ProductForm, :edit
@@ -175,6 +174,8 @@ defmodule ArtsyNeighborWeb.Router do
       live "/messages/:id", ConversationLive.Show, :show
 
       live "/orders/:id/complete-purchase/:token", OrderLive.Complete
+
+      live "/vendor/profile/new", VendorLive.Profile.Form, :new
 
     end
 

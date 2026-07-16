@@ -29,6 +29,19 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
     end
   end
 
+  def handle_event("cancel_order", _params, socket) do
+    order = socket.assigns.order
+    case Orders.cancel_order(order, :buyer) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Order cancelled.")
+         |> push_navigate(to: ~p"/messages/#{order.conversation_id}")}
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not cancel the order. Please try again.")}
+    end
+  end
+
   def handle_event("complete_pickup", _params, socket) do
     order = socket.assigns.order
     token = socket.assigns.token
@@ -82,7 +95,7 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
 
           <%!-- Total --%>
           <div class="flex justify-between items-center border-t border-base-content/10 pt-4">
-            <span class="text-sm text-base-content/60">Total paid</span>
+            <span class="text-sm text-base-content/60">Total price </span>
             <span class="text-lg font-bold text-base-content">CA${Decimal.to_string(@order.total)}</span>
           </div>
 
@@ -94,6 +107,12 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
           <p class="text-xs text-center text-base-content/40">
             Only click once you have physically received your items.
           </p>
+
+          <div class="border-t border-base-content/10 pt-4">
+            <button phx-click="cancel_order" data-confirm="Are you sure you want to cancel this order?" class="btn btn-ghost btn-sm w-full text-error">
+              Cancel order
+            </button>
+          </div>
 
         </div>
       </div>

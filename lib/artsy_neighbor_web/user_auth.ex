@@ -259,7 +259,7 @@ defmodule ArtsyNeighborWeb.UserAuth do
       socket =
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must be logged in as an artist (vendor) to access this page.")
-        |> Phoenix.LiveView.redirect(to: ~p"/")
+        |> Phoenix.LiveView.redirect(to: ~p"/vendor/profile/new")
 
       {:halt, socket}
     end
@@ -411,7 +411,7 @@ defmodule ArtsyNeighborWeb.UserAuth do
     else
       conn
       |> put_flash(:error, "You must be logged in as an artist (vendor) in to access this page.")
-      |> redirect(to: ~p"/")
+      |> redirect(to: ~p"/vendor/profile/new")
       |> halt()
     end
   end

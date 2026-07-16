@@ -101,15 +101,18 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             </div>
 
             <%!-- Message thread --%>
-            <ul id="msg-list" phx-update="stream" class="flex flex-col gap-1 mb-6">
+            <ul id="msg-list" phx-update="stream" phx-hook="ScrollToBottom" class="flex flex-col gap-1 mb-6 overflow-y-auto max-h-[60vh]">
               <li :for={{dom_id, message} <- @streams.messages} id={dom_id}>
                 <%= if message.event_type == :status_change do %>
                   <div class="my-4 bg-secondary/10 border-l-4 border-secondary rounded-r-lg px-4 py-3 text-sm text-base-content whitespace-pre-wrap">
                     <%= linkify(message.body) %>
                   </div>
                 <% else %>
-                  <div class={["chat", if(message.actor_type == @current_role, do: "chat-end", else: "chat-start")]}>
-                    <%= if message.actor_type != @current_role do %>
+                  <% is_mine = message.actor_type == @current_role %>
+                  <% my_role_label = if @current_role == :buyer, do: "Buyer", else: "Artist" %>
+                  <% other_role_label = if @current_role == :buyer, do: "Artist", else: "Buyer" %>
+                  <div class={["chat", if(is_mine, do: "chat-end", else: "chat-start")]}>
+                    <%= if !is_mine do %>
                       <div class="chat-image avatar">
                         <div class="w-8 rounded-full overflow-hidden bg-base-300 flex items-center justify-center">
                           <%= if @other_thumbnail do %>
@@ -120,7 +123,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                         </div>
                       </div>
                     <% end %>
-                    <div class={["chat-bubble", if(message.actor_type == @current_role, do: "chat-bubble-info", else: "chat-bubble-neutral")]}>
+                    <div class="chat-header text-xs text-base-content/50 mb-0.5">
+                      {if is_mine, do: "You (#{my_role_label})", else: "#{@other_name} (#{other_role_label})"}
+                    </div>
+                    <div class={["chat-bubble", if(is_mine, do: "chat-bubble-info", else: "chat-bubble-neutral")]}>
                       {message.body}
                     </div>
                     <div class="chat-footer opacity-50 text-xs mt-0.5">
@@ -163,10 +169,30 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                             <div class="w-full h-full flex items-center justify-center text-base-content/30 text-xs">?</div>
                           <% end %>
                         </div>
-                        <span class="text-sm text-base-content leading-tight">
-                          <%= item.product_title %>
-                          <span :if={item.quantity > 1} class="text-base-content/60"> ×{item.quantity}</span>
-                        </span>
+                        <div class="flex-1 flex items-center justify-between gap-1 min-w-0">
+                          <span class="text-sm text-base-content leading-tight truncate">
+                            <%= item.product_title %>
+                          </span>
+                          <div class="flex items-center gap-1 shrink-0">
+                            <button
+                              phx-click="remove_order_item"
+                              phx-value-order-id={order.id}
+                              phx-value-item-id={item.id}
+                              class="btn btn-ghost btn-xs text-base-content/50 hover:text-error"
+                              title={if item.quantity == 1, do: "Remove item", else: "Decrease quantity"}>
+                              −
+                            </button>
+                            <span class="text-sm font-medium w-4 text-center">{item.quantity}</span>
+                            <button
+                              phx-click="increment_order_item"
+                              phx-value-order-id={order.id}
+                              phx-value-item-id={item.id}
+                              class="btn btn-ghost btn-xs text-base-content/50 hover:text-primary"
+                              title="Increase quantity">
+                              +
+                            </button>
+                          </div>
+                        </div>
                       </li>
                     <% end %>
                   </ul>
@@ -183,17 +209,29 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                     </span>
                   </div>
 
+                  <%!-- Pickup details — visible to both roles when scheduled --%>
+                  <div :if={order.status == :confirmed && order.pickup_scheduled_at != nil}
+                       class="bg-base-100 rounded-lg p-3 flex flex-col gap-1">
+                    <p class="text-xs font-semibold text-base-content/60 mb-0.5">Pick-up Scheduled</p>
+                    <p class="text-xs text-base-content/80"><span class="font-medium">Date:</span> {order.pickup_date}</p>
+                    <p class="text-xs text-base-content/80"><span class="font-medium">Time:</span> {order.pickup_time}</p>
+                    <p class="text-xs text-base-content/80"><span class="font-medium">Address:</span> {order.pickup_address}</p>
+                    <p :if={order.pickup_instructions} class="text-xs text-base-content/80"><span class="font-medium">Notes:</span> {order.pickup_instructions}</p>
+                  </div>
+
                   <%!-- Vendor actions --%>
                   <div :if={@current_role == :vendor} class="flex flex-col gap-2">
                     <.button_artsy :if={order.status == :requested} variant="primary" size="sm" phx-click="confirm_order" phx-value-id={order.id}>
                       Confirm Order
                     </.button_artsy>
 
-                    <%!-- Schedule pick-up (confirmed orders) --%>
+                    <%!-- Schedule / reschedule pick-up (confirmed orders, vendor) --%>
                     <div :if={order.status == :confirmed}>
                       <%= if @schedule_pickup_order_id == order.id do %>
                         <form phx-submit="submit_schedule" class="flex flex-col gap-2 bg-base-100 rounded-lg p-3">
-                          <p class="text-xs font-semibold text-base-content/70">Schedule Pick-up</p>
+                          <p class="text-xs font-semibold text-base-content/70">
+                            {if order.pickup_scheduled_at, do: "Reschedule Pick-up", else: "Schedule Pick-up"}
+                          </p>
                           <input type="text" name="schedule[date]" placeholder="Date (e.g. June 5, 2026)" required
                             class="input input-bordered input-sm w-full" />
                           <input type="text" name="schedule[time]" placeholder="Time (e.g. 2:00 PM)" required
@@ -209,8 +247,12 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                         </form>
                       <% else %>
                         <.button_artsy variant="secondary" size="sm" phx-click="open_schedule_form" phx-value-id={order.id}>
-                          Schedule Pick-up
+                          {if order.pickup_scheduled_at, do: "Reschedule Pick-up", else: "Schedule Pick-up"}
                         </.button_artsy>
+                        <button :if={order.pickup_scheduled_at != nil} phx-click="cancel_pickup" phx-value-id={order.id}
+                                class="btn btn-ghost btn-sm w-full text-warning">
+                          Cancel Pick-up
+                        </button>
                       <% end %>
                     </div>
 
@@ -220,9 +262,13 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                   </div>
 
                   <%!-- Buyer actions --%>
-                  <div :if={@current_role == :buyer && order.status in [:requested, :confirmed]}>
+                  <div :if={@current_role == :buyer && order.status in [:requested, :confirmed]} class="flex flex-col gap-2">
+                    <button :if={order.pickup_scheduled_at != nil} phx-click="cancel_pickup" phx-value-id={order.id}
+                            class="btn btn-ghost btn-sm w-full text-warning">
+                      Request New Time
+                    </button>
                     <.button_artsy variant="ghost" size="sm" phx-click="cancel_order" phx-value-id={order.id}>
-                      Cancel Request
+                      Cancel Order
                     </.button_artsy>
                   </div>
 
@@ -309,13 +355,49 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     end
   end
 
+  def handle_event("remove_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
+    order = Orders.get_order!(order_id)
+    actor_type = socket.assigns.current_role
+    case Orders.remove_order_item(order, String.to_integer(item_id), actor_type) do
+      {:ok, _} -> {:noreply, reload_open_orders(socket)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove item.")}
+    end
+  end
+
+  def handle_event("increment_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
+    order = Orders.get_order!(order_id)
+    case Orders.increment_order_item(order, String.to_integer(item_id)) do
+      {:ok, _} -> {:noreply, reload_open_orders(socket)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
+    end
+  end
+
   def handle_event("confirm_order", %{"id" => id}, socket) do
     order = Orders.get_order!(id)
     case Orders.confirm_order(order) do
-      {:ok, _order} ->
+      {:ok, confirmed_order} ->
+        if confirmed_order.pickup_date do
+          completion_url = url(~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}")
+          Orders.schedule_pickup(confirmed_order, %{
+            date: confirmed_order.pickup_date,
+            time: confirmed_order.pickup_time,
+            address: confirmed_order.pickup_address,
+            instructions: confirmed_order.pickup_instructions || "",
+            completion_url: completion_url
+          })
+        end
         {:noreply, reload_open_orders(socket)}
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not confirm order.")}
+    end
+  end
+
+  def handle_event("cancel_pickup", %{"id" => id}, socket) do
+    order = Orders.get_order!(id)
+    actor_type = socket.assigns.current_role
+    case Orders.cancel_pickup(order, actor_type) do
+      {:ok, _} -> {:noreply, reload_open_orders(socket)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not cancel pick-up.")}
     end
   end
 

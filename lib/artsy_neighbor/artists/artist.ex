@@ -14,6 +14,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :email, :string
     field :bio, :string
     field :medium, {:array, :string}
+    fielf :onboarding_step, :integer, default: -1
     field :delivery_options, {:array, :string}, default: ["pickup"]
     field :delivery_info, :map, default: %{}
     field :status, Ecto.Enum, values: [:active, :inactive, :removed], default: :inactive
@@ -31,8 +32,12 @@ defmodule ArtsyNeighbor.Artists.Artist do
     timestamps(type: :utc_datetime)
   end
 
-  @doc false
-  def changeset(artist, attrs) do
+  @doc """
+  Creates a changeset for activating the artist's status.
+  This makes the profile visible to public.
+  So most menaingful verification happens here.
+  """
+  def activation_changeset(artist, attrs) do
     artist
     |> cast(attrs, [:nickname,
         :first_name,
@@ -56,9 +61,10 @@ defmodule ArtsyNeighbor.Artists.Artist do
         :announcement_active])
     |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :email,
                         :street_address, :area_code, :medium])
-    |> validate_length(:bio, min: 75, message: "Bio must be at least 75 characters long.")
-    |> validate_length(:first_name, min: 2, message: "First name must be at least 2 characters long.")
-    |> validate_length(:last_name, min: 2, message: "Last name must be at least 2 characters long.")
+    |> validate_length(:bio, min: 75, max: 4000)
+    |> validate_length(:nickname, min: 2, max: 200)
+    |> validate_length(:first_name, min: 2, max: 200)
+    |> validate_length(:last_name, min: 2, max: 200)
     |> validate_email()
     |> validate_phone()
     |> validate_canadian_postal_code()
@@ -68,6 +74,42 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_url(:homepage)
     |> validate_url(:instagram)
     |> validate_url(:facebook)
+  end
+
+  @doc """
+  Creates a changeset for registering a new artist.
+  This is used when a user first creates their artist profile.
+  Only name and emails are verified here. The rest of the profile is
+  verified when activating the artist profile with activation_changeset.
+  """
+  def registration_changeset(artist, attrs) do
+    artist
+    |> cast(attrs, [:nickname,
+        :first_name,
+        :last_name,
+        :middle_name,
+        :email,
+        :street_address,
+        :apt_info,
+        :area_code,
+        :phone,
+        :bio,
+        :medium,
+        :user_id,
+        :delivery_options,
+        :delivery_info,
+        :status,
+        :homepage,
+        :instagram,
+        :facebook,
+        :announcement,
+        :announcement_active,
+        :onboarding_step])
+    |> validate_required([:nickname, :email,
+                        :onboarding_step])
+    |> validate_length(:nickname, min: 2, max: 200)
+    |> validate_email()
+    |> assoc_constraint(:user)
   end
 
   # If the status field has changed, update the status_changed_at timestamp

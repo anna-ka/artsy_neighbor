@@ -14,6 +14,12 @@ defmodule ArtsyNeighbor.Orders.Order do
     field :complete_token, :string
     field :complete_token_at, :utc_datetime
 
+    field :pickup_date,         :string
+    field :pickup_time,         :string
+    field :pickup_address,      :string
+    field :pickup_instructions, :string
+    field :pickup_scheduled_at, :utc_datetime
+
     field :buyer_email,  :string
     field :vendor_email, :string
     field :artist_name,  :string
@@ -33,6 +39,7 @@ defmodule ArtsyNeighbor.Orders.Order do
     order
     |> cast(attrs, [:status, :delivery_method, :delivery_address, :subtotal,
                     :platform_fee, :total, :complete_token, :complete_token_at,
+                    :pickup_date, :pickup_time, :pickup_address, :pickup_instructions, :pickup_scheduled_at,
                     :conversation_id, :buyer_id, :artist_id,
                     :buyer_email, :vendor_email, :artist_name])
     |> validate_required([:status, :delivery_method, :conversation_id, :buyer_id, :artist_id])

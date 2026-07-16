@@ -9,12 +9,24 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   @impl true
   def mount(params, _session, socket) do
-    socket =
+
+    if socket.assigns.current_scope.artist && socket.assigns.live_action == :new do
+      {:ok,
+      socket
+      |> put_flash(:info, "You already have an artist profile. You can edit it here.")
+      |> push_navigate(to: ~p"/vendor")
+    }
+    else
+      socket =
       socket
       |> assign(return_to: nil, return_label: nil)
       |> allow_upload(:profile_images, accept: ~w(.jpg .jpeg .png .webp), max_entries: 5, max_file_size: 5_000_000)
 
-    {:ok, apply_action(socket, socket.assigns.live_action, params)}
+      {:ok, apply_action(socket, socket.assigns.live_action, params)}
+    end
+
+
+
   end
 
   @impl true
