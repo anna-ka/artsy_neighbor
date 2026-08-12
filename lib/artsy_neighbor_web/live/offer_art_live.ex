@@ -20,11 +20,17 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             Create an account
           </.link>
 
-        <span class="mx-2">or visit your</span>
-
-         <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
+        <%= if @current_scope && @current_scope.artist do %>
+          <span class="mx-2">or visit your</span>
+          <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
             Artist Dashboard
           </.link>
+        <% else %>
+          <span class="mx-2">or</span>
+          <.link navigate={~p"/vendor/profile/new"} class="btn btn-outline btn-lg">
+            Create Artist Profile
+          </.link>
+        <% end %>
 
       </div>
 
@@ -90,11 +96,17 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             Create an account
           </.link>
 
-        <span class="mx-2">or visit your</span>
-
-         <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
+        <%= if @current_scope && @current_scope.artist do %>
+          <span class="mx-2">or visit your</span>
+          <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
             Artist Dashboard
           </.link>
+        <% else %>
+          <span class="mx-2">or</span>
+          <.link navigate={~p"/vendor/profile/new"} class="btn btn-outline btn-lg">
+            Create Artist Profile
+          </.link>
+        <% end %>
         </div>
       </div>
 

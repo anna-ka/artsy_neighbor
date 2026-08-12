@@ -32,7 +32,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   A helper function to get a changeset for an artist.
   """
   def change_artist(%Artist{} = artist, attrs \\ %{}) do
-    Artist.changeset(artist, attrs)
+    Artist.activation_changeset(artist, attrs)
   end
 
   def get_artist!(id) do
