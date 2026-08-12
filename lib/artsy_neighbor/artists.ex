@@ -10,6 +10,7 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
+  alias ArtsyNeighbor.Products.Product
 
   @doc "The name of the default collection created for every new artist."
   def default_collection_name, do: "Uncategorized"
@@ -26,25 +27,33 @@ defmodule ArtsyNeighbor.Artists do
   """
   def list_artists do
     Artist
+    |> with_status(:active)
     |> order_by([a], fragment("?[1]", a.medium))
     |> order_by(asc: :area_code)
     |> Repo.all()
   end
 
-
   @doc """
-    Returns the list of all artists with their associated images preloaded.
-    Artists are ordered by their main medium (first element in the medium array) and then by area code.
-    ## Examples
-
-        iex> list_artists_with_images()
-        [%Artist{artist_images: [%ArtistImage{}, ...]}, ...]
-
-   """
+  Returns active artists with their associated images preloaded,
+  ordered by main medium then area code.
+  """
   def list_artists_with_images do
     Artist
+    |> with_status(:active)
     |> order_by([a], fragment("?[1]", a.medium))
     |> order_by(asc: :area_code)
+    |> Repo.all()
+    |> Repo.preload([:artist_images])
+  end
+
+  @doc """
+  Returns all artists regardless of status, for admin use.
+  Sorted active → inactive → removed, then by nickname within each group.
+  """
+  def list_artists_all_status do
+    Artist
+    |> order_by([a], fragment("CASE WHEN ? = 'active' THEN 0 WHEN ? = 'inactive' THEN 1 ELSE 2 END", a.status, a.status))
+    |> order_by([a], asc: a.nickname)
     |> Repo.all()
     |> Repo.preload([:artist_images])
   end
@@ -190,13 +199,20 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Creates a new artist with the given attributes, and atomically inserts a
-  default "Uncategorized" collection for the new artist.
-  Returns {:ok, %{artist: artist, collection: collection}} or {:error, step, changeset, _}.
+  Creates a new artist and atomically inserts a default "Uncategorized" collection.
+  Returns {:ok, artist} or {:error, changeset}.
+
+  Two calling conventions:
+  - create_artist(attrs) — builds the changeset using activation_changeset (full validation).
+    Used by the admin form and seeds.
+  - create_artist(changeset) — accepts a pre-built changeset, e.g. from registration_changeset
+    (step 1 only validation). Used by save_onboarding_progress/2.
+
+  In both cases the Multi transaction is identical: artist insert + collection insert.
   """
-  def create_artist(attrs \\ %{}) do
+  def create_artist(%Ecto.Changeset{} = changeset) do
     Multi.new()
-    |> Multi.insert(:artist, Artist.changeset(%Artist{}, attrs))
+    |> Multi.insert(:artist, changeset)
     |> Multi.insert(:collection, fn %{artist: artist} ->
       ProductCollection.changeset(%ProductCollection{}, %{
         name: default_collection_name(),
@@ -212,17 +228,49 @@ defmodule ArtsyNeighbor.Artists do
     end
   end
 
+  def create_artist(attrs) when is_map(attrs) do
+    create_artist(Artist.activation_changeset(%Artist{}, attrs))
+  end
+
   @doc """
   A helper function to get a changeset for an artist.
   Does not make any changes to DB.
   """
   def change_artist(%Artist{} = artist, attrs \\ %{}) do
-    Artist.changeset(artist, attrs)
+    Artist.activation_changeset(artist, attrs)
+  end
+
+  @doc """
+  Returns a registration changeset for an artist — validates only step 1 fields.
+  Used during onboarding before the full profile is complete.
+  """
+  def registration_change_artist(%Artist{} = artist, attrs \\ %{}) do
+    Artist.registration_changeset(artist, attrs)
+  end
+
+  @doc """
+  Saves partial artist profile progress during onboarding.
+  Stamps onboarding_step onto the changeset, then:
+  - If the artist is new (no id): inserts artist + default collection atomically.
+  - If the artist already exists: updates in place.
+  Returns {:ok, artist} or {:error, changeset}.
+  """
+  def save_onboarding_progress(%Ecto.Changeset{} = changeset, step) do
+    changeset = Ecto.Changeset.put_change(changeset, :onboarding_step, step)
+
+    case changeset.data.id do
+      nil -> create_artist(changeset)
+      _id -> Repo.update(changeset)
+    end
   end
 
   @doc """
   Updates an existing artist with the given attributes.
   """
+  def update_artist(%Ecto.Changeset{} = changeset) do
+    Repo.update(changeset)
+  end
+
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
     artist
     |> change_artist(attrs)
@@ -230,10 +278,20 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Deletes an artist.
+  Marks an artist as :removed and sets all their products to :unavailable.
+  Artists are never hard-deleted — they are permanent records.
   """
-  def delete_artist(%Artist{} = artist) do
-    Repo.delete(artist)
+  def remove_artist(%Artist{} = artist) do
+    Repo.transaction(fn ->
+      Repo.update_all(
+        from(p in Product, where: p.artist_id == ^artist.id),
+        set: [status: "unavailable", updated_at: DateTime.utc_now() |> DateTime.truncate(:second)]
+      )
+      case artist |> Artist.status_changeset(%{status: :removed}) |> Repo.update() do
+        {:ok, updated} -> Repo.preload(updated, [:artist_images])
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """

@@ -30,7 +30,10 @@ defmodule ArtsyNeighbor.Products do
 
   """
   def list_products_with_associations do
-    Repo.all(from p in Product, preload: [:product_images,  :artist, :category])
+    Product
+    |> only_available()
+    |> preload([:product_images, :artist, :category])
+    |> Repo.all()
   end
 
 
@@ -40,6 +43,7 @@ defmodule ArtsyNeighbor.Products do
   """
   def filter_products(filter) do
     Product
+    |> only_available()
     |> join(:inner, [p], a in assoc(p, :artist), as: :artist)
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
@@ -167,6 +171,12 @@ defmodule ArtsyNeighbor.Products do
     end
   end
 
+  defp only_available(query) do
+    query
+    |> where([p], p.status == :available)
+    |> where([p], not is_nil(p.artist_id))
+  end
+
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
 
 
@@ -181,6 +191,7 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_products_by_artist(artist_id) do
     Product
+    |> only_available()
     |> where([p], p.artist_id == ^artist_id)
     |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
     |> Repo.all()
@@ -196,6 +207,7 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_products_by_category(category_id) do
     Product
+    |> only_available()
     |> where([p], p.category_id == ^category_id)
     |> preload([:product_images, :artist, :category])
     |> Repo.all()

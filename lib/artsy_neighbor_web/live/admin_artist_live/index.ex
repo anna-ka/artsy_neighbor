@@ -12,20 +12,20 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     socket =
       socket
       |> assign( :page_title, "Admin - Artists")
-      |> stream(:artists, Artists.list_artists_with_images())
+      |> stream(:artists, Artists.list_artists_all_status())
     {:ok, socket}
   end
 
   @impl true
-  def handle_event("delete", %{"id" => id}, socket) do
+  def handle_event("remove", %{"id" => id}, socket) do
     artist = Artists.get_artist!(id)
-    {:ok, _} = Artists.delete_artist(artist)
+    {:ok, updated_artist} = Artists.remove_artist(artist)
 
-    message = "Artist profile for #{artist.nickname} is deleted successfully."
+    message = "Artist #{artist.nickname} has been marked as removed."
 
     socket =
       socket
-      |> stream_delete(:artists, artist)
+      |> stream_insert(:artists, updated_artist)
       |> put_flash(:info, message)
 
     {:noreply, socket}
@@ -136,7 +136,8 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
         <%!-- Bio (truncated) --%>
         <:col :let={{_dom_id, artist}} label="Bio" col_class="w-64">
-          <%= String.slice(artist.bio, 0, 50) %><%= if String.length(artist.bio) > 50, do: "..." %>
+          <% bio = artist.bio || "" %>
+          <%= String.slice(bio, 0, 50) %><%= if String.length(bio) > 50, do: "..." %>
         </:col>
 
         <%!-- Actions --%>
@@ -149,10 +150,10 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
           <.link navigate={~p"/admin/artists/#{artist}/edit"}>
             <button class="btn btn-ghost btn-xs">edit</button>
           </.link>
-          <.link phx-click="delete"
+          <.link phx-click="remove"
                 phx-value-id={artist.id}
-                data-confirm={"Are you sure you want to delete artist #{artist.nickname}?"}>
-            <button class="btn btn-ghost btn-xs text-error">delete</button>
+                data-confirm={"Are you sure you want to remove artist #{artist.nickname}? This cannot be undone."}>
+            <button class="btn btn-ghost btn-xs text-error">remove</button>
           </.link>
 
           </div>
