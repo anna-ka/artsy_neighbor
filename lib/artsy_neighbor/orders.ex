@@ -1,4 +1,5 @@
 defmodule ArtsyNeighbor.Orders do
+  require Logger
   import Ecto.Query, warn: false
   alias Ecto.Multi
   alias ArtsyNeighbor.Repo
@@ -9,6 +10,7 @@ defmodule ArtsyNeighbor.Orders do
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Accounts.User
+  alias ArtsyNeighbor.Reviews.ReviewNotifier
 
   @doc """
   Creates an order within an existing conversation.
@@ -137,28 +139,91 @@ defmodule ArtsyNeighbor.Orders do
 
   def complete_pickup(%Order{status: :confirmed, delivery_method: :pickup} = order, token) do
     if Plug.Crypto.secure_compare(order.complete_token, token) do
-      Multi.new()
-      |> Multi.update(:order, Order.changeset(order, %{status: :completed}))
-      |> Multi.run(:event, fn _repo, %{order: updated_order} ->
-        %ConversationEvent{event_type: :status_change}
-        |> ConversationEvent.status_change_changeset(%{
-          conversation_id: updated_order.conversation_id,
-          actor_type: :buyer,
-          order_id: updated_order.id,
-          from_status: "confirmed",
-          to_status: "completed",
-          body: "Pickup completed — thank you!"
-        })
-        |> Repo.insert()
-      end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{order: order}} -> {:ok, order}
-        {:error, _step, reason, _changes} -> {:error, reason}
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      base_url = ArtsyNeighborWeb.Endpoint.url()
+      buyer_review_url  = "#{base_url}/orders/#{order.id}/review/vendor"
+      vendor_review_url = "#{base_url}/vendor/orders/#{order.id}/review/buyer"
+
+      # Capture user IDs now — the Multi returns the bare updated order struct
+      # without preloads, so we cannot reliably read order.artist.user_id after.
+      buyer_user_id  = order.buyer_id
+      vendor_user_id = order.artist.user_id
+
+      result =
+        Multi.new()
+        |> Multi.update(:order, Order.changeset(order, %{status: :completed, completed_at: now}))
+        |> Multi.run(:event, fn _repo, %{order: updated_order} ->
+          %ConversationEvent{event_type: :status_change}
+          |> ConversationEvent.status_change_changeset(%{
+            conversation_id: updated_order.conversation_id,
+            actor_type: :buyer,
+            order_id: updated_order.id,
+            from_status: "confirmed",
+            to_status: "completed",
+            body: "Pickup completed — thank you!"
+          })
+          |> Repo.insert()
+        end)
+        |> Repo.transaction()
+
+      case result do
+        {:ok, %{order: completed_order}} ->
+          # Review messages and emails are sent outside the transaction.
+          # A failure here should not roll back a successfully completed order.
+          send_review_request_messages(buyer_user_id, vendor_user_id, buyer_review_url, vendor_review_url)
+
+          ReviewNotifier.deliver_review_request_buyer(
+            completed_order.buyer_email,
+            completed_order.artist_name,
+            buyer_review_url
+          )
+          ReviewNotifier.deliver_review_request_vendor(
+            completed_order.vendor_email,
+            completed_order.buyer_email,
+            vendor_review_url
+          )
+          {:ok, completed_order}
+
+        {:error, _step, reason, _changes} ->
+          {:error, reason}
       end
     else
       {:error, :invalid_token}
     end
+  end
+
+  # Posts a private review-request message to each party's system inbox.
+  # System conversations are created on demand if the user doesn't have one yet.
+  # Called after the order transaction commits so a messaging failure never
+  # rolls back a completed order.
+  defp send_review_request_messages(buyer_user_id, vendor_user_id, buyer_url, vendor_url) do
+    platform = Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+
+    with {:ok, buyer_conv}  <- Conversations.get_or_create_system_conversation(buyer_user_id),
+         {:ok, vendor_conv} <- Conversations.get_or_create_system_conversation(vendor_user_id) do
+      Conversations.post_system_message(buyer_conv, """
+      Your order is complete! You have 14 days to share your experience.
+
+      Leave a review of your vendor here:
+      #{buyer_url}
+
+      — #{platform}
+      """)
+
+      Conversations.post_system_message(vendor_conv, """
+      Your order is complete! You have 14 days to review your buyer.
+
+      Leave a review of your buyer here:
+      #{vendor_url}
+
+      — #{platform}
+      """)
+    else
+      {:error, reason} ->
+        Logger.error("[Orders] send_review_request_messages failed — buyer_user_id=#{buyer_user_id} vendor_user_id=#{vendor_user_id} reason=#{inspect(reason)}")
+    end
+
+    :ok
   end
 
   def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}

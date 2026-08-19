@@ -20,6 +20,8 @@ defmodule ArtsyNeighbor.Orders.Order do
     field :pickup_instructions, :string
     field :pickup_scheduled_at, :utc_datetime
 
+    field :completed_at, :utc_datetime
+
     field :buyer_email,  :string
     field :vendor_email, :string
     field :artist_name,  :string
@@ -41,7 +43,7 @@ defmodule ArtsyNeighbor.Orders.Order do
                     :platform_fee, :total, :complete_token, :complete_token_at,
                     :pickup_date, :pickup_time, :pickup_address, :pickup_instructions, :pickup_scheduled_at,
                     :conversation_id, :buyer_id, :artist_id,
-                    :buyer_email, :vendor_email, :artist_name])
+                    :completed_at, :buyer_email, :vendor_email, :artist_name])
     |> validate_required([:status, :delivery_method, :conversation_id, :buyer_id, :artist_id])
   end
 

@@ -8,7 +8,9 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
+    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <.header>
         {@page_title}
         <:subtitle>Use this form to manage category records in your database.</:subtitle>

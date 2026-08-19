@@ -2,7 +2,10 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Orders
+  alias ArtsyNeighbor.Reviews
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.OrderFormatters
 
   def mount(_params, _session, socket) do
     case socket.assigns.current_scope.artist do
@@ -16,12 +19,17 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
         artist = ArtsyNeighbor.Artists.get_artist!(artist.id)
         products = Products.get_products_by_artist(artist.id)
         collections = Products.list_collections_for_artist(artist.id)
+        recent_sales = artist.id |> Orders.list_orders_for_artist() |> Enum.take(3)
+        user_id = socket.assigns.current_scope.user.id
+        reviewed_ids = Reviews.reviewed_order_ids_as_vendor(user_id)
 
         {:ok,
          assign(socket,
            artist: artist,
            products: products,
            collections: collections,
+           recent_sales: recent_sales,
+           reviewed_ids: reviewed_ids,
            page_title: "Artist Dashboard",
            confirming_status: false
          )}
@@ -34,7 +42,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
+    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <div class="space-y-10">
 
         <%!-- Header --%>
@@ -276,6 +286,57 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
               </div>
             </div>
         </div>
+
+
+        <%!-- Sales History --%>
+        <div>
+          <h2 class="text-2xl font-semibold mb-4">Recent Sales</h2>
+
+            <div :if={@pending_reviews_as_vendor > 0} class="alert alert-warning mb-4">
+              <.icon name="hero-exclamation-triangle" class="size-5 shrink-0" />
+              <span>
+                You have {@pending_reviews_as_vendor} completed sale{if @pending_reviews_as_vendor != 1, do: "s"} awaiting your review.
+                Click an order to leave your feedback.
+              </span>
+            </div>
+
+            <p :if={@recent_sales == []} class="text-base-content/50 py-4">No sales yet.</p>
+
+            <div class="flex flex-col divide-y divide-base-200">
+              <.link
+                :for={order <- @recent_sales}
+                navigate={~p"/vendor/orders/#{order.id}"}
+                class="flex items-center gap-4 py-4 px-3 rounded-lg hover:bg-base-200 transition-colors"
+              >
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-base-content">{order.buyer_email}</p>
+                  <p class="text-sm text-base-content/60 truncate">{item_summary(order.items)}</p>
+                  <p class="text-xs text-base-content/40 mt-0.5">{format_date(order.inserted_at)}</p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                  <%= if order.status == :completed && Reviews.order_in_review_window?(order) do %>
+                    <%= if order.id in @reviewed_ids do %>
+                      <span class="badge badge-success badge-sm">Reviewed ✓</span>
+                    <% else %>
+                      <span class="badge badge-warning badge-sm">Review pending</span>
+                    <% end %>
+                  <% end %>
+                  <span class="font-medium text-base-content text-sm">
+                    CA${Decimal.to_string(order.total)}
+                  </span>
+                  <span class={"badge #{order_badge(order.status)}"}>{order.status}</span>
+                </div>
+              </.link>
+            </div>
+            <div :if={@recent_sales != []} class="mt-3 text-right">
+              <.link navigate={~p"/vendor/orders"} class="text-sm text-primary hover:underline">
+                View all sales →
+              </.link>
+            </div>
+          </div>
+
+
+
 
       </div>
     </Layouts.artsy_main>

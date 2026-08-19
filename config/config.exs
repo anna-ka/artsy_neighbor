@@ -79,6 +79,9 @@ config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
 # Default display timezone. Change this when per-user timezones are implemented.
 config :artsy_neighbor, :timezone, "America/Vancouver"
 
+# The name shown in system/admin messages and emails. Change here to rebrand.
+config :artsy_neighbor, :platform_name, "Artsy Neighbour"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

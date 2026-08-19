@@ -269,6 +269,29 @@ defmodule ArtsyNeighborWeb.UserAuth do
     {:cont, Phoenix.Component.assign_new(socket, :nav_categories, fn -> Categories.list_categories_ordered_by_time() end)}
   end
 
+  def on_mount(:load_pending_reviews, _params, _session, socket) do
+    current_scope = socket.assigns.current_scope
+
+    {as_buyer, as_vendor} =
+      if is_nil(current_scope) || is_nil(current_scope.user) do
+        {0, 0}
+      else
+        user_id = current_scope.user.id
+        buyer   = ArtsyNeighbor.Reviews.pending_reviews_of_vendor_count(user_id)
+        vendor  = if current_scope.artist,
+                    do:   ArtsyNeighbor.Reviews.pending_reviews_of_buyer_count(user_id),
+                    else: 0
+        {buyer, vendor}
+      end
+
+    socket =
+      socket
+      |> Phoenix.Component.assign(:pending_reviews_as_buyer, as_buyer)
+      |> Phoenix.Component.assign(:pending_reviews_as_vendor, as_vendor)
+
+    {:cont, socket}
+  end
+
   def on_mount(:load_unread_badge, _params, _session, socket) do
     current_scope = socket.assigns.current_scope
 

@@ -37,6 +37,7 @@ defmodule ArtsyNeighbor.Conversations do
   Broadcasts an order status-change event to the conversation thread and to the
   other party's inbox (for the unread dot). Called by the Orders context after
   each state transition so the live chat updates in real time.
+  Only used for :order conversations — system conversations use post_system_message/2.
   """
   def broadcast_order_event(conversation_id, %ConversationEvent{} = event) do
     broadcast_to_conversation(conversation_id, {:new_message, event})
@@ -238,10 +239,15 @@ defmodule ArtsyNeighbor.Conversations do
             broadcast_to_user(conversation.buyer_id, {:conversation_updated, conv_event})
 
           :system ->
-            # System event — notify both parties.
-            conversation = Repo.preload(conversation, [:buyer, :artist])
-            broadcast_to_user(conversation.buyer_id, {:conversation_updated, conv_event})
-            broadcast_to_user(conversation.artist.user_id, {:conversation_updated, conv_event})
+            # For system conversations notify only the single owner (user_id).
+            # For order conversations notify both buyer and artist.
+            if conversation.conversation_type == :system do
+              broadcast_to_user(conversation.user_id, {:conversation_updated, conv_event})
+            else
+              conversation = Repo.preload(conversation, [:buyer, :artist])
+              broadcast_to_user(conversation.buyer_id, {:conversation_updated, conv_event})
+              broadcast_to_user(conversation.artist.user_id, {:conversation_updated, conv_event})
+            end
         end
 
         {:ok, conv_event}
@@ -252,17 +258,22 @@ defmodule ArtsyNeighbor.Conversations do
   end
 
   @doc """
-  Marks a conversation as read for the given role (:buyer or :vendor),
+  Marks a conversation as read for the given role (:buyer, :vendor, or :user),
   then broadcasts {:marked_read, conversation_id} to the user's inbox topic
   so the unread dot disappears in real time.
+
+  :user is used for system conversations — it maps to buyer_last_read_at,
+  which is repurposed as the single-user read timestamp for that type.
   """
   def mark_conversation_read(conversation, role, user_id) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    # Choose the right column based on who is reading.
+    # :user is the role for system conversations; reuses buyer_last_read_at
+    # since there is no vendor side in that context.
     field = case role do
       :buyer  -> :buyer_last_read_at
       :vendor -> :vendor_last_read_at
+      :user   -> :buyer_last_read_at
     end
 
     conversation
@@ -304,6 +315,62 @@ defmodule ArtsyNeighbor.Conversations do
   end
 
   @doc """
+  Returns conversation IDs of unread system conversations for this user.
+  System conversations use buyer_last_read_at as the single read-timestamp.
+  """
+  def list_unread_system_conversation_ids_for_user(user_id) do
+    Repo.all(
+      from c in Conversation,
+      where: c.user_id == ^user_id and c.conversation_type == :system,
+      where: not is_nil(c.last_event_at) and
+             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at),
+      select: c.id
+    )
+  end
+
+  @doc """
+  Returns all system conversations for a user, sorted most-recently-active first.
+  Typically at most one per user, but the function returns a list for flexibility.
+  """
+  def list_system_conversations_for_user(user_id) do
+    Repo.all(
+      from c in Conversation,
+      where: c.user_id == ^user_id and c.conversation_type == :system,
+      order_by: [desc_nulls_last: c.last_event_at]
+    )
+  end
+
+  @doc """
+  Finds the existing system conversation for a user, or creates one if it
+  doesn't exist yet. System conversations are created lazily — the first time
+  the platform needs to send a message to a user.
+
+  Returns {:ok, conversation} in both cases.
+  """
+  def get_or_create_system_conversation(user_id) do
+    case Repo.get_by(Conversation, user_id: user_id, conversation_type: :system) do
+      %Conversation{} = conv ->
+        {:ok, conv}
+
+      nil ->
+        %Conversation{}
+        |> Conversation.system_changeset(%{user_id: user_id})
+        |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Posts a platform-generated message into a system conversation on behalf of
+  the platform (actor_type: :system). Triggers the unread dot for the recipient.
+
+  This is the only way messages should be posted to system conversations —
+  users cannot reply to the platform inbox.
+  """
+  def post_system_message(%Conversation{conversation_type: :system} = conversation, body) do
+    create_message_event(conversation, nil, :system, body)
+  end
+
+  @doc """
   Returns true if the user has any unread conversations, false otherwise.
   Checks both their buyer conversations and (if they are a vendor) their artist conversations.
   artist_id should be nil if the user has no artist profile.
@@ -328,7 +395,14 @@ defmodule ArtsyNeighbor.Conversations do
         false
       end
 
-    buyer_has_unread or vendor_has_unread
+    system_has_unread = Repo.exists?(
+      from c in Conversation,
+      where: c.user_id == ^user_id and c.conversation_type == :system,
+      where: not is_nil(c.last_event_at) and
+             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
+    )
+
+    buyer_has_unread or vendor_has_unread or system_has_unread
   end
 
   def preload_participants(conversation) do

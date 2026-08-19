@@ -371,7 +371,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
     <Layouts.artsy_main flash={@flash} variant="vendor"
                   nav_categories={@nav_categories}
                   current_scope={@current_scope}
-                  has_unread={@has_unread_messages}>
+                  has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <div class="w-full px-8 py-8">
 
       <div>

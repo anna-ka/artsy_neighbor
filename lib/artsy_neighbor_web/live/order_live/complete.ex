@@ -63,7 +63,9 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <div class="max-w-lg mx-auto px-4 py-12">
 
         <div class="bg-base-200 rounded-xl p-6 flex flex-col gap-6">
@@ -100,7 +102,7 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
           </div>
 
           <%!-- Confirm button --%>
-          <button phx-click="complete_pickup" class="btn btn-primary w-full">
+          <button phx-click="complete_pickup" phx-disable-with="Completing…" class="btn btn-primary w-full">
             Complete purchase — CA${Decimal.to_string(@order.total)}
           </button>
 

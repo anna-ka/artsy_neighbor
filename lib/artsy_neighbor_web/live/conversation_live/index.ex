@@ -22,9 +22,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
     else
       []
     end
+    system_unread = Conversations.list_unread_system_conversation_ids_for_user(user.id)
 
-    # Merge both lists into a MapSet (no duplicates, fast membership checks).
-    all_unread = MapSet.new(buyer_unread ++ vendor_unread)
+    # Merge all three lists into a MapSet (no duplicates, fast membership checks).
+    all_unread = MapSet.new(buyer_unread ++ vendor_unread ++ system_unread)
 
     socket =
       socket
@@ -32,6 +33,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
       |> assign(:convs_with_new, all_unread)
       # has_unread_messages drives the nav badge in the layout.
       |> assign(:has_unread_messages, not Enum.empty?(all_unread))
+      # Populated in handle_params; initialised here to avoid assign errors on first render.
+      |> assign(:system_conversations, [])
 
     {:ok, socket}
   end
@@ -52,10 +55,14 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
         []
       end
 
+    system_conversations =
+      Conversations.list_system_conversations_for_user(current_user.id)
+
     {:noreply,
       socket
       |> assign(:conversations_as_buyer, conversations_as_buyer)
       |> assign(:conversations_as_vendor, conversations_as_vendor)
+      |> assign(:system_conversations, system_conversations)
     }
   end
 
@@ -118,11 +125,39 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
     end
   end
 
+  defp platform_name, do: Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <div class="max-w-2xl mx-auto px-4 py-8">
         <h1 class="text-2xl font-bold mb-6 text-base-content">Your Messages</h1>
+
+        <%!-- Platform inbox — shown whenever a system conversation exists --%>
+        <section :if={@system_conversations != []} class="mb-8">
+          <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">
+            From the Platform
+          </h2>
+          <ul class="divide-y divide-base-200">
+            <li :for={conversation <- @system_conversations} id={"conv-system-#{conversation.id}"}>
+              <.link navigate={~p"/messages/#{conversation.id}"}
+                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors">
+                <div class="avatar placeholder">
+                  <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                    <span class="text-lg font-bold">✦</span>
+                  </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-base-content">{platform_name()}</p>
+                  <p class="text-xs text-base-content/50">{format_last_event_at(conversation.last_event_at)}</p>
+                </div>
+                <span :if={MapSet.member?(@convs_with_new, conversation.id)} class="badge badge-error badge-xs"></span>
+              </.link>
+            </li>
+          </ul>
+        </section>
 
         <%!-- Buying section --%>
         <section class="mb-8">

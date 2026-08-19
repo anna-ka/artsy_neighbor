@@ -57,6 +57,7 @@ defmodule ArtsyNeighborWeb.Router do
       on_mount: [
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
+        {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/", HomeLive
@@ -85,10 +86,15 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :require_vendor},
         {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
+        {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/vendor", VendorLive.Dashboard
       live "/vendor/profile/edit", VendorLive.Profile.Form, :edit
+      live "/vendor/orders/:id/review/buyer", ReviewLive.OfBuyerStep
+      live "/vendor/orders/:id", VendorLive.OrdersShow
+      live "/vendor/orders", VendorLive.OrdersIndex
+
       live "/vendor/products/new", VendorLive.ProductForm, :new
       live "/vendor/products/:id/edit", VendorLive.ProductForm, :edit
       live "/vendor/collections/new", VendorLive.CollectionForm, :new
@@ -106,6 +112,7 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :require_admin},
         {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
+        {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
 
@@ -165,6 +172,7 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
         {ArtsyNeighborWeb.UserAuth, :require_authenticated},
         {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
+        {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
       live "/users/settings", UserLive.Settings, :edit
@@ -174,6 +182,11 @@ defmodule ArtsyNeighborWeb.Router do
       live "/messages/:id", ConversationLive.Show, :show
 
       live "/orders/:id/complete-purchase/:token", OrderLive.Complete
+
+      live "/orders/:id/review/vendor",   ReviewLive.OfVendorStep
+      live "/orders/:id/review/products", ReviewLive.OfProductsStep
+      live "/orders/:id", OrderLive.Detail
+      live "/orders", OrderLive.Index
 
       live "/vendor/profile/new", VendorLive.Profile.Form, :new
 

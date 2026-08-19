@@ -23,6 +23,8 @@ defmodule ArtsyNeighborWeb.Layouts do
   attr :nav_categories, :list, default: [], doc: "list of categories for the nav category bar"
   attr :current_scope, :map, default: nil
   attr :has_unread, :boolean, default: false
+  attr :pending_reviews_as_buyer, :integer, default: 0
+  attr :pending_reviews_as_vendor, :integer, default: 0
   slot :inner_block, required: true
 
   def navlayout(assigns) do
@@ -88,6 +90,18 @@ defmodule ArtsyNeighborWeb.Layouts do
                 <.link navigate={~p"/messages"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
                   Messages
                   <span :if={@has_unread} class="badge badge-error badge-xs absolute -top-0.5 -right-0.5"></span>
+                </.link>
+              </li>
+              <li :if={@current_scope && @current_scope.user} class="flex-none">
+                <.link navigate={~p"/orders"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
+                  Orders
+                  <span :if={@pending_reviews_as_buyer > 0} class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"></span>
+                </.link>
+              </li>
+              <li :if={@current_scope && @current_scope.artist} class="flex-none">
+                <.link navigate={~p"/vendor"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
+                  Dashboard
+                  <span :if={@pending_reviews_as_vendor > 0} class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"></span>
                 </.link>
               </li>
               <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
@@ -223,12 +237,14 @@ defmodule ArtsyNeighborWeb.Layouts do
   attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
   attr :nav_categories, :list, default: []
   attr :has_unread, :boolean, default: false
+  attr :pending_reviews_as_buyer, :integer, default: 0
+  attr :pending_reviews_as_vendor, :integer, default: 0
 
   slot :inner_block, required: true
 
   def artsy_main(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread}>
+    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread} pending_reviews_as_buyer={@pending_reviews_as_buyer} pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <main class="flex justify-center">
         <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
           {render_slot(@inner_block)}

@@ -25,30 +25,37 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         current_user = socket.assigns.current_scope.user
         artist = socket.assigns.current_scope.artist
 
-        if conversation.buyer_id == current_user.id
-          or (artist && artist.id == conversation.artist_id)
-        do
+        is_system = conversation.conversation_type == :system
 
+        authorized =
+          (is_system && conversation.user_id == current_user.id) or
+          (not is_system && conversation.buyer_id == current_user.id) or
+          (not is_system && artist && artist.id == conversation.artist_id)
+
+        if authorized do
           conversation = Conversations.get_conversation_with_participants(conversation.id)
-          current_role = if current_user.id == conversation.buyer_id, do: :buyer, else: :vendor
+
+          {current_role, other_name, other_thumbnail} =
+            if is_system do
+              platform = Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+              {:user, platform, nil}
+            else
+              role = if current_user.id == conversation.buyer_id, do: :buyer, else: :vendor
+              {name, thumb} =
+                if role == :buyer do
+                  {conversation.artist.nickname,
+                   List.first(conversation.artist.artist_images, %{path: nil}).path}
+                else
+                  buyer = conversation.buyer
+                  {buyer.username || buyer.email, nil}
+                end
+              {role, name, thumb}
+            end
 
           if connected?(socket) do
-            # Subscribe to new messages in this thread.
             Conversations.subscribe_to_conversation(conversation.id)
-            # Mark this conversation as read — stamps the DB and broadcasts
-            # {:marked_read, id} to our inbox so the dot disappears there too.
             Conversations.mark_conversation_read(conversation, current_role, current_user.id)
           end
-
-          {other_name, other_thumbnail} =
-            if current_role == :buyer do
-              name = conversation.artist.nickname
-              thumb = List.first(conversation.artist.artist_images, %{path: nil}).path
-              {name, thumb}
-            else
-              buyer = conversation.buyer
-              {buyer.username || buyer.email, nil}
-            end
 
           msg_changeset = ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
 
@@ -56,11 +63,12 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             socket
             |> stream(:messages, Conversations.list_events_for_conversation(conversation.id))
             |> assign(:conversation, conversation)
+            |> assign(:is_system, is_system)
             |> assign(:current_role, current_role)
             |> assign(:other_name, other_name)
             |> assign(:other_thumbnail, other_thumbnail)
             |> assign(:form, to_form(msg_changeset))
-            |> assign(:open_orders, Orders.list_open_orders_for_conversation(conversation.id))
+            |> assign(:open_orders, if(is_system, do: [], else: Orders.list_open_orders_for_conversation(conversation.id)))
           {:noreply, socket}
         else
           {:noreply,
@@ -74,7 +82,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}>
+    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
       <div class="max-w-5xl mx-auto px-4 py-6">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
@@ -83,19 +93,27 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
             <%!-- Conversation header --%>
             <div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-200">
-              <div class="avatar">
+              <div class="avatar placeholder">
                 <div class="w-11 h-11 rounded-full overflow-hidden bg-base-300 flex items-center justify-center">
-                  <%= if @other_thumbnail do %>
-                    <img src={@other_thumbnail} class="w-full h-full object-cover" />
+                  <%= if @is_system do %>
+                    <span class="text-lg text-primary">✦</span>
                   <% else %>
-                    <span class="text-lg font-bold text-base-content">{String.first(@other_name)}</span>
+                    <%= if @other_thumbnail do %>
+                      <img src={@other_thumbnail} class="w-full h-full object-cover" />
+                    <% else %>
+                      <span class="text-lg font-bold text-base-content">{String.first(@other_name)}</span>
+                    <% end %>
                   <% end %>
                 </div>
               </div>
               <div>
                 <h1 class="text-lg font-bold text-base-content">{@other_name}</h1>
                 <p class="text-xs text-base-content/50">
-                  {if @current_role == :buyer, do: "Artist", else: "Buyer"}
+                  <%= if @is_system do %>
+                    Platform notifications
+                  <% else %>
+                    {if @current_role == :buyer, do: "Artist", else: "Buyer"}
+                  <% end %>
                 </p>
               </div>
             </div>
@@ -103,7 +121,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             <%!-- Message thread --%>
             <ul id="msg-list" phx-update="stream" phx-hook="ScrollToBottom" class="flex flex-col gap-1 mb-6 overflow-y-auto max-h-[60vh]">
               <li :for={{dom_id, message} <- @streams.messages} id={dom_id}>
-                <%= if message.event_type == :status_change do %>
+                <%= if message.event_type == :status_change or @is_system do %>
+                  <%!-- Status-change events and all system-inbox messages render as
+                       banners with linkify so URLs become clickable links. --%>
                   <div class="my-4 bg-secondary/10 border-l-4 border-secondary rounded-r-lg px-4 py-3 text-sm text-base-content whitespace-pre-wrap">
                     <%= linkify(message.body) %>
                   </div>
@@ -137,8 +157,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
               </li>
             </ul>
 
-            <%!-- Compose area --%>
-            <div class="border-t border-base-200 pt-4">
+            <%!-- Compose area — hidden for system conversations (users cannot reply to the platform) --%>
+            <div :if={not @is_system} class="border-t border-base-200 pt-4">
               <.form for={@form} id={"new_msg-#{@message_key}"} phx-change="validate_msg" phx-submit="post_msg">
                 <div class="flex gap-2 items-end">
                   <div class="flex-1">
