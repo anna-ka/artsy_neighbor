@@ -6,11 +6,19 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Orders.Order
   alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Artists
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, message_key: 0, schedule_pickup_order_id: nil)}
+    {:ok,
+     assign(socket,
+       message_key: 0,
+       schedule_pickup_order_id: nil,
+       add_item_order_id: nil,
+       vendor_products: []
+     )}
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
@@ -232,11 +240,26 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                   <%!-- Pickup details — visible to both roles when scheduled --%>
                   <div :if={order.status == :confirmed && order.pickup_scheduled_at != nil}
                        class="bg-base-100 rounded-lg p-3 flex flex-col gap-1">
-                    <p class="text-xs font-semibold text-base-content/60 mb-0.5">Pick-up Scheduled</p>
-                    <p class="text-xs text-base-content/80"><span class="font-medium">Date:</span> {order.pickup_date}</p>
-                    <p class="text-xs text-base-content/80"><span class="font-medium">Time:</span> {order.pickup_time}</p>
+                    <p class="text-xs font-semibold text-base-content/60 mb-0.5">
+                      {if order.pickup_date || order.pickup_time, do: "Pick-up Scheduled", else: "Pick-up Info"}
+                    </p>
+                    <p :if={order.pickup_date} class="text-xs text-base-content/80"><span class="font-medium">Date:</span> {order.pickup_date}</p>
+                    <p :if={order.pickup_time} class="text-xs text-base-content/80"><span class="font-medium">Time:</span> {order.pickup_time}</p>
                     <p class="text-xs text-base-content/80"><span class="font-medium">Address:</span> {order.pickup_address}</p>
                     <p :if={order.pickup_instructions} class="text-xs text-base-content/80"><span class="font-medium">Notes:</span> {order.pickup_instructions}</p>
+                  </div>
+
+                  <%!-- Complete purchase — buyer only, available once the vendor has confirmed.
+                       Always visible here (not just in the chat message) so the buyer isn't
+                       stuck hunting through the conversation for the link. --%>
+                  <div :if={@current_role == :buyer && order.status == :confirmed && order.complete_token}
+                       class="bg-base-100 rounded-lg p-3 flex flex-col gap-2">
+                    <p class="text-xs text-base-content/70">
+                      Only tap this once you've received your item(s) in hand and are ready to pay — it will initiate payment.
+                    </p>
+                    <.button_artsy variant="primary" size="sm" navigate={~p"/orders/#{order.id}/complete-purchase/#{order.complete_token}"}>
+                      Complete Purchase — CA${Decimal.to_string(order.total)}
+                    </.button_artsy>
                   </div>
 
                   <%!-- Vendor actions --%>
@@ -252,14 +275,22 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                           <p class="text-xs font-semibold text-base-content/70">
                             {if order.pickup_scheduled_at, do: "Reschedule Pick-up", else: "Schedule Pick-up"}
                           </p>
-                          <input type="text" name="schedule[date]" placeholder="Date (e.g. June 5, 2026)" required
+                          <p class="text-[11px] text-base-content/50 -mt-1">
+                            Date and time are optional — leave blank if you already agreed on a time in chat.
+                          </p>
+                          <input type="date" name="schedule[date]" min={min_pickup_date()}
                             class="input input-bordered input-sm w-full" />
-                          <input type="text" name="schedule[time]" placeholder="Time (e.g. 2:00 PM)" required
+                          <input type="time" name="schedule[time]"
                             class="input input-bordered input-sm w-full" />
                           <input type="text" name="schedule[address]" placeholder="Pick-up address" required
+                            value={default_pickup_address(order, @current_scope.artist)}
                             class="input input-bordered input-sm w-full" />
                           <textarea name="schedule[instructions]" placeholder="Special instructions (optional)" rows="2"
-                            class="textarea textarea-bordered textarea-sm w-full" />
+                            class="textarea textarea-bordered textarea-sm w-full">{default_pickup_instructions(order, @current_scope.artist)}</textarea>
+                          <label class="flex items-center gap-2 text-xs text-base-content/60">
+                            <input type="checkbox" name="schedule[save_default]" value="true" class="checkbox checkbox-xs" />
+                            Save as my default pickup info
+                          </label>
                           <div class="flex gap-2">
                             <button type="submit" class="btn btn-primary btn-sm flex-1">Send</button>
                             <button type="button" phx-click="cancel_schedule" class="btn btn-ghost btn-sm">Cancel</button>
@@ -273,6 +304,39 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                                 class="btn btn-ghost btn-sm w-full text-warning">
                           Cancel Pick-up
                         </button>
+                      <% end %>
+                    </div>
+
+                    <%!-- Add item to order (vendor) — e.g. buyer sees more work in person and wants it too --%>
+                    <div :if={order.status in [:requested, :confirmed]}>
+                      <%= if @add_item_order_id == order.id do %>
+                        <div class="flex flex-col gap-2 bg-base-100 rounded-lg p-3">
+                          <p class="text-xs font-semibold text-base-content/70">Add an item to this order</p>
+                          <div class="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                            <button
+                              :for={product <- @vendor_products}
+                              :if={!(product.unique_work && Enum.any?(order.items, &(&1.product_id == product.id)))}
+                              type="button"
+                              phx-click="vendor_add_item"
+                              phx-value-order-id={order.id}
+                              phx-value-product-id={product.id}
+                              class="flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-base-200 w-full">
+                              <div class="w-8 h-8 rounded overflow-hidden bg-base-300 shrink-0 flex items-center justify-center">
+                                <img :if={thumb = List.first(product.product_images)} src={thumb.path} class="w-full h-full object-cover" />
+                              </div>
+                              <span class="flex-1 truncate text-xs text-base-content">{product.title}</span>
+                              <span class="text-xs text-base-content/60 shrink-0">CA${Decimal.to_string(product.price)}</span>
+                            </button>
+                            <p :if={@vendor_products == []} class="text-xs text-base-content/50 px-2 py-1">
+                              You have no available products to add.
+                            </p>
+                          </div>
+                          <button type="button" phx-click="cancel_add_item" class="btn btn-ghost btn-sm">Cancel</button>
+                        </div>
+                      <% else %>
+                        <.button_artsy variant="secondary" size="sm" phx-click="open_add_item_form" phx-value-id={order.id}>
+                          + Add Item
+                        </.button_artsy>
                       <% end %>
                     </div>
 
@@ -355,23 +419,39 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   def handle_event("submit_schedule", %{"schedule" => params}, socket) do
     order_id = socket.assigns.schedule_pickup_order_id
     order = Enum.find(socket.assigns.open_orders, &(&1.id == order_id))
+    artist = socket.assigns.current_scope.artist
 
-    date         = String.trim(params["date"] || "")
-    time         = String.trim(params["time"] || "")
+    date_raw     = String.trim(params["date"] || "")
+    time_raw     = String.trim(params["time"] || "")
     address      = String.trim(params["address"] || "")
     instructions = String.trim(params["instructions"] || "")
+    save_default = params["save_default"] == "true"
 
-    if date == "" or time == "" or address == "" do
-      {:noreply, put_flash(socket, :error, "Date, time and address are required.")}
-    else
-      completion_url = url(~p"/orders/#{order.id}/complete-purchase/#{order.complete_token}")
+    cond do
+      address == "" ->
+        {:noreply, put_flash(socket, :error, "Pick-up address is required.")}
 
-      case Orders.schedule_pickup(order, %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url}) do
-        {:ok, _event} ->
-          {:noreply, assign(socket, :schedule_pickup_order_id, nil)}
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Could not send schedule. Please try again.")}
-      end
+      date_raw != "" and past_pickup_date?(date_raw) ->
+        {:noreply, put_flash(socket, :error, "Pick-up date can't be in the past.")}
+
+      true ->
+        if save_default do
+          Artists.update_pickup_defaults(artist, %{
+            default_pickup_address: address,
+            delivery_info: Map.put(artist.delivery_info || %{}, "pickup", instructions)
+          })
+        end
+
+        completion_url = url(~p"/orders/#{order.id}/complete-purchase/#{order.complete_token}")
+        date = format_picked_date(date_raw)
+        time = format_picked_time(time_raw)
+
+        case Orders.schedule_pickup(order, %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url}) do
+          {:ok, _event} ->
+            {:noreply, assign(socket, :schedule_pickup_order_id, nil)}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Could not send schedule. Please try again.")}
+        end
     end
   end
 
@@ -386,7 +466,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
   def handle_event("increment_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
     order = Orders.get_order!(order_id)
-    case Orders.increment_order_item(order, String.to_integer(item_id)) do
+    actor_type = socket.assigns.current_role
+    case Orders.increment_order_item(order, String.to_integer(item_id), actor_type) do
       {:ok, _} -> {:noreply, reload_open_orders(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
     end
@@ -432,6 +513,35 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     end
   end
 
+  def handle_event("open_add_item_form", %{"id" => id}, socket) do
+    artist = socket.assigns.current_scope.artist
+    products = Products.get_products_by_artist(artist.id)
+
+    {:noreply,
+     socket
+     |> assign(:add_item_order_id, String.to_integer(id))
+     |> assign(:vendor_products, products)}
+  end
+
+  def handle_event("cancel_add_item", _params, socket) do
+    {:noreply, assign(socket, :add_item_order_id, nil)}
+  end
+
+  def handle_event("vendor_add_item", %{"order-id" => order_id, "product-id" => product_id}, socket) do
+    order = Orders.get_order!(order_id)
+    product = Products.get_product!(product_id)
+
+    case Orders.add_item_to_order(order, product, :vendor) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:add_item_order_id, nil)
+         |> reload_open_orders()}
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not add item.")}
+    end
+  end
+
   def handle_info({:new_message, conv_event}, socket) do
     socket =
       if conv_event.event_type == :status_change do
@@ -471,6 +581,68 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       Calendar.strftime(local, "%I:%M %p")
     else
       Calendar.strftime(local, "%b %-d, %I:%M %p")
+    end
+  end
+
+  # Today's date in the app's display timezone, as an ISO string — used as
+  # the `min` attribute on the pick-up date input so past dates can't be picked.
+  defp min_pickup_date do
+    timezone = Application.fetch_env!(:artsy_neighbor, :timezone)
+    DateTime.now!(timezone) |> DateTime.to_date() |> Date.to_iso8601()
+  end
+
+  defp past_pickup_date?(iso_date) do
+    case Date.from_iso8601(iso_date) do
+      {:ok, date} ->
+        timezone = Application.fetch_env!(:artsy_neighbor, :timezone)
+        today = DateTime.now!(timezone) |> DateTime.to_date()
+        Date.compare(date, today) == :lt
+
+      _ ->
+        false
+    end
+  end
+
+  # Formats the raw "YYYY-MM-DD" value from the date input into a human
+  # string for storage/display, e.g. "June 5, 2026". Falls back to the raw
+  # value if it somehow doesn't parse.
+  defp format_picked_date(""), do: ""
+  defp format_picked_date(iso_date) do
+    case Date.from_iso8601(iso_date) do
+      {:ok, date} -> Calendar.strftime(date, "%B %-d, %Y")
+      _ -> iso_date
+    end
+  end
+
+  # Formats the raw "HH:MM" value from the time input into a human string,
+  # e.g. "2:00 PM". Falls back to the raw value if it doesn't parse.
+  defp format_picked_time(""), do: ""
+  defp format_picked_time(hh_mm) do
+    with [h, m | _] <- String.split(hh_mm, ":"),
+         {hour, ""} <- Integer.parse(h),
+         {minute, ""} <- Integer.parse(m),
+         {:ok, time} <- Time.new(hour, minute, 0) do
+      Calendar.strftime(time, "%-I:%M %p")
+    else
+      _ -> hh_mm
+    end
+  end
+
+  # Prefills the schedule form's address field: this order's own previously
+  # used address (rescheduling) takes precedence over the vendor's saved default.
+  defp default_pickup_address(order, artist) do
+    cond do
+      order.pickup_address not in [nil, ""] -> order.pickup_address
+      artist -> artist.default_pickup_address || ""
+      true -> ""
+    end
+  end
+
+  defp default_pickup_instructions(order, artist) do
+    cond do
+      order.pickup_instructions not in [nil, ""] -> order.pickup_instructions
+      artist -> get_in(artist.delivery_info || %{}, ["pickup"]) || ""
+      true -> ""
     end
   end
 

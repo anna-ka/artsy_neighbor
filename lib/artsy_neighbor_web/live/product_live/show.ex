@@ -89,7 +89,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           if product.unique_work && Enum.any?(order.items, &(&1.product_id == product.id)) do
             {:error, :unique_work_already_in_order}
           else
-            Orders.add_item_to_order(order, product)
+            Orders.add_item_to_order(order, product, :buyer)
           end
       end
 

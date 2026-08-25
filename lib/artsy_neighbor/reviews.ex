@@ -69,7 +69,7 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(vr in VendorReview,
-      join: br in BuyerReview, on: br.order_id == vr.order_id,
+      left_join: br in BuyerReview, on: br.order_id == vr.order_id,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
@@ -83,7 +83,7 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(br in BuyerReview,
-      join: vr in VendorReview, on: vr.order_id == br.order_id,
+      left_join: vr in VendorReview, on: vr.order_id == br.order_id,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
@@ -98,8 +98,8 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(pr in ProductReview,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == pr.order_id,
-      join: vr in VendorReview, on: vr.order_id == pr.order_id,
-      join: br in BuyerReview, on: br.order_id == pr.order_id,
+      left_join: vr in VendorReview, on: vr.order_id == pr.order_id,
+      left_join: br in BuyerReview, on: br.order_id == pr.order_id,
       where: pr.product_id == ^product_id,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       order_by: [desc: pr.submitted_at]
@@ -116,14 +116,14 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(vr in VendorReview,
-      join: br in BuyerReview, on: br.order_id == vr.order_id,
+      left_join: br in BuyerReview, on: br.order_id == vr.order_id,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
       select: avg(vr.stars)
     )
     |> Repo.one()
-    |> then(fn avg -> if avg, do: Float.round(avg / 1, 1), else: nil end)
+    |> then(fn avg -> if avg, do: avg |> Decimal.to_float() |> Float.round(1), else: nil end)
   end
 
   def avg_rating_for_buyer(buyer_id) do
@@ -131,14 +131,14 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(br in BuyerReview,
-      join: vr in VendorReview, on: vr.order_id == br.order_id,
+      left_join: vr in VendorReview, on: vr.order_id == br.order_id,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
       select: avg(br.stars)
     )
     |> Repo.one()
-    |> then(fn avg -> if avg, do: Float.round(avg / 1, 1), else: nil end)
+    |> then(fn avg -> if avg, do: avg |> Decimal.to_float() |> Float.round(1), else: nil end)
   end
 
   def avg_rating_for_product(product_id) do
@@ -147,14 +147,14 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(pr in ProductReview,
       join: o in ArtsyNeighbor.Orders.Order, on: o.id == pr.order_id,
-      join: vr in VendorReview, on: vr.order_id == pr.order_id,
-      join: br in BuyerReview, on: br.order_id == pr.order_id,
+      left_join: vr in VendorReview, on: vr.order_id == pr.order_id,
+      left_join: br in BuyerReview, on: br.order_id == pr.order_id,
       where: pr.product_id == ^product_id,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       select: avg(pr.stars)
     )
     |> Repo.one()
-    |> then(fn avg -> if avg, do: Float.round(avg / 1, 1), else: nil end)
+    |> then(fn avg -> if avg, do: avg |> Decimal.to_float() |> Float.round(1), else: nil end)
   end
 
   # ---------------------------------------------------------------------------

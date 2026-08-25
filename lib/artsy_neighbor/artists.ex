@@ -278,6 +278,16 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
+  Updates the vendor's default pickup address/instructions (used to prefill
+  the Schedule Pick-up form). See Artist.pickup_defaults_changeset/2.
+  """
+  def update_pickup_defaults(%Artist{} = artist, attrs) do
+    artist
+    |> Artist.pickup_defaults_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Marks an artist as :removed and sets all their products to :unavailable.
   Artists are never hard-deleted — they are permanent records.
   """

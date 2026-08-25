@@ -18,6 +18,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
     field :onboarding_complete, :boolean, default: false
     field :delivery_options, {:array, :string}, default: ["pickup"]
     field :delivery_info, :map, default: %{}
+    field :default_pickup_address, :string
     field :status, Ecto.Enum, values: [:active, :inactive, :removed], default: :inactive
     field :status_changed_at, :utc_datetime
     field :homepage, :string
@@ -125,6 +126,18 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> cast(attrs, [:status])
     |> validate_required([:status])
     |> maybe_set_status_changed_at()
+  end
+
+  @doc """
+  Updates the vendor's default pickup address/instructions, used to prefill
+  the "Schedule Pick-up" form. Deliberately separate from street_address —
+  the pickup meeting spot a vendor shares with buyers isn't necessarily the
+  same as their registered profile address.
+  """
+  def pickup_defaults_changeset(artist, attrs) do
+    artist
+    |> cast(attrs, [:default_pickup_address, :delivery_info])
+    |> validate_length(:default_pickup_address, max: 255)
   end
 
   # If the status field has changed, update the status_changed_at timestamp

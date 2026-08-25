@@ -131,8 +131,8 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
           <%!-- Pickup details — shown once scheduled --%>
           <div :if={@order.pickup_scheduled_at} class="bg-base-300/50 rounded-xl p-4 text-sm flex flex-col gap-1">
             <p class="font-semibold text-base-content/80 mb-1">Pickup details</p>
-            <p class="text-base-content/70"><span class="font-medium">Date:</span> {@order.pickup_date}</p>
-            <p class="text-base-content/70"><span class="font-medium">Time:</span> {@order.pickup_time}</p>
+            <p :if={@order.pickup_date} class="text-base-content/70"><span class="font-medium">Date:</span> {@order.pickup_date}</p>
+            <p :if={@order.pickup_time} class="text-base-content/70"><span class="font-medium">Time:</span> {@order.pickup_time}</p>
             <p class="text-base-content/70"><span class="font-medium">Address:</span> {@order.pickup_address}</p>
             <p :if={@order.pickup_instructions} class="text-base-content/70">
               <span class="font-medium">Notes:</span> {@order.pickup_instructions}

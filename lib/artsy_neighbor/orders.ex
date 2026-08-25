@@ -17,8 +17,23 @@ defmodule ArtsyNeighbor.Orders do
   items is a list of %{product: product, quantity: integer}.
   Atomically inserts the order, order items, a system ConversationEvent,
   and stamps conversation.last_event_at.
+  Returns {:error, :invalid_quantity} if any item's quantity isn't a
+  positive integer.
   """
   def create_order(conversation, buyer, artist, items, delivery_method \\ :pickup) do
+    if Enum.any?(items, fn %{quantity: q} -> not (is_integer(q) and q > 0) end) do
+      {:error, :invalid_quantity}
+    else
+      do_create_order(conversation, buyer, artist, items, delivery_method)
+    end
+  end
+
+  # The actual order-creation work, split out from create_order/5 so the
+  # quantity guard above can short-circuit before any of this runs. Builds
+  # the Order, its OrderItem rows, and the "requested" ConversationEvent in
+  # one Multi so a failure partway through (e.g. a duplicate item) leaves no
+  # partial order behind.
+  defp do_create_order(conversation, buyer, artist, items, delivery_method) do
     vendor_user = Repo.get!(User, artist.user_id)
     {subtotal, platform_fee, total} = calculate_totals(items)
 
@@ -226,16 +241,28 @@ defmodule ArtsyNeighbor.Orders do
     :ok
   end
 
+  # Catch-all also covers delivery_method: :delivery orders — there is no
+  # completion flow for delivery yet (only :pickup is implemented), so a
+  # :confirmed delivery order lands here and gets :wrong_state rather than
+  # silently doing nothing. Build a real delivery-completion clause above
+  # this one when that feature is implemented.
   def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
 
   @doc """
   Adds a product to an open order, incrementing its quantity if already present
   or appending a new line item at the current product price.
-  Resets status to :requested and clears the pickup token.
+  actor_type must be :buyer or :vendor (either party can add items in person).
   """
-  def add_item_to_order(%Order{status: status} = order, product)
-      when status in [:requested, :confirmed] do
-    order = Repo.preload(order, :items)
+  def add_item_to_order(%Order{status: status} = order, product, actor_type)
+      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor] do
+    # force: true — do_amend deletes and reinserts every OrderItem row on any
+    # amendment, so a caller holding an order struct from a *previous*
+    # mutation would otherwise have its (already "loaded") :items silently
+    # skipped by preload, and this function would compute specs from
+    # stale/deleted item rows. Callers should still prefer re-fetching via
+    # get_order!/1 between actions (as the LiveViews do); this guards the
+    # cases where they don't.
+    order = Repo.preload(order, :items, force: true)
 
     specs =
       case Enum.find(order.items, &(&1.product_id == product.id)) do
@@ -251,10 +278,11 @@ defmodule ArtsyNeighbor.Orders do
       end
 
     {_, _, total} = calculate_totals_from_specs(specs)
-    do_amend(order, specs, :buyer, "Item added to order — new total CA$#{total}")
+    actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
+    do_amend(order, specs, actor_type, "#{actor_label} added #{product.title} to the order — new total CA$#{total}")
   end
 
-  def add_item_to_order(%Order{}, _product), do: {:error, :wrong_state}
+  def add_item_to_order(%Order{}, _product, _actor_type), do: {:error, :wrong_state}
 
   @doc """
   Removes one unit of an order item (decrements quantity, or removes the line
@@ -263,7 +291,7 @@ defmodule ArtsyNeighbor.Orders do
   """
   def remove_order_item(%Order{status: status} = order, order_item_id, actor_type)
       when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor, :system] do
-    order = Repo.preload(order, :items)
+    order = Repo.preload(order, :items, force: true)
 
     case Enum.find(order.items, &(&1.id == order_item_id)) do
       nil ->
@@ -298,10 +326,13 @@ defmodule ArtsyNeighbor.Orders do
 
   def remove_order_item(%Order{}, _item_id, _actor), do: {:error, :wrong_state}
 
-  @doc "Increments the quantity of an existing order item by 1, keeping the snapshot price."
-  def increment_order_item(%Order{status: status} = order, order_item_id)
-      when status in [:requested, :confirmed] do
-    order = Repo.preload(order, :items)
+  @doc """
+  Increments the quantity of an existing order item by 1, keeping the snapshot price.
+  actor_type must be :buyer or :vendor.
+  """
+  def increment_order_item(%Order{status: status} = order, order_item_id, actor_type)
+      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor] do
+    order = Repo.preload(order, :items, force: true)
 
     case Enum.find(order.items, &(&1.id == order_item_id)) do
       nil ->
@@ -314,11 +345,12 @@ defmodule ArtsyNeighbor.Orders do
           if i.id == item.id, do: %{spec | quantity: new_qty}, else: spec
         end)
         {_, _, total} = calculate_totals_from_specs(specs)
-        do_amend(order, specs, :buyer, "Buyer incremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}")
+        actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
+        do_amend(order, specs, actor_type, "#{actor_label} incremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}")
     end
   end
 
-  def increment_order_item(%Order{}, _item_id), do: {:error, :wrong_state}
+  def increment_order_item(%Order{}, _item_id, _actor_type), do: {:error, :wrong_state}
 
   @doc """
   Amends an order by replacing its items with a new list.
@@ -341,9 +373,12 @@ defmodule ArtsyNeighbor.Orders do
   Cancels an order. Can be called by either party.
   actor_type must be :buyer or :vendor.
   Posts a system ConversationEvent recording who cancelled.
+  Only allowed while the order is still open (:requested or :confirmed) —
+  a :completed order cannot be retroactively cancelled.
   """
-  def cancel_order(%Order{} = order, actor_type) when actor_type in [:buyer, :vendor, :system] do
-    order = Repo.preload(order, :items)
+  def cancel_order(%Order{status: status} = order, actor_type)
+      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor, :system] do
+    order = Repo.preload(order, :items, force: true)
 
     item_summary =
       case order.items do
@@ -383,23 +418,29 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
+  def cancel_order(%Order{}, _actor_type), do: {:error, :wrong_state}
+
   @doc """
   Schedules a pick-up for a confirmed order. Saves the pickup details on the order
   and posts a status_change event with the completion link.
   details is a map with keys: date, time, address, instructions, completion_url.
+  date and time may be blank — some vendors/buyers agree on a time informally
+  in chat rather than through this form.
   """
   def schedule_pickup(%Order{status: :confirmed} = order, details) do
     %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url} = details
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
+    has_datetime = (date && date != "") or (time && time != "")
+    title = if has_datetime, do: "Pick-up scheduled!", else: "Pick-up info shared"
+    date_line = if date && date != "", do: "Date: #{date}\n", else: ""
+    time_line = if time && time != "", do: "Time: #{time}\n", else: ""
     instruction_line = if instructions && instructions != "", do: "\n\nSpecial instructions: #{instructions}", else: ""
 
     body = """
-    Pick-up scheduled!
+    #{title}
 
-    Date: #{date}
-    Time: #{time}
-    Address: #{address}#{instruction_line}
+    #{date_line}#{time_line}Address: #{address}#{instruction_line}
 
     To complete the purchase, use this link once you have your item in hand:
     #{completion_url}
@@ -409,8 +450,8 @@ defmodule ArtsyNeighbor.Orders do
 
     Multi.new()
     |> Multi.update(:order, Order.changeset(order, %{
-      pickup_date: date,
-      pickup_time: time,
+      pickup_date: (if date == "", do: nil, else: date),
+      pickup_time: (if time == "", do: nil, else: time),
       pickup_address: address,
       pickup_instructions: (if instructions == "", do: nil, else: instructions),
       pickup_scheduled_at: now
@@ -498,8 +539,9 @@ defmodule ArtsyNeighbor.Orders do
     Order
     |> where([o], o.conversation_id == ^conversation_id)
     |> where([o], o.status in [:requested, :confirmed])
-    |> order_by([o], desc: o.inserted_at)
+    |> order_by([o], desc: o.inserted_at, desc: o.id)
     |> limit(1)
+    |> preload(:items)
     |> Repo.one()
   end
 
@@ -508,7 +550,7 @@ defmodule ArtsyNeighbor.Orders do
     Order
     |> where([o], o.conversation_id == ^conversation_id)
     |> where([o], o.status in [:requested, :confirmed])
-    |> order_by([o], desc: o.inserted_at)
+    |> order_by([o], desc: o.inserted_at, desc: o.id)
     |> preload(items: [product: :product_images])
     |> Repo.all()
   end
@@ -524,7 +566,7 @@ defmodule ArtsyNeighbor.Orders do
   def list_orders_for_buyer(user_id) do
     Order
     |> where([o], o.buyer_id == ^user_id)
-    |> order_by([o], desc: o.inserted_at)
+    |> order_by([o], desc: o.inserted_at, desc: o.id)
     |> preload([:items])
     |> Repo.all()
   end
@@ -533,7 +575,7 @@ defmodule ArtsyNeighbor.Orders do
   def list_orders_for_artist(artist_id) do
     Order
     |> where([o], o.artist_id == ^artist_id)
-    |> order_by([o], desc: o.inserted_at)
+    |> order_by([o], desc: o.inserted_at, desc: o.id)
     |> preload([:items])
     |> Repo.all()
   end
@@ -545,8 +587,12 @@ defmodule ArtsyNeighbor.Orders do
       quantity: item.quantity, unit_price: item.unit_price}
   end
 
+  # Same as to_spec/1, but for a whole item list.
   defp to_specs(items), do: Enum.map(items, &to_spec/1)
 
+  # Subtotal + a flat 5% platform fee (rounded to the cent) + total, from a
+  # list of %{unit_price, quantity} specs. Shared by create_order and every
+  # do_amend-based mutation so the fee is calculated the same way everywhere.
   defp calculate_totals_from_specs(specs) do
     subtotal =
       Enum.reduce(specs, Decimal.new(0), fn %{unit_price: price, quantity: q}, acc ->
@@ -567,17 +613,22 @@ defmodule ArtsyNeighbor.Orders do
 
   # Internal workhorse for all amendment paths.
   # specs is a list of %{product_id, product_title, quantity, unit_price}.
+  #
+  # Deliberately does NOT reset status or clear complete_token/pickup details.
+  # Item changes commonly happen in person (buyer adds one more piece while
+  # already at the vendor's door for a scheduled pickup) — forcing a fresh
+  # vendor re-confirmation and a brand new completion link for that case would
+  # be pure friction. The safeguard that matters is buyer-facing: the buyer
+  # must see the updated quantity/total before they complete purchase, which
+  # the completion page and order sidebar already show live from the DB.
   defp do_amend(%Order{} = order, specs, actor_type, event_body) do
     {subtotal, platform_fee, total} = calculate_totals_from_specs(specs)
 
     Multi.new()
     |> Multi.update(:order, Order.changeset(order, %{
-      status: :requested,
       subtotal: subtotal,
       platform_fee: platform_fee,
-      total: total,
-      complete_token: nil,
-      complete_token_at: nil
+      total: total
     }))
     |> Multi.run(:delete_items, fn _repo, %{order: updated_order} ->
       Repo.delete_all(from(i in OrderItem, where: i.order_id == ^updated_order.id))
@@ -610,7 +661,7 @@ defmodule ArtsyNeighbor.Orders do
         actor_type: actor_type,
         order_id: updated_order.id,
         from_status: to_string(order.status),
-        to_status: "requested",
+        to_status: to_string(updated_order.status),
         body: event_body
       })
       |> Repo.insert()

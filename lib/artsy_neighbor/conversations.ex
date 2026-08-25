@@ -164,9 +164,13 @@ defmodule ArtsyNeighbor.Conversations do
     Sorted by most recent first.
   """
   def list_events_for_conversation(conversation_id, limit \\ @conversation_events_limit) do
+    # id as a secondary sort key: inserted_at is second-precision, so two
+    # events posted within the same second (a status-change event immediately
+    # followed by another action, which happens routinely) would otherwise
+    # sort arbitrarily relative to each other.
     Repo.all(from e in ConversationEvent,
       where: e.conversation_id == ^conversation_id,
-      order_by: [desc: e.inserted_at],
+      order_by: [desc: e.inserted_at, desc: e.id],
       limit: ^limit)
     |> Enum.reverse()
   end
@@ -179,7 +183,7 @@ defmodule ArtsyNeighbor.Conversations do
   def list_events_before(conversation_id, before_dt, limit \\ @conversation_events_limit) do
     Repo.all(from e in ConversationEvent,
       where: e.conversation_id == ^conversation_id and e.inserted_at < ^before_dt,
-      order_by: [desc: e.inserted_at],
+      order_by: [desc: e.inserted_at, desc: e.id],
       limit: ^limit)
     |> Enum.reverse()
   end
