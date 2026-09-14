@@ -4,10 +4,20 @@ defmodule ArtsyNeighbor.ArtistsTest do
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Orders.Order
+  alias ArtsyNeighbor.Orders.OrderItem
+  alias ArtsyNeighbor.Conversations.Conversation
+  alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Reviews.VendorReview
+  alias ArtsyNeighbor.Reviews.BuyerReview
+  alias ArtsyNeighbor.Reviews.ProductReview
+  alias ArtsyNeighbor.Repo
 
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.AccountsFixtures
   import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighbor.OrdersFixtures
+  import ArtsyNeighbor.ReviewsFixtures
 
   # ---------------------------------------------------------------------------
   # These attrs satisfy activation_changeset (the full-profile changeset).
@@ -143,6 +153,93 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
       # artist_b's product should be untouched
       assert Products.get_product!(product_b.id).status == :available
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # delete_artist/1 — hard delete for admin/testing cleanup. Unlike
+  # remove_artist/1, this permanently removes the artist row plus every
+  # dependent row across orders, order_items, conversations,
+  # conversation_events, and the three review tables — all of which reference
+  # artist/order/product with on_delete: :nothing or :restrict at the DB
+  # level, so the context has to clear them in dependency order itself.
+  # ---------------------------------------------------------------------------
+  describe "delete_artist/1" do
+    test "removes the artist row entirely" do
+      artist = artist_fixture()
+      assert {:ok, _} = Artists.delete_artist(artist)
+      assert Artists.get_artist(artist.id) == nil
+    end
+
+    test "deletes the artist's products" do
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, _} = Artists.delete_artist(artist)
+
+      assert Repo.get(Products.Product, product.id) == nil
+    end
+
+    test "cascades through a full order: order, order item, conversation, conversation event, and all three review types" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      order = order_fixture(%{buyer_id: buyer.id, artist_id: artist.id})
+
+      {:ok, item} =
+        %OrderItem{}
+        |> OrderItem.changeset(%{
+          order_id: order.id,
+          product_id: product.id,
+          quantity: 1,
+          unit_price: "50.00",
+          product_title: product.title
+        })
+        |> Repo.insert()
+
+      {:ok, event} =
+        %ConversationEvent{event_type: :message}
+        |> ConversationEvent.message_changeset(%{
+          actor_type: :buyer,
+          body: "hi",
+          conversation_id: order.conversation_id,
+          actor_id: buyer.id
+        })
+        |> Repo.insert()
+
+      vendor_review =
+        vendor_review_fixture(%{order_id: order.id, artist_id: artist.id, reviewer_id: buyer.id})
+
+      buyer_review =
+        buyer_review_fixture(%{order_id: order.id, buyer_id: buyer.id, reviewer_id: artist.user_id})
+
+      product_review =
+        product_review_fixture(%{order_id: order.id, product_id: product.id, reviewer_id: buyer.id})
+
+      {:ok, _} = Artists.delete_artist(artist)
+
+      assert Repo.get(Order, order.id) == nil
+      assert Repo.get(OrderItem, item.id) == nil
+      assert Repo.get(Conversation, order.conversation_id) == nil
+      assert Repo.get(ConversationEvent, event.id) == nil
+      assert Repo.get(VendorReview, vendor_review.id) == nil
+      assert Repo.get(BuyerReview, buyer_review.id) == nil
+      assert Repo.get(ProductReview, product_review.id) == nil
+    end
+
+    test "does not affect another artist's products, orders, or conversations" do
+      buyer = user_fixture()
+      artist_a = artist_fixture()
+      artist_b = artist_fixture()
+      product_b = product_fixture(%{artist_id: artist_b.id})
+      order_b = order_fixture(%{buyer_id: buyer.id, artist_id: artist_b.id})
+
+      {:ok, _} = Artists.delete_artist(artist_a)
+
+      assert Repo.get(Products.Product, product_b.id) != nil
+      assert Repo.get(Order, order_b.id) != nil
+      assert Artists.get_artist(artist_b.id) != nil
     end
   end
 

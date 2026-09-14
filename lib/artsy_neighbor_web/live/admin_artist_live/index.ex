@@ -32,6 +32,21 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   end
 
   @impl true
+  def handle_event("delete", %{"id" => id}, socket) do
+    artist = Artists.get_artist!(id)
+    {:ok, _} = Artists.delete_artist(artist)
+
+    message = "Artist #{artist.nickname} and all their orders, reviews, and conversations have been permanently deleted."
+
+    socket =
+      socket
+      |> stream_delete(:artists, artist)
+      |> put_flash(:info, message)
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <Layouts.artsy_wide flash={@flash} variant="admin" nav_categories={@nav_categories}>
@@ -152,8 +167,14 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
           </.link>
           <.link phx-click="remove"
                 phx-value-id={artist.id}
-                data-confirm={"Are you sure you want to remove artist #{artist.nickname}? This cannot be undone."}>
-            <button class="btn btn-ghost btn-xs text-error">remove</button>
+                data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed by editing their status."}>
+            <button class="btn btn-ghost btn-xs text-warning">mark removed</button>
+          </.link>
+
+          <.link phx-click="delete"
+                phx-value-id={artist.id}
+                data-confirm={"Permanently delete artist #{artist.nickname}? This will also delete ALL of their orders, order items, conversations, and reviews. This cannot be undone."}>
+            <button class="btn btn-ghost btn-xs text-error">delete</button>
           </.link>
 
           </div>

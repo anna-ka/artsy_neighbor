@@ -36,3 +36,29 @@ May 30, 2026
 Artist profiles
 firstname@example.com email and password DevPassword1!
  
+
+ August 20
+ Perhaps this sort of problem will be easier to find with thorough testing rather than UI: we need to test thoroughly many scenarios of how an order may change: an order maybe be in confirmed and unconfirmed state, a pick up may or may not have been scheduled or rescheduled, a token to pick up may or may not have been issued. In all this scenarios an attempt to modify the order can be made
+
+
+ Sept. 14
+
+ Now, the broader recap after your month off — here's where things stand:
+
+Committed & pushed (29df158, confirmed in sync with origin/main — despite what my notes said last time about it being unpushed):
+
+Full reviews_test.exs (51 tests) and orders_test.exs (68 tests)
+Bug fixes found while writing those: cancel_order status guard, do_amend no longer resets status/token when a vendor edits order items mid-flow, vendor can add items too, default pickup address/instructions, real date/time pickers, plus 6 real bugs (2 in reviews.ex, 4 in orders.ex/conversations.ex)
+Uncommitted right now — the artist hard-delete work above.
+
+The app in broad strokes: a Phoenix LiveView local-art-marketplace. Artists (vendors) onboard, list products, buyers browse and order, pickup gets scheduled, orders complete, then both sides can leave reviews (vendor review, buyer review, per-product review) within a 14-day window. Admin has artist/product/category management. Test suite was at 494/494 (490 + these 4 new ones) last I ran it.
+
+What's next on the list, roughly in priority order:
+
+Flagging page (FlagLive.New at /flag/:subject_type/:subject_id) — reviews already write Flag records but there's no UI to create one yet
+Admin /admin/reviews and /admin/flags pages
+Email scaffolding — buyer gets a completion link by email when vendor schedules pickup (Swoosh is already a dependency)
+Payment options — cash/Interac at door, needs a payment_method field on orders
+Payment scaffolding — Logger stubs for charge/refund functions, Stripe to be wired in later
+Styling pass, multi-item cart, delivery-completion flow — all explicitly deferred
+Want me to commit this artist-delete work now, or hold off while you look things over?

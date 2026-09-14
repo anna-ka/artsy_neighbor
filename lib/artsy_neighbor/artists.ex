@@ -11,6 +11,13 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
   alias ArtsyNeighbor.Products.Product
+  alias ArtsyNeighbor.Orders.Order
+  alias ArtsyNeighbor.Orders.OrderItem
+  alias ArtsyNeighbor.Conversations.Conversation
+  alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Reviews.VendorReview
+  alias ArtsyNeighbor.Reviews.BuyerReview
+  alias ArtsyNeighbor.Reviews.ProductReview
 
   @doc "The name of the default collection created for every new artist."
   def default_collection_name, do: "Uncategorized"
@@ -299,6 +306,38 @@ defmodule ArtsyNeighbor.Artists do
       )
       case artist |> Artist.status_changeset(%{status: :removed}) |> Repo.update() do
         {:ok, updated} -> Repo.preload(updated, [:artist_images])
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Permanently deletes an artist and everything that depends on them: orders,
+  order items, conversations, conversation events, and any reviews tied to
+  those orders/products. Product collections and artist images cascade at the
+  DB level. Intended for admin/testing cleanup — for a normal "take this
+  vendor down" action use remove_artist/1 instead, which is reversible.
+  """
+  def delete_artist(%Artist{} = artist) do
+    Repo.transaction(fn ->
+      order_ids = from(o in Order, where: o.artist_id == ^artist.id, select: o.id) |> Repo.all()
+      product_ids = from(p in Product, where: p.artist_id == ^artist.id, select: p.id) |> Repo.all()
+      conversation_ids = from(c in Conversation, where: c.artist_id == ^artist.id, select: c.id) |> Repo.all()
+
+      from(ce in ConversationEvent,
+        where: ce.order_id in ^order_ids or ce.conversation_id in ^conversation_ids)
+      |> Repo.delete_all()
+
+      from(vr in VendorReview, where: vr.artist_id == ^artist.id) |> Repo.delete_all()
+      from(pr in ProductReview, where: pr.order_id in ^order_ids or pr.product_id in ^product_ids) |> Repo.delete_all()
+      from(br in BuyerReview, where: br.order_id in ^order_ids) |> Repo.delete_all()
+      from(oi in OrderItem, where: oi.order_id in ^order_ids) |> Repo.delete_all()
+      from(o in Order, where: o.id in ^order_ids) |> Repo.delete_all()
+      from(c in Conversation, where: c.id in ^conversation_ids) |> Repo.delete_all()
+      from(p in Product, where: p.id in ^product_ids) |> Repo.delete_all()
+
+      case Repo.delete(artist) do
+        {:ok, deleted} -> deleted
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
