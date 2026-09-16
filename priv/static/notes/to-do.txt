@@ -62,3 +62,7 @@ Payment options — cash/Interac at door, needs a payment_method field on orders
 Payment scaffolding — Logger stubs for charge/refund functions, Stripe to be wired in later
 Styling pass, multi-item cart, delivery-completion flow — all explicitly deferred
 Want me to commit this artist-delete work now, or hold off while you look things over?
+
+
+
+On the UI/looks overhaul — no rush, but when you're ready there's a dataviz/artifact-design-adjacent design skill setup I can walk you through, and it's the kind of task worth not clearing mid-stream since visual iteration benefits from me seeing the history of what you liked/rejected. Good candidate for its own long-lived session rather than folding into general dev work.

@@ -12,12 +12,10 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Products.ProductCollection
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Orders.Order
-  alias ArtsyNeighbor.Orders.OrderItem
-  alias ArtsyNeighbor.Conversations.Conversation
-  alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
   alias ArtsyNeighbor.Reviews.ProductReview
+  alias ArtsyNeighbor.Reviews.Flag
 
   @doc "The name of the default collection created for every new artist."
   def default_collection_name, do: "Uncategorized"
@@ -59,7 +57,14 @@ defmodule ArtsyNeighbor.Artists do
   """
   def list_artists_all_status do
     Artist
-    |> order_by([a], fragment("CASE WHEN ? = 'active' THEN 0 WHEN ? = 'inactive' THEN 1 ELSE 2 END", a.status, a.status))
+    |> order_by(
+      [a],
+      fragment(
+        "CASE WHEN ? = 'active' THEN 0 WHEN ? = 'inactive' THEN 1 ELSE 2 END",
+        a.status,
+        a.status
+      )
+    )
     |> order_by([a], asc: a.nickname)
     |> Repo.all()
     |> Repo.preload([:artist_images])
@@ -87,15 +92,15 @@ defmodule ArtsyNeighbor.Artists do
   """
   def filter_artists_by_medium(medium) do
     search_term = "%#{medium}%"
+
     Artist
-    |> where([a], fragment("EXISTS (SELECT 1 FROM unnest(?) AS m WHERE m ILIKE ?)", a.medium, ^search_term))
+    |> where(
+      [a],
+      fragment("EXISTS (SELECT 1 FROM unnest(?) AS m WHERE m ILIKE ?)", a.medium, ^search_term)
+    )
     |> Repo.all()
     |> Repo.preload([:artist_images])
   end
-
-
-
-
 
   @doc """
   Filters artists based on provided parameters.
@@ -109,11 +114,10 @@ defmodule ArtsyNeighbor.Artists do
       iex> filter_artists(%{"q_name" => "Elena", "q_medium" => "Oil"})
       [%Artist{}, ...]
   """
-  def filter_artists(filter_params ) do
-
-    q_name = String.trim( filter_params["q_name"] || "")
-    q_medium = String.trim( filter_params["q_medium"] || "")
-    sort_term = String.trim( filter_params["sort_by"] || "" )
+  def filter_artists(filter_params) do
+    q_name = String.trim(filter_params["q_name"] || "")
+    q_medium = String.trim(filter_params["q_medium"] || "")
+    sort_term = String.trim(filter_params["sort_by"] || "")
 
     Artist
     |> with_status(:active)
@@ -122,47 +126,48 @@ defmodule ArtsyNeighbor.Artists do
     |> sort_by(sort_term)
     |> Repo.all()
     |> Repo.preload([:artist_images])
-
   end
 
   @doc """
   Filters artists by medium if provided.
   """
   def with_medium(query, q_medium)
-    when (is_binary(q_medium) and q_medium != "") do
-      search_term = "%#{q_medium}%"
+      when is_binary(q_medium) and q_medium != "" do
+    search_term = "%#{q_medium}%"
 
-      query
-      |> where([a], fragment("EXISTS (SELECT 1 FROM unnest(?) AS m WHERE m ILIKE ?)", a.medium, ^search_term))
+    query
+    |> where(
+      [a],
+      fragment("EXISTS (SELECT 1 FROM unnest(?) AS m WHERE m ILIKE ?)", a.medium, ^search_term)
+    )
   end
 
   def with_medium(query, _), do: query
-
 
   @doc """
   Filters artists by nickname if provided.
   """
   def with_nickname(query, nickname)
-    when (is_binary(nickname) and nickname != "") do
-      search_term = "%#{nickname}%"
+      when is_binary(nickname) and nickname != "" do
+    search_term = "%#{nickname}%"
 
-      query
-      |> where([a], ilike(a.nickname, ^search_term))
+    query
+    |> where([a], ilike(a.nickname, ^search_term))
   end
 
   def with_nickname(query, _), do: query
 
-  def sort_by(query, "area_code")  do
+  def sort_by(query, "area_code") do
     query
     |> order_by(asc: :area_code)
   end
 
-  def sort_by(query, "nickname")  do
+  def sort_by(query, "nickname") do
     query
     |> order_by(asc: :nickname)
   end
 
-  def sort_by(query, "main_medium")  do
+  def sort_by(query, "main_medium") do
     query
     |> order_by([a], fragment("?[1]", a.medium))
   end
@@ -185,7 +190,6 @@ defmodule ArtsyNeighbor.Artists do
     Repo.get(Artist, id)
     |> Repo.preload([:artist_images])
   end
-
 
   @doc """
   Gets a single artist by artist ID, bang version.
@@ -296,7 +300,8 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Marks an artist as :removed and sets all their products to :unavailable.
-  Artists are never hard-deleted — they are permanent records.
+  Under normal circumstances Artists are never hard-deleted — they are permanent records.
+  For exceptions (admin/testing cleanup) see delete_artist/1 below, which is irreversible and cascades to all dependent records.
   """
   def remove_artist(%Artist{} = artist) do
     Repo.transaction(fn ->
@@ -304,6 +309,7 @@ defmodule ArtsyNeighbor.Artists do
         from(p in Product, where: p.artist_id == ^artist.id),
         set: [status: "unavailable", updated_at: DateTime.utc_now() |> DateTime.truncate(:second)]
       )
+
       case artist |> Artist.status_changeset(%{status: :removed}) |> Repo.update() do
         {:ok, updated} -> Repo.preload(updated, [:artist_images])
         {:error, changeset} -> Repo.rollback(changeset)
@@ -312,35 +318,91 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Permanently deletes an artist and everything that depends on them: orders,
-  order items, conversations, conversation events, and any reviews tied to
-  those orders/products. Product collections and artist images cascade at the
-  DB level. Intended for admin/testing cleanup — for a normal "take this
-  vendor down" action use remove_artist/1 instead, which is reversible.
+  Permanently deletes an artist and everything that depends on them. Orders,
+  order items, conversations, conversation events, products (and their
+  images/options), product collections, artist images, and all three review
+  types cascade at the DB level (see the
+  `cascade_artist_delete_fks` migration). The one exception is `Flag` —
+  `subject_id` is a polymorphic reference (it can point at an artist or at
+  any of three review tables depending on `subject_type`), so Postgres can't
+  enforce a real FK on it and this function still cleans flags up by hand.
+
+  Intended for admin/testing cleanup — for a normal "take this vendor down"
+  action use remove_artist/1 instead, which is reversible.
+
+  For routine removal of artists, use remove_artist/1 instead. The current function is for admin/testing cleanup and is irreversible. remove_artist/1 only flag an artist as removed.
   """
   def delete_artist(%Artist{} = artist) do
-    Repo.transaction(fn ->
-      order_ids = from(o in Order, where: o.artist_id == ^artist.id, select: o.id) |> Repo.all()
-      product_ids = from(p in Product, where: p.artist_id == ^artist.id, select: p.id) |> Repo.all()
-      conversation_ids = from(c in Conversation, where: c.artist_id == ^artist.id, select: c.id) |> Repo.all()
-
-      from(ce in ConversationEvent,
-        where: ce.order_id in ^order_ids or ce.conversation_id in ^conversation_ids)
-      |> Repo.delete_all()
-
-      from(vr in VendorReview, where: vr.artist_id == ^artist.id) |> Repo.delete_all()
-      from(pr in ProductReview, where: pr.order_id in ^order_ids or pr.product_id in ^product_ids) |> Repo.delete_all()
-      from(br in BuyerReview, where: br.order_id in ^order_ids) |> Repo.delete_all()
-      from(oi in OrderItem, where: oi.order_id in ^order_ids) |> Repo.delete_all()
-      from(o in Order, where: o.id in ^order_ids) |> Repo.delete_all()
-      from(c in Conversation, where: c.id in ^conversation_ids) |> Repo.delete_all()
-      from(p in Product, where: p.id in ^product_ids) |> Repo.delete_all()
-
-      case Repo.delete(artist) do
-        {:ok, deleted} -> deleted
-        {:error, changeset} -> Repo.rollback(changeset)
-      end
+    Multi.new()
+    |> Multi.run(:locked_artist, fn repo, _changes ->
+      # Lock the artist row for the duration of this transaction. Postgres
+      # takes a FOR KEY SHARE lock on the referenced row for every
+      # FK-checked insert, so holding FOR UPDATE here blocks any concurrent
+      # insert of an order/conversation/review against this artist_id until
+      # we commit or roll back.
+      {:ok, repo.one!(from(a in Artist, where: a.id == ^artist.id, lock: "FOR UPDATE"))}
     end)
+    |> Multi.run(:flag_subject_ids, fn repo, %{locked_artist: locked_artist} ->
+      # Collected up front, before anything cascades away, so we still know
+      # which review ids belonged to this artist once they're gone.
+      order_ids =
+        repo.all(from(o in Order, where: o.artist_id == ^locked_artist.id, select: o.id))
+
+      product_ids =
+        repo.all(from(p in Product, where: p.artist_id == ^locked_artist.id, select: p.id))
+
+      vendor_review_ids =
+        repo.all(
+          from(vr in VendorReview, where: vr.artist_id == ^locked_artist.id, select: vr.id)
+        )
+
+      buyer_review_ids =
+        repo.all(from(br in BuyerReview, where: br.order_id in ^order_ids, select: br.id))
+
+      product_review_ids =
+        repo.all(
+          from(pr in ProductReview,
+            where: pr.order_id in ^order_ids or pr.product_id in ^product_ids,
+            select: pr.id
+          )
+        )
+
+      {:ok,
+       %{
+         vendor: [locked_artist.id],
+         vendor_review_of: vendor_review_ids,
+         buyer_review_of: buyer_review_ids,
+         product_review_of: product_review_ids
+       }}
+    end)
+    |> Multi.run(:deleted_flags, fn repo, %{flag_subject_ids: ids} ->
+      {count, _} =
+        repo.delete_all(
+          from(f in Flag,
+            where:
+              (f.subject_type == "vendor" and f.subject_id in ^ids.vendor) or
+                (f.subject_type == "vendor_review_of" and f.subject_id in ^ids.vendor_review_of) or
+                (f.subject_type == "buyer_review_of" and f.subject_id in ^ids.buyer_review_of) or
+                (f.subject_type == "product_review_of" and f.subject_id in ^ids.product_review_of)
+          )
+        )
+
+      {:ok, count}
+    end)
+    |> Multi.run(:deleted_artist, fn repo, %{locked_artist: locked_artist} ->
+      repo.delete(locked_artist)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{deleted_artist: deleted}} -> {:ok, deleted}
+      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
+    end
+  rescue
+    error in [Ecto.ConstraintError, Postgrex.Error] ->
+      # A constraint violation Multi's own {:error, ...} tuple can't catch
+      # (e.g. a row we didn't know to account for) — fail cleanly instead of
+      # letting the exception propagate and crash the caller.
+      {:error, {:constraint_error, Exception.message(error)}}
   end
 
   @doc """
@@ -389,7 +451,4 @@ defmodule ArtsyNeighbor.Artists do
   def delete_artist_image(%ArtistImage{} = artist_image) do
     Repo.delete(artist_image)
   end
-
-
-
 end

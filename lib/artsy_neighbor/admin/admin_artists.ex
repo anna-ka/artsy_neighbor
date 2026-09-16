@@ -1,5 +1,4 @@
 defmodule ArtsyNeighbor.Admin.AdminArtists do
-
   @moduledoc """
   Admin context module for managing artists.
   """
@@ -24,6 +23,14 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
     |> Repo.all()
   end
 
+  @doc """
+  Returns every artist regardless of status, sorted active → inactive →
+  removed, then nickname. Used by the admin artist index.
+  """
+  def list_artists_all_status do
+    Artists.list_artists_all_status()
+  end
+
   def create_artist(attrs \\ %{}) do
     Artists.create_artist(attrs)
   end
@@ -36,7 +43,7 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   def get_artist!(id) do
-    Repo.get!(Artist, id)
+    Artists.get_artist!(id)
   end
 
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
@@ -45,8 +52,18 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
     |> Repo.update()
   end
 
-  def delete_artist(%Artist{} = artist) do
-    Repo.delete(artist)
+  @doc """
+  Marks an artist as removed (soft, reversible). See Artists.remove_artist/1.
+  """
+  def remove_artist(%Artist{} = artist) do
+    Artists.remove_artist(artist)
   end
 
+  @doc """
+  Permanently deletes an artist and everything that depends on them. See
+  Artists.delete_artist/1.
+  """
+  def delete_artist(%Artist{} = artist) do
+    Artists.delete_artist(artist)
+  end
 end

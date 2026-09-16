@@ -8,9 +8,11 @@ defmodule ArtsyNeighbor.ArtistsTest do
   alias ArtsyNeighbor.Orders.OrderItem
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Reviews
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
   alias ArtsyNeighbor.Reviews.ProductReview
+  alias ArtsyNeighbor.Reviews.Flag
   alias ArtsyNeighbor.Repo
 
   import ArtsyNeighbor.ArtistsFixtures
@@ -30,7 +32,8 @@ defmodule ArtsyNeighbor.ArtistsTest do
     first_name: "Vincent",
     last_name: "Artist",
     phone: "416-555-1234",
-    bio: "This is a valid bio for testing purposes. It is written to be at least 75 characters long.",
+    bio:
+      "This is a valid bio for testing purposes. It is written to be at least 75 characters long.",
     email: "vincent@example.com",
     street_address: "123 Test Street",
     area_code: "M5H 2N2",
@@ -74,18 +77,18 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "list_artists_all_status/0" do
     test "returns artists of all statuses" do
-      _active   = artist_fixture(%{status: :active})
+      _active = artist_fixture(%{status: :active})
       _inactive = artist_fixture(%{status: :inactive})
-      _removed  = artist_fixture(%{status: :removed})
+      _removed = artist_fixture(%{status: :removed})
       result = Artists.list_artists_all_status()
       assert length(result) == 3
     end
 
     test "sorts active first, then inactive, then removed" do
       # Create out of alphabetical/insertion order to be sure sort is by status, not insertion
-      removed  = artist_fixture(%{status: :removed,  nickname: "Zara"})
+      removed = artist_fixture(%{status: :removed, nickname: "Zara"})
       inactive = artist_fixture(%{status: :inactive, nickname: "Marco"})
-      active   = artist_fixture(%{status: :active,   nickname: "Elena"})
+      active = artist_fixture(%{status: :active, nickname: "Elena"})
 
       ids = Artists.list_artists_all_status() |> Enum.map(& &1.id)
       assert ids == [active.id, inactive.id, removed.id]
@@ -96,7 +99,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       a_artist = artist_fixture(%{status: :active, nickname: "Anna"})
 
       [first, second] = Artists.list_artists_all_status()
-      assert first.id  == a_artist.id
+      assert first.id == a_artist.id
       assert second.id == b_artist.id
     end
 
@@ -212,10 +215,18 @@ defmodule ArtsyNeighbor.ArtistsTest do
         vendor_review_fixture(%{order_id: order.id, artist_id: artist.id, reviewer_id: buyer.id})
 
       buyer_review =
-        buyer_review_fixture(%{order_id: order.id, buyer_id: buyer.id, reviewer_id: artist.user_id})
+        buyer_review_fixture(%{
+          order_id: order.id,
+          buyer_id: buyer.id,
+          reviewer_id: artist.user_id
+        })
 
       product_review =
-        product_review_fixture(%{order_id: order.id, product_id: product.id, reviewer_id: buyer.id})
+        product_review_fixture(%{
+          order_id: order.id,
+          product_id: product.id,
+          reviewer_id: buyer.id
+        })
 
       {:ok, _} = Artists.delete_artist(artist)
 
@@ -241,6 +252,101 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Repo.get(Order, order_b.id) != nil
       assert Artists.get_artist(artist_b.id) != nil
     end
+
+    # Flag.subject_id is a polymorphic reference (no real DB-level FK — it
+    # can point at an artist or at any of three review tables depending on
+    # subject_type), so delete_artist/1 has to clean these up by hand rather
+    # than relying on a cascade. These tests exist specifically to catch a
+    # regression there.
+    test "deletes flags reporting the artist directly" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "vendor",
+          subject_id: artist.id,
+          reason: "This vendor never showed up for the scheduled pickup.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Artists.delete_artist(artist)
+
+      assert Repo.get(Flag, flag.id) == nil
+    end
+
+    test "deletes flags reporting a vendor, buyer, or product review tied to the artist" do
+      buyer = user_fixture()
+      reporter = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      order = order_fixture(%{buyer_id: buyer.id, artist_id: artist.id})
+
+      vendor_review =
+        vendor_review_fixture(%{order_id: order.id, artist_id: artist.id, reviewer_id: buyer.id})
+
+      buyer_review =
+        buyer_review_fixture(%{
+          order_id: order.id,
+          buyer_id: buyer.id,
+          reviewer_id: artist.user_id
+        })
+
+      product_review =
+        product_review_fixture(%{
+          order_id: order.id,
+          product_id: product.id,
+          reviewer_id: buyer.id
+        })
+
+      {:ok, vendor_review_flag} =
+        Reviews.create_flag(%{
+          subject_type: "vendor_review_of",
+          subject_id: vendor_review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, buyer_review_flag} =
+        Reviews.create_flag(%{
+          subject_type: "buyer_review_of",
+          subject_id: buyer_review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, product_review_flag} =
+        Reviews.create_flag(%{
+          subject_type: "product_review_of",
+          subject_id: product_review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Artists.delete_artist(artist)
+
+      assert Repo.get(Flag, vendor_review_flag.id) == nil
+      assert Repo.get(Flag, buyer_review_flag.id) == nil
+      assert Repo.get(Flag, product_review_flag.id) == nil
+    end
+
+    test "does not delete a flag belonging to another artist" do
+      reporter = user_fixture()
+      artist_a = artist_fixture()
+      artist_b = artist_fixture()
+
+      {:ok, unrelated_flag} =
+        Reviews.create_flag(%{
+          subject_type: "vendor",
+          subject_id: artist_b.id,
+          reason: "Unrelated flag against a different vendor entirely.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Artists.delete_artist(artist_a)
+
+      assert Repo.get(Flag, unrelated_flag.id) != nil
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -258,16 +364,17 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "inserts a new artist and creates the default collection when artist has no id" do
       user = user_fixture()
 
-      changeset = Artists.registration_change_artist(%Artist{}, %{
-        nickname: "Newbie",
-        first_name: "Test",
-        last_name: "Artist",
-        phone: "416-555-1234",
-        email: "newbie@example.com",
-        street_address: "100 Test St",
-        area_code: "M5H 2N2",
-        user_id: user.id
-      })
+      changeset =
+        Artists.registration_change_artist(%Artist{}, %{
+          nickname: "Newbie",
+          first_name: "Test",
+          last_name: "Artist",
+          phone: "416-555-1234",
+          email: "newbie@example.com",
+          street_address: "100 Test St",
+          area_code: "M5H 2N2",
+          user_id: user.id
+        })
 
       assert {:ok, artist} = Artists.save_onboarding_progress(changeset, 1)
 
@@ -279,16 +386,17 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "stamps the given step value onto the artist" do
       user = user_fixture()
 
-      changeset = Artists.registration_change_artist(%Artist{}, %{
-        nickname: "Steppy",
-        first_name: "Test",
-        last_name: "Artist",
-        phone: "416-555-1234",
-        email: "steppy@example.com",
-        street_address: "100 Test St",
-        area_code: "M5H 2N2",
-        user_id: user.id
-      })
+      changeset =
+        Artists.registration_change_artist(%Artist{}, %{
+          nickname: "Steppy",
+          first_name: "Test",
+          last_name: "Artist",
+          phone: "416-555-1234",
+          email: "steppy@example.com",
+          street_address: "100 Test St",
+          area_code: "M5H 2N2",
+          user_id: user.id
+        })
 
       assert {:ok, artist} = Artists.save_onboarding_progress(changeset, 1)
       assert artist.onboarding_step == 1
@@ -325,16 +433,19 @@ defmodule ArtsyNeighbor.ArtistsTest do
   describe "onboarding flow — registration_changeset (step 1)" do
     test "succeeds with only step-1 fields — bio and medium are not required" do
       user = user_fixture()
-      changeset = Artists.registration_change_artist(%Artist{}, %{
-        nickname: "EarlyBird",
-        first_name: "Test",
-        last_name: "Artist",
-        phone: "416-555-1234",
-        email: "early@example.com",
-        street_address: "100 Test St",
-        area_code: "M5H 2N2",
-        user_id: user.id
-      })
+
+      changeset =
+        Artists.registration_change_artist(%Artist{}, %{
+          nickname: "EarlyBird",
+          first_name: "Test",
+          last_name: "Artist",
+          phone: "416-555-1234",
+          email: "early@example.com",
+          street_address: "100 Test St",
+          area_code: "M5H 2N2",
+          user_id: user.id
+        })
+
       assert changeset.valid?
     end
 
@@ -401,7 +512,9 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
     # A bio that is too short fails even if it is present — we require substance.
     test "fails when bio is too short (under 75 characters)" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :bio, "Too short."))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :bio, "Too short."))
+
       assert errors_on(changeset).bio != []
     end
 
@@ -418,6 +531,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
         area_code: "M5H 2N2"
         # bio and medium intentionally omitted — simulates step 1 → step 3 jump
       }
+
       changeset = Artist.activation_changeset(%Artist{}, step1_attrs)
       refute changeset.valid?
       assert errors_on(changeset).bio != []
@@ -534,7 +648,10 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "filters by medium" do
       artist = artist_fixture(%{medium: ["Watercolor"]})
       _other = artist_fixture(%{medium: ["Sculpture"]})
-      result = Artists.filter_artists(%{"q_name" => "", "q_medium" => "Watercolor", "sort_by" => ""})
+
+      result =
+        Artists.filter_artists(%{"q_name" => "", "q_medium" => "Watercolor", "sort_by" => ""})
+
       assert result == [artist]
     end
 
@@ -637,7 +754,9 @@ defmodule ArtsyNeighbor.ArtistsTest do
     end
 
     test "requires street_address" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :street_address, nil))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :street_address, nil))
+
       assert "can't be blank" in errors_on(changeset).street_address
     end
 
@@ -667,12 +786,22 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - length validations" do
     test "rejects bio shorter than 75 characters" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :bio, String.duplicate("a", 74)))
+      changeset =
+        Artist.activation_changeset(
+          %Artist{},
+          Map.put(@valid_attrs, :bio, String.duplicate("a", 74))
+        )
+
       assert errors_on(changeset).bio != []
     end
 
     test "accepts bio of exactly 75 characters" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :bio, String.duplicate("a", 75)))
+      changeset =
+        Artist.activation_changeset(
+          %Artist{},
+          Map.put(@valid_attrs, :bio, String.duplicate("a", 75))
+        )
+
       assert changeset.valid?
     end
 
@@ -702,17 +831,23 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - email validation" do
     test "accepts valid email" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "test@example.com"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "test@example.com"))
+
       assert changeset.valid?
     end
 
     test "rejects email without @ sign" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "notanemail"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "notanemail"))
+
       assert errors_on(changeset).email != []
     end
 
     test "rejects email without domain extension" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "user@nodot"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :email, "user@nodot"))
+
       assert errors_on(changeset).email != []
     end
   end
@@ -722,22 +857,30 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - phone validation" do
     test "accepts standard North American format with dashes" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "416-555-1234"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "416-555-1234"))
+
       assert changeset.valid?
     end
 
     test "accepts format with parentheses" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "(416) 555-1234"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "(416) 555-1234"))
+
       assert changeset.valid?
     end
 
     test "accepts format with country code" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "+1-416-555-1234"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "+1-416-555-1234"))
+
       assert changeset.valid?
     end
 
     test "rejects non-numeric phone" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "not-a-phone"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :phone, "not-a-phone"))
+
       assert errors_on(changeset).phone != []
     end
   end
@@ -750,7 +893,12 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - announcement" do
     test "accepts announcement text and active flag" do
-      attrs = Map.merge(@valid_attrs, %{announcement: "Studio open this weekend!", announcement_active: true})
+      attrs =
+        Map.merge(@valid_attrs, %{
+          announcement: "Studio open this weekend!",
+          announcement_active: true
+        })
+
       changeset = Artist.activation_changeset(%Artist{}, attrs)
       assert changeset.valid?
     end
@@ -761,20 +909,28 @@ defmodule ArtsyNeighbor.ArtistsTest do
     end
 
     test "allows announcement to be nil (vendor hasn't set one)" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, nil))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, nil))
+
       assert changeset.valid?
     end
 
     # 100 characters is the hard limit — anything longer would break the banner layout
     test "rejects announcement over 100 characters" do
       long_text = String.duplicate("x", 101)
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, long_text))
+
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, long_text))
+
       assert errors_on(changeset).announcement != []
     end
 
     test "accepts announcement of exactly 100 characters" do
       text = String.duplicate("x", 100)
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, text))
+
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :announcement, text))
+
       assert changeset.valid?
     end
   end
@@ -854,29 +1010,36 @@ defmodule ArtsyNeighbor.ArtistsTest do
     end
 
     test "accepts delivery_info with matching keys" do
-      attrs = Map.merge(@valid_attrs, %{
-        delivery_options: ["pickup", "shipping"],
-        delivery_info: %{"pickup" => "By appointment", "shipping" => "Canada Post only"}
-      })
+      attrs =
+        Map.merge(@valid_attrs, %{
+          delivery_options: ["pickup", "shipping"],
+          delivery_info: %{"pickup" => "By appointment", "shipping" => "Canada Post only"}
+        })
+
       changeset = Artist.activation_changeset(%Artist{}, attrs)
       assert changeset.valid?
     end
 
     test "rejects delivery_info with keys not in delivery_options" do
-      attrs = Map.merge(@valid_attrs, %{
-        delivery_options: ["pickup"],
-        delivery_info: %{"shipping" => "some note"}
-      })
+      attrs =
+        Map.merge(@valid_attrs, %{
+          delivery_options: ["pickup"],
+          delivery_info: %{"shipping" => "some note"}
+        })
+
       changeset = Artist.activation_changeset(%Artist{}, attrs)
       assert errors_on(changeset).delivery_info != []
     end
 
     test "rejects delivery note longer than 500 characters" do
       long_note = String.duplicate("x", 501)
-      attrs = Map.merge(@valid_attrs, %{
-        delivery_options: ["pickup"],
-        delivery_info: %{"pickup" => long_note}
-      })
+
+      attrs =
+        Map.merge(@valid_attrs, %{
+          delivery_options: ["pickup"],
+          delivery_info: %{"pickup" => long_note}
+        })
+
       changeset = Artist.activation_changeset(%Artist{}, attrs)
       assert errors_on(changeset).delivery_info != []
     end
@@ -887,22 +1050,39 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - social links" do
     test "accepts valid homepage URL" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :homepage, "https://www.example.com"))
+      changeset =
+        Artist.activation_changeset(
+          %Artist{},
+          Map.put(@valid_attrs, :homepage, "https://www.example.com")
+        )
+
       assert changeset.valid?
     end
 
     test "rejects malformed homepage URL" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :homepage, "not a url"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :homepage, "not a url"))
+
       assert errors_on(changeset).homepage != []
     end
 
     test "accepts valid instagram URL" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :instagram, "https://instagram.com/myprofile"))
+      changeset =
+        Artist.activation_changeset(
+          %Artist{},
+          Map.put(@valid_attrs, :instagram, "https://instagram.com/myprofile")
+        )
+
       assert changeset.valid?
     end
 
     test "accepts valid facebook URL" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :facebook, "https://facebook.com/mypage"))
+      changeset =
+        Artist.activation_changeset(
+          %Artist{},
+          Map.put(@valid_attrs, :facebook, "https://facebook.com/mypage")
+        )
+
       assert changeset.valid?
     end
 
@@ -918,27 +1098,37 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   describe "Artist changeset - area_code (Canadian postal code) validation" do
     test "accepts postal code with space" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "M5H 2N2"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "M5H 2N2"))
+
       assert changeset.valid?
     end
 
     test "accepts postal code without space" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "M5H2N2"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "M5H2N2"))
+
       assert changeset.valid?
     end
 
     test "accepts lowercase postal code" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "m5h2n2"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "m5h2n2"))
+
       assert changeset.valid?
     end
 
     test "rejects US ZIP code format" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "10001"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "10001"))
+
       assert errors_on(changeset).area_code != []
     end
 
     test "rejects postal code with wrong letter/digit pattern" do
-      changeset = Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "MM5 2N2"))
+      changeset =
+        Artist.activation_changeset(%Artist{}, Map.put(@valid_attrs, :area_code, "MM5 2N2"))
+
       assert errors_on(changeset).area_code != []
     end
   end
@@ -949,7 +1139,10 @@ defmodule ArtsyNeighbor.ArtistsTest do
   describe "ArtistImage context" do
     test "create_artist_image/2 creates an image for an artist" do
       artist = artist_fixture()
-      assert {:ok, image} = Artists.create_artist_image(artist, %{path: "/uploads/test.jpg", position: 1})
+
+      assert {:ok, image} =
+               Artists.create_artist_image(artist, %{path: "/uploads/test.jpg", position: 1})
+
       assert image.path == "/uploads/test.jpg"
       assert image.position == 1
       assert image.artist_id == artist.id
@@ -966,9 +1159,9 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
     test "get_images_for_artist/1 returns only images for the given artist" do
       artist = artist_fixture()
-      other  = artist_fixture()
-      {:ok, _} = Artists.create_artist_image(artist, %{path: "/uploads/mine.jpg",   position: 1})
-      {:ok, _} = Artists.create_artist_image(other,  %{path: "/uploads/theirs.jpg", position: 1})
+      other = artist_fixture()
+      {:ok, _} = Artists.create_artist_image(artist, %{path: "/uploads/mine.jpg", position: 1})
+      {:ok, _} = Artists.create_artist_image(other, %{path: "/uploads/theirs.jpg", position: 1})
       images = Artists.get_images_for_artist(artist)
       assert length(images) == 1
       assert hd(images).path == "/uploads/mine.jpg"
@@ -976,17 +1169,25 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
     test "swap_image_positions/2 swaps positions of two images" do
       artist = artist_fixture()
-      {:ok, img1} = Artists.create_artist_image(artist, %{path: "/uploads/first.jpg",  position: 1})
-      {:ok, img2} = Artists.create_artist_image(artist, %{path: "/uploads/second.jpg", position: 2})
+
+      {:ok, img1} =
+        Artists.create_artist_image(artist, %{path: "/uploads/first.jpg", position: 1})
+
+      {:ok, img2} =
+        Artists.create_artist_image(artist, %{path: "/uploads/second.jpg", position: 2})
+
       assert {:ok, _} = Artists.swap_image_positions(img1, img2)
       [reloaded_first, reloaded_second] = Artists.get_images_for_artist(artist)
-      assert reloaded_first.path  == "/uploads/second.jpg"
+      assert reloaded_first.path == "/uploads/second.jpg"
       assert reloaded_second.path == "/uploads/first.jpg"
     end
 
     test "delete_artist_image/1 removes the image" do
       artist = artist_fixture()
-      {:ok, image} = Artists.create_artist_image(artist, %{path: "/uploads/gone.jpg", position: 1})
+
+      {:ok, image} =
+        Artists.create_artist_image(artist, %{path: "/uploads/gone.jpg", position: 1})
+
       assert {:ok, _} = Artists.delete_artist_image(image)
       assert Artists.get_images_for_artist(artist) == []
     end

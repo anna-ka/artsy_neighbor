@@ -1,25 +1,23 @@
 defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
-
-
   use ArtsyNeighborWeb, :live_view
 
-  alias ArtsyNeighbor.Artists
+  alias ArtsyNeighbor.Admin.AdminArtists
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1, back: 1]
-
 
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign( :page_title, "Admin - Artists")
-      |> stream(:artists, Artists.list_artists_all_status())
+      |> assign(:page_title, "Admin - Artists")
+      |> stream(:artists, AdminArtists.list_artists_all_status())
+
     {:ok, socket}
   end
 
   @impl true
   def handle_event("remove", %{"id" => id}, socket) do
-    artist = Artists.get_artist!(id)
-    {:ok, updated_artist} = Artists.remove_artist(artist)
+    artist = AdminArtists.get_artist!(id)
+    {:ok, updated_artist} = AdminArtists.remove_artist(artist)
 
     message = "Artist #{artist.nickname} has been marked as removed."
 
@@ -31,17 +29,39 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:noreply, socket}
   end
 
+  # Permanently deletes an artist via AdminArtists.delete_artist/1 (which
+  # delegates to Artists.delete_artist/1) — a hard delete, unlike the
+  # "remove" handler above. This also destroys every order, order item,
+  # conversation, conversation event, and review tied to this artist; there
+  # is no undo. It's meant for admin/testing cleanup, not the normal "take
+  # this vendor down" action — that's "remove", which just flips status and
+  # is fully reversible. The confirm dialog in the template spells this out
+  # to the admin before the event ever fires.
+  #
+  # delete_artist/1 can return {:error, _} (e.g. new activity for this
+  # artist landed between page load and this click) rather than crashing —
+  # handled below with a flash instead of a MatchError.
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    artist = Artists.get_artist!(id)
-    {:ok, _} = Artists.delete_artist(artist)
-
-    message = "Artist #{artist.nickname} and all their orders, reviews, and conversations have been permanently deleted."
+    artist = AdminArtists.get_artist!(id)
 
     socket =
-      socket
-      |> stream_delete(:artists, artist)
-      |> put_flash(:info, message)
+      case AdminArtists.delete_artist(artist) do
+        {:ok, _deleted} ->
+          message =
+            "Artist #{artist.nickname} and all their orders, reviews, and conversations have been permanently deleted."
+
+          socket
+          |> stream_delete(:artists, artist)
+          |> put_flash(:info, message)
+
+        {:error, _reason} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not delete #{artist.nickname} — they may have new activity since this page loaded. Please refresh and try again."
+          )
+      end
 
     {:noreply, socket}
   end
@@ -50,145 +70,144 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.artsy_wide flash={@flash} variant="admin" nav_categories={@nav_categories}>
+      <div class="admin-index">
+        <div>
+          <.back navigate={~p"/admin"}>
+            Admin Dashboard
+          </.back>
+        </div>
 
-
-
-
-    <div class="admin-index">
-
-    <div>
-    <.back navigate={~p"/admin"}>
-          Admin Dashboard
-        </.back>
-    </div>
-
-
-    <.header>
-          <%= @page_title  %>
+        <.header>
+          {@page_title}
           <:actions>
-             <.button_artsy navigate={~p"/admin/artists/new"} variant="secondary">
-               New Artist
-             </.button_artsy>
+            <.button_artsy navigate={~p"/admin/artists/new"} variant="secondary">
+              New Artist
+            </.button_artsy>
           </:actions>
-    </.header>
+        </.header>
 
-    <div class="overflow-x-auto">
-        <.form_table id="admin-artists-table" rows={@streams.artists}>
-        <%!-- Image --%>
-        <:col :let={{_dom_id, artist}} label="Image" col_class="w-20">
-          <div class="avatar">
-            <div class="mask mask-squircle h-12 w-12">
-              <img
-                src={artist.artist_images |> Enum.sort_by(& &1.position) |> List.first() |> then(fn img -> if img, do: img.path, else: "/images/avatar-placeholder.png" end)}
-                alt={artist.nickname} />
-            </div>
-          </div>
-        </:col>
+        <div class="overflow-x-auto">
+          <.form_table id="admin-artists-table" rows={@streams.artists}>
+            <%!-- Image --%>
+            <:col :let={{_dom_id, artist}} label="Image" col_class="w-20">
+              <div class="avatar">
+                <div class="mask mask-squircle h-12 w-12">
+                  <img
+                    src={
+                      artist.artist_images
+                      |> Enum.sort_by(& &1.position)
+                      |> List.first()
+                      |> then(fn img ->
+                        if img, do: img.path, else: "/images/avatar-placeholder.png"
+                      end)
+                    }
+                    alt={artist.nickname}
+                  />
+                </div>
+              </div>
+            </:col>
 
-        <%!-- Nickname --%>
-        <:col :let={{_dom_id, artist}} label="Nickname" col_class="w-32">
-          <%= artist.nickname %>
-        </:col>
+            <%!-- Nickname --%>
+            <:col :let={{_dom_id, artist}} label="Nickname" col_class="w-32">
+              {artist.nickname}
+            </:col>
 
-        <%!-- First Name --%>
-        <:col :let={{_dom_id, artist}} label="First name" col_class="w-28">
-          <%= artist.first_name %>
-        </:col>
+            <%!-- First Name --%>
+            <:col :let={{_dom_id, artist}} label="First name" col_class="w-28">
+              {artist.first_name}
+            </:col>
 
-        <%!-- Last Name --%>
-        <:col :let={{_dom_id, artist}} label="Last name" col_class="w-28">
-          <%= artist.last_name %>
-        </:col>
+            <%!-- Last Name --%>
+            <:col :let={{_dom_id, artist}} label="Last name" col_class="w-28">
+              {artist.last_name}
+            </:col>
 
-        <%!-- Middle Name --%>
-        <:col :let={{_dom_id, artist}} label="Middle" col_class="w-24">
-          <%= artist.middle_name %>
-        </:col>
+            <%!-- Middle Name --%>
+            <:col :let={{_dom_id, artist}} label="Middle" col_class="w-24">
+              {artist.middle_name}
+            </:col>
+            
+    <!-- Profile status -->
+            <:col :let={{_dom_id, artist}} label="Status" col_class="w-24">
+              {artist.status}
+            </:col>
 
-        <!-- Profile status -->
-        <:col :let={{_dom_id, artist}} label="Status" col_class="w-24">
-          <%= artist.status %>
-        </:col>
+            <%!-- Email --%>
+            <:col :let={{_dom_id, artist}} label="Email" col_class="w-48">
+              {artist.email}
+            </:col>
 
-        <%!-- Email --%>
-        <:col :let={{_dom_id, artist}} label="Email" col_class="w-48">
-          <%= artist.email %>
-        </:col>
+            <%!-- Phone --%>
+            <:col :let={{_dom_id, artist}} label="Phone" col_class="w-32">
+              {artist.phone}
+            </:col>
 
-        <%!-- Phone --%>
-        <:col :let={{_dom_id, artist}} label="Phone" col_class="w-32">
-          <%= artist.phone %>
-        </:col>
+            <%!-- Street Address --%>
+            <:col :let={{_dom_id, artist}} label="Street address" col_class="w-56">
+              {artist.street_address}
+              {if artist.apt_info, do: ", #{artist.apt_info}"}
+            </:col>
 
-        <%!-- Street Address --%>
-        <:col :let={{_dom_id, artist}} label="Street address" col_class="w-56">
-          <%= artist.street_address %>
-          <%= if artist.apt_info, do: ", #{artist.apt_info}" %>
-        </:col>
+            <%!-- Area Code --%>
+            <:col :let={{_dom_id, artist}} label="Neighborhood" col_class="w-28">
+              <div class="badge badge-secondary badge-outline">
+                {artist.area_code}
+              </div>
+            </:col>
 
-        <%!-- Area Code --%>
-        <:col :let={{_dom_id, artist}} label="Neighborhood" col_class="w-28">
-          <div class="badge badge-secondary badge-outline">
-            <%= artist.area_code %>
-          </div>
-        </:col>
+            <%!-- Medium --%>
+            <:col :let={{_dom_id, artist}} label="Medium" col_class="w-40">
+              <div class="flex flex-wrap gap-1">
+                <%= for medium <- Enum.take(artist.medium, 2) do %>
+                  <span class="badge badge-primary badge-sm">
+                    {medium}
+                  </span>
+                <% end %>
+                <%= if length(artist.medium) > 2 do %>
+                  <span class="badge badge-ghost badge-sm">
+                    +{length(artist.medium) - 2}
+                  </span>
+                <% end %>
+              </div>
+            </:col>
 
-        <%!-- Medium --%>
-        <:col :let={{_dom_id, artist}} label="Medium" col_class="w-40">
-          <div class="flex flex-wrap gap-1">
-            <%= for medium <- Enum.take(artist.medium, 2) do %>
-              <span class="badge badge-primary badge-sm">
-                <%= medium %>
-              </span>
-            <% end %>
-            <%= if length(artist.medium) > 2 do %>
-              <span class="badge badge-ghost badge-sm">
-                +<%= length(artist.medium) - 2 %>
-              </span>
-            <% end %>
-          </div>
-        </:col>
+            <%!-- Bio (truncated) --%>
+            <:col :let={{_dom_id, artist}} label="Bio" col_class="w-64">
+              <% bio = artist.bio || "" %>
+              {String.slice(bio, 0, 50)}{if String.length(bio) > 50, do: "..."}
+            </:col>
 
-        <%!-- Bio (truncated) --%>
-        <:col :let={{_dom_id, artist}} label="Bio" col_class="w-64">
-          <% bio = artist.bio || "" %>
-          <%= String.slice(bio, 0, 50) %><%= if String.length(bio) > 50, do: "..." %>
-        </:col>
+            <%!-- Actions --%>
+            <:col :let={{_dom_id, artist}} label="Actions" col_class="w-36">
+              <div class="flex gap-2">
+                <.link navigate={~p"/artists/#{artist}"}>
+                  <button class="btn btn-ghost btn-xs">view</button>
+                </.link>
 
-        <%!-- Actions --%>
-        <:col :let={{_dom_id, artist}} label="Actions" col_class="w-36">
-          <div class="flex gap-2">
-          <.link navigate={~p"/artists/#{artist}"}>
-            <button class="btn btn-ghost btn-xs">view</button>
-          </.link>
+                <.link navigate={~p"/admin/artists/#{artist}/edit"}>
+                  <button class="btn btn-ghost btn-xs">edit</button>
+                </.link>
+                <.link
+                  phx-click="remove"
+                  phx-value-id={artist.id}
+                  data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed by editing their status."}
+                >
+                  <button class="btn btn-ghost btn-xs text-warning">mark removed</button>
+                </.link>
 
-          <.link navigate={~p"/admin/artists/#{artist}/edit"}>
-            <button class="btn btn-ghost btn-xs">edit</button>
-          </.link>
-          <.link phx-click="remove"
-                phx-value-id={artist.id}
-                data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed by editing their status."}>
-            <button class="btn btn-ghost btn-xs text-warning">mark removed</button>
-          </.link>
-
-          <.link phx-click="delete"
-                phx-value-id={artist.id}
-                data-confirm={"Permanently delete artist #{artist.nickname}? This will also delete ALL of their orders, order items, conversations, and reviews. This cannot be undone."}>
-            <button class="btn btn-ghost btn-xs text-error">delete</button>
-          </.link>
-
-          </div>
-        </:col>
-
-        </.form_table>
-
-
-
-    </div>
-    </div>
+                <.link
+                  phx-click="delete"
+                  phx-value-id={artist.id}
+                  data-confirm={"Permanently delete artist #{artist.nickname}? This will also delete ALL of their orders, order items, conversations, and reviews. This cannot be undone."}
+                >
+                  <button class="btn btn-ghost btn-xs text-error">delete</button>
+                </.link>
+              </div>
+            </:col>
+          </.form_table>
+        </div>
+      </div>
     </Layouts.artsy_wide>
     """
   end
-
-
 end
