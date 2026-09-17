@@ -11,7 +11,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
 
   @impl true
   def handle_params(%{"id" => id}, _uri, socket) do
-    case Products.get_product_with_associations(id) do
+    case Products.get_product_with_associations_all_status(id) do
       nil ->
         {:noreply,
          socket
@@ -131,9 +131,13 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
               <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @product.title %></h1>
               <p class="text-xl text-base-content/70">
                 by
-                <.link navigate={~p"/admin/artists/#{@product.artist}/edit"} class="hover:underline">
-                  <%= @product.artist.nickname %>
-                </.link>
+                <%= if @product.artist do %>
+                  <.link navigate={~p"/admin/artists/#{@product.artist}/edit"} class="hover:underline">
+                    <%= @product.artist.nickname %>
+                  </.link>
+                <% else %>
+                  <span class="italic">No artist (orphaned product)</span>
+                <% end %>
               </p>
               <p class="text-sm text-base-content/50 mt-1"><%= @product.category.name %></p>
             </div>

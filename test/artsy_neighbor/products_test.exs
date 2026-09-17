@@ -335,6 +335,40 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
   end
 
+  describe "get_product_with_associations/1" do
+    test "returns the product when available" do
+      product = product_fixture()
+      result = Products.get_product_with_associations(product.id)
+      assert result.id == product.id
+    end
+
+    test "returns nil for an archived product (regression: this used to leak to the public /products/:id page)" do
+      product = product_fixture()
+      {:ok, _} = Products.remove_product(product)
+      refute Products.get_product_with_associations(product.id)
+    end
+
+    test "returns nil for an unavailable product" do
+      product = product_fixture()
+      {:ok, product} = Products.update_product(product, %{status: :unavailable})
+      refute Products.get_product_with_associations(product.id)
+    end
+
+    test "returns nil for a nonexistent product" do
+      refute Products.get_product_with_associations(-1)
+    end
+  end
+
+  describe "get_product_with_associations_all_status/1" do
+    test "returns an archived product (the admin escape hatch)" do
+      product = product_fixture()
+      {:ok, product} = Products.remove_product(product)
+      result = Products.get_product_with_associations_all_status(product.id)
+      assert result.id == product.id
+      assert result.status == :archived
+    end
+  end
+
   # ============================================================
   # filter_products/1
   # ============================================================

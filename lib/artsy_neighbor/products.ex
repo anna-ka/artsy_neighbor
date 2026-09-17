@@ -193,8 +193,34 @@ defmodule ArtsyNeighbor.Products do
     ])
   end
 
-  # Returns nil if product does not exist.
+  @doc """
+  Gets a single product with all associations preloaded, scoped to public
+  visibility (status: :available, with an artist still attached) — same
+  predicate as only_available/1. Returns nil if the product doesn't exist
+  OR isn't currently public (unavailable/archived), so a direct hit on an
+  archived product's URL 404s the same way a bad id does, instead of
+  leaking the product page. For the admin equivalent, which needs to see a
+  product regardless of status, see get_product_with_associations_all_status/1.
+  """
   def get_product_with_associations(id) do
+    Product
+    |> only_available()
+    |> preload([
+      :product_options,
+      :artist,
+      :category,
+      :collection,
+      product_images: ^images_by_position()
+    ])
+    |> Repo.get(id)
+  end
+
+  @doc """
+  Same as get_product_with_associations/1 but not scoped to :available — the
+  admin-only escape hatch, mirroring get_products_by_artist_all_status/1's
+  naming. Returns nil if the product doesn't exist at all.
+  """
+  def get_product_with_associations_all_status(id) do
     case Repo.get(Product, id) do
       nil ->
         nil
