@@ -2,17 +2,17 @@ defmodule ArtsyNeighbor.Reviews.Flag do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @valid_subject_types ~w(vendor buyer vendor_review_of buyer_review_of product_review_of)
+  @valid_subject_types ~w(vendor buyer product vendor_review_of buyer_review_of product_review_of)
 
   schema "flags" do
     field :subject_type, :string
-    field :subject_id,   :integer
-    field :reason,       :string
-    field :status,       Ecto.Enum, values: [:pending, :reviewed, :dismissed], default: :pending
-    field :reviewed_at,  :utc_datetime
+    field :subject_id, :integer
+    field :reason, :string
+    field :status, Ecto.Enum, values: [:pending, :reviewed, :dismissed], default: :pending
+    field :reviewed_at, :utc_datetime
 
-    belongs_to :reporter,     ArtsyNeighbor.Accounts.User, foreign_key: :reporter_id
-    belongs_to :resolved_by,  ArtsyNeighbor.Accounts.User, foreign_key: :reviewed_by
+    belongs_to :reporter, ArtsyNeighbor.Accounts.User, foreign_key: :reporter_id
+    belongs_to :resolved_by, ArtsyNeighbor.Accounts.User, foreign_key: :reviewed_by
 
     timestamps(type: :utc_datetime)
   end
@@ -22,11 +22,17 @@ defmodule ArtsyNeighbor.Reviews.Flag do
     |> cast(attrs, [:subject_type, :subject_id, :reason, :reporter_id])
     |> validate_required([:subject_type, :subject_id, :reason, :reporter_id])
     |> validate_inclusion(:subject_type, @valid_subject_types,
-        message: "must be one of: #{Enum.join(@valid_subject_types, ", ")}")
-    |> validate_length(:reason, min: 20, max: 1000,
-        message: "please describe your concern in at least 20 characters")
+      message: "must be one of: #{Enum.join(@valid_subject_types, ", ")}"
+    )
+    |> validate_length(:reason,
+      min: 20,
+      max: 1000,
+      message: "please describe your concern in at least 20 characters"
+    )
     |> unique_constraint([:reporter_id, :subject_type, :subject_id],
-        message: "you have already flagged this")
+      name: :flags_reporter_subject_pending_index,
+      message: "you have already flagged this"
+    )
   end
 
   def resolution_changeset(flag, attrs) do

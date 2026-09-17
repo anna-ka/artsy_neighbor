@@ -99,13 +99,20 @@ defmodule ArtsyNeighborWeb.OrderLive.Detail do
             <div>
               <h1 class="text-xl font-bold text-base-content">Order from {@order.artist_name}</h1>
               <p class="text-xs text-base-content/50 mt-1">Placed {format_dt(@order.inserted_at)}</p>
+              <.link
+                navigate={~p"/flag/vendor/#{@order.artist_id}?#{[return_to: ~p"/orders/#{@order.id}", return_label: "Order details"]}"}
+                class="text-xs text-base-content/40 underline"
+              >
+                Report a concern about this vendor
+              </.link>
             </div>
             <span class={"badge badge-lg #{order_badge(@order.status)} shrink-0"}>
               {@order.status}
             </span>
           </div>
 
-          <%!-- Item list --%>
+          <%!-- Item list — flagging is not tied to review status/window, since
+               abuse (e.g. a no-show) can happen before an order ever completes --%>
           <div>
             <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">Items</h2>
             <ul class="flex flex-col gap-3">
@@ -124,6 +131,13 @@ defmodule ArtsyNeighborWeb.OrderLive.Detail do
                   <p class="text-xs text-base-content/50">
                     CA${Decimal.to_string(item.unit_price)} each
                   </p>
+                  <.link
+                    :if={not is_nil(item.product_id)}
+                    navigate={~p"/flag/product/#{item.product_id}?#{[return_to: ~p"/orders/#{@order.id}", return_label: "Order details"]}"}
+                    class="text-xs text-base-content/40 underline"
+                  >
+                    Report this listing
+                  </.link>
                 </div>
                 <span class="text-sm text-base-content/60 shrink-0">×{item.quantity}</span>
               </li>

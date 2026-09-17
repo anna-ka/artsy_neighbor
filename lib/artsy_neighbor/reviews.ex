@@ -1,6 +1,7 @@
 defmodule ArtsyNeighbor.Reviews do
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
+  alias Ecto.Multi
 
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
@@ -8,7 +9,7 @@ defmodule ArtsyNeighbor.Reviews do
   alias ArtsyNeighbor.Reviews.Flag
 
   @review_window_days 14
-  @edit_window_days   30
+  @edit_window_days 30
 
   # ---------------------------------------------------------------------------
   # Create
@@ -16,19 +17,25 @@ defmodule ArtsyNeighbor.Reviews do
 
   def create_vendor_review(attrs) do
     %VendorReview{}
-    |> VendorReview.changeset(Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second)))
+    |> VendorReview.changeset(
+      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    )
     |> Repo.insert()
   end
 
   def create_buyer_review(attrs) do
     %BuyerReview{}
-    |> BuyerReview.changeset(Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second)))
+    |> BuyerReview.changeset(
+      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    )
     |> Repo.insert()
   end
 
   def create_product_review(attrs) do
     %ProductReview{}
-    |> ProductReview.changeset(Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second)))
+    |> ProductReview.changeset(
+      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    )
     |> Repo.insert()
   end
 
@@ -69,8 +76,10 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(vr in VendorReview,
-      left_join: br in BuyerReview, on: br.order_id == vr.order_id,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == vr.order_id,
+      left_join: br in BuyerReview,
+      on: br.order_id == vr.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
       order_by: [desc: vr.submitted_at]
@@ -83,8 +92,10 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(br in BuyerReview,
-      left_join: vr in VendorReview, on: vr.order_id == br.order_id,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == br.order_id,
+      left_join: vr in VendorReview,
+      on: vr.order_id == br.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
       order_by: [desc: br.submitted_at]
@@ -97,9 +108,12 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(pr in ProductReview,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == pr.order_id,
-      left_join: vr in VendorReview, on: vr.order_id == pr.order_id,
-      left_join: br in BuyerReview, on: br.order_id == pr.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == pr.order_id,
+      left_join: vr in VendorReview,
+      on: vr.order_id == pr.order_id,
+      left_join: br in BuyerReview,
+      on: br.order_id == pr.order_id,
       where: pr.product_id == ^product_id,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       order_by: [desc: pr.submitted_at]
@@ -116,8 +130,10 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(vr in VendorReview,
-      left_join: br in BuyerReview, on: br.order_id == vr.order_id,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == vr.order_id,
+      left_join: br in BuyerReview,
+      on: br.order_id == vr.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
       select: avg(vr.stars)
@@ -131,8 +147,10 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(br in BuyerReview,
-      left_join: vr in VendorReview, on: vr.order_id == br.order_id,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == br.order_id,
+      left_join: vr in VendorReview,
+      on: vr.order_id == br.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
       select: avg(br.stars)
@@ -146,9 +164,12 @@ defmodule ArtsyNeighbor.Reviews do
     window_cutoff = DateTime.add(now, -@review_window_days, :day)
 
     from(pr in ProductReview,
-      join: o in ArtsyNeighbor.Orders.Order, on: o.id == pr.order_id,
-      left_join: vr in VendorReview, on: vr.order_id == pr.order_id,
-      left_join: br in BuyerReview, on: br.order_id == pr.order_id,
+      join: o in ArtsyNeighbor.Orders.Order,
+      on: o.id == pr.order_id,
+      left_join: vr in VendorReview,
+      on: vr.order_id == pr.order_id,
+      left_join: br in BuyerReview,
+      on: br.order_id == pr.order_id,
       where: pr.product_id == ^product_id,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       select: avg(pr.stars)
@@ -193,6 +214,151 @@ defmodule ArtsyNeighbor.Reviews do
   defp filter_flags_by_reporter(query, id), do: where(query, [f], f.reporter_id == ^id)
 
   # ---------------------------------------------------------------------------
+  # Read — flags (reporting)
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Resolves a subject_type + subject_id pair (as passed on the URL to
+  FlagLive.New) into the real record being reported, so the reporting flow
+  can confirm it exists and show what/who it is before the reporter
+  submits.
+
+  Handles all six subject types Flag itself allows, for consistency, even
+  though — as of this writing — nothing in the UI actually links to
+  flagging a review yet (reviews aren't shown publicly anywhere; only the
+  two parties on an order ever see one, on their own private order pages).
+  Wiring up entry-point links for "vendor_review_of"/"buyer_review_of"/
+  "product_review_of" is deferred to a future UI pass, alongside a public
+  reviews display and admin flag moderation — see CLAUDE.md.
+
+  Does not filter by status/availability: a report is often about
+  something that's already gone inactive/archived, and existence is the
+  only requirement.
+  """
+  def resolve_subject("vendor", id) do
+    with {:ok, id} <- parse_id(id),
+         %ArtsyNeighbor.Artists.Artist{} = artist <- Repo.get(ArtsyNeighbor.Artists.Artist, id) do
+      {:ok,
+       %{
+         type: "vendor",
+         record: artist,
+         display_name: artist.nickname,
+         owner_user_id: artist.user_id
+       }}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject("buyer", id) do
+    with {:ok, id} <- parse_id(id),
+         %ArtsyNeighbor.Accounts.User{} = user <- Repo.get(ArtsyNeighbor.Accounts.User, id) do
+      {:ok, %{type: "buyer", record: user, display_name: user.email, owner_user_id: user.id}}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject("product", id) do
+    with {:ok, id} <- parse_id(id),
+         %ArtsyNeighbor.Products.Product{} = product <-
+           Repo.get(ArtsyNeighbor.Products.Product, id) |> Repo.preload(:artist) do
+      owner_user_id = product.artist && product.artist.user_id
+
+      {:ok,
+       %{
+         type: "product",
+         record: product,
+         display_name: product.title,
+         owner_user_id: owner_user_id
+       }}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject("vendor_review_of", id) do
+    with {:ok, id} <- parse_id(id),
+         %VendorReview{} = review <- Repo.get(VendorReview, id) |> Repo.preload(:artist) do
+      {:ok,
+       %{
+         type: "vendor_review_of",
+         record: review,
+         display_name: "Review of #{review.artist.nickname}",
+         owner_user_id: review.reviewer_id
+       }}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject("buyer_review_of", id) do
+    with {:ok, id} <- parse_id(id),
+         %BuyerReview{} = review <- Repo.get(BuyerReview, id) |> Repo.preload(:buyer) do
+      {:ok,
+       %{
+         type: "buyer_review_of",
+         record: review,
+         display_name: "Review of #{review.buyer.email}",
+         owner_user_id: review.reviewer_id
+       }}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject("product_review_of", id) do
+    with {:ok, id} <- parse_id(id),
+         %ProductReview{} = review <- Repo.get(ProductReview, id) |> Repo.preload(:product) do
+      {:ok,
+       %{
+         type: "product_review_of",
+         record: review,
+         display_name: "Review of #{review.product.title}",
+         owner_user_id: review.reviewer_id
+       }}
+    else
+      nil -> {:error, :not_found}
+      :error -> {:error, :invalid_id}
+    end
+  end
+
+  def resolve_subject(_unsupported_type, _id), do: {:error, :unsupported_subject_type}
+
+  defp parse_id(id) when is_integer(id), do: {:ok, id}
+
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(_), do: :error
+
+  @doc """
+  Returns the reporter's existing :pending flag on this exact subject, or
+  nil. Used by FlagLive.New at mount time to short-circuit the form with a
+  "you already reported this" message rather than letting the reporter
+  fill it out and hit the partial-unique-index violation on submit.
+  """
+  def pending_flag_from(reporter_id, subject_type, subject_id) do
+    Flag
+    |> where(
+      reporter_id: ^reporter_id,
+      subject_type: ^subject_type,
+      subject_id: ^subject_id,
+      status: :pending
+    )
+    |> Repo.one()
+  end
+
+  # ---------------------------------------------------------------------------
   # Nav badge — pending review counts
   # ---------------------------------------------------------------------------
 
@@ -200,7 +366,8 @@ defmodule ArtsyNeighbor.Reviews do
     cutoff = DateTime.add(DateTime.utc_now(), -@review_window_days, :day)
 
     from(o in ArtsyNeighbor.Orders.Order,
-      left_join: vr in VendorReview, on: vr.order_id == o.id,
+      left_join: vr in VendorReview,
+      on: vr.order_id == o.id,
       where: o.buyer_id == ^user_id,
       where: o.status == :completed,
       where: not is_nil(o.completed_at),
@@ -215,8 +382,10 @@ defmodule ArtsyNeighbor.Reviews do
     cutoff = DateTime.add(DateTime.utc_now(), -@review_window_days, :day)
 
     from(o in ArtsyNeighbor.Orders.Order,
-      join: a in ArtsyNeighbor.Artists.Artist, on: a.id == o.artist_id,
-      left_join: br in BuyerReview, on: br.order_id == o.id,
+      join: a in ArtsyNeighbor.Artists.Artist,
+      on: a.id == o.artist_id,
+      left_join: br in BuyerReview,
+      on: br.order_id == o.id,
       where: a.user_id == ^user_id,
       where: o.status == :completed,
       where: not is_nil(o.completed_at),
@@ -244,6 +413,7 @@ defmodule ArtsyNeighbor.Reviews do
   end
 
   def order_in_review_window?(%{completed_at: nil}), do: false
+
   def order_in_review_window?(%{completed_at: completed_at}) do
     DateTime.diff(DateTime.utc_now(), completed_at, :day) < @review_window_days
   end
@@ -278,11 +448,17 @@ defmodule ArtsyNeighbor.Reviews do
 
   # ---------------------------------------------------------------------------
   # Delete
+  #
+  # Each of these also cleans up any Flag rows reporting the review directly
+  # ("vendor_review_of"/"buyer_review_of"/"product_review_of") — same class
+  # of cleanup as Products.delete_product/1 and Artists.delete_artist/1:
+  # Flag.subject_id is a polymorphic reference with no real DB-level FK, so
+  # it can't cascade and has to be done by hand.
   # ---------------------------------------------------------------------------
 
   def delete_vendor_review(%VendorReview{} = review, opts \\ []) do
     if opts[:admin] || within_edit_window?(review) do
-      Repo.delete(review)
+      delete_reviewed_with_flags(review, "vendor_review_of")
     else
       {:error, :edit_window_expired}
     end
@@ -290,7 +466,7 @@ defmodule ArtsyNeighbor.Reviews do
 
   def delete_buyer_review(%BuyerReview{} = review, opts \\ []) do
     if opts[:admin] || within_edit_window?(review) do
-      Repo.delete(review)
+      delete_reviewed_with_flags(review, "buyer_review_of")
     else
       {:error, :edit_window_expired}
     end
@@ -298,10 +474,33 @@ defmodule ArtsyNeighbor.Reviews do
 
   def delete_product_review(%ProductReview{} = review, opts \\ []) do
     if opts[:admin] || within_edit_window?(review) do
-      Repo.delete(review)
+      delete_reviewed_with_flags(review, "product_review_of")
     else
       {:error, :edit_window_expired}
     end
+  end
+
+  defp delete_reviewed_with_flags(review, subject_type) do
+    Multi.new()
+    |> Multi.run(:deleted_flags, fn repo, _changes ->
+      {count, _} =
+        repo.delete_all(
+          from(f in Flag, where: f.subject_type == ^subject_type and f.subject_id == ^review.id)
+        )
+
+      {:ok, count}
+    end)
+    |> Multi.run(:deleted_review, fn repo, _changes -> repo.delete(review) end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{deleted_review: deleted}} -> {:ok, deleted}
+      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
+    end
+  rescue
+    error in [Ecto.ConstraintError, Postgrex.Error] ->
+      # A constraint violation Multi's own {:error, ...} tuple can't catch —
+      # fail cleanly instead of letting the exception crash the caller.
+      {:error, {:constraint_error, Exception.message(error)}}
   end
 
   # ---------------------------------------------------------------------------
@@ -358,17 +557,17 @@ defmodule ArtsyNeighbor.Reviews do
   def review_status_for_order(order, vendor_review, buyer_review, current_user_id, role) do
     expired = window_expired?(order)
 
-    my_review    = if role == :buyer, do: vendor_review, else: buyer_review
-    other_review = if role == :buyer, do: buyer_review,  else: vendor_review
+    my_review = if role == :buyer, do: vendor_review, else: buyer_review
+    other_review = if role == :buyer, do: buyer_review, else: vendor_review
 
     _ = current_user_id
 
     cond do
       not is_nil(my_review) and not is_nil(other_review) -> :complete
-      not is_nil(my_review) and expired                  -> :published
-      not is_nil(my_review)                              -> :waiting_other_party
-      expired                                            -> :expired
-      true                                               -> :pending_yours
+      not is_nil(my_review) and expired -> :published
+      not is_nil(my_review) -> :waiting_other_party
+      expired -> :expired
+      true -> :pending_yours
     end
   end
 

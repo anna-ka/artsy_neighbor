@@ -226,6 +226,14 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
                 <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"<> "?" <> create_return_to_params(assigns)}>
                   View Shop
                 </.button_artsy>
+
+                <.link
+                  :if={@current_scope && @current_scope.user}
+                  navigate={~p"/flag/vendor/#{@artist.id}?#{[return_to: ~p"/artists/#{@artist.id}", return_label: "Artist profile"]}"}
+                  class="text-xs text-base-content/40 underline"
+                >
+                  Report a concern
+                </.link>
               </div>
 
             </div>

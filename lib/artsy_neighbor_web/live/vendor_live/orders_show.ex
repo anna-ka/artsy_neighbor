@@ -81,6 +81,12 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
             <div>
               <h1 class="text-xl font-bold text-base-content">Sale to {@order.buyer_email}</h1>
               <p class="text-xs text-base-content/50 mt-1">Placed {format_dt(@order.inserted_at)}</p>
+              <.link
+                navigate={~p"/flag/buyer/#{@order.buyer_id}?#{[return_to: ~p"/vendor/orders/#{@order.id}", return_label: "Sale details"]}"}
+                class="text-xs text-base-content/40 underline"
+              >
+                Report a concern about this buyer
+              </.link>
             </div>
             <span class={"badge badge-lg #{order_badge(@order.status)} shrink-0"}>
               {@order.status}

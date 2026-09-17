@@ -323,9 +323,10 @@ defmodule ArtsyNeighbor.Artists do
   images/options), product collections, artist images, and all three review
   types cascade at the DB level (see the
   `cascade_artist_delete_fks` migration). The one exception is `Flag` —
-  `subject_id` is a polymorphic reference (it can point at an artist or at
-  any of three review tables depending on `subject_type`), so Postgres can't
-  enforce a real FK on it and this function still cleans flags up by hand.
+  `subject_id` is a polymorphic reference (it can point at an artist, a
+  product, or any of three review tables depending on `subject_type`), so
+  Postgres can't enforce a real FK on it and this function still cleans
+  flags up by hand.
 
   Intended for admin/testing cleanup — for a normal "take this vendor down"
   action use remove_artist/1 instead, which is reversible.
@@ -370,6 +371,7 @@ defmodule ArtsyNeighbor.Artists do
       {:ok,
        %{
          vendor: [locked_artist.id],
+         product: product_ids,
          vendor_review_of: vendor_review_ids,
          buyer_review_of: buyer_review_ids,
          product_review_of: product_review_ids
@@ -381,6 +383,7 @@ defmodule ArtsyNeighbor.Artists do
           from(f in Flag,
             where:
               (f.subject_type == "vendor" and f.subject_id in ^ids.vendor) or
+                (f.subject_type == "product" and f.subject_id in ^ids.product) or
                 (f.subject_type == "vendor_review_of" and f.subject_id in ^ids.vendor_review_of) or
                 (f.subject_type == "buyer_review_of" and f.subject_id in ^ids.buyer_review_of) or
                 (f.subject_type == "product_review_of" and f.subject_id in ^ids.product_review_of)

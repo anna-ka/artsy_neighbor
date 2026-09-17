@@ -135,7 +135,17 @@ per-product review, each within a 14-day window of order completion. See
 - **No real payment processing yet.** Charge/refund functions are `Logger`
   stubs; a `payment_method` field (cash/Interac) is planned but not yet on the
   `Order` schema.
-- **Flagging has no UI yet.** Reviews already write `Flag` records but there's
-  no page to create one, and no admin moderation view for them.
+- **Flagging: reporting works for vendors/products/buyers; reviews and
+  admin moderation don't yet.** Buyers/vendors can report a rogue vendor,
+  product, or buyer via `/flag/:subject_type/:subject_id` (`FlagLive.New`)
+  — see `Reviews.resolve_subject/2` and `Reviews.create_flag/1`.
+  `resolve_subject/2` also handles the three `*_review_of` types
+  (flagging a review itself), but nothing in the UI links to them yet,
+  because reviews aren't shown publicly anywhere today — only to the two
+  parties on an order, on their own private pages. A future UI pass needs
+  to cover, together: a public reviews display, "flag this review" entry
+  points once that exists, and the `/admin/flags` moderation view
+  (review/resolve/dismiss reports) — plus notifying a reporter when their
+  flag's status changes, which depends on that moderation view existing.
 
 

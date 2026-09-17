@@ -330,6 +330,43 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Repo.get(Flag, product_review_flag.id) == nil
     end
 
+    test "deletes a flag reporting a product belonging to the artist directly" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, product_flag} =
+        Reviews.create_flag(%{
+          subject_type: "product",
+          subject_id: product.id,
+          reason: "This listing appears to be selling something illegal.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Artists.delete_artist(artist)
+
+      assert Repo.get(Flag, product_flag.id) == nil
+    end
+
+    test "does not delete a product flag belonging to another artist" do
+      reporter = user_fixture()
+      artist_a = artist_fixture()
+      artist_b = artist_fixture()
+      product_b = product_fixture(%{artist_id: artist_b.id})
+
+      {:ok, unrelated_product_flag} =
+        Reviews.create_flag(%{
+          subject_type: "product",
+          subject_id: product_b.id,
+          reason: "Unrelated flag against a different artist's product.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Artists.delete_artist(artist_a)
+
+      assert Repo.get(Flag, unrelated_product_flag.id) != nil
+    end
+
     test "does not delete a flag belonging to another artist" do
       reporter = user_fixture()
       artist_a = artist_fixture()

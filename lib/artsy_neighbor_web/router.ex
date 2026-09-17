@@ -11,7 +11,7 @@ defmodule ArtsyNeighborWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_scope_for_user
-    #plug :spy
+    # plug :spy
   end
 
   pipeline :api do
@@ -31,21 +31,19 @@ defmodule ArtsyNeighborWeb.Router do
   scope "/", ArtsyNeighborWeb do
     pipe_through :browser
 
-
-
-    #generated
+    # generated
     # live "/products", ProductLive.Index, :index
     # live "/products/new", ProductLive.Form, :new
     # live "/products/:id", ProductLive.Show, :show
     # live "/products/:id/edit", ProductLive.Form, :edit
 
-    #generated
+    # generated
     # live "/product_images", ProductImageLive.Index, :index
     # live "/product_images/new", ProductImageLive.Form, :new
     # live "/product_images/:id", ProductImageLive.Show, :show
     # live "/product_images/:id/edit", ProductImageLive.Form, :edit
 
-    #generated
+    # generated
     # live "/product_options", ProductOptionLive.Index, :index
     # live "/product_options/new", ProductOptionLive.Form, :new
     # live "/product_options/:id", ProductOptionLive.Show, :show
@@ -75,7 +73,6 @@ defmodule ArtsyNeighborWeb.Router do
     end
   end
 
-
   # Vendor (artist) pages — authenticated artists only
   scope "/", ArtsyNeighborWeb do
     pipe_through [:browser, :require_authenticated_user, :require_vendor_user]
@@ -102,9 +99,9 @@ defmodule ArtsyNeighborWeb.Router do
     end
   end
 
-  #scope for admin panels
+  # scope for admin panels
   scope "/", ArtsyNeighborWeb do
-    pipe_through [  :browser, :require_authenticated_user, :require_admin_user]
+    pipe_through [:browser, :require_authenticated_user, :require_admin_user]
 
     live_session :require_admin,
       on_mount: [
@@ -115,30 +112,23 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
+      live "/admin", AdminLive.Dashboard
 
-        live "/admin", AdminLive.Dashboard
+      live "/admin/artists", AdminArtistLive.Index
+      live "/admin/artists/new", AdminArtistLive.Form, :new
+      live "/admin/artists/:id/edit", AdminArtistLive.Form, :edit
 
-        live "/admin/artists", AdminArtistLive.Index
-        live "/admin/artists/new", AdminArtistLive.Form, :new
-        live "/admin/artists/:id/edit", AdminArtistLive.Form, :edit
+      live "/admin/products", AdminProductLive.Index, :index
+      live "/admin/products/new", AdminProductLive.Form, :new
+      live "/admin/products/:id", AdminProductLive.Show, :show
+      live "/admin/products/:id/edit", AdminProductLive.Form, :edit
 
-        live "/admin/products", AdminProductLive.Index, :index
-        live "/admin/products/new", AdminProductLive.Form, :new
-        live "/admin/products/:id", AdminProductLive.Show, :show
-        live "/admin/products/:id/edit", AdminProductLive.Form, :edit
-
-        live "/admin/categories", AdminCategoryLive.Index, :index
-        live "/admin/categories/new", AdminCategoryLive.Form, :new
-        live "/admin/categories/:id", AdminCategoryLive.Show, :show
-        live "/admin/categories/:id/edit", AdminCategoryLive.Form, :edit
-
+      live "/admin/categories", AdminCategoryLive.Index, :index
+      live "/admin/categories/new", AdminCategoryLive.Form, :new
+      live "/admin/categories/:id", AdminCategoryLive.Show, :show
+      live "/admin/categories/:id/edit", AdminCategoryLive.Form, :edit
     end
-
-
-
   end
-
-
 
   # Other scopes may use custom stacks.
   # scope "/api", ArtsyNeighborWeb do
@@ -183,13 +173,14 @@ defmodule ArtsyNeighborWeb.Router do
 
       live "/orders/:id/complete-purchase/:token", OrderLive.Complete
 
-      live "/orders/:id/review/vendor",   ReviewLive.OfVendorStep
+      live "/orders/:id/review/vendor", ReviewLive.OfVendorStep
       live "/orders/:id/review/products", ReviewLive.OfProductsStep
       live "/orders/:id", OrderLive.Detail
       live "/orders", OrderLive.Index
 
       live "/vendor/profile/new", VendorLive.Profile.Form, :new
 
+      live "/flag/:subject_type/:subject_id", FlagLive.New
     end
 
     post "/users/update-password", UserSessionController, :update_password

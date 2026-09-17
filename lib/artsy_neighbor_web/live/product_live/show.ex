@@ -209,6 +209,13 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
                 <.button_artsy variant="secondary" size="block" phx-click="message_seller">
                   Message Seller
                 </.button_artsy>
+
+                <.link
+                  navigate={~p"/flag/product/#{@product.id}?#{[return_to: ~p"/products/#{@product.id}", return_label: "Product page"]}"}
+                  class="text-xs text-base-content/40 underline"
+                >
+                  Report this listing
+                </.link>
             </div>
 
             <% else %>

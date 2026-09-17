@@ -3,10 +3,14 @@ defmodule ArtsyNeighbor.ProductsTest do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.{Product, ProductImage, ProductCollection}
+  alias ArtsyNeighbor.Reviews
+  alias ArtsyNeighbor.Reviews.Flag
+  alias ArtsyNeighbor.Repo
 
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.CategoriesFixtures
+  import ArtsyNeighbor.AccountsFixtures
 
   # ============================================================
   # Basic CRUD — products
@@ -34,8 +38,15 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "create_product/1 with valid data creates a product" do
       artist = artist_fixture()
       category = category_fixture()
-      valid_attrs = %{title: "some title", details: "some details", descr: "some descr",
-                      price: "120.5", artist_id: artist.id, category_id: category.id}
+
+      valid_attrs = %{
+        title: "some title",
+        details: "some details",
+        descr: "some descr",
+        price: "120.5",
+        artist_id: artist.id,
+        category_id: category.id
+      }
 
       assert {:ok, %Product{} = product} = Products.create_product(valid_attrs)
       assert product.title == "some title"
@@ -50,8 +61,13 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "update_product/2 with valid data updates the product" do
       product = product_fixture()
-      update_attrs = %{title: "updated title", details: "updated details",
-                       descr: "updated description here", price: "456.7"}
+
+      update_attrs = %{
+        title: "updated title",
+        details: "updated details",
+        descr: "updated description here",
+        price: "456.7"
+      }
 
       assert {:ok, %Product{} = product} = Products.update_product(product, update_attrs)
       assert product.title == "updated title"
@@ -70,6 +86,64 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert_raise Ecto.NoResultsError, fn -> Products.get_product!(product.id) end
     end
 
+    # Flag.subject_id is a polymorphic reference (no real DB-level FK), so
+    # delete_product/1 has to clean up matching flags by hand rather than
+    # relying on a cascade — same class of cleanup as
+    # Artists.delete_artist/1's flag handling.
+    test "delete_product/1 removes flags reporting the product directly" do
+      reporter = user_fixture()
+      product = product_fixture()
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "product",
+          subject_id: product.id,
+          reason: "This listing appears to be selling something illegal.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Products.delete_product(product)
+
+      assert Repo.get(Flag, flag.id) == nil
+    end
+
+    test "delete_product/1 does not remove a flag on a different product" do
+      reporter = user_fixture()
+      product_a = product_fixture()
+      product_b = product_fixture()
+
+      {:ok, flag_b} =
+        Reviews.create_flag(%{
+          subject_type: "product",
+          subject_id: product_b.id,
+          reason: "Unrelated flag on a different product entirely.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Products.delete_product(product_a)
+
+      assert Repo.get(Flag, flag_b.id) != nil
+    end
+
+    # remove_product/1 — soft, reversible removal (status -> :archived),
+    # the vendor-facing counterpart to the hard delete_product/1. Mirrors
+    # Artists.remove_artist/1 vs. Artists.delete_artist/1.
+    test "remove_product/1 sets status to :archived" do
+      product = product_fixture()
+
+      assert {:ok, updated} = Products.remove_product(product)
+      assert updated.status == :archived
+    end
+
+    test "remove_product/1 does not delete the row or affect other fields" do
+      product = product_fixture()
+
+      assert {:ok, updated} = Products.remove_product(product)
+      assert updated.id == product.id
+      assert updated.title == product.title
+      assert Products.get_product!(product.id).status == :archived
+    end
+
     test "change_product/1 returns a product changeset" do
       product = product_fixture()
       assert %Ecto.Changeset{} = Products.change_product(product)
@@ -84,8 +158,16 @@ defmodule ArtsyNeighbor.ProductsTest do
     setup do
       artist = artist_fixture()
       category = category_fixture()
-      valid = %{title: "A nice title", descr: "A good description here", details: "some details",
-                price: "50.00", artist_id: artist.id, category_id: category.id}
+
+      valid = %{
+        title: "A nice title",
+        descr: "A good description here",
+        details: "some details",
+        price: "50.00",
+        artist_id: artist.id,
+        category_id: category.id
+      }
+
       %{valid: valid}
     end
 
@@ -103,7 +185,9 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
 
     test "rejects title longer than 100 characters", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(%{valid | title: String.duplicate("a", 101)})
+      assert {:error, changeset} =
+               Products.create_product(%{valid | title: String.duplicate("a", 101)})
+
       assert changeset.errors[:title]
     end
 
@@ -130,7 +214,9 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "accepts units 'cm' and 'in'", %{valid: valid} do
       assert {:ok, _} = Products.create_product(Map.put(valid, :units, "cm"))
       artist2 = artist_fixture()
-      assert {:ok, _} = Products.create_product(Map.merge(valid, %{units: "in", artist_id: artist2.id}))
+
+      assert {:ok, _} =
+               Products.create_product(Map.merge(valid, %{units: "in", artist_id: artist2.id}))
     end
 
     test "rejects zero or negative dimensions", %{valid: valid} do
@@ -145,9 +231,17 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
 
     test "accepts product with optional dimension fields", %{valid: valid} do
-      assert {:ok, product} = Products.create_product(Map.merge(valid, %{
-        width: "30.0", length: "40.0", height: "5.0", materials: "Oil on canvas", unique_work: true
-      }))
+      assert {:ok, product} =
+               Products.create_product(
+                 Map.merge(valid, %{
+                   width: "30.0",
+                   length: "40.0",
+                   height: "5.0",
+                   materials: "Oil on canvas",
+                   unique_work: true
+                 })
+               )
+
       assert product.materials == "Oil on canvas"
       assert product.unique_work == true
     end
@@ -174,6 +268,39 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "returns empty list for artist with no products" do
       artist = artist_fixture()
       assert Products.get_products_by_artist(artist.id) == []
+    end
+
+    test "excludes archived products — this is exactly the gap get_products_by_artist_all_status/1 exists to fix" do
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.remove_product(product)
+
+      assert Products.get_products_by_artist(artist.id) == []
+    end
+  end
+
+  describe "get_products_by_artist_all_status/1" do
+    test "includes archived and unavailable products, unlike get_products_by_artist/1" do
+      artist = artist_fixture()
+      available = product_fixture(%{artist_id: artist.id})
+      archived = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.remove_product(archived)
+
+      results = Products.get_products_by_artist_all_status(artist.id)
+      ids = Enum.map(results, & &1.id)
+
+      assert available.id in ids
+      assert archived.id in ids
+    end
+
+    test "is still scoped to the given artist" do
+      artist1 = artist_fixture()
+      artist2 = artist_fixture()
+      p1 = product_fixture(%{artist_id: artist1.id})
+      _p2 = product_fixture(%{artist_id: artist2.id})
+
+      results = Products.get_products_by_artist_all_status(artist1.id)
+      assert Enum.map(results, & &1.id) == [p1.id]
     end
   end
 
@@ -219,16 +346,39 @@ defmodule ArtsyNeighbor.ProductsTest do
       cat_painting = category_fixture(%{name: "Paintings"})
       cat_sculpture = category_fixture(%{name: "Sculpture"})
 
-      p1 = product_fixture(%{title: "Sunset View",  price: "100.0",
-                              artist_id: artist1.id, category_id: cat_painting.id})
-      p2 = product_fixture(%{title: "Bronze Horse", price: "500.0",
-                              artist_id: artist2.id, category_id: cat_sculpture.id})
-      p3 = product_fixture(%{title: "Morning Mist", price: "250.0",
-                              artist_id: artist1.id, category_id: cat_painting.id})
+      p1 =
+        product_fixture(%{
+          title: "Sunset View",
+          price: "100.0",
+          artist_id: artist1.id,
+          category_id: cat_painting.id
+        })
 
-      %{p1: p1, p2: p2, p3: p3,
-        artist1: artist1, artist2: artist2,
-        cat_painting: cat_painting, cat_sculpture: cat_sculpture}
+      p2 =
+        product_fixture(%{
+          title: "Bronze Horse",
+          price: "500.0",
+          artist_id: artist2.id,
+          category_id: cat_sculpture.id
+        })
+
+      p3 =
+        product_fixture(%{
+          title: "Morning Mist",
+          price: "250.0",
+          artist_id: artist1.id,
+          category_id: cat_painting.id
+        })
+
+      %{
+        p1: p1,
+        p2: p2,
+        p3: p3,
+        artist1: artist1,
+        artist2: artist2,
+        cat_painting: cat_painting,
+        cat_sculpture: cat_sculpture
+      }
     end
 
     test "empty filter returns all products", %{p1: p1, p2: p2, p3: p3} do
@@ -272,19 +422,55 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "sort_by price_asc returns cheapest first", %{p1: p1, p2: p2, p3: p3} do
       results = Products.filter_products(%{"sort_by" => "price_asc"})
       ids = Enum.map(results, & &1.id)
-      assert Enum.find_index(ids, & &1 == p1.id) <
-             Enum.find_index(ids, & &1 == p3.id)
-      assert Enum.find_index(ids, & &1 == p3.id) <
-             Enum.find_index(ids, & &1 == p2.id)
+
+      assert Enum.find_index(ids, &(&1 == p1.id)) <
+               Enum.find_index(ids, &(&1 == p3.id))
+
+      assert Enum.find_index(ids, &(&1 == p3.id)) <
+               Enum.find_index(ids, &(&1 == p2.id))
     end
 
     test "sort_by price_desc returns most expensive first", %{p1: p1, p2: p2, p3: p3} do
       results = Products.filter_products(%{"sort_by" => "price_desc"})
       ids = Enum.map(results, & &1.id)
-      assert Enum.find_index(ids, & &1 == p2.id) <
-             Enum.find_index(ids, & &1 == p3.id)
-      assert Enum.find_index(ids, & &1 == p3.id) <
-             Enum.find_index(ids, & &1 == p1.id)
+
+      assert Enum.find_index(ids, &(&1 == p2.id)) <
+               Enum.find_index(ids, &(&1 == p3.id))
+
+      assert Enum.find_index(ids, &(&1 == p3.id)) <
+               Enum.find_index(ids, &(&1 == p1.id))
+    end
+  end
+
+  # ============================================================
+  # filter_products_all_status/1 — admin's counterpart to filter_products/1.
+  # Without it, an archived product would vanish from the admin list the
+  # moment it's archived, with no way to find or restore it.
+  # ============================================================
+
+  describe "filter_products_all_status/1" do
+    test "includes archived and unavailable products, unlike filter_products/1" do
+      artist = artist_fixture()
+      category = category_fixture()
+      available = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      archived = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      {:ok, _} = Products.remove_product(archived)
+
+      all_ids = Products.filter_products_all_status(%{}) |> Enum.map(& &1.id)
+      available_only_ids = Products.filter_products(%{}) |> Enum.map(& &1.id)
+
+      assert available.id in all_ids
+      assert archived.id in all_ids
+      assert archived.id not in available_only_ids
+    end
+
+    test "still supports the same filters as filter_products/1" do
+      artist = artist_fixture(%{nickname: "FilterTestArtist"})
+      category = category_fixture()
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+
+      results = Products.filter_products_all_status(%{"artist" => "FilterTestArtist"})
+      assert Enum.map(results, & &1.id) == [product.id]
     end
   end
 
@@ -299,23 +485,38 @@ defmodule ArtsyNeighbor.ProductsTest do
       cat1 = category_fixture()
       cat2 = category_fixture()
 
-      {:ok, collection} = Products.create_collection(%{
-        name: "Summer Series", position: 2, artist_id: artist.id
-      })
-      uncategorized_collection = artist.id
+      {:ok, collection} =
+        Products.create_collection(%{
+          name: "Summer Series",
+          position: 2,
+          artist_id: artist.id
+        })
+
+      uncategorized_collection =
+        artist.id
         |> Products.list_collections_for_artist()
         |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
 
-      p1 = product_fixture(%{title: "In Collection",
-                              artist_id: artist.id, category_id: cat1.id,
-                              collection_id: collection.id})
-      p2 = product_fixture(%{title: "No Collection",
-                              artist_id: artist.id, category_id: cat2.id})
+      p1 =
+        product_fixture(%{
+          title: "In Collection",
+          artist_id: artist.id,
+          category_id: cat1.id,
+          collection_id: collection.id
+        })
+
+      p2 = product_fixture(%{title: "No Collection", artist_id: artist.id, category_id: cat2.id})
       _other = product_fixture(%{artist_id: other_artist.id, category_id: cat1.id})
 
-      %{artist: artist, p1: p1, p2: p2,
-        collection: collection, uncategorized: uncategorized_collection,
-        cat1: cat1, cat2: cat2}
+      %{
+        artist: artist,
+        p1: p1,
+        p2: p2,
+        collection: collection,
+        uncategorized: uncategorized_collection,
+        cat1: cat1,
+        cat2: cat2
+      }
     end
 
     test "returns only the given artist's products", %{artist: artist, p1: p1, p2: p2} do
@@ -336,7 +537,9 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "filter by collection returns only products in that collection",
          %{artist: artist, p1: p1, p2: p2, collection: collection} do
-      results = Products.filter_artist_products(artist.id, %{"collection_id" => to_string(collection.id)})
+      results =
+        Products.filter_artist_products(artist.id, %{"collection_id" => to_string(collection.id)})
+
       ids = Enum.map(results, & &1.id)
       assert p1.id in ids
       refute p2.id in ids
@@ -352,16 +555,28 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "create and retrieve product images" do
       product = product_fixture()
+
       assert {:ok, %ProductImage{} = img} =
-        Products.create_product_image(%{position: 1, path: "/uploads/a.jpg", product_id: product.id})
+               Products.create_product_image(%{
+                 position: 1,
+                 path: "/uploads/a.jpg",
+                 product_id: product.id
+               })
+
       assert Products.get_product_image!(img.id).path == "/uploads/a.jpg"
     end
 
     test "list_images_for_product returns images ordered by position" do
       product = product_fixture()
-      {:ok, img3} = Products.create_product_image(%{position: 3, path: "/c.jpg", product_id: product.id})
-      {:ok, img1} = Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
-      {:ok, img2} = Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
+
+      {:ok, img3} =
+        Products.create_product_image(%{position: 3, path: "/c.jpg", product_id: product.id})
+
+      {:ok, img1} =
+        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
+
+      {:ok, img2} =
+        Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
 
       results = Products.list_images_for_product(product.id)
       assert Enum.map(results, & &1.id) == [img1.id, img2.id, img3.id]
@@ -370,8 +585,12 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "list_images_for_product is scoped to the given product" do
       product1 = product_fixture()
       product2 = product_fixture()
-      {:ok, img1} = Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product1.id})
-      {:ok, _img2} = Products.create_product_image(%{position: 1, path: "/b.jpg", product_id: product2.id})
+
+      {:ok, img1} =
+        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product1.id})
+
+      {:ok, _img2} =
+        Products.create_product_image(%{position: 1, path: "/b.jpg", product_id: product2.id})
 
       results = Products.list_images_for_product(product1.id)
       assert length(results) == 1
@@ -380,8 +599,12 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "swap_image_positions exchanges position values" do
       product = product_fixture()
-      {:ok, img_a} = Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
-      {:ok, img_b} = Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
+
+      {:ok, img_a} =
+        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
+
+      {:ok, img_b} =
+        Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
 
       assert {:ok, _} = Products.swap_image_positions(img_a, img_b)
 
@@ -407,8 +630,14 @@ defmodule ArtsyNeighbor.ProductsTest do
   describe "product collections" do
     test "create_collection creates a collection for an artist" do
       artist = artist_fixture()
+
       assert {:ok, %ProductCollection{} = collection} =
-        Products.create_collection(%{name: "Summer Works", position: 2, artist_id: artist.id})
+               Products.create_collection(%{
+                 name: "Summer Works",
+                 position: 2,
+                 artist_id: artist.id
+               })
+
       assert collection.name == "Summer Works"
       assert collection.artist_id == artist.id
     end
@@ -422,8 +651,11 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "list_collections_for_artist returns collections ordered by position" do
       artist = artist_fixture()
       # The Uncategorized collection is already at position 1 (created by create_artist)
-      {:ok, _col2} = Products.create_collection(%{name: "Series B", position: 3, artist_id: artist.id})
-      {:ok, _col3} = Products.create_collection(%{name: "Series C", position: 2, artist_id: artist.id})
+      {:ok, _col2} =
+        Products.create_collection(%{name: "Series B", position: 3, artist_id: artist.id})
+
+      {:ok, _col3} =
+        Products.create_collection(%{name: "Series C", position: 2, artist_id: artist.id})
 
       results = Products.list_collections_for_artist(artist.id)
       positions = Enum.map(results, & &1.position)
@@ -432,14 +664,21 @@ defmodule ArtsyNeighbor.ProductsTest do
       names = Enum.map(results, & &1.name)
       assert "Series C" in names
       assert "Series B" in names
-      assert Enum.find_index(names, & &1 == "Series C") <
-             Enum.find_index(names, & &1 == "Series B")
+
+      assert Enum.find_index(names, &(&1 == "Series C")) <
+               Enum.find_index(names, &(&1 == "Series B"))
     end
 
     test "list_collections_for_artist is scoped to the given artist" do
       artist1 = artist_fixture()
       artist2 = artist_fixture()
-      {:ok, _} = Products.create_collection(%{name: "Artist1 Collection", position: 2, artist_id: artist1.id})
+
+      {:ok, _} =
+        Products.create_collection(%{
+          name: "Artist1 Collection",
+          position: 2,
+          artist_id: artist1.id
+        })
 
       results = Products.list_collections_for_artist(artist2.id)
       names = Enum.map(results, & &1.name)
@@ -448,11 +687,22 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "delete_collection reassigns its products to the Uncategorized collection" do
       artist = artist_fixture()
-      {:ok, target} = Products.create_collection(%{name: "Temporary", position: 2, artist_id: artist.id})
-      fallback = Products.list_collections_for_artist(artist.id) |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+
+      {:ok, target} =
+        Products.create_collection(%{name: "Temporary", position: 2, artist_id: artist.id})
+
+      fallback =
+        Products.list_collections_for_artist(artist.id)
+        |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+
       category = category_fixture()
 
-      product = product_fixture(%{artist_id: artist.id, category_id: category.id, collection_id: target.id})
+      product =
+        product_fixture(%{
+          artist_id: artist.id,
+          category_id: category.id,
+          collection_id: target.id
+        })
 
       assert {:ok, _} = Products.delete_collection(target)
 
@@ -462,10 +712,19 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "delete_collection sets collection_id to nil when Uncategorized collection is the one being deleted" do
       artist = artist_fixture()
-      uncategorized = Products.list_collections_for_artist(artist.id) |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+
+      uncategorized =
+        Products.list_collections_for_artist(artist.id)
+        |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+
       category = category_fixture()
 
-      product = product_fixture(%{artist_id: artist.id, category_id: category.id, collection_id: uncategorized.id})
+      product =
+        product_fixture(%{
+          artist_id: artist.id,
+          category_id: category.id,
+          collection_id: uncategorized.id
+        })
 
       assert {:ok, _} = Products.delete_collection(uncategorized)
 
@@ -486,7 +745,10 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "update_collection changes collection attributes" do
       artist = artist_fixture()
-      {:ok, collection} = Products.create_collection(%{name: "Old Name", position: 2, artist_id: artist.id})
+
+      {:ok, collection} =
+        Products.create_collection(%{name: "Old Name", position: 2, artist_id: artist.id})
+
       assert {:ok, updated} = Products.update_collection(collection, %{name: "New Name"})
       assert updated.name == "New Name"
     end

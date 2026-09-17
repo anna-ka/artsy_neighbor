@@ -5,11 +5,13 @@ defmodule ArtsyNeighbor.Products do
 
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
+  alias Ecto.Multi
 
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Products.ProductOption
   alias ArtsyNeighbor.Products.ProductImage
   alias ArtsyNeighbor.Products.ProductCollection
+  alias ArtsyNeighbor.Reviews.Flag
 
   @doc """
   Returns the list of products.
@@ -36,7 +38,6 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.all()
   end
 
-
   @doc """
   Filters products based on the provided filter criteria.
   All products are loaded with associations.
@@ -44,6 +45,25 @@ defmodule ArtsyNeighbor.Products do
   def filter_products(filter) do
     Product
     |> only_available()
+    |> join(:inner, [p], a in assoc(p, :artist), as: :artist)
+    |> join(:inner, [p], c in assoc(p, :category), as: :category)
+    |> with_category(filter["category_id"])
+    |> with_artist(filter["artist"])
+    |> with_string(filter["search"])
+    |> with_artist_search_term(filter["search"])
+    |> sort_by(filter["sort_by"])
+    |> preload([:artist, :category, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
+  @doc """
+  Same as filter_products/1 but not scoped to :available — for admin use,
+  so an archived/unavailable product (see remove_product/1) stays visible
+  and manageable in the admin product list instead of silently
+  disappearing the moment it's archived.
+  """
+  def filter_products_all_status(filter) do
+    Product
     |> join(:inner, [p], a in assoc(p, :artist), as: :artist)
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
@@ -71,10 +91,10 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.all()
   end
 
-
   # Returns the list of products that have particular category.
   defp with_category(query, nil), do: query
   defp with_category(query, ""), do: query
+
   defp with_category(query, category_id) do
     id = String.to_integer(category_id)
     where(query, [p], p.category_id == ^id)
@@ -83,6 +103,7 @@ defmodule ArtsyNeighbor.Products do
   # Returns the list of products that have particular collection (artist-defined).
   defp with_collection(query, nil), do: query
   defp with_collection(query, ""), do: query
+
   defp with_collection(query, collection_id) do
     id = String.to_integer(collection_id)
     where(query, [p], p.collection_id == ^id)
@@ -91,6 +112,7 @@ defmodule ArtsyNeighbor.Products do
   # Returns the list of products that have a particular artist's nickname.
   defp with_artist(query, nil), do: query
   defp with_artist(query, ""), do: query
+
   defp with_artist(query, artist_name) do
     search = "%#{artist_name}%"
     where(query, [artist: a], ilike(a.nickname, ^search))
@@ -98,6 +120,7 @@ defmodule ArtsyNeighbor.Products do
 
   defp with_artist_search_term(query, nil), do: query
   defp with_artist_search_term(query, ""), do: query
+
   defp with_artist_search_term(query, search_term) do
     search = "%#{search_term}%"
     or_where(query, [artist: a], ilike(a.nickname, ^search))
@@ -107,12 +130,16 @@ defmodule ArtsyNeighbor.Products do
   # in their title, or in their category name or description.
   defp with_string(query, nil), do: query
   defp with_string(query, ""), do: query
+
   defp with_string(query, string) do
     search = "%#{string}%"
-    where(query, [p, category: c],
+
+    where(
+      query,
+      [p, category: c],
       ilike(p.title, ^search) or
-      ilike(c.name, ^search) or
-      ilike(c.description, ^search)
+        ilike(c.name, ^search) or
+        ilike(c.description, ^search)
     )
   end
 
@@ -124,8 +151,6 @@ defmodule ArtsyNeighbor.Products do
   defp sort_by(query, "category"), do: order_by(query, [category: c], asc: c.name)
   defp sort_by(query, "collection"), do: order_by(query, [collection: c], asc: c.position)
   defp sort_by(query, _), do: order_by(query, [p], asc: p.title)
-
-
 
   @doc """
   Gets a single product.
@@ -143,8 +168,7 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product!(id), do: Repo.get!(Product, id)
 
-
-  @doc"""
+  @doc """
   Gets a single product with all associations preloaded.
 
   Raises `Ecto.NoResultsError` if the Product does not exist.
@@ -160,14 +184,29 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product_with_associations!(id) do
     Repo.get!(Product, id)
-    |> Repo.preload([:product_options, :artist, :category, :collection, product_images: images_by_position()])
+    |> Repo.preload([
+      :product_options,
+      :artist,
+      :category,
+      :collection,
+      product_images: images_by_position()
+    ])
   end
 
   # Returns nil if product does not exist.
   def get_product_with_associations(id) do
     case Repo.get(Product, id) do
-      nil -> nil
-      product -> Repo.preload(product, [:product_options, :artist, :category, :collection, product_images: images_by_position()])
+      nil ->
+        nil
+
+      product ->
+        Repo.preload(product, [
+          :product_options,
+          :artist,
+          :category,
+          :collection,
+          product_images: images_by_position()
+        ])
     end
   end
 
@@ -179,8 +218,7 @@ defmodule ArtsyNeighbor.Products do
 
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
 
-
-  @doc"""
+  @doc """
   Gets products by a specific artist.
 
   ## Examples
@@ -192,6 +230,20 @@ defmodule ArtsyNeighbor.Products do
   def get_products_by_artist(artist_id) do
     Product
     |> only_available()
+    |> where([p], p.artist_id == ^artist_id)
+    |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
+  @doc """
+  Same as get_products_by_artist/1 but not scoped to :available — for the
+  vendor's own dashboard, where they need to see and manage every product
+  they own, including ones they've archived (see remove_product/1).
+  get_products_by_artist/1 is public-facing and would hide an archived
+  product from its own owner.
+  """
+  def get_products_by_artist_all_status(artist_id) do
+    Product
     |> where([p], p.artist_id == ^artist_id)
     |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
     |> Repo.all()
@@ -212,7 +264,6 @@ defmodule ArtsyNeighbor.Products do
     |> preload([:product_images, :artist, :category])
     |> Repo.all()
   end
-
 
   @doc """
   Creates a product.
@@ -263,7 +314,40 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Deletes a product.
+  Marks a product as :archived — a soft, reversible removal. This is the
+  action a vendor takes to pull down their own listing; the product row and
+  its data are kept, just hidden from public queries (see only_available/1).
+  For permanent admin/testing cleanup that also removes dependent `Flag`
+  rows, see delete_product/1 instead, which is irreversible.
+  """
+  def remove_product(%Product{} = product) do
+    product
+    |> Product.status_changeset(%{status: :archived})
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a product, and any `Flag` rows reporting it directly (subject_type
+  "product") — `Flag.subject_id` is a polymorphic reference with no real DB
+  FK, so it can't cascade and has to be cleaned up here by hand. Same class
+  of cleanup as `Artists.delete_artist/1`'s flag handling.
+
+  Known gap (not fixed here — see `project_flagging_feature_plan.md` for the
+  deferred follow-up): unlike `delete_artist/1`, this doesn't lock the
+  product row first. A `Flag` inserted on this product in the narrow window
+  between the `delete_all` above and the `repo.delete(product)` below can
+  survive as an orphan referencing a since-deleted product. `delete_artist/1`'s
+  `FOR UPDATE` lock doesn't actually close this same gap either — it only
+  blocks inserts of real-FK'd rows (orders/reviews/conversations), not
+  `Flag`, which has no FK at all — so this isn't a regression from that
+  pattern, just an unclosed race shared by both.
+
+  `product_reviews.product_id` is `on_delete: :restrict` with no
+  `foreign_key_constraint`/`no_assoc_constraint` declared on
+  `Product.changeset/2`, so deleting a product that still has reviews raises
+  `Ecto.ConstraintError` rather than returning it through the Multi's own
+  `{:error, reason}` case — the `rescue` below catches that and reports it
+  the same way, so callers only ever need to handle `{:ok, _} | {:error, _}`.
 
   ## Examples
 
@@ -275,7 +359,29 @@ defmodule ArtsyNeighbor.Products do
 
   """
   def delete_product(%Product{} = product) do
-    Repo.delete(product)
+    Multi.new()
+    |> Multi.run(:deleted_flags, fn repo, _changes ->
+      {count, _} =
+        repo.delete_all(
+          from(f in Flag, where: f.subject_type == "product" and f.subject_id == ^product.id)
+        )
+
+      {:ok, count}
+    end)
+    |> Multi.run(:deleted_product, fn repo, _changes ->
+      repo.delete(product)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{deleted_product: deleted}} -> {:ok, deleted}
+      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
+    end
+  rescue
+    error in [Ecto.ConstraintError, Postgrex.Error] ->
+      # A constraint violation Multi's own {:error, ...} tuple can't catch
+      # (e.g. existing product_reviews rows, on_delete: :restrict) — fail
+      # cleanly instead of letting the exception crash the caller.
+      {:error, {:constraint_error, Exception.message(error)}}
   end
 
   @doc """
@@ -290,9 +396,6 @@ defmodule ArtsyNeighbor.Products do
   def change_product(%Product{} = product, attrs \\ %{}) do
     Product.changeset(product, attrs)
   end
-
-
-
 
   @doc """
   Returns all product images.
@@ -316,10 +419,6 @@ defmodule ArtsyNeighbor.Products do
     |> order_by([i], asc: i.position)
     |> Repo.all()
   end
-
-
-
-
 
   @doc """
   Gets a single product_image.
@@ -507,7 +606,6 @@ defmodule ArtsyNeighbor.Products do
     ProductOption.changeset(product_option, attrs)
   end
 
-
   # ============================================================
   # ProductCollection functions
   # ============================================================
@@ -520,10 +618,9 @@ defmodule ArtsyNeighbor.Products do
     ProductCollection
     |> where([c], c.artist_id == ^artist_id)
     |> order_by([c], asc: c.position)
-    |> preload([products: ^products_by_position()])
+    |> preload(products: ^products_by_position())
     |> Repo.all()
   end
-
 
   @doc """
   Returns all collections for an artist, ordered by position.
@@ -540,7 +637,11 @@ defmodule ArtsyNeighbor.Products do
   defp products_by_position do
     from(p in Product,
       order_by: [asc_nulls_last: p.position, asc: p.title],
-      preload: [:artist, :category, product_images: ^from(i in ProductImage, order_by: [asc: i.position])]
+      preload: [
+        :artist,
+        :category,
+        product_images: ^from(i in ProductImage, order_by: [asc: i.position])
+      ]
     )
   end
 

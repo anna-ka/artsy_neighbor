@@ -8,20 +8,20 @@ defmodule ArtsyNeighbor.Products.Product do
     field :details, :string
     field :price, :decimal
 
-    field :width,     :decimal
-    field :length,    :decimal
-    field :height,    :decimal
-    field :units,     :string, default: "cm"
+    field :width, :decimal
+    field :length, :decimal
+    field :height, :decimal
+    field :units, :string, default: "cm"
     field :materials, :string
 
     field :position, :integer
     field :unique_work, :boolean, default: false
     field :status, Ecto.Enum, values: [:available, :unavailable, :archived], default: :available
 
-    belongs_to :category,   ArtsyNeighbor.Categories.Category
-    belongs_to :artist,     ArtsyNeighbor.Artists.Artist
+    belongs_to :category, ArtsyNeighbor.Categories.Category
+    belongs_to :artist, ArtsyNeighbor.Artists.Artist
     belongs_to :collection, ArtsyNeighbor.Products.ProductCollection
-    has_many :product_images,  ArtsyNeighbor.Products.ProductImage
+    has_many :product_images, ArtsyNeighbor.Products.ProductImage
     has_many :product_options, ArtsyNeighbor.Products.ProductOption
 
     timestamps(type: :utc_datetime)
@@ -30,18 +30,51 @@ defmodule ArtsyNeighbor.Products.Product do
   @doc false
   def changeset(product, attrs) do
     product
-    |> cast(attrs, [:title, :descr, :details, :price, :artist_id, :category_id, :collection_id, :position, :width, :length, :height, :units, :materials, :unique_work, :status])
+    |> cast(attrs, [
+      :title,
+      :descr,
+      :details,
+      :price,
+      :artist_id,
+      :category_id,
+      :collection_id,
+      :position,
+      :width,
+      :length,
+      :height,
+      :units,
+      :materials,
+      :unique_work,
+      :status
+    ])
     |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
-    |> validate_length(:title, min: 3, max: 100,
-        min_message: "Title must be at least 3 characters long.",
-        max_message: "Title must be at most 100 characters long.")
-    |> validate_length(:descr, min: 10, max: 2000,
-        min_message: "Description must be at least 10 characters long.",
-        max_message: "Description must be at most 2000 characters long.")
+    |> validate_length(:title,
+      min: 3,
+      max: 100,
+      min_message: "Title must be at least 3 characters long.",
+      max_message: "Title must be at most 100 characters long."
+    )
+    |> validate_length(:descr,
+      min: 10,
+      max: 2000,
+      min_message: "Description must be at least 10 characters long.",
+      max_message: "Description must be at most 2000 characters long."
+    )
     |> validate_number(:price, greater_than: 0, message: "Price must be greater than zero.")
     |> validate_inclusion(:units, ["cm", "in"])
     |> validate_number(:width, greater_than: 0)
     |> validate_number(:length, greater_than: 0)
     |> validate_number(:height, greater_than: 0)
+  end
+
+  @doc """
+  Changeset for status-only updates (e.g. Products.remove_product/1). Scoped
+  to just :status so archiving/restoring a product never risks re-running
+  the full-profile validations above against fields that aren't changing.
+  """
+  def status_changeset(product, attrs) do
+    product
+    |> cast(attrs, [:status])
+    |> validate_required([:status])
   end
 end

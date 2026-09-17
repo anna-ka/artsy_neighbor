@@ -55,6 +55,7 @@ The app in broad strokes: a Phoenix LiveView local-art-marketplace. Artists (ven
 
 What's next on the list, roughly in priority order:
 
+MISSING:
 Flagging page (FlagLive.New at /flag/:subject_type/:subject_id) — reviews already write Flag records but there's no UI to create one yet
 Admin /admin/reviews and /admin/flags pages
 Email scaffolding — buyer gets a completion link by email when vendor schedules pickup (Swoosh is already a dependency)
@@ -64,5 +65,9 @@ Styling pass, multi-item cart, delivery-completion flow — all explicitly defer
 Want me to commit this artist-delete work now, or hold off while you look things over?
 
 
-
+MISSING:
 On the UI/looks overhaul — no rush, but when you're ready there's a dataviz/artifact-design-adjacent design skill setup I can walk you through, and it's the kind of task worth not clearing mid-stream since visual iteration benefits from me seeing the history of what you liked/rejected. Good candidate for its own long-lived session rather than folding into general dev work.
+
+ERROR:
+Sept. 16
+Conversation not updated with PubSub when buyer completes order. Vendor's view of the conversation remains the same, with ability to add/delete items, reschedule pick up etc.

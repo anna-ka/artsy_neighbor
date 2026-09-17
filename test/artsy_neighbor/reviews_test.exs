@@ -2,7 +2,9 @@ defmodule ArtsyNeighbor.ReviewsTest do
   use ArtsyNeighbor.DataCase
 
   alias ArtsyNeighbor.Reviews
+  alias ArtsyNeighbor.Reviews.Flag
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Repo
 
   import ArtsyNeighbor.AccountsFixtures
   import ArtsyNeighbor.ArtistsFixtures
@@ -56,7 +58,10 @@ defmodule ArtsyNeighbor.ReviewsTest do
     test "two completed orders, one reviewed, returns 1" do
       buyer = user_fixture()
       artist = artist_fixture()
-      reviewed_order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
+
+      reviewed_order =
+        order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
+
       order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(4)
 
       vendor_review_fixture(%{
@@ -160,7 +165,11 @@ defmodule ArtsyNeighbor.ReviewsTest do
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
 
       review =
-        buyer_review_fixture(%{order_id: order.id, reviewer_id: artist.user_id, buyer_id: buyer.id})
+        buyer_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: artist.user_id,
+          buyer_id: buyer.id
+        })
 
       %{review: review}
     end
@@ -198,7 +207,11 @@ defmodule ArtsyNeighbor.ReviewsTest do
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
 
       review =
-        product_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, product_id: product.id})
+        product_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          product_id: product.id
+        })
 
       %{review: review}
     end
@@ -229,6 +242,133 @@ defmodule ArtsyNeighbor.ReviewsTest do
   end
 
   # ---------------------------------------------------------------------------
+  # delete_vendor_review/2, delete_buyer_review/2, delete_product_review/2 —
+  # flag cleanup. Flag.subject_id is a polymorphic reference with no real DB
+  # FK, so deleting a reviewed review has to clean up matching flags by
+  # hand — same class of cleanup as Products.delete_product/1.
+  # ---------------------------------------------------------------------------
+  describe "review deletion cleans up flags reporting the review" do
+    setup do
+      buyer = user_fixture()
+      reporter = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      %{buyer: buyer, reporter: reporter, artist: artist, product: product, order: order}
+    end
+
+    test "delete_vendor_review/2 removes a flag reporting it", %{
+      buyer: buyer,
+      reporter: reporter,
+      artist: artist,
+      order: order
+    } do
+      review =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "vendor_review_of",
+          subject_id: review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Reviews.delete_vendor_review(review)
+
+      assert Repo.get(Flag, flag.id) == nil
+    end
+
+    test "delete_buyer_review/2 removes a flag reporting it", %{
+      buyer: buyer,
+      reporter: reporter,
+      artist: artist,
+      order: order
+    } do
+      review =
+        buyer_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: artist.user_id,
+          buyer_id: buyer.id
+        })
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "buyer_review_of",
+          subject_id: review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Reviews.delete_buyer_review(review)
+
+      assert Repo.get(Flag, flag.id) == nil
+    end
+
+    test "delete_product_review/2 removes a flag reporting it", %{
+      buyer: buyer,
+      reporter: reporter,
+      product: product,
+      order: order
+    } do
+      review =
+        product_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          product_id: product.id
+        })
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "product_review_of",
+          subject_id: review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Reviews.delete_product_review(review)
+
+      assert Repo.get(Flag, flag.id) == nil
+    end
+
+    test "deleting one review's flag does not affect a flag on an unrelated review", %{
+      buyer: buyer,
+      reporter: reporter,
+      artist: artist,
+      order: order
+    } do
+      review_a =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      other_buyer = user_fixture()
+      other_artist = artist_fixture()
+
+      other_order =
+        order_fixture(buyer_id: other_buyer.id, artist_id: other_artist.id) |> complete_order(1)
+
+      review_b =
+        vendor_review_fixture(%{
+          order_id: other_order.id,
+          reviewer_id: other_buyer.id,
+          artist_id: other_artist.id
+        })
+
+      {:ok, unrelated_flag} =
+        Reviews.create_flag(%{
+          subject_type: "vendor_review_of",
+          subject_id: review_b.id,
+          reason: "Unrelated flag on a different vendor review entirely.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Reviews.delete_vendor_review(review_a)
+
+      assert Repo.get(Flag, unrelated_flag.id) != nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # review_visible?/3
   # ---------------------------------------------------------------------------
   describe "review_visible?/3" do
@@ -240,22 +380,37 @@ defmodule ArtsyNeighbor.ReviewsTest do
 
     test "both reviews submitted, window open, returns true", %{buyer: buyer, artist: artist} do
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
-      vr = vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
-      br = buyer_review_fixture(%{order_id: order.id, reviewer_id: artist.user_id, buyer_id: buyer.id})
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      br =
+        buyer_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: artist.user_id,
+          buyer_id: buyer.id
+        })
 
       assert Reviews.review_visible?(vr, br, order) == true
     end
 
     test "only one review submitted, window open, returns false", %{buyer: buyer, artist: artist} do
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
-      vr = vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
 
       assert Reviews.review_visible?(vr, nil, order) == false
     end
 
-    test "only one review submitted, window expired, returns true", %{buyer: buyer, artist: artist} do
+    test "only one review submitted, window expired, returns true", %{
+      buyer: buyer,
+      artist: artist
+    } do
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(20)
-      vr = vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
 
       assert Reviews.review_visible?(vr, nil, order) == true
     end
@@ -281,7 +436,10 @@ defmodule ArtsyNeighbor.ReviewsTest do
       buyer = user_fixture()
       artist = artist_fixture()
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
-      vr = vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
       buyer_review_fixture(%{order_id: order.id, reviewer_id: artist.user_id, buyer_id: buyer.id})
 
       result = Reviews.list_vendor_reviews_for_artist(artist.id)
@@ -301,7 +459,9 @@ defmodule ArtsyNeighbor.ReviewsTest do
       buyer = user_fixture()
       artist = artist_fixture()
       order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(20)
-      vr = vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
 
       result = Reviews.list_vendor_reviews_for_artist(artist.id)
       assert Enum.map(result, & &1.id) == [vr.id]
@@ -328,22 +488,34 @@ defmodule ArtsyNeighbor.ReviewsTest do
     end
 
     test "completed 1 day ago, returns true" do
-      order = order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id) |> complete_order(1)
+      order =
+        order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id)
+        |> complete_order(1)
+
       assert Reviews.order_in_review_window?(order) == true
     end
 
     test "completed 13 days ago, returns true" do
-      order = order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id) |> complete_order(13)
+      order =
+        order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id)
+        |> complete_order(13)
+
       assert Reviews.order_in_review_window?(order) == true
     end
 
     test "completed exactly 14 days ago, returns false (boundary)" do
-      order = order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id) |> complete_order(14)
+      order =
+        order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id)
+        |> complete_order(14)
+
       assert Reviews.order_in_review_window?(order) == false
     end
 
     test "completed 20 days ago, returns false" do
-      order = order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id) |> complete_order(20)
+      order =
+        order_fixture(buyer_id: user_fixture().id, artist_id: artist_fixture().id)
+        |> complete_order(20)
+
       assert Reviews.order_in_review_window?(order) == false
     end
   end
@@ -406,7 +578,11 @@ defmodule ArtsyNeighbor.ReviewsTest do
       %{buyer: buyer, artist: artist, order: order}
     end
 
-    test "valid attrs returns {:ok, review} with submitted_at set", %{buyer: buyer, artist: artist, order: order} do
+    test "valid attrs returns {:ok, review} with submitted_at set", %{
+      buyer: buyer,
+      artist: artist,
+      order: order
+    } do
       assert {:ok, review} =
                Reviews.create_vendor_review(%{
                  stars: 4,
@@ -419,7 +595,11 @@ defmodule ArtsyNeighbor.ReviewsTest do
       assert review.submitted_at
     end
 
-    test "missing required field returns {:error, changeset}", %{buyer: buyer, artist: artist, order: order} do
+    test "missing required field returns {:error, changeset}", %{
+      buyer: buyer,
+      artist: artist,
+      order: order
+    } do
       assert {:error, changeset} =
                Reviews.create_vendor_review(%{
                  order_id: order.id,
@@ -430,7 +610,11 @@ defmodule ArtsyNeighbor.ReviewsTest do
       refute changeset.valid?
     end
 
-    test "stars out of range returns validation error", %{buyer: buyer, artist: artist, order: order} do
+    test "stars out of range returns validation error", %{
+      buyer: buyer,
+      artist: artist,
+      order: order
+    } do
       assert {:error, changeset} =
                Reviews.create_vendor_review(%{
                  stars: 0,
@@ -463,12 +647,34 @@ defmodule ArtsyNeighbor.ReviewsTest do
       artist = artist_fixture()
 
       order1 = order_fixture(buyer_id: buyer1.id, artist_id: artist.id) |> complete_order(2)
-      vendor_review_fixture(%{order_id: order1.id, reviewer_id: buyer1.id, artist_id: artist.id, stars: 4})
-      buyer_review_fixture(%{order_id: order1.id, reviewer_id: artist.user_id, buyer_id: buyer1.id})
+
+      vendor_review_fixture(%{
+        order_id: order1.id,
+        reviewer_id: buyer1.id,
+        artist_id: artist.id,
+        stars: 4
+      })
+
+      buyer_review_fixture(%{
+        order_id: order1.id,
+        reviewer_id: artist.user_id,
+        buyer_id: buyer1.id
+      })
 
       order2 = order_fixture(buyer_id: buyer2.id, artist_id: artist.id) |> complete_order(2)
-      vendor_review_fixture(%{order_id: order2.id, reviewer_id: buyer2.id, artist_id: artist.id, stars: 2})
-      buyer_review_fixture(%{order_id: order2.id, reviewer_id: artist.user_id, buyer_id: buyer2.id})
+
+      vendor_review_fixture(%{
+        order_id: order2.id,
+        reviewer_id: buyer2.id,
+        artist_id: artist.id,
+        stars: 2
+      })
+
+      buyer_review_fixture(%{
+        order_id: order2.id,
+        reviewer_id: artist.user_id,
+        buyer_id: buyer2.id
+      })
 
       assert Reviews.avg_rating_for_artist(artist.id) == 3.0
     end
@@ -484,12 +690,29 @@ defmodule ArtsyNeighbor.ReviewsTest do
       artist = artist_fixture()
 
       order1 = order_fixture(buyer_id: buyer1.id, artist_id: artist.id) |> complete_order(2)
-      vendor_review_fixture(%{order_id: order1.id, reviewer_id: buyer1.id, artist_id: artist.id, stars: 4})
-      buyer_review_fixture(%{order_id: order1.id, reviewer_id: artist.user_id, buyer_id: buyer1.id})
+
+      vendor_review_fixture(%{
+        order_id: order1.id,
+        reviewer_id: buyer1.id,
+        artist_id: artist.id,
+        stars: 4
+      })
+
+      buyer_review_fixture(%{
+        order_id: order1.id,
+        reviewer_id: artist.user_id,
+        buyer_id: buyer1.id
+      })
 
       # Not yet visible: only the vendor side has submitted, window still open.
       order2 = order_fixture(buyer_id: buyer2.id, artist_id: artist.id) |> complete_order(2)
-      vendor_review_fixture(%{order_id: order2.id, reviewer_id: buyer2.id, artist_id: artist.id, stars: 1})
+
+      vendor_review_fixture(%{
+        order_id: order2.id,
+        reviewer_id: buyer2.id,
+        artist_id: artist.id,
+        stars: 1
+      })
 
       assert Reviews.avg_rating_for_artist(artist.id) == 4.0
     end
@@ -521,6 +744,341 @@ defmodule ArtsyNeighbor.ReviewsTest do
       {:ok, conv2} = Conversations.get_or_create_system_conversation(user2.id)
 
       assert conv1.id != conv2.id
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # create_flag/1
+  # ---------------------------------------------------------------------------
+  describe "create_flag/1" do
+    test "a valid vendor flag succeeds" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      assert {:ok, flag} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: "This vendor never showed up for the scheduled pickup.",
+                 reporter_id: reporter.id
+               })
+
+      assert flag.status == :pending
+    end
+
+    test "a valid buyer flag succeeds" do
+      reporter = user_fixture()
+      buyer = user_fixture()
+
+      assert {:ok, _flag} =
+               Reviews.create_flag(%{
+                 subject_type: "buyer",
+                 subject_id: buyer.id,
+                 reason: "This buyer was abusive in messages during pickup.",
+                 reporter_id: reporter.id
+               })
+    end
+
+    test "a valid product flag succeeds — regression guard for the \"product\" subject type" do
+      reporter = user_fixture()
+      product = product_fixture()
+
+      assert {:ok, flag} =
+               Reviews.create_flag(%{
+                 subject_type: "product",
+                 subject_id: product.id,
+                 reason: "This listing appears to be selling something illegal.",
+                 reporter_id: reporter.id
+               })
+
+      assert flag.subject_type == "product"
+    end
+
+    test "an invalid subject_type is rejected" do
+      reporter = user_fixture()
+
+      assert {:error, changeset} =
+               Reviews.create_flag(%{
+                 subject_type: "not_a_real_type",
+                 subject_id: 1,
+                 reason: "This should not be accepted by the changeset.",
+                 reporter_id: reporter.id
+               })
+
+      assert "must be one of: vendor, buyer, product, vendor_review_of, buyer_review_of, product_review_of" in errors_on(
+               changeset
+             ).subject_type
+    end
+
+    test "reason under 20 characters is rejected" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      assert {:error, changeset} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: String.duplicate("a", 19),
+                 reporter_id: reporter.id
+               })
+
+      assert "please describe your concern in at least 20 characters" in errors_on(changeset).reason
+    end
+
+    test "reason at exactly 20 characters is accepted" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      assert {:ok, _flag} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: String.duplicate("a", 20),
+                 reporter_id: reporter.id
+               })
+    end
+
+    test "reason over 1000 characters is rejected" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      assert {:error, changeset} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: String.duplicate("a", 1001),
+                 reporter_id: reporter.id
+               })
+
+      assert changeset.errors[:reason]
+    end
+
+    test "a second pending flag from the same reporter on the same subject is rejected" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      flag_fixture(%{subject_id: artist.id, reporter_id: reporter.id})
+
+      assert {:error, changeset} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: "Filing a second report on the exact same vendor.",
+                 reporter_id: reporter.id
+               })
+
+      assert "you have already flagged this" in errors_on(changeset).reporter_id
+    end
+
+    test "a different reporter flagging the same subject succeeds" do
+      artist = artist_fixture()
+      first_reporter = user_fixture()
+      second_reporter = user_fixture()
+
+      flag_fixture(%{subject_id: artist.id, reporter_id: first_reporter.id})
+
+      assert {:ok, _flag} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: "A completely different reporter's account of events.",
+                 reporter_id: second_reporter.id
+               })
+    end
+
+    test "once the first flag is resolved, the same reporter can flag the same subject again" do
+      reporter = user_fixture()
+      admin = user_fixture()
+      artist = artist_fixture()
+
+      first_flag = flag_fixture(%{subject_id: artist.id, reporter_id: reporter.id})
+      {:ok, _resolved} = Reviews.resolve_flag(first_flag, admin.id)
+
+      assert {:ok, second_flag} =
+               Reviews.create_flag(%{
+                 subject_type: "vendor",
+                 subject_id: artist.id,
+                 reason: "Filing again since the first report was already resolved.",
+                 reporter_id: reporter.id
+               })
+
+      assert second_flag.status == :pending
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # pending_flag_from/3
+  # ---------------------------------------------------------------------------
+  describe "pending_flag_from/3" do
+    test "returns the pending flag when one exists" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+      flag = flag_fixture(%{subject_id: artist.id, reporter_id: reporter.id})
+
+      result = Reviews.pending_flag_from(reporter.id, "vendor", artist.id)
+
+      assert result.id == flag.id
+    end
+
+    test "returns nil when no flag exists" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+
+      assert Reviews.pending_flag_from(reporter.id, "vendor", artist.id) == nil
+    end
+
+    test "returns nil when the only flag on the subject is already resolved" do
+      reporter = user_fixture()
+      admin = user_fixture()
+      artist = artist_fixture()
+
+      flag = flag_fixture(%{subject_id: artist.id, reporter_id: reporter.id})
+      {:ok, _} = Reviews.resolve_flag(flag, admin.id)
+
+      assert Reviews.pending_flag_from(reporter.id, "vendor", artist.id) == nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # resolve_subject/2
+  # ---------------------------------------------------------------------------
+  describe "resolve_subject/2" do
+    test "\"vendor\" resolves to the artist" do
+      artist = artist_fixture()
+
+      assert {:ok, resolved} = Reviews.resolve_subject("vendor", artist.id)
+      assert resolved.type == "vendor"
+      assert resolved.record.id == artist.id
+      assert resolved.display_name == artist.nickname
+      assert resolved.owner_user_id == artist.user_id
+    end
+
+    test "\"buyer\" resolves to the user" do
+      buyer = user_fixture()
+
+      assert {:ok, resolved} = Reviews.resolve_subject("buyer", buyer.id)
+      assert resolved.type == "buyer"
+      assert resolved.record.id == buyer.id
+      assert resolved.display_name == buyer.email
+      assert resolved.owner_user_id == buyer.id
+    end
+
+    test "\"product\" resolves to the product, with the owning artist's user_id" do
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, resolved} = Reviews.resolve_subject("product", product.id)
+      assert resolved.type == "product"
+      assert resolved.record.id == product.id
+      assert resolved.display_name == product.title
+      assert resolved.owner_user_id == artist.user_id
+    end
+
+    test "accepts a stringified id, e.g. as it arrives from a URL param" do
+      artist = artist_fixture()
+      assert {:ok, _resolved} = Reviews.resolve_subject("vendor", to_string(artist.id))
+    end
+
+    test "returns {:error, :not_found} for a nonexistent id" do
+      assert Reviews.resolve_subject("vendor", 0) == {:error, :not_found}
+      assert Reviews.resolve_subject("buyer", 0) == {:error, :not_found}
+      assert Reviews.resolve_subject("product", 0) == {:error, :not_found}
+    end
+
+    test "returns {:error, :invalid_id} for a non-numeric id" do
+      assert Reviews.resolve_subject("vendor", "not-a-number") == {:error, :invalid_id}
+    end
+
+    test "returns {:error, :unsupported_subject_type} for a genuinely unsupported subject_type" do
+      artist = artist_fixture()
+      assert Reviews.resolve_subject("garbage", artist.id) == {:error, :unsupported_subject_type}
+      assert Reviews.resolve_subject("buyer", "") == {:error, :invalid_id}
+    end
+
+    # The three *_review_of types are handled for consistency, even though
+    # no UI links to flagging a review yet (see CLAUDE.md) — reviews aren't
+    # shown publicly anywhere, only to the two parties on that order.
+    test "\"vendor_review_of\" resolves to the review, owned by its reviewer" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      assert {:ok, resolved} = Reviews.resolve_subject("vendor_review_of", review.id)
+      assert resolved.type == "vendor_review_of"
+      assert resolved.record.id == review.id
+      assert resolved.display_name == "Review of #{artist.nickname}"
+      assert resolved.owner_user_id == buyer.id
+    end
+
+    test "\"buyer_review_of\" resolves to the review, owned by its reviewer" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        buyer_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: artist.user_id,
+          buyer_id: buyer.id
+        })
+
+      assert {:ok, resolved} = Reviews.resolve_subject("buyer_review_of", review.id)
+      assert resolved.type == "buyer_review_of"
+      assert resolved.record.id == review.id
+      assert resolved.display_name == "Review of #{buyer.email}"
+      assert resolved.owner_user_id == artist.user_id
+    end
+
+    test "\"product_review_of\" resolves to the review, owned by its reviewer" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        product_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          product_id: product.id
+        })
+
+      assert {:ok, resolved} = Reviews.resolve_subject("product_review_of", review.id)
+      assert resolved.type == "product_review_of"
+      assert resolved.record.id == review.id
+      assert resolved.display_name == "Review of #{product.title}"
+      assert resolved.owner_user_id == buyer.id
+    end
+
+    test "returns {:error, :not_found} for a nonexistent review id" do
+      assert Reviews.resolve_subject("vendor_review_of", 0) == {:error, :not_found}
+      assert Reviews.resolve_subject("buyer_review_of", 0) == {:error, :not_found}
+      assert Reviews.resolve_subject("product_review_of", 0) == {:error, :not_found}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_flags_for/2
+  # ---------------------------------------------------------------------------
+  describe "get_flags_for/2" do
+    test "returns flags matching subject_type and subject_id" do
+      reporter = user_fixture()
+      artist = artist_fixture()
+      flag = flag_fixture(%{subject_id: artist.id, reporter_id: reporter.id})
+
+      assert [result] = Reviews.get_flags_for("vendor", artist.id)
+      assert result.id == flag.id
+    end
+
+    test "does not return flags for a different subject" do
+      reporter = user_fixture()
+      artist_a = artist_fixture()
+      artist_b = artist_fixture()
+      flag_fixture(%{subject_id: artist_b.id, reporter_id: reporter.id})
+
+      assert Reviews.get_flags_for("vendor", artist_a.id) == []
     end
   end
 end

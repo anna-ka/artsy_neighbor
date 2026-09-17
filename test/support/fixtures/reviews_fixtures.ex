@@ -33,6 +33,18 @@ defmodule ArtsyNeighbor.ReviewsFixtures do
     review
   end
 
+  def flag_fixture(attrs \\ %{}) do
+    {:ok, flag} =
+      attrs
+      |> Enum.into(%{
+        subject_type: "vendor",
+        reason: "This vendor never showed up for the scheduled pickup."
+      })
+      |> Reviews.create_flag()
+
+    flag
+  end
+
   @doc """
   Backdates submitted_at on a review, for testing edit-window expiry.
   """

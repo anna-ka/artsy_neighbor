@@ -17,7 +17,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
 
       artist ->
         artist = ArtsyNeighbor.Artists.get_artist!(artist.id)
-        products = Products.get_products_by_artist(artist.id)
+        products = Products.get_products_by_artist_all_status(artist.id)
         collections = Products.list_collections_for_artist(artist.id)
         recent_sales = artist.id |> Orders.list_orders_for_artist() |> Enum.take(3)
         user_id = socket.assigns.current_scope.user.id
@@ -253,6 +253,12 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                               </div>
                             <% end %>
                             <span class="font-medium">{product.title}</span>
+                            <span
+                              :if={product.status != :available}
+                              class="badge badge-warning badge-sm"
+                            >
+                              {product.status}
+                            </span>
                           </div>
                         </td>
                         <td>{product.category && product.category.name}</td>
@@ -269,12 +275,12 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                               Edit
                             </.link>
                             <.link
-                              phx-click="delete_product"
+                              phx-click="archive_product"
                               phx-value-id={product.id}
-                              data-confirm="Delete this product? This cannot be undone."
-                              class="btn btn-ghost btn-xs text-error"
+                              data-confirm="Archive this listing? It will be hidden from the public site. This can be undone, but not by you yet — contact an admin to restore it."
+                              class="btn btn-ghost btn-xs text-warning"
                             >
-                              Delete
+                              Archive
                             </.link>
                           </div>
                         </td>
@@ -464,16 +470,19 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     end
   end
 
-  def handle_event("delete_product", %{"id" => id}, socket) do
+  # Soft removal — vendors archive their own listings rather than hard
+  # deleting them. A true, irreversible delete (Products.delete_product/1)
+  # is admin-only, same split as Artists.remove_artist/1 vs. delete_artist/1.
+  def handle_event("archive_product", %{"id" => id}, socket) do
     product = Products.get_product!(String.to_integer(id))
 
     if product.artist_id == socket.assigns.artist.id do
-      {:ok, _} = Products.delete_product(product)
-      products = Products.get_products_by_artist(socket.assigns.artist.id)
+      {:ok, _} = Products.remove_product(product)
+      products = Products.get_products_by_artist_all_status(socket.assigns.artist.id)
       collections = Products.list_collections_for_artist(socket.assigns.artist.id)
       {:noreply, assign(socket, products: products, collections: collections)}
     else
-      {:noreply, put_flash(socket, :error, "You are not authorized to delete this product.")}
+      {:noreply, put_flash(socket, :error, "You are not authorized to archive this product.")}
     end
   end
 end
