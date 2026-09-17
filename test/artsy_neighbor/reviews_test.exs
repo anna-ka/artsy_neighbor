@@ -245,7 +245,7 @@ defmodule ArtsyNeighbor.ReviewsTest do
   # delete_vendor_review/2, delete_buyer_review/2, delete_product_review/2 —
   # flag cleanup. Flag.subject_id is a polymorphic reference with no real DB
   # FK, so deleting a reviewed review has to clean up matching flags by
-  # hand — same class of cleanup as Products.delete_product/1.
+  # hand — same class of cleanup as Products.hard_delete_product/1.
   # ---------------------------------------------------------------------------
   describe "review deletion cleans up flags reporting the review" do
     setup do

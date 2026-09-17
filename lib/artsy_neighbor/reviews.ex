@@ -451,7 +451,7 @@ defmodule ArtsyNeighbor.Reviews do
   #
   # Each of these also cleans up any Flag rows reporting the review directly
   # ("vendor_review_of"/"buyer_review_of"/"product_review_of") — same class
-  # of cleanup as Products.delete_product/1 and Artists.delete_artist/1:
+  # of cleanup as Products.hard_delete_product/1 and Artists.hard_delete_artist/1:
   # Flag.subject_id is a polymorphic reference with no real DB-level FK, so
   # it can't cascade and has to be done by hand.
   # ---------------------------------------------------------------------------

@@ -58,7 +58,7 @@ defmodule ArtsyNeighbor.Products do
 
   @doc """
   Same as filter_products/1 but not scoped to :available — for admin use,
-  so an archived/unavailable product (see remove_product/1) stays visible
+  so an archived/unavailable product (see soft_delete_product/1) stays visible
   and manageable in the admin product list instead of silently
   disappearing the moment it's archived.
   """
@@ -168,6 +168,20 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product!(id), do: Repo.get!(Product, id)
 
+  # The full set of associations a product's detail views (public, vendor,
+  # admin) need preloaded. Pulled into one place so get_product_with_associations!/1,
+  # get_product_with_associations/1, and get_product_with_associations_all_status/1
+  # can't quietly drift apart the way three hand-copied lists would.
+  defp product_associations do
+    [
+      :product_options,
+      :artist,
+      :category,
+      :collection,
+      product_images: images_by_position()
+    ]
+  end
+
   @doc """
   Gets a single product with all associations preloaded.
 
@@ -184,13 +198,7 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product_with_associations!(id) do
     Repo.get!(Product, id)
-    |> Repo.preload([
-      :product_options,
-      :artist,
-      :category,
-      :collection,
-      product_images: images_by_position()
-    ])
+    |> Repo.preload(product_associations())
   end
 
   @doc """
@@ -205,13 +213,7 @@ defmodule ArtsyNeighbor.Products do
   def get_product_with_associations(id) do
     Product
     |> only_available()
-    |> preload([
-      :product_options,
-      :artist,
-      :category,
-      :collection,
-      product_images: ^images_by_position()
-    ])
+    |> preload(^product_associations())
     |> Repo.get(id)
   end
 
@@ -221,19 +223,9 @@ defmodule ArtsyNeighbor.Products do
   naming. Returns nil if the product doesn't exist at all.
   """
   def get_product_with_associations_all_status(id) do
-    case Repo.get(Product, id) do
-      nil ->
-        nil
-
-      product ->
-        Repo.preload(product, [
-          :product_options,
-          :artist,
-          :category,
-          :collection,
-          product_images: images_by_position()
-        ])
-    end
+    Product
+    |> preload(^product_associations())
+    |> Repo.get(id)
   end
 
   defp only_available(query) do
@@ -264,7 +256,7 @@ defmodule ArtsyNeighbor.Products do
   @doc """
   Same as get_products_by_artist/1 but not scoped to :available — for the
   vendor's own dashboard, where they need to see and manage every product
-  they own, including ones they've archived (see remove_product/1).
+  they own, including ones they've archived (see soft_delete_product/1).
   get_products_by_artist/1 is public-facing and would hide an archived
   product from its own owner.
   """
@@ -344,9 +336,9 @@ defmodule ArtsyNeighbor.Products do
   action a vendor takes to pull down their own listing; the product row and
   its data are kept, just hidden from public queries (see only_available/1).
   For permanent admin/testing cleanup that also removes dependent `Flag`
-  rows, see delete_product/1 instead, which is irreversible.
+  rows, see hard_delete_product/1 instead, which is irreversible.
   """
-  def remove_product(%Product{} = product) do
+  def soft_delete_product(%Product{} = product) do
     product
     |> Product.status_changeset(%{status: :archived})
     |> Repo.update()
@@ -356,13 +348,13 @@ defmodule ArtsyNeighbor.Products do
   Deletes a product, and any `Flag` rows reporting it directly (subject_type
   "product") — `Flag.subject_id` is a polymorphic reference with no real DB
   FK, so it can't cascade and has to be cleaned up here by hand. Same class
-  of cleanup as `Artists.delete_artist/1`'s flag handling.
+  of cleanup as `Artists.hard_delete_artist/1`'s flag handling.
 
   Known gap (not fixed here — see `project_flagging_feature_plan.md` for the
-  deferred follow-up): unlike `delete_artist/1`, this doesn't lock the
+  deferred follow-up): unlike `hard_delete_artist/1`, this doesn't lock the
   product row first. A `Flag` inserted on this product in the narrow window
   between the `delete_all` above and the `repo.delete(product)` below can
-  survive as an orphan referencing a since-deleted product. `delete_artist/1`'s
+  survive as an orphan referencing a since-deleted product. `hard_delete_artist/1`'s
   `FOR UPDATE` lock doesn't actually close this same gap either — it only
   blocks inserts of real-FK'd rows (orders/reviews/conversations), not
   `Flag`, which has no FK at all — so this isn't a regression from that
@@ -377,14 +369,14 @@ defmodule ArtsyNeighbor.Products do
 
   ## Examples
 
-      iex> delete_product(product)
+      iex> hard_delete_product(product)
       {:ok, %Product{}}
 
-      iex> delete_product(product)
+      iex> hard_delete_product(product)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_product(%Product{} = product) do
+  def hard_delete_product(%Product{} = product) do
     Multi.new()
     |> Multi.run(:deleted_flags, fn repo, _changes ->
       {count, _} =

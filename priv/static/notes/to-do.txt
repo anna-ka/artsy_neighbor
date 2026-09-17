@@ -71,3 +71,22 @@ On the UI/looks overhaul — no rush, but when you're ready there's a dataviz/ar
 ERROR:
 Sept. 16
 Conversation not updated with PubSub when buyer completes order. Vendor's view of the conversation remains the same, with ability to add/delete items, reschedule pick up etc.
+
+Sept. 17
+Summary of to dos from Claude:
+What's set aside for later
+Ready to pick up next (front of the queue):
+
+Admin moderation pass — /admin/flags (review/resolve/dismiss reports) + a public reviews display + "flag this review" links + notifying a reporter when their flag's status changes. These four are bundled deliberately (moderation is what creates the event to notify on; review-flagging needs a public page to link from) — this is the natural continuation of what you just shipped.
+Logged bugs/gaps, smaller, pick anytime:
+
+A narrow race + code duplication in the flag-cleanup delete paths (products/reviews/artists) — deferred together on purpose, since fixing one properly means restructuring the shared code the other lives in.
+FK-cascade + remove_*() rollout — only Artist has real cascades; Product now has remove_product/1 but its dependents still aren't cascaded. Same pattern, entity-by-entity.
+Two older, smaller ones you flagged yourself a while back and haven't returned to: nullable bio/medium on artists (a schema trade-off you weren't fully happy with), and the unread-message badge (works, but feels overbuilt for what it does — explicitly "don't touch until asked").
+Bigger, deliberately parked:
+
+Email sending (Swoosh is installed, nothing sends yet).
+Payments — no payment_method field yet, charge/refund are Logger stubs.
+The UI/styling overhaul — you already decided this deserves its own dedicated session with the design skill, not mixed into feature work.
+Multi-item cart, delivery-as-fulfillment, mobile nav polish — all explicitly not needed for launch.
+Given where the app is, I'd lean toward the admin moderation pass next — it's the direct continuation of what's now shipped, and until it exists, the flag-reporting feature has no downstream (reports go in, nobody can act on them). But it's your call.

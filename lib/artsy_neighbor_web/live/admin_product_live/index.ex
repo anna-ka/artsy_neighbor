@@ -39,7 +39,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   @impl true
   def handle_event("archive", %{"id" => id}, socket) do
     product = Products.get_product_with_associations!(id)
-    {:ok, updated_product} = Products.remove_product(product)
+    {:ok, updated_product} = Products.soft_delete_product(product)
 
     message = "Product \"#{product.title}\" has been archived."
 
@@ -56,7 +56,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
     product = Products.get_product!(id)
 
     socket =
-      case Products.delete_product(product) do
+      case Products.hard_delete_product(product) do
         {:ok, _} ->
           socket
           |> stream_delete(:products, product)

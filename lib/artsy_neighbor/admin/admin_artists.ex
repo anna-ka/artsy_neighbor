@@ -53,17 +53,17 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   @doc """
-  Marks an artist as removed (soft, reversible). See Artists.remove_artist/1.
+  Marks an artist as removed (soft, reversible). See Artists.soft_delete_artist/1.
   """
-  def remove_artist(%Artist{} = artist) do
-    Artists.remove_artist(artist)
+  def soft_delete_artist(%Artist{} = artist) do
+    Artists.soft_delete_artist(artist)
   end
 
   @doc """
   Permanently deletes an artist and everything that depends on them. See
-  Artists.delete_artist/1.
+  Artists.hard_delete_artist/1.
   """
-  def delete_artist(%Artist{} = artist) do
-    Artists.delete_artist(artist)
+  def hard_delete_artist(%Artist{} = artist) do
+    Artists.hard_delete_artist(artist)
   end
 end

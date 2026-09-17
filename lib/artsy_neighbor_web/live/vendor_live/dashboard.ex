@@ -471,13 +471,13 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   end
 
   # Soft removal — vendors archive their own listings rather than hard
-  # deleting them. A true, irreversible delete (Products.delete_product/1)
-  # is admin-only, same split as Artists.remove_artist/1 vs. delete_artist/1.
+  # deleting them. A true, irreversible delete (Products.hard_delete_product/1)
+  # is admin-only, same split as Artists.soft_delete_artist/1 vs. hard_delete_artist/1.
   def handle_event("archive_product", %{"id" => id}, socket) do
     product = Products.get_product!(String.to_integer(id))
 
     if product.artist_id == socket.assigns.artist.id do
-      {:ok, _} = Products.remove_product(product)
+      {:ok, _} = Products.soft_delete_product(product)
       products = Products.get_products_by_artist_all_status(socket.assigns.artist.id)
       collections = Products.list_collections_for_artist(socket.assigns.artist.id)
       {:noreply, assign(socket, products: products, collections: collections)}

@@ -119,7 +119,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
 
   @doc """
   Changeset for updating only the artist's status field.
-  Used by remove_artist/1 and status toggles.
+  Used by soft_delete_artist/1 and status toggles.
   """
   def status_changeset(artist, attrs) do
     artist

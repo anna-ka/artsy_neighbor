@@ -28,7 +28,7 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       conn: conn
     } do
       product = product_fixture()
-      {:ok, _} = ArtsyNeighbor.Products.remove_product(product)
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
 
       assert {:error, {:live_redirect, %{to: "/products", flash: flash}}} =
                live(conn, ~p"/products/#{product}")

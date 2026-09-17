@@ -68,7 +68,7 @@ defmodule ArtsyNeighbor.Products.Product do
   end
 
   @doc """
-  Changeset for status-only updates (e.g. Products.remove_product/1). Scoped
+  Changeset for status-only updates (e.g. Products.soft_delete_product/1). Scoped
   to just :status so archiving/restoring a product never risks re-running
   the full-profile validations above against fields that aren't changing.
   """

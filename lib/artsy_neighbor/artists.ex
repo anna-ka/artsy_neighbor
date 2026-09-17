@@ -301,9 +301,9 @@ defmodule ArtsyNeighbor.Artists do
   @doc """
   Marks an artist as :removed and sets all their products to :unavailable.
   Under normal circumstances Artists are never hard-deleted — they are permanent records.
-  For exceptions (admin/testing cleanup) see delete_artist/1 below, which is irreversible and cascades to all dependent records.
+  For exceptions (admin/testing cleanup) see hard_delete_artist/1 below, which is irreversible and cascades to all dependent records.
   """
-  def remove_artist(%Artist{} = artist) do
+  def soft_delete_artist(%Artist{} = artist) do
     Repo.transaction(fn ->
       Repo.update_all(
         from(p in Product, where: p.artist_id == ^artist.id),
@@ -329,11 +329,11 @@ defmodule ArtsyNeighbor.Artists do
   flags up by hand.
 
   Intended for admin/testing cleanup — for a normal "take this vendor down"
-  action use remove_artist/1 instead, which is reversible.
+  action use soft_delete_artist/1 instead, which is reversible.
 
-  For routine removal of artists, use remove_artist/1 instead. The current function is for admin/testing cleanup and is irreversible. remove_artist/1 only flag an artist as removed.
+  For routine removal of artists, use soft_delete_artist/1 instead. The current function is for admin/testing cleanup and is irreversible. soft_delete_artist/1 only flag an artist as removed.
   """
-  def delete_artist(%Artist{} = artist) do
+  def hard_delete_artist(%Artist{} = artist) do
     Multi.new()
     |> Multi.run(:locked_artist, fn repo, _changes ->
       # Lock the artist row for the duration of this transaction. Postgres

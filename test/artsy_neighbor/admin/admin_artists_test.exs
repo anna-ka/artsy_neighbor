@@ -78,10 +78,10 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
     end
   end
 
-  describe "delete_artist/1" do
+  describe "hard_delete_artist/1" do
     test "deletes the artist" do
       artist = artist_fixture()
-      assert {:ok, %Artist{}} = AdminArtists.delete_artist(artist)
+      assert {:ok, %Artist{}} = AdminArtists.hard_delete_artist(artist)
       assert_raise Ecto.NoResultsError, fn -> AdminArtists.get_artist!(artist.id) end
     end
   end

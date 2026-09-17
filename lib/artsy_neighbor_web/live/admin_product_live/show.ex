@@ -139,7 +139,13 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
                   <span class="italic">No artist (orphaned product)</span>
                 <% end %>
               </p>
-              <p class="text-sm text-base-content/50 mt-1"><%= @product.category.name %></p>
+              <p class="text-sm text-base-content/50 mt-1">
+                <%= if @product.category do %>
+                  <%= @product.category.name %>
+                <% else %>
+                  <span class="italic">No category</span>
+                <% end %>
+              </p>
             </div>
 
             <%!-- Price --%>

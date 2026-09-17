@@ -22,7 +22,10 @@ This shapes a few things worth keeping in mind while working on it:
 - **Removal is usually soft.** An artist or product going away shouldn't retroactively
   break past orders/reviews, so the default is to hide (`:inactive` / `:removed` /
   `:unavailable`), not delete. Hard delete exists only as an explicit admin/testing
-  action — see `Artists.delete_artist/1`.
+  action — see `Artists.hard_delete_artist/1`. This is being rolled out consistently
+  across every entity (see `docs/plans/2026-09-17-entity-removal-consistency.md`):
+  every entity gets `soft_delete_<entity>/1` (default, reversible) and, where a hard
+  path is kept at all, `hard_delete_<entity>/1` (rare, admin/testing-only, irreversible).
 - **Payments aren't live yet.** Right now this is cash/Interac-at-pickup in design;
   Stripe-shaped functions are stubbed with `Logger` calls until that's wired in.
 

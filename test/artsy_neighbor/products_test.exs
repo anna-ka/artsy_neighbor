@@ -80,17 +80,17 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert product.id == Products.get_product!(product.id).id
     end
 
-    test "delete_product/1 deletes the product" do
+    test "hard_delete_product/1 deletes the product" do
       product = product_fixture()
-      assert {:ok, %Product{}} = Products.delete_product(product)
+      assert {:ok, %Product{}} = Products.hard_delete_product(product)
       assert_raise Ecto.NoResultsError, fn -> Products.get_product!(product.id) end
     end
 
     # Flag.subject_id is a polymorphic reference (no real DB-level FK), so
-    # delete_product/1 has to clean up matching flags by hand rather than
+    # hard_delete_product/1 has to clean up matching flags by hand rather than
     # relying on a cascade — same class of cleanup as
-    # Artists.delete_artist/1's flag handling.
-    test "delete_product/1 removes flags reporting the product directly" do
+    # Artists.hard_delete_artist/1's flag handling.
+    test "hard_delete_product/1 removes flags reporting the product directly" do
       reporter = user_fixture()
       product = product_fixture()
 
@@ -102,12 +102,12 @@ defmodule ArtsyNeighbor.ProductsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Products.delete_product(product)
+      {:ok, _} = Products.hard_delete_product(product)
 
       assert Repo.get(Flag, flag.id) == nil
     end
 
-    test "delete_product/1 does not remove a flag on a different product" do
+    test "hard_delete_product/1 does not remove a flag on a different product" do
       reporter = user_fixture()
       product_a = product_fixture()
       product_b = product_fixture()
@@ -120,25 +120,25 @@ defmodule ArtsyNeighbor.ProductsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Products.delete_product(product_a)
+      {:ok, _} = Products.hard_delete_product(product_a)
 
       assert Repo.get(Flag, flag_b.id) != nil
     end
 
-    # remove_product/1 — soft, reversible removal (status -> :archived),
-    # the vendor-facing counterpart to the hard delete_product/1. Mirrors
-    # Artists.remove_artist/1 vs. Artists.delete_artist/1.
-    test "remove_product/1 sets status to :archived" do
+    # soft_delete_product/1 — soft, reversible removal (status -> :archived),
+    # the vendor-facing counterpart to hard_delete_product/1. Mirrors
+    # Artists.soft_delete_artist/1 vs. Artists.hard_delete_artist/1.
+    test "soft_delete_product/1 sets status to :archived" do
       product = product_fixture()
 
-      assert {:ok, updated} = Products.remove_product(product)
+      assert {:ok, updated} = Products.soft_delete_product(product)
       assert updated.status == :archived
     end
 
-    test "remove_product/1 does not delete the row or affect other fields" do
+    test "soft_delete_product/1 does not delete the row or affect other fields" do
       product = product_fixture()
 
-      assert {:ok, updated} = Products.remove_product(product)
+      assert {:ok, updated} = Products.soft_delete_product(product)
       assert updated.id == product.id
       assert updated.title == product.title
       assert Products.get_product!(product.id).status == :archived
@@ -273,7 +273,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "excludes archived products — this is exactly the gap get_products_by_artist_all_status/1 exists to fix" do
       artist = artist_fixture()
       product = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.remove_product(product)
+      {:ok, _} = Products.soft_delete_product(product)
 
       assert Products.get_products_by_artist(artist.id) == []
     end
@@ -284,7 +284,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
       available = product_fixture(%{artist_id: artist.id})
       archived = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.remove_product(archived)
+      {:ok, _} = Products.soft_delete_product(archived)
 
       results = Products.get_products_by_artist_all_status(artist.id)
       ids = Enum.map(results, & &1.id)
@@ -344,7 +344,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "returns nil for an archived product (regression: this used to leak to the public /products/:id page)" do
       product = product_fixture()
-      {:ok, _} = Products.remove_product(product)
+      {:ok, _} = Products.soft_delete_product(product)
       refute Products.get_product_with_associations(product.id)
     end
 
@@ -362,10 +362,31 @@ defmodule ArtsyNeighbor.ProductsTest do
   describe "get_product_with_associations_all_status/1" do
     test "returns an archived product (the admin escape hatch)" do
       product = product_fixture()
-      {:ok, product} = Products.remove_product(product)
+      {:ok, product} = Products.soft_delete_product(product)
       result = Products.get_product_with_associations_all_status(product.id)
       assert result.id == product.id
       assert result.status == :archived
+    end
+
+    test "returns a product with a nil artist (orphaned by a hard-deleted artist, e.g. via the pre-cascade-migration on_delete: :nilify_all behavior) without raising" do
+      product = product_fixture()
+      # Simulate the FK's on_delete: :nilify_all nulling the column directly,
+      # the same way the DB would — not something create/update_product's
+      # changeset would ever allow directly, since artist_id is required there.
+      {:ok, product} = product |> Ecto.Changeset.change(artist_id: nil) |> Repo.update()
+
+      result = Products.get_product_with_associations_all_status(product.id)
+      assert result.id == product.id
+      refute result.artist
+    end
+
+    test "returns a product with a nil category (orphaned by a deleted category, products.category_id is on_delete: :nilify_all) without raising" do
+      product = product_fixture()
+      {:ok, product} = product |> Ecto.Changeset.change(category_id: nil) |> Repo.update()
+
+      result = Products.get_product_with_associations_all_status(product.id)
+      assert result.id == product.id
+      refute result.category
     end
   end
 
@@ -488,7 +509,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category = category_fixture()
       available = product_fixture(%{artist_id: artist.id, category_id: category.id})
       archived = product_fixture(%{artist_id: artist.id, category_id: category.id})
-      {:ok, _} = Products.remove_product(archived)
+      {:ok, _} = Products.soft_delete_product(archived)
 
       all_ids = Products.filter_products_all_status(%{}) |> Enum.map(& &1.id)
       available_only_ids = Products.filter_products(%{}) |> Enum.map(& &1.id)

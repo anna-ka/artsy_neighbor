@@ -115,12 +115,12 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # remove_artist/1 — soft-delete an artist and set their products :unavailable
+  # soft_delete_artist/1 — soft-delete an artist and set their products :unavailable
   # ---------------------------------------------------------------------------
-  describe "remove_artist/1" do
+  describe "soft_delete_artist/1" do
     test "sets the artist's status to :removed" do
       artist = artist_fixture()
-      assert {:ok, updated} = Artists.remove_artist(artist)
+      assert {:ok, updated} = Artists.soft_delete_artist(artist)
       assert updated.status == :removed
     end
 
@@ -134,13 +134,13 @@ defmodule ArtsyNeighbor.ArtistsTest do
       # Confirm the product starts :available
       assert Products.get_product!(product.id).status == :available
 
-      {:ok, _} = Artists.remove_artist(artist)
+      {:ok, _} = Artists.soft_delete_artist(artist)
       assert Products.get_product!(product.id).status == :unavailable
     end
 
     test "returns the updated artist with artist_images preloaded" do
       artist = artist_fixture()
-      {:ok, updated} = Artists.remove_artist(artist)
+      {:ok, updated} = Artists.soft_delete_artist(artist)
 
       # Must have artist_images loaded so the admin index can stream_insert without crashing
       assert is_list(updated.artist_images)
@@ -152,7 +152,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       artist_b = artist_fixture()
       product_b = product_fixture(%{artist_id: artist_b.id})
 
-      {:ok, _} = Artists.remove_artist(artist_a)
+      {:ok, _} = Artists.soft_delete_artist(artist_a)
 
       # artist_b's product should be untouched
       assert Products.get_product!(product_b.id).status == :available
@@ -160,17 +160,17 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # delete_artist/1 — hard delete for admin/testing cleanup. Unlike
-  # remove_artist/1, this permanently removes the artist row plus every
+  # hard_delete_artist/1 — hard delete for admin/testing cleanup. Unlike
+  # soft_delete_artist/1, this permanently removes the artist row plus every
   # dependent row across orders, order_items, conversations,
   # conversation_events, and the three review tables — all of which reference
   # artist/order/product with on_delete: :nothing or :restrict at the DB
   # level, so the context has to clear them in dependency order itself.
   # ---------------------------------------------------------------------------
-  describe "delete_artist/1" do
+  describe "hard_delete_artist/1" do
     test "removes the artist row entirely" do
       artist = artist_fixture()
-      assert {:ok, _} = Artists.delete_artist(artist)
+      assert {:ok, _} = Artists.hard_delete_artist(artist)
       assert Artists.get_artist(artist.id) == nil
     end
 
@@ -178,7 +178,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       artist = artist_fixture()
       product = product_fixture(%{artist_id: artist.id})
 
-      {:ok, _} = Artists.delete_artist(artist)
+      {:ok, _} = Artists.hard_delete_artist(artist)
 
       assert Repo.get(Products.Product, product.id) == nil
     end
@@ -228,7 +228,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reviewer_id: buyer.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist)
+      {:ok, _} = Artists.hard_delete_artist(artist)
 
       assert Repo.get(Order, order.id) == nil
       assert Repo.get(OrderItem, item.id) == nil
@@ -246,7 +246,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       product_b = product_fixture(%{artist_id: artist_b.id})
       order_b = order_fixture(%{buyer_id: buyer.id, artist_id: artist_b.id})
 
-      {:ok, _} = Artists.delete_artist(artist_a)
+      {:ok, _} = Artists.hard_delete_artist(artist_a)
 
       assert Repo.get(Products.Product, product_b.id) != nil
       assert Repo.get(Order, order_b.id) != nil
@@ -255,7 +255,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
     # Flag.subject_id is a polymorphic reference (no real DB-level FK — it
     # can point at an artist or at any of three review tables depending on
-    # subject_type), so delete_artist/1 has to clean these up by hand rather
+    # subject_type), so hard_delete_artist/1 has to clean these up by hand rather
     # than relying on a cascade. These tests exist specifically to catch a
     # regression there.
     test "deletes flags reporting the artist directly" do
@@ -270,7 +270,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist)
+      {:ok, _} = Artists.hard_delete_artist(artist)
 
       assert Repo.get(Flag, flag.id) == nil
     end
@@ -323,7 +323,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist)
+      {:ok, _} = Artists.hard_delete_artist(artist)
 
       assert Repo.get(Flag, vendor_review_flag.id) == nil
       assert Repo.get(Flag, buyer_review_flag.id) == nil
@@ -343,7 +343,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist)
+      {:ok, _} = Artists.hard_delete_artist(artist)
 
       assert Repo.get(Flag, product_flag.id) == nil
     end
@@ -362,7 +362,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist_a)
+      {:ok, _} = Artists.hard_delete_artist(artist_a)
 
       assert Repo.get(Flag, unrelated_product_flag.id) != nil
     end
@@ -380,7 +380,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Artists.delete_artist(artist_a)
+      {:ok, _} = Artists.hard_delete_artist(artist_a)
 
       assert Repo.get(Flag, unrelated_flag.id) != nil
     end
@@ -1004,7 +1004,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # ---------------------------------------------------------------------------
   # Artist changeset — status_changeset/2
   #
-  # A lightweight changeset used by remove_artist/1 and status toggles.
+  # A lightweight changeset used by soft_delete_artist/1 and status toggles.
   # It only touches the status field — other fields are ignored, so there is
   # no risk of accidentally overwriting profile data.
   # ---------------------------------------------------------------------------

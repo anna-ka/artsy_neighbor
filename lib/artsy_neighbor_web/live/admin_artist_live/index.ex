@@ -17,7 +17,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   @impl true
   def handle_event("remove", %{"id" => id}, socket) do
     artist = AdminArtists.get_artist!(id)
-    {:ok, updated_artist} = AdminArtists.remove_artist(artist)
+    {:ok, updated_artist} = AdminArtists.soft_delete_artist(artist)
 
     message = "Artist #{artist.nickname} has been marked as removed."
 
@@ -29,16 +29,16 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:noreply, socket}
   end
 
-  # Permanently deletes an artist via AdminArtists.delete_artist/1 (which
-  # delegates to Artists.delete_artist/1) — a hard delete, unlike the
-  # "remove" handler above. This also destroys every order, order item,
-  # conversation, conversation event, and review tied to this artist; there
-  # is no undo. It's meant for admin/testing cleanup, not the normal "take
-  # this vendor down" action — that's "remove", which just flips status and
-  # is fully reversible. The confirm dialog in the template spells this out
-  # to the admin before the event ever fires.
+  # Permanently deletes an artist via AdminArtists.hard_delete_artist/1
+  # (which delegates to Artists.hard_delete_artist/1) — a hard delete,
+  # unlike the "remove" handler above. This also destroys every order,
+  # order item, conversation, conversation event, and review tied to this
+  # artist; there is no undo. It's meant for admin/testing cleanup, not the
+  # normal "take this vendor down" action — that's "remove", which just
+  # flips status and is fully reversible. The confirm dialog in the
+  # template spells this out to the admin before the event ever fires.
   #
-  # delete_artist/1 can return {:error, _} (e.g. new activity for this
+  # hard_delete_artist/1 can return {:error, _} (e.g. new activity for this
   # artist landed between page load and this click) rather than crashing —
   # handled below with a flash instead of a MatchError.
   @impl true
@@ -46,7 +46,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     artist = AdminArtists.get_artist!(id)
 
     socket =
-      case AdminArtists.delete_artist(artist) do
+      case AdminArtists.hard_delete_artist(artist) do
         {:ok, _deleted} ->
           message =
             "Artist #{artist.nickname} and all their orders, reviews, and conversations have been permanently deleted."
