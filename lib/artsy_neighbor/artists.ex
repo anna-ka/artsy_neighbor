@@ -278,15 +278,91 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Updates an existing artist with the given attributes.
+
+  If this update includes a status transition from :active to :inactive —
+  from any caller, not just deactivate_artist/1's own dedicated vendor
+  self-service path — also cascades the artist's currently-:available
+  products to :unavailable, the same way deactivate_artist/1 does. This
+  matters because :status is just one field among many on this general
+  update (e.g. the admin edit form's status dropdown, or a future one),
+  and without it, an admin changing an artist to :inactive here wouldn't
+  hide their products the way the vendor's own dashboard toggle does —
+  same class of gap only_available/1's own artist-status check exists to
+  catch at the query layer, but the cascade keeps product rows themselves
+  consistent too, not just query results.
+
+  Unlike deactivate_artist/1, this does NOT refuse the update when the
+  artist isn't already :active — a general profile edit (bio, address,
+  etc., possibly bundled with an unrelated status change) shouldn't fail
+  outright over that; it just means no cascade applies for other
+  transitions (:removed -> :inactive, e.g., already has no :available
+  products left to cascade, since soft_delete_artist/1 already archived
+  them all).
   """
   def update_artist(%Ecto.Changeset{} = changeset) do
-    Repo.update(changeset)
+    do_update_artist(changeset)
   end
 
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
-    artist
-    |> change_artist(attrs)
-    |> Repo.update()
+    do_update_artist(change_artist(artist, attrs))
+  end
+
+  # changeset.data is always the pre-change struct — true whether the
+  # changeset arrived pre-built (update_artist/1) or was just built here
+  # from an %Artist{} + attrs (update_artist/2) — so there's no need for a
+  # separate "original status" argument computed differently per call site.
+  defp do_update_artist(changeset) do
+    original_status = changeset.data.status
+
+    if original_status == :active and Ecto.Changeset.get_change(changeset, :status) == :inactive do
+      Repo.transaction(fn ->
+        case Repo.update(changeset) do
+          {:ok, updated} ->
+            cascade_available_products_to_unavailable(updated.id)
+            updated
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
+        end
+      end)
+    else
+      Repo.update(changeset)
+    end
+  end
+
+  # Shared by deactivate_artist/1 and update_artist/2's own transition
+  # detection above, so "an artist leaving :active hides their available
+  # products" holds the same way regardless of which function performed
+  # the transition. A thin, readably-named wrapper around
+  # cascade_products_status/3 below, which also backs soft_delete_artist/1
+  # — one implementation of "bulk-update an artist's products' status" for
+  # every entry point, not two independently-maintained copies of the same
+  # Repo.update_all.
+  defp cascade_available_products_to_unavailable(artist_id) do
+    cascade_products_status(artist_id, :available, :unavailable)
+  end
+
+  # Bulk-updates an artist's products to `to_status`. `from_status` is nil
+  # to touch every one of the artist's products unconditionally (used by
+  # soft_delete_artist/1 — a full removal, where even an already-:archived
+  # product should end up in the same bucket), or a specific atom to scope
+  # it to only products currently at that status (used by the lighter
+  # :active -> :inactive pause cascade above, which must leave
+  # already-:archived products alone).
+  defp cascade_products_status(artist_id, from_status, to_status) do
+    query =
+      case from_status do
+        nil -> from(p in Product, where: p.artist_id == ^artist_id)
+        status -> from(p in Product, where: p.artist_id == ^artist_id and p.status == ^status)
+      end
+
+    Repo.update_all(
+      query,
+      set: [
+        status: to_string(to_status),
+        updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      ]
+    )
   end
 
   @doc """
@@ -300,16 +376,22 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Marks an artist as :removed and sets all their products to :unavailable.
-  Under normal circumstances Artists are never hard-deleted — they are permanent records.
-  For exceptions (admin/testing cleanup) see hard_delete_artist/1 below, which is irreversible and cascades to all dependent records.
+  Marks an artist as :removed and sets ALL of their products to :archived
+  (unconditionally — even ones the vendor had already archived themselves
+  individually; a soft-deleted artist's whole catalog goes into the same
+  bucket, regardless of prior per-product status). Under normal
+  circumstances Artists are never hard-deleted — they are permanent
+  records. For exceptions (admin/testing cleanup) see hard_delete_artist/1
+  below, which is irreversible and cascades to all dependent records.
+
+  Compare deactivate_artist/1: a lighter, self-service, reversible-in-spirit
+  pause (:active -> :inactive) that only touches currently-:available
+  products and leaves already-:archived ones alone — this function is the
+  heavier, admin-initiated removal.
   """
   def soft_delete_artist(%Artist{} = artist) do
     Repo.transaction(fn ->
-      Repo.update_all(
-        from(p in Product, where: p.artist_id == ^artist.id),
-        set: [status: "unavailable", updated_at: DateTime.utc_now() |> DateTime.truncate(:second)]
-      )
+      cascade_products_status(artist.id, nil, :archived)
 
       case artist |> Artist.status_changeset(%{status: :removed}) |> Repo.update() do
         {:ok, updated} -> Repo.preload(updated, [:artist_images])
@@ -319,11 +401,60 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
+  Vendor self-service: deactivates an artist's own profile (:active ->
+  :inactive) and cascades their currently-:available products to
+  :unavailable. This same cascade also happens automatically from the
+  general update_artist/2 for any :active -> :inactive transition (e.g.
+  the admin edit form's own status dropdown) — see that function's own
+  doc comment — so the invariant holds regardless of entry point, not
+  just this vendor-facing one. Also independently backed by
+  only_available/1's own artist-status check at the query layer — cascade
+  and query-layer check are defense in depth for the same problem, not a
+  substitute for one another.
+
+  Only touches :available products, not :archived ones — a product the
+  vendor already archived themselves stays archived; this is a pause, not
+  a removal, so it shouldn't disturb a deliberate per-product choice.
+  Compare soft_delete_artist/1, which unconditionally forces every product
+  to :archived regardless of prior status, because it's a full removal.
+
+  Refuses (returns {:error, :not_active}) unless the artist is currently
+  :active — deactivating only means something as a transition away from
+  active; calling this on an already-:inactive or :removed artist would be
+  meaningless at best, or (for :removed) actively wrong, since it would
+  silently move a removed artist to :inactive as a side effect. Unlike
+  this function, update_artist/2's version of the same cascade does NOT
+  refuse the whole update on this same precondition — see its own doc
+  comment for why.
+
+  Does not cascade back on reactivation — re-activating (:inactive ->
+  :active, via the same dashboard toggle, calling update_artist/2 directly
+  since no cascade is needed for that direction) does not automatically
+  restore any product's status. A vendor's products stay :unavailable
+  until they're brought back individually; that "mark available" action
+  doesn't exist yet (see restore_product/1's own doc comment).
+  """
+  def deactivate_artist(%Artist{status: :active} = artist) do
+    Repo.transaction(fn ->
+      cascade_available_products_to_unavailable(artist.id)
+
+      case artist |> Artist.status_changeset(%{status: :inactive}) |> Repo.update() do
+        {:ok, updated} -> updated
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  def deactivate_artist(%Artist{}), do: {:error, :not_active}
+
+  @doc """
   Reverses soft_delete_artist/1, setting status back to :inactive — not
   :active, since restoring a removed profile shouldn't silently re-publish
   it. The vendor still has to actively re-activate from their dashboard.
-  Does not touch the artist's products, which stay :unavailable until the
-  vendor re-lists them individually.
+  Does not touch the artist's products, which stay :archived (set by
+  soft_delete_artist/1) until brought back individually via
+  Products.restore_product/1 — itself gated on the artist being :active,
+  so this alone isn't enough to make any of them visible again either.
 
   Refuses (returns {:error, :already_active}) if the artist is currently
   :active — restoring is meant to bring a removed/inactive profile back

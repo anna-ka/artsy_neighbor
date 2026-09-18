@@ -46,10 +46,18 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
     Artists.get_artist!(id)
   end
 
+  @doc """
+  Updates an artist. Delegates to Artists.update_artist/2, matching every
+  other function in this module — not a separate implementation. This
+  used to do its own change_artist/2 + Repo.update/1 directly, which meant
+  it silently skipped Artists.update_artist/2's own :active -> :inactive
+  product cascade (see that function's doc comment) despite looking
+  identical to it. Not currently called from any LiveView (only this
+  module's own tests exercise it) — fixed now so it isn't a live trap if
+  it ever is.
+  """
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
-    artist
-    |> change_artist(attrs)
-    |> Repo.update()
+    Artists.update_artist(artist, attrs)
   end
 
   @doc """

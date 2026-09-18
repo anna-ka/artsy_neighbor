@@ -21,7 +21,7 @@ This shapes a few things worth keeping in mind while working on it:
   see Order Flow below.
 - **Removal is usually soft.** An artist or product going away shouldn't retroactively
   break past orders/reviews, so the default is to hide (`:inactive` / `:removed` /
-  `:unavailable`), not delete. Hard delete exists only as an explicit admin/testing
+  `:unavailable` / `:archived`), not delete. Hard delete exists only as an explicit admin/testing
   action — see `Artists.hard_delete_artist/1`. This is being rolled out consistently
   across every entity (see `docs/plans/2026-09-17-entity-removal-consistency.md`):
   every entity gets `soft_delete_<entity>/1` (default, reversible) and, where a hard
@@ -104,8 +104,25 @@ mix phx.server           # dev server
 
 **Product** (`lib/artsy_neighbor/products/product.ex`)
 - `status` — `:available` | `:unavailable` | `:archived`, default `:available`
-- When an artist is removed, their products go `:unavailable` — not deleted
-- `only_available/1` requires both `status == :available` AND `artist_id` not nil
+- When an artist is soft-deleted (`Artists.soft_delete_artist/1`), all their
+  products go `:archived` — not deleted, and unconditionally (even ones
+  already `:archived` individually). When an artist transitions from
+  `:active` to `:inactive` — via `Artists.deactivate_artist/1` (the vendor
+  dashboard's own toggle) or via the general `Artists.update_artist/2`
+  (e.g. the admin edit form's own status dropdown) — only their
+  `:available` products go `:unavailable`, a lighter, reversible-in-spirit
+  pause that leaves already-`:archived` products alone. Both functions
+  share this cascade so it holds regardless of entry point. Neither
+  transition reverses automatically — restoring the artist doesn't restore
+  their products; that's a separate, still-manual step
+  (`Products.restore_product/1`, itself gated on the artist being `:active`).
+- `only_available/1` requires `status == :available`, `artist_id` not nil,
+  AND the owning artist's own `status == :active` (checked via a subquery,
+  not a join, since callers sometimes already join `:artist` themselves) —
+  this is deliberately redundant with the cascades above (defense in
+  depth): even if some write path sets a product `:available` without going
+  through the dedicated cascade/guard functions, it still won't surface
+  publicly with a non-`:active` artist attached.
 
 **Conversations** — `buyer_id`/`artist_id` are nullable (see migration
 `20260817000002_allow_null_participants_in_conversations`) because system

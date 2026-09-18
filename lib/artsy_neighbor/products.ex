@@ -7,6 +7,7 @@ defmodule ArtsyNeighbor.Products do
   alias ArtsyNeighbor.Repo
   alias Ecto.Multi
 
+  alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Products.ProductOption
   alias ArtsyNeighbor.Products.ProductImage
@@ -49,8 +50,7 @@ defmodule ArtsyNeighbor.Products do
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
     |> with_artist(filter["artist"])
-    |> with_string(filter["search"])
-    |> with_artist_search_term(filter["search"])
+    |> with_search_term(filter["search"])
     |> sort_by(filter["sort_by"])
     |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
@@ -68,8 +68,7 @@ defmodule ArtsyNeighbor.Products do
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
     |> with_artist(filter["artist"])
-    |> with_string(filter["search"])
-    |> with_artist_search_term(filter["search"])
+    |> with_search_term(filter["search"])
     |> sort_by(filter["sort_by"])
     |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
@@ -118,16 +117,45 @@ defmodule ArtsyNeighbor.Products do
     where(query, [artist: a], ilike(a.nickname, ^search))
   end
 
-  defp with_artist_search_term(query, nil), do: query
-  defp with_artist_search_term(query, ""), do: query
+  # Matches the search term against title, category name/description, OR
+  # the artist's nickname — used by filter_products/1 and
+  # filter_products_all_status/1, both of which join :artist.
+  #
+  # Bug fix: this replaces a previous pair of with_string/1 (a proper
+  # `where`, ANDed with everything else) + with_artist_search_term/1 (an
+  # `or_where`). Ecto's or_where ORs against the *entire* accumulated
+  # WHERE clause, not just the other search conditions — so a search term
+  # matching the artist's nickname used to bypass only_available/1
+  # entirely (status/artist-active checks included) and also ignored any
+  # category/artist filter already applied. Confirmed via a live query: an
+  # :inactive artist's :unavailable product was still returned by
+  # filter_products/1 when searching their nickname. Folding all four
+  # conditions into one OR-grouped `where` (ANDed with the rest of the
+  # query, same as with_string/1 always was) closes this — a search still
+  # matches on any of the four fields, but doing so can no longer bypass
+  # availability, category, or artist-name filters.
+  defp with_search_term(query, nil), do: query
+  defp with_search_term(query, ""), do: query
 
-  defp with_artist_search_term(query, search_term) do
+  defp with_search_term(query, search_term) do
     search = "%#{search_term}%"
-    or_where(query, [artist: a], ilike(a.nickname, ^search))
+
+    where(
+      query,
+      [p, artist: a, category: c],
+      ilike(p.title, ^search) or
+        ilike(c.name, ^search) or
+        ilike(c.description, ^search) or
+        ilike(a.nickname, ^search)
+    )
   end
 
-  # Returns the list of products that have a particular string
-  # in their title, or in their category name or description.
+  # Returns the list of products that have a particular string in their
+  # title, or in their category name or description. Used by
+  # filter_artist_products/2, which is already scoped to one known
+  # artist_id — matching the artist's own nickname wouldn't add anything
+  # there, so it doesn't need with_search_term/2's extra OR clause (and
+  # doesn't join :artist at all).
   defp with_string(query, nil), do: query
   defp with_string(query, ""), do: query
 
@@ -228,10 +256,22 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.get(id)
   end
 
+  # A subquery, not a join — only_available/1 is composed into queries that
+  # sometimes already join :artist under their own alias (filter_products/1,
+  # filter_products_all_status/1), so adding a second join here under a
+  # fixed alias would collide. Defense in depth, independent of whatever
+  # cascades an artist-status change is supposed to trigger elsewhere
+  # (Artists.soft_delete_artist/1, Artists.deactivate_artist/1): even if a
+  # product's own status is wrong for some reason (a write path that
+  # bypasses those cascades, a bug, direct DB access), this keeps public
+  # queries from ever surfacing a product whose artist isn't :active.
   defp only_available(query) do
+    active_artist_ids = from(a in Artist, where: a.status == :active, select: a.id)
+
     query
     |> where([p], p.status == :available)
     |> where([p], not is_nil(p.artist_id))
+    |> where([p], p.artist_id in subquery(active_artist_ids))
   end
 
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
@@ -361,16 +401,16 @@ defmodule ArtsyNeighbor.Products do
   docs/plans/2026-09-17-entity-removal-consistency.md.
 
   Refuses (returns {:error, :artist_not_active}) unless the owning artist is
-  currently :active. only_available/1 only checks the product's own status
-  and that artist_id isn't nil — it doesn't check the artist's status — so
-  restoring a product whose artist isn't :active would leave it one step
-  away from being publicly purchasable with no reachable seller profile
-  (the artist's own public store page redirects for any status other than
-  :active). Requiring :active rather than just "not :removed" matters
-  because Artists.restore_artist/1 itself only ever lands on :inactive,
-  never :active — so right after restoring a removed artist, their
-  products are still correctly blocked here until the vendor actively
-  re-activates from their dashboard.
+  currently :active. This guard predates only_available/1 itself also
+  checking artist status (added the same day, as a separate, focused
+  commit) — kept as a belt-and-suspenders check at the write path in
+  addition to the query-layer one, and because the error tuple here is
+  more specific/actionable than a silently-empty query result would be.
+  Requiring :active rather than just "not :removed" matters because
+  Artists.restore_artist/1 itself only ever lands on :inactive, never
+  :active — so right after restoring a removed artist, their products are
+  still correctly blocked here until the vendor actively re-activates from
+  their dashboard.
 
   Refuses (returns {:error, :category_missing}) if the product's category
   no longer exists. products.category_id is on_delete: :nilify_all, and

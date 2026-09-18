@@ -167,20 +167,20 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
 
     # Guards against restoring a product unless its artist is currently
-    # :active — only_available/1 doesn't check artist status, so this
-    # matters for whatever eventually completes the "mark available" step
-    # this function stops short of.
+    # :active — belt-and-suspenders with only_available/1's own
+    # independent artist-status check, and gives a more specific error
+    # than a silently-empty query result would.
     test "refuses to restore a product whose artist is :removed" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
       {:ok, _} = Products.soft_delete_product(product)
       # soft_delete_artist/1 cascades every one of the artist's products to
-      # :unavailable, overwriting whatever status they were at before.
+      # :archived, overwriting whatever status they were at before.
       {:ok, _} = Artists.soft_delete_artist(artist)
-      unavailable = Products.get_product!(product.id)
-      assert unavailable.status == :unavailable
+      archived = Products.get_product!(product.id)
+      assert archived.status == :archived
 
-      assert {:error, :artist_not_active} = Products.restore_product(unavailable)
+      assert {:error, :artist_not_active} = Products.restore_product(archived)
     end
 
     # restore_artist/1 only ever lands on :inactive, never :active (see its
@@ -191,13 +191,13 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture(%{artist_id: artist.id})
 
       {:ok, _} = Artists.soft_delete_artist(artist)
-      assert Products.get_product!(product.id).status == :unavailable
+      assert Products.get_product!(product.id).status == :archived
 
       {:ok, restored_artist} = Artists.restore_artist(Artists.get_artist!(artist.id))
       assert restored_artist.status == :inactive
 
-      unavailable_product = Products.get_product!(product.id)
-      assert {:error, :artist_not_active} = Products.restore_product(unavailable_product)
+      archived_product = Products.get_product!(product.id)
+      assert {:error, :artist_not_active} = Products.restore_product(archived_product)
     end
 
     test "succeeds (landing on :unavailable) once the vendor has actively re-activated to :active" do
@@ -210,8 +210,8 @@ defmodule ArtsyNeighbor.ProductsTest do
       # goes through Artists.update_artist/2, not status_changeset directly.
       {:ok, _} = Artists.update_artist(Artists.get_artist!(artist.id), %{status: :active})
 
-      unavailable_product = Products.get_product!(product.id)
-      assert {:ok, restored_product} = Products.restore_product(unavailable_product)
+      archived_product = Products.get_product!(product.id)
+      assert {:ok, restored_product} = Products.restore_product(archived_product)
       assert restored_product.status == :unavailable
     end
 
@@ -361,6 +361,40 @@ defmodule ArtsyNeighbor.ProductsTest do
   end
 
   # ============================================================
+  # list_products_with_associations/0 — backs the home page's product
+  # grid, including "featured products" (Enum.take/2 of this list in
+  # HomeLive), so its scoping is public-facing.
+  # ============================================================
+
+  describe "list_products_with_associations/0" do
+    test "returns available products with associations preloaded" do
+      product = product_fixture()
+      results = Products.list_products_with_associations()
+      result = Enum.find(results, &(&1.id == product.id))
+      assert result
+      assert %ArtsyNeighbor.Artists.Artist{} = result.artist
+    end
+
+    test "excludes an archived product" do
+      product = product_fixture()
+      {:ok, _} = Products.soft_delete_product(product)
+      results = Products.list_products_with_associations()
+      refute Enum.any?(results, &(&1.id == product.id))
+    end
+
+    # Regression test: same artist-status check as filter_products/1 and
+    # get_product_with_associations/1, via the shared only_available/1.
+    test "excludes a product whose artist is not :active" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      force_artist_status(artist, :inactive)
+
+      results = Products.list_products_with_associations()
+      refute Enum.any?(results, &(&1.id == product.id))
+    end
+  end
+
+  # ============================================================
   # Querying — by artist / by category
   # ============================================================
 
@@ -469,6 +503,22 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "returns nil for a nonexistent product" do
       refute Products.get_product_with_associations(-1)
+    end
+
+    # Regression test: only_available/1 now checks the owning artist's
+    # status too, not just the product's own. Uses force_artist_status/2
+    # (a raw bypass of every Artists context function, cascades included)
+    # to isolate this query-layer check on its own — the product's own
+    # status stays :available throughout.
+    test "returns nil for an :available product whose artist is not :active, even though the product's own status is untouched" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      assert Products.get_product_with_associations(product.id)
+
+      force_artist_status(artist, :inactive)
+
+      assert Products.get_product!(product.id).status == :available
+      refute Products.get_product_with_associations(product.id)
     end
   end
 
@@ -587,6 +637,55 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert p2.id in ids
     end
 
+    # Regression test: public search must not surface a product whose
+    # artist isn't :active, even though the product's own status is
+    # untouched — see only_available/1's own artist-status subquery.
+    test "excludes a product whose artist is not :active", %{p2: p2, artist2: artist2} do
+      force_artist_status(artist2, :inactive)
+
+      results = Products.filter_products(%{})
+      ids = Enum.map(results, & &1.id)
+      refute p2.id in ids
+    end
+
+    # Regression test for a real bug found while reviewing this session's
+    # diff: with_artist_search_term/1 used to be a bare `or_where`, which
+    # in Ecto ORs against the *entire* accumulated WHERE clause, not just
+    # the other search conditions — so searching by an artist's own
+    # nickname bypassed only_available/1 (and any category/artist filter)
+    # entirely. Confirmed live before the fix: an :inactive artist's
+    # :unavailable product was still returned by this exact search.
+    test "does NOT surface a product whose artist is not :active, even when searching by that artist's own nickname",
+         %{p2: p2, artist2: artist2} do
+      force_artist_status(artist2, :inactive)
+
+      results = Products.filter_products(%{"search" => artist2.nickname})
+      ids = Enum.map(results, & &1.id)
+      refute p2.id in ids
+    end
+
+    # Same bug, different symptom: the buggy `or_where` also bypassed
+    # with_category/1 whenever a search term happened to match some
+    # artist's nickname, regardless of which category was actually being
+    # filtered for. p1/p3 (cat_painting, artist1) don't match "SculptorBob"
+    # in their own title/category text or artist nickname, and p2 (the
+    # only product that does match, via artist2's nickname) isn't in
+    # cat_painting — so the correct result for this combination is empty.
+    # Before the fix, the category filter was bypassed entirely and this
+    # returned p2 despite the category_id filter.
+    test "does not bypass an active category filter when the search term matches an unrelated artist's nickname",
+         %{p2: p2, cat_painting: cat_painting, artist2: artist2} do
+      results =
+        Products.filter_products(%{
+          "category_id" => to_string(cat_painting.id),
+          "search" => artist2.nickname
+        })
+
+      ids = Enum.map(results, & &1.id)
+      refute p2.id in ids
+      assert ids == []
+    end
+
     test "sort_by price_asc returns cheapest first", %{p1: p1, p2: p2, p3: p3} do
       results = Products.filter_products(%{"sort_by" => "price_asc"})
       ids = Enum.map(results, & &1.id)
@@ -639,6 +738,28 @@ defmodule ArtsyNeighbor.ProductsTest do
 
       results = Products.filter_products_all_status(%{"artist" => "FilterTestArtist"})
       assert Enum.map(results, & &1.id) == [product.id]
+    end
+
+    # Same with_search_term/1 fix as filter_products/1's own regression
+    # test — a search term matching one artist's nickname must not bypass
+    # an active category filter, admin view included.
+    test "does not bypass an active category filter when the search term matches an unrelated artist's nickname" do
+      artist_a = artist_fixture(%{nickname: "AdminFilterArtistA"})
+      artist_b = artist_fixture(%{nickname: "AdminFilterArtistB"})
+      cat_a = category_fixture(%{name: "AdminFilterCatA"})
+      cat_b = category_fixture(%{name: "AdminFilterCatB"})
+      _product_a = product_fixture(%{artist_id: artist_a.id, category_id: cat_a.id})
+      product_b = product_fixture(%{artist_id: artist_b.id, category_id: cat_b.id})
+
+      results =
+        Products.filter_products_all_status(%{
+          "category_id" => to_string(cat_a.id),
+          "search" => artist_b.nickname
+        })
+
+      ids = Enum.map(results, & &1.id)
+      refute product_b.id in ids
+      assert ids == []
     end
   end
 
@@ -938,5 +1059,19 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert Products.get_product!(p1.id).position == 2
       assert Products.get_product!(p2.id).position == 1
     end
+  end
+
+  # Bypasses every Artists context function (update_artist/2 included,
+  # which now cascades an :active -> :inactive transition itself — see
+  # Artists.update_artist/2's own doc comment) to simulate artist status
+  # changing by some path this test suite doesn't know about. Used only to
+  # isolate only_available/1's own independent artist-status check at the
+  # query layer, the "defense in depth" half of that invariant, from the
+  # cascades that are supposed to keep product rows themselves consistent.
+  defp force_artist_status(artist, status) do
+    Repo.update_all(
+      from(a in ArtsyNeighbor.Artists.Artist, where: a.id == ^artist.id),
+      set: [status: Atom.to_string(status)]
+    )
   end
 end

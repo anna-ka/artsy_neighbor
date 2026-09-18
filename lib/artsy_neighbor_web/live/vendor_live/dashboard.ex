@@ -106,8 +106,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                 <% else %>
                   <p class="font-semibold">Make your profile visible to the public?</p>
                   <p class="text-sm">
-                    Your profile and all your products will become visible to visitors.
-                    You can hide them again at any time.
+                    Your profile will become visible to visitors again. Products that were hidden
+                    when you de-activated stay hidden for now — bringing them back individually is
+                    coming soon.
                   </p>
                   <div class="flex gap-3">
                     <.button_artsy phx-click="toggle_status" variant="primary">
@@ -379,7 +380,19 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     artist = socket.assigns.artist
     new_status = if artist.status == :active, do: :inactive, else: :active
 
-    case ArtsyNeighbor.Artists.update_artist(artist, %{status: new_status}) do
+    # Deactivating goes through Artists.deactivate_artist/1, which also
+    # cascades the artist's :available products to :unavailable — without
+    # this, de-activating hid the profile but left products fully visible
+    # in public search. Re-activating has no cascade to make (see that
+    # function's own doc comment), so it stays a plain status update.
+    result =
+      if new_status == :inactive do
+        ArtsyNeighbor.Artists.deactivate_artist(artist)
+      else
+        ArtsyNeighbor.Artists.update_artist(artist, %{status: :active})
+      end
+
+    case result do
       {:ok, updated_artist} ->
         message = if new_status == :active,
           do: "Your profile is now visible to the public.",

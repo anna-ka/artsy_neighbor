@@ -116,7 +116,8 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # soft_delete_artist/1 — soft-delete an artist and set their products :unavailable
+  # soft_delete_artist/1 — soft-delete an artist and set their products
+  # :archived
   # ---------------------------------------------------------------------------
   describe "soft_delete_artist/1" do
     test "sets the artist's status to :removed" do
@@ -126,9 +127,12 @@ defmodule ArtsyNeighbor.ArtistsTest do
     end
 
     # When an artist is removed, their products should stop being visible on
-    # public pages. We set status to :unavailable rather than deleting them,
-    # because products may be referenced by existing orders.
-    test "sets all of the artist's products to :unavailable" do
+    # public pages. We set status to :archived rather than deleting them,
+    # because products may be referenced by existing orders — the whole
+    # catalog goes into the same bucket a vendor's own individual archive
+    # action uses, unconditionally (even a product that was merely
+    # :unavailable, not previously archived, ends up :archived here).
+    test "sets all of the artist's products to :archived" do
       artist = artist_fixture()
       product = product_fixture(%{artist_id: artist.id})
 
@@ -136,7 +140,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Products.get_product!(product.id).status == :available
 
       {:ok, _} = Artists.soft_delete_artist(artist)
-      assert Products.get_product!(product.id).status == :unavailable
+      assert Products.get_product!(product.id).status == :archived
     end
 
     test "returns the updated artist with artist_images preloaded" do
@@ -177,13 +181,13 @@ defmodule ArtsyNeighbor.ArtistsTest do
       product = product_fixture(%{artist_id: artist.id})
       {:ok, removed} = Artists.soft_delete_artist(artist)
 
-      assert Products.get_product!(product.id).status == :unavailable
+      assert Products.get_product!(product.id).status == :archived
 
       {:ok, _} = Artists.restore_artist(removed)
 
-      # Products stay :unavailable — the vendor re-lists them individually,
+      # Products stay :archived — the vendor re-lists them individually,
       # restoring the profile doesn't silently re-list their whole catalog.
-      assert Products.get_product!(product.id).status == :unavailable
+      assert Products.get_product!(product.id).status == :archived
     end
 
     # Guards against a stale page / double-click / race silently demoting a
@@ -217,6 +221,131 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert artist_with_nil_user.user_id == nil
 
       assert {:error, :user_missing} = Artists.restore_artist(artist_with_nil_user)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # deactivate_artist/1 — vendor self-service pause (:active -> :inactive),
+  # cascading :available products to :unavailable. Lighter than
+  # soft_delete_artist/1: only touches currently-:available products, and
+  # is meant to be reversible (via the vendor's own dashboard toggle back to
+  # :active, even though the products themselves don't auto-restore).
+  # ---------------------------------------------------------------------------
+  describe "deactivate_artist/1" do
+    test "sets the artist's status to :inactive" do
+      artist = artist_fixture(%{status: :active})
+      assert {:ok, updated} = Artists.deactivate_artist(artist)
+      assert updated.status == :inactive
+    end
+
+    test "sets the artist's :available products to :unavailable" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      assert Products.get_product!(product.id).status == :available
+
+      {:ok, _} = Artists.deactivate_artist(artist)
+
+      assert Products.get_product!(product.id).status == :unavailable
+    end
+
+    # A pause shouldn't disturb a deliberate per-product choice the vendor
+    # already made — contrast soft_delete_artist/1, which forces every
+    # product to :archived unconditionally because it's a full removal.
+    test "leaves an already-:archived product alone" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.soft_delete_product(product)
+      assert Products.get_product!(product.id).status == :archived
+
+      {:ok, _} = Artists.deactivate_artist(artist)
+
+      assert Products.get_product!(product.id).status == :archived
+    end
+
+    test "does not affect products belonging to other artists" do
+      artist_a = artist_fixture(%{status: :active})
+      artist_b = artist_fixture(%{status: :active})
+      product_b = product_fixture(%{artist_id: artist_b.id})
+
+      {:ok, _} = Artists.deactivate_artist(artist_a)
+
+      assert Products.get_product!(product_b.id).status == :available
+    end
+
+    test "refuses on an artist that isn't currently :active" do
+      artist = artist_fixture(%{status: :inactive})
+      assert {:error, :not_active} = Artists.deactivate_artist(artist)
+    end
+
+    test "refuses on a :removed artist rather than silently resurrecting them to :inactive" do
+      artist = artist_fixture(%{status: :active})
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert {:error, :not_active} = Artists.deactivate_artist(removed)
+      assert Artists.get_artist(artist.id).status == :removed
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # update_artist/2 — general-purpose profile update, used by the vendor's
+  # own profile form AND the admin edit form (which has a raw status
+  # dropdown that can set :inactive directly, bypassing
+  # deactivate_artist/1 entirely). Regression coverage for the fix: this
+  # general path now cascades the same way deactivate_artist/1 does,
+  # whenever it includes a transition from :active to :inactive, so the
+  # invariant holds regardless of which form performed the edit.
+  # ---------------------------------------------------------------------------
+  describe "update_artist/2 — status transition cascade" do
+    test "cascades :available products to :unavailable on an :active -> :inactive transition, even outside deactivate_artist/1" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      # Simulates the admin edit form: a plain update_artist/2 call with
+      # status among the attrs, not a call to deactivate_artist/1.
+      assert {:ok, updated} = Artists.update_artist(artist, %{status: :inactive})
+      assert updated.status == :inactive
+      assert Products.get_product!(product.id).status == :unavailable
+    end
+
+    test "leaves an already-:archived product alone on that same transition" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.soft_delete_product(product)
+
+      {:ok, _} = Artists.update_artist(artist, %{status: :inactive})
+
+      assert Products.get_product!(product.id).status == :archived
+    end
+
+    # Unlike deactivate_artist/1, this does NOT refuse the update just
+    # because the artist wasn't already :active — a general profile edit
+    # bundling other field changes shouldn't fail outright over that.
+    test "does not refuse the update when the artist isn't already :active — it just skips the cascade" do
+      artist = artist_fixture(%{status: :inactive})
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, updated} = Artists.update_artist(artist, %{status: :active})
+      assert updated.status == :active
+      # No cascade needed here — :active isn't the transition this cascade
+      # is for — and the product was never touched to begin with.
+      assert Products.get_product!(product.id).status == :available
+    end
+
+    test "does not cascade when status isn't part of the update at all" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, updated} = Artists.update_artist(artist, %{bio: String.duplicate("x", 100)})
+      assert updated.status == :active
+      assert Products.get_product!(product.id).status == :available
+    end
+
+    test "does not cascade when status is included but unchanged" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, _updated} = Artists.update_artist(artist, %{status: :active})
+      assert Products.get_product!(product.id).status == :available
     end
   end
 
