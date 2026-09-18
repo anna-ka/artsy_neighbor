@@ -345,6 +345,65 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
+  Reverses soft_delete_product/1 — but, unlike a first version of this
+  function, does NOT go straight back to :available. It lands on
+  :unavailable instead: an intermediate "un-archived, not yet republished"
+  state, mirroring Artists.restore_artist/1's own landing on :inactive
+  rather than assuming a product is automatically safe to show the moment
+  it's un-archived.
+
+  Known gap, left open deliberately: there is currently no separate
+  action — vendor or admin — that moves a product from :unavailable to
+  :available (unlike Artist, which has a self-service active/inactive
+  toggle on the vendor dashboard). Calling this function alone does not
+  make a product purchasable again; a follow-up "mark available" action
+  still needs to be built. See
+  docs/plans/2026-09-17-entity-removal-consistency.md.
+
+  Refuses (returns {:error, :artist_not_active}) unless the owning artist is
+  currently :active. only_available/1 only checks the product's own status
+  and that artist_id isn't nil — it doesn't check the artist's status — so
+  restoring a product whose artist isn't :active would leave it one step
+  away from being publicly purchasable with no reachable seller profile
+  (the artist's own public store page redirects for any status other than
+  :active). Requiring :active rather than just "not :removed" matters
+  because Artists.restore_artist/1 itself only ever lands on :inactive,
+  never :active — so right after restoring a removed artist, their
+  products are still correctly blocked here until the vendor actively
+  re-activates from their dashboard.
+
+  Refuses (returns {:error, :category_missing}) if the product's category
+  no longer exists. products.category_id is on_delete: :nilify_all, and
+  AdminCategories.delete_category/1 is a bare Repo.delete with no
+  soft-delete of its own yet (Category's own status field is Phase 3 of
+  the entity-removal-consistency plan) — so a product can already have its
+  category quietly nilified out from under it in the interim. This only
+  checks that a category still exists, not that it's "active" — Category
+  has no status field yet either, so that half waits on Phase 3 too.
+  """
+  def restore_product(%Product{} = product) do
+    # force: true — a caller may pass in a product whose :artist/:category
+    # associations were preloaded before a since-changed status (e.g.
+    # fetched, then the artist was restored/removed, or the category
+    # deleted, in between); these checks have to reflect current DB state,
+    # not whatever the struct already carries.
+    product = Repo.preload(product, [:artist, :category], force: true)
+
+    cond do
+      is_nil(product.artist) or product.artist.status != :active ->
+        {:error, :artist_not_active}
+
+      is_nil(product.category) ->
+        {:error, :category_missing}
+
+      true ->
+        product
+        |> Product.status_changeset(%{status: :unavailable})
+        |> Repo.update()
+    end
+  end
+
+  @doc """
   Deletes a product, and any `Flag` rows reporting it directly (subject_type
   "product") — `Flag.subject_id` is a polymorphic reference with no real DB
   FK, so it can't cascade and has to be cleaned up here by hand. Same class

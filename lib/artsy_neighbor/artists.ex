@@ -7,6 +7,7 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Repo
   alias Ecto.Multi
 
+  alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
@@ -315,6 +316,52 @@ defmodule ArtsyNeighbor.Artists do
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
+  end
+
+  @doc """
+  Reverses soft_delete_artist/1, setting status back to :inactive — not
+  :active, since restoring a removed profile shouldn't silently re-publish
+  it. The vendor still has to actively re-activate from their dashboard.
+  Does not touch the artist's products, which stay :unavailable until the
+  vendor re-lists them individually.
+
+  Refuses (returns {:error, :already_active}) if the artist is currently
+  :active — restoring is meant to bring a removed/inactive profile back
+  into view, not silently demote a live one. Without this guard, a stale
+  page or double-click on an already-active artist would flip them to
+  :inactive and hide them.
+
+  Also refuses (returns {:error, :user_missing}) if the artist's linked
+  User account no longer exists. Nothing in the app can currently delete a
+  User (Accounts has no delete_user/1), so this can't be hit today — it's
+  a defensive guard for when that changes, not a live check. This is
+  deliberately a minimal existence check, not an active/inactive check:
+  User has no status field yet (that's Phase 7 of
+  docs/plans/2026-09-17-entity-removal-consistency.md, deferred on
+  purpose — User touches auth and has several FK/polymorphic landmines
+  that each need their own decision). Once Phase 7 adds User status, this
+  guard should be extended to also require the user be active — and
+  whatever separate procedure reactivates a user should run before this
+  function is called, not inside it, the same way a vendor has to
+  reactivate their own profile separately after this function restores
+  them to :inactive.
+  """
+  def restore_artist(%Artist{status: :active}), do: {:error, :already_active}
+
+  def restore_artist(%Artist{} = artist) do
+    case Accounts.get_user(artist.user_id) do
+      nil ->
+        {:error, :user_missing}
+
+      _user ->
+        case artist |> Artist.status_changeset(%{status: :inactive}) |> Repo.update() do
+          # Preloaded for the same reason soft_delete_artist/1 preloads it:
+          # the admin index's stream_insert renders artist.artist_images
+          # directly.
+          {:ok, updated} -> {:ok, Repo.preload(updated, [:artist_images])}
+          error -> error
+        end
+    end
   end
 
   @doc """

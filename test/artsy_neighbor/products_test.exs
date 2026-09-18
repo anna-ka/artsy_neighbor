@@ -1,6 +1,7 @@
 defmodule ArtsyNeighbor.ProductsTest do
   use ArtsyNeighbor.DataCase
 
+  alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.{Product, ProductImage, ProductCollection}
   alias ArtsyNeighbor.Reviews
@@ -147,6 +148,118 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "change_product/1 returns a product changeset" do
       product = product_fixture()
       assert %Ecto.Changeset{} = Products.change_product(product)
+    end
+
+    # restore_product/1 — reverses soft_delete_product/1, but lands on
+    # :unavailable, not :available — mirroring Artists.restore_artist/1's
+    # own landing on :inactive rather than assuming a product is
+    # automatically safe to show the moment it's un-archived. There is
+    # currently no separate action that moves a product on from
+    # :unavailable to :available — a known, deliberately-left-open gap
+    # (see the function's own doc comment).
+    test "restore_product/1 sets status to :unavailable, not :available" do
+      product = product_fixture()
+      {:ok, archived} = Products.soft_delete_product(product)
+
+      assert {:ok, restored} = Products.restore_product(archived)
+      assert restored.status == :unavailable
+      assert Products.get_product!(product.id).status == :unavailable
+    end
+
+    # Guards against restoring a product unless its artist is currently
+    # :active — only_available/1 doesn't check artist status, so this
+    # matters for whatever eventually completes the "mark available" step
+    # this function stops short of.
+    test "refuses to restore a product whose artist is :removed" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.soft_delete_product(product)
+      # soft_delete_artist/1 cascades every one of the artist's products to
+      # :unavailable, overwriting whatever status they were at before.
+      {:ok, _} = Artists.soft_delete_artist(artist)
+      unavailable = Products.get_product!(product.id)
+      assert unavailable.status == :unavailable
+
+      assert {:error, :artist_not_active} = Products.restore_product(unavailable)
+    end
+
+    # restore_artist/1 only ever lands on :inactive, never :active (see its
+    # own docstring) — so restore_product/1 must keep refusing right after,
+    # not just while the artist is still :removed.
+    test "still refuses once the artist is restored to :inactive, not yet :active" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, _} = Artists.soft_delete_artist(artist)
+      assert Products.get_product!(product.id).status == :unavailable
+
+      {:ok, restored_artist} = Artists.restore_artist(Artists.get_artist!(artist.id))
+      assert restored_artist.status == :inactive
+
+      unavailable_product = Products.get_product!(product.id)
+      assert {:error, :artist_not_active} = Products.restore_product(unavailable_product)
+    end
+
+    test "succeeds (landing on :unavailable) once the vendor has actively re-activated to :active" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, _} = Artists.soft_delete_artist(artist)
+      {:ok, _} = Artists.restore_artist(Artists.get_artist!(artist.id))
+      # Simulates the vendor's own dashboard active/inactive toggle, which
+      # goes through Artists.update_artist/2, not status_changeset directly.
+      {:ok, _} = Artists.update_artist(Artists.get_artist!(artist.id), %{status: :active})
+
+      unavailable_product = Products.get_product!(product.id)
+      assert {:ok, restored_product} = Products.restore_product(unavailable_product)
+      assert restored_product.status == :unavailable
+    end
+
+    # Regression test for a preload-staleness bug: without force: true, a
+    # product struct fetched *before* the artist's status changed would
+    # carry a stale :artist association into the guard check.
+    test "reflects the artist's current status even if the product struct's :artist was preloaded before a status change" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+      product_with_stale_artist = Products.get_product_with_associations_all_status(product.id)
+      assert product_with_stale_artist.artist.status == :active
+
+      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Artists.soft_delete_artist(artist)
+
+      # product_with_stale_artist's :artist association still says :active —
+      # the guard must re-check the DB, not trust it.
+      assert {:error, :artist_not_active} = Products.restore_product(product_with_stale_artist)
+    end
+
+    # Guards against restoring a product whose category has been deleted
+    # out from under it — products.category_id is on_delete: :nilify_all,
+    # and Category has no soft-delete of its own yet (Phase 3), so this can
+    # already happen today via AdminCategories.delete_category/1.
+    test "refuses to restore a product whose category no longer exists" do
+      artist = artist_fixture(%{status: :active})
+      category = category_fixture()
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      {:ok, archived} = Products.soft_delete_product(product)
+
+      Repo.delete!(category)
+      product_with_nil_category = Products.get_product!(product.id)
+      assert product_with_nil_category.category_id == nil
+
+      assert {:error, :category_missing} = Products.restore_product(archived)
+    end
+
+    test "reflects the category's current existence even if the product struct's :category was preloaded before it was deleted" do
+      artist = artist_fixture(%{status: :active})
+      category = category_fixture()
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      product_with_stale_category = Products.get_product_with_associations_all_status(product.id)
+      assert product_with_stale_category.category.id == category.id
+
+      {:ok, _} = Products.soft_delete_product(product)
+      Repo.delete!(category)
+
+      assert {:error, :category_missing} = Products.restore_product(product_with_stale_category)
     end
   end
 

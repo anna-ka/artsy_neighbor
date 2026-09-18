@@ -69,6 +69,17 @@ defmodule ArtsyNeighbor.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Gets a single user by ID. Returns nil if the user doesn't exist (or if
+  given nil — e.g. a belongs_to :user_id that's been nilified by an
+  on_delete: :nilify_all FK, as artists.user_id is) instead of raising —
+  used where a missing user is an expected case to guard against (e.g.
+  Artists.restore_artist/1 checking the linked user is still there) rather
+  than a programmer error.
+  """
+  def get_user(nil), do: nil
+  def get_user(id), do: Repo.get(User, id)
+
   ## User registration
 
   @doc """
@@ -88,7 +99,6 @@ defmodule ArtsyNeighbor.Accounts do
     |> User.registration_changeset(attrs)
     |> Repo.insert()
   end
-
 
   @doc """
   Returns a changeset without password hashing, useful for live validation.
@@ -120,7 +130,6 @@ defmodule ArtsyNeighbor.Accounts do
   def admin?(user_id) do
     Repo.exists?(from a in Admin, where: a.user_id == ^user_id)
   end
-
 
   @doc """
   Returns an `%Ecto.Changeset{}` for changing the user email.

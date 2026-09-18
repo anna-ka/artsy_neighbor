@@ -1,6 +1,7 @@
 defmodule ArtsyNeighbor.ArtistsTest do
   use ArtsyNeighbor.DataCase
 
+  alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Products
@@ -156,6 +157,66 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
       # artist_b's product should be untouched
       assert Products.get_product!(product_b.id).status == :available
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # restore_artist/1 — reverses soft_delete_artist/1
+  # ---------------------------------------------------------------------------
+  describe "restore_artist/1" do
+    test "sets a removed artist's status to :inactive, not :active" do
+      artist = artist_fixture()
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert {:ok, restored} = Artists.restore_artist(removed)
+      assert restored.status == :inactive
+    end
+
+    test "does not touch the artist's products" do
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert Products.get_product!(product.id).status == :unavailable
+
+      {:ok, _} = Artists.restore_artist(removed)
+
+      # Products stay :unavailable — the vendor re-lists them individually,
+      # restoring the profile doesn't silently re-list their whole catalog.
+      assert Products.get_product!(product.id).status == :unavailable
+    end
+
+    # Guards against a stale page / double-click / race silently demoting a
+    # live artist instead of being a meaningful restore.
+    test "refuses to restore an already-:active artist" do
+      artist = artist_fixture(%{status: :active})
+
+      assert {:error, :already_active} = Artists.restore_artist(artist)
+      assert Artists.get_artist(artist.id).status == :active
+    end
+
+    test "succeeds on an :inactive artist (idempotent, still lands on :inactive)" do
+      artist = artist_fixture(%{status: :inactive})
+
+      assert {:ok, restored} = Artists.restore_artist(artist)
+      assert restored.status == :inactive
+    end
+
+    # Defensive guard, not a live scenario: nothing in the app can
+    # currently delete a User (Accounts has no delete_user/1). Simulates it
+    # directly at the DB level — artists.user_id is on_delete: :nilify_all,
+    # so deleting the user nilifies the artist's user_id rather than
+    # leaving a dangling reference.
+    test "refuses to restore an artist whose linked user account no longer exists" do
+      artist = artist_fixture()
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      Repo.delete!(Accounts.get_user!(artist.user_id))
+
+      artist_with_nil_user = Artists.get_artist!(removed.id)
+      assert artist_with_nil_user.user_id == nil
+
+      assert {:error, :user_missing} = Artists.restore_artist(artist_with_nil_user)
     end
   end
 
