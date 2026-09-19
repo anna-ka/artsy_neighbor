@@ -1,5 +1,4 @@
 defmodule ArtsyNeighborWeb.ConversationLive.Show do
-
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Conversations
@@ -25,9 +24,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     case Conversations.get_conversation(id) do
       nil ->
         {:noreply,
-        socket
-        |> put_flash(:error, "Conversation not found.")
-        |> push_navigate(to: ~p"/")}
+         socket
+         |> put_flash(:error, "Conversation not found.")
+         |> push_navigate(to: ~p"/")}
 
       conversation ->
         current_user = socket.assigns.current_scope.user
@@ -37,8 +36,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
         authorized =
           (is_system && conversation.user_id == current_user.id) or
-          (not is_system && conversation.buyer_id == current_user.id) or
-          (not is_system && artist && artist.id == conversation.artist_id)
+            (not is_system && conversation.buyer_id == current_user.id) or
+            (not is_system && artist && artist.id == conversation.artist_id)
 
         if authorized do
           conversation = Conversations.get_conversation_with_participants(conversation.id)
@@ -49,6 +48,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
               {:user, platform, nil}
             else
               role = if current_user.id == conversation.buyer_id, do: :buyer, else: :vendor
+
               {name, thumb} =
                 if role == :buyer do
                   {conversation.artist.nickname,
@@ -57,6 +57,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                   buyer = conversation.buyer
                   {buyer.username || buyer.email, nil}
                 end
+
               {role, name, thumb}
             end
 
@@ -65,7 +66,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             Conversations.mark_conversation_read(conversation, current_role, current_user.id)
           end
 
-          msg_changeset = ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
+          msg_changeset =
+            ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
 
           socket =
             socket
@@ -76,29 +78,38 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             |> assign(:other_name, other_name)
             |> assign(:other_thumbnail, other_thumbnail)
             |> assign(:form, to_form(msg_changeset))
-            |> assign(:open_orders, if(is_system, do: [], else: Orders.list_open_orders_for_conversation(conversation.id)))
+            |> assign(
+              :open_orders,
+              if(is_system,
+                do: [],
+                else: Orders.list_open_orders_for_conversation(conversation.id)
+              )
+            )
+
           {:noreply, socket}
         else
           {:noreply,
-          socket
-          |> put_flash(:error, "You are not authorized to view this conversation.")
-          |> push_navigate(to: ~p"/")}
+           socket
+           |> put_flash(:error, "You are not authorized to view this conversation.")
+           |> push_navigate(to: ~p"/")}
         end
     end
-
   end
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="max-w-5xl mx-auto px-4 py-6">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-
           <%!-- Left: chat panel --%>
           <div class="lg:col-span-2">
-
             <%!-- Conversation header --%>
             <div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-200">
               <div class="avatar placeholder">
@@ -109,7 +120,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                     <%= if @other_thumbnail do %>
                       <img src={@other_thumbnail} class="w-full h-full object-cover" />
                     <% else %>
-                      <span class="text-lg font-bold text-base-content">{String.first(@other_name)}</span>
+                      <span class="text-lg font-bold text-base-content">
+                        {String.first(@other_name)}
+                      </span>
                     <% end %>
                   <% end %>
                 </div>
@@ -127,13 +140,18 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             </div>
 
             <%!-- Message thread --%>
-            <ul id="msg-list" phx-update="stream" phx-hook="ScrollToBottom" class="flex flex-col gap-1 mb-6 overflow-y-auto max-h-[60vh]">
+            <ul
+              id="msg-list"
+              phx-update="stream"
+              phx-hook="ScrollToBottom"
+              class="flex flex-col gap-1 mb-6 overflow-y-auto max-h-[60vh]"
+            >
               <li :for={{dom_id, message} <- @streams.messages} id={dom_id}>
                 <%= if message.event_type == :status_change or @is_system do %>
                   <%!-- Status-change events and all system-inbox messages render as
                        banners with linkify so URLs become clickable links. --%>
                   <div class="my-4 bg-secondary/10 border-l-4 border-secondary rounded-r-lg px-4 py-3 text-sm text-base-content whitespace-pre-wrap">
-                    <%= linkify(message.body) %>
+                    {linkify(message.body)}
                   </div>
                 <% else %>
                   <% is_mine = message.actor_type == @current_role %>
@@ -146,15 +164,22 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                           <%= if @other_thumbnail do %>
                             <img src={@other_thumbnail} class="w-full h-full object-cover" />
                           <% else %>
-                            <span class="text-xs font-bold text-base-content">{String.first(@other_name)}</span>
+                            <span class="text-xs font-bold text-base-content">
+                              {String.first(@other_name)}
+                            </span>
                           <% end %>
                         </div>
                       </div>
                     <% end %>
                     <div class="chat-header text-xs text-base-content/50 mb-0.5">
-                      {if is_mine, do: "You (#{my_role_label})", else: "#{@other_name} (#{other_role_label})"}
+                      {if is_mine,
+                        do: "You (#{my_role_label})",
+                        else: "#{@other_name} (#{other_role_label})"}
                     </div>
-                    <div class={["chat-bubble", if(is_mine, do: "chat-bubble-info", else: "chat-bubble-neutral")]}>
+                    <div class={[
+                      "chat-bubble",
+                      if(is_mine, do: "chat-bubble-info", else: "chat-bubble-neutral")
+                    ]}>
                       {message.body}
                     </div>
                     <div class="chat-footer opacity-50 text-xs mt-0.5">
@@ -167,39 +192,56 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
             <%!-- Compose area — hidden for system conversations (users cannot reply to the platform) --%>
             <div :if={not @is_system} class="border-t border-base-200 pt-4">
-              <.form for={@form} id={"new_msg-#{@message_key}"} phx-change="validate_msg" phx-submit="post_msg">
+              <.form
+                for={@form}
+                id={"new_msg-#{@message_key}"}
+                phx-change="validate_msg"
+                phx-submit="post_msg"
+              >
                 <div class="flex gap-2 items-end">
                   <div class="flex-1">
-                    <.input field={@form[:body]} type="text" placeholder="Type your message..." phx-debounce="2000" label="" />
+                    <.input
+                      field={@form[:body]}
+                      type="text"
+                      placeholder="Type your message..."
+                      phx-debounce="2000"
+                      label=""
+                    />
                   </div>
                   <button type="submit" class="btn btn-primary mb-2">Send</button>
                 </div>
               </.form>
             </div>
-
           </div>
 
           <%!-- Right: order sidebar (only when there are open orders) --%>
           <div :if={length(@open_orders) > 0} class="lg:col-span-1">
             <div class="sticky top-4 flex flex-col gap-4">
-              <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide">Open Orders</h2>
+              <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide">
+                Open Orders
+              </h2>
               <%= for order <- @open_orders do %>
                 <div class="bg-base-200 rounded-xl p-4 flex flex-col gap-3">
-
                   <%!-- Items --%>
                   <ul class="flex flex-col gap-2">
                     <%= for item <- order.items do %>
                       <li class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-lg overflow-hidden bg-base-300 shrink-0">
                           <%= if thumb = List.first(item.product && item.product.product_images) do %>
-                            <img src={thumb.path} alt={item.product_title} class="w-full h-full object-cover" />
+                            <img
+                              src={thumb.path}
+                              alt={item.product_title}
+                              class="w-full h-full object-cover"
+                            />
                           <% else %>
-                            <div class="w-full h-full flex items-center justify-center text-base-content/30 text-xs">?</div>
+                            <div class="w-full h-full flex items-center justify-center text-base-content/30 text-xs">
+                              ?
+                            </div>
                           <% end %>
                         </div>
                         <div class="flex-1 flex items-center justify-between gap-1 min-w-0">
                           <span class="text-sm text-base-content leading-tight truncate">
-                            <%= item.product_title %>
+                            {item.product_title}
                           </span>
                           <div class="flex items-center gap-1 shrink-0">
                             <button
@@ -207,7 +249,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                               phx-value-order-id={order.id}
                               phx-value-item-id={item.id}
                               class="btn btn-ghost btn-xs text-base-content/50 hover:text-error"
-                              title={if item.quantity == 1, do: "Remove item", else: "Decrease quantity"}>
+                              title={
+                                if item.quantity == 1, do: "Remove item", else: "Decrease quantity"
+                              }
+                            >
                               −
                             </button>
                             <span class="text-sm font-medium w-4 text-center">{item.quantity}</span>
@@ -216,7 +261,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                               phx-value-order-id={order.id}
                               phx-value-item-id={item.id}
                               class="btn btn-ghost btn-xs text-base-content/50 hover:text-primary"
-                              title="Increase quantity">
+                              title="Increase quantity"
+                            >
                               +
                             </button>
                           </div>
@@ -227,7 +273,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
                   <%!-- Total + status --%>
                   <div class="flex items-center justify-between">
-                    <span class="font-bold text-base-content">CA${Decimal.to_string(order.total)}</span>
+                    <span class="font-bold text-base-content">
+                      CA${Decimal.to_string(order.total)}
+                    </span>
                     <span class={[
                       "badge badge-sm",
                       order.status == :requested && "badge-warning",
@@ -238,70 +286,138 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                   </div>
 
                   <%!-- Pickup details — visible to both roles when scheduled --%>
-                  <div :if={order.status == :confirmed && order.pickup_scheduled_at != nil}
-                       class="bg-base-100 rounded-lg p-3 flex flex-col gap-1">
+                  <div
+                    :if={order.status == :confirmed && order.pickup_scheduled_at != nil}
+                    class="bg-base-100 rounded-lg p-3 flex flex-col gap-1"
+                  >
                     <p class="text-xs font-semibold text-base-content/60 mb-0.5">
-                      {if order.pickup_date || order.pickup_time, do: "Pick-up Scheduled", else: "Pick-up Info"}
+                      {if order.pickup_date || order.pickup_time,
+                        do: "Pick-up Scheduled",
+                        else: "Pick-up Info"}
                     </p>
-                    <p :if={order.pickup_date} class="text-xs text-base-content/80"><span class="font-medium">Date:</span> {order.pickup_date}</p>
-                    <p :if={order.pickup_time} class="text-xs text-base-content/80"><span class="font-medium">Time:</span> {order.pickup_time}</p>
-                    <p class="text-xs text-base-content/80"><span class="font-medium">Address:</span> {order.pickup_address}</p>
-                    <p :if={order.pickup_instructions} class="text-xs text-base-content/80"><span class="font-medium">Notes:</span> {order.pickup_instructions}</p>
+                    <p :if={order.pickup_date} class="text-xs text-base-content/80">
+                      <span class="font-medium">Date:</span> {order.pickup_date}
+                    </p>
+                    <p :if={order.pickup_time} class="text-xs text-base-content/80">
+                      <span class="font-medium">Time:</span> {order.pickup_time}
+                    </p>
+                    <p class="text-xs text-base-content/80">
+                      <span class="font-medium">Address:</span> {order.pickup_address}
+                    </p>
+                    <p :if={order.pickup_instructions} class="text-xs text-base-content/80">
+                      <span class="font-medium">Notes:</span> {order.pickup_instructions}
+                    </p>
                   </div>
 
                   <%!-- Complete purchase — buyer only, available once the vendor has confirmed.
                        Always visible here (not just in the chat message) so the buyer isn't
                        stuck hunting through the conversation for the link. --%>
-                  <div :if={@current_role == :buyer && order.status == :confirmed && order.complete_token}
-                       class="bg-base-100 rounded-lg p-3 flex flex-col gap-2">
+                  <div
+                    :if={
+                      @current_role == :buyer && order.status == :confirmed && order.complete_token
+                    }
+                    class="bg-base-100 rounded-lg p-3 flex flex-col gap-2"
+                  >
                     <p class="text-xs text-base-content/70">
                       Only tap this once you've received your item(s) in hand and are ready to pay — it will initiate payment.
                     </p>
-                    <.button_artsy variant="primary" size="sm" navigate={~p"/orders/#{order.id}/complete-purchase/#{order.complete_token}"}>
+                    <.button_artsy
+                      variant="primary"
+                      size="sm"
+                      navigate={~p"/orders/#{order.id}/complete-purchase/#{order.complete_token}"}
+                    >
                       Complete Purchase — CA${Decimal.to_string(order.total)}
                     </.button_artsy>
                   </div>
 
                   <%!-- Vendor actions --%>
                   <div :if={@current_role == :vendor} class="flex flex-col gap-2">
-                    <.button_artsy :if={order.status == :requested} variant="primary" size="sm" phx-click="confirm_order" phx-value-id={order.id}>
+                    <.button_artsy
+                      :if={order.status == :requested}
+                      variant="primary"
+                      size="sm"
+                      phx-click="confirm_order"
+                      phx-value-id={order.id}
+                    >
                       Confirm Order
                     </.button_artsy>
 
                     <%!-- Schedule / reschedule pick-up (confirmed orders, vendor) --%>
                     <div :if={order.status == :confirmed}>
                       <%= if @schedule_pickup_order_id == order.id do %>
-                        <form phx-submit="submit_schedule" class="flex flex-col gap-2 bg-base-100 rounded-lg p-3">
+                        <form
+                          phx-submit="submit_schedule"
+                          class="flex flex-col gap-2 bg-base-100 rounded-lg p-3"
+                        >
                           <p class="text-xs font-semibold text-base-content/70">
-                            {if order.pickup_scheduled_at, do: "Reschedule Pick-up", else: "Schedule Pick-up"}
+                            {if order.pickup_scheduled_at,
+                              do: "Reschedule Pick-up",
+                              else: "Schedule Pick-up"}
                           </p>
                           <p class="text-[11px] text-base-content/50 -mt-1">
                             Date and time are optional — leave blank if you already agreed on a time in chat.
                           </p>
-                          <input type="date" name="schedule[date]" min={min_pickup_date()}
-                            class="input input-bordered input-sm w-full" />
-                          <input type="time" name="schedule[time]"
-                            class="input input-bordered input-sm w-full" />
-                          <input type="text" name="schedule[address]" placeholder="Pick-up address" required
+                          <input
+                            type="date"
+                            name="schedule[date]"
+                            min={min_pickup_date()}
+                            class="input input-bordered input-sm w-full"
+                          />
+                          <input
+                            type="time"
+                            name="schedule[time]"
+                            class="input input-bordered input-sm w-full"
+                          />
+                          <input
+                            type="text"
+                            name="schedule[address]"
+                            placeholder="Pick-up address"
+                            required
                             value={default_pickup_address(order, @current_scope.artist)}
-                            class="input input-bordered input-sm w-full" />
-                          <textarea name="schedule[instructions]" placeholder="Special instructions (optional)" rows="2"
-                            class="textarea textarea-bordered textarea-sm w-full">{default_pickup_instructions(order, @current_scope.artist)}</textarea>
+                            class="input input-bordered input-sm w-full"
+                          />
+                          <textarea
+                            name="schedule[instructions]"
+                            placeholder="Special instructions (optional)"
+                            rows="2"
+                            class="textarea textarea-bordered textarea-sm w-full"
+                          >{default_pickup_instructions(order, @current_scope.artist)}</textarea>
                           <label class="flex items-center gap-2 text-xs text-base-content/60">
-                            <input type="checkbox" name="schedule[save_default]" value="true" class="checkbox checkbox-xs" />
-                            Save as my default pickup info
+                            <input
+                              type="checkbox"
+                              name="schedule[save_default]"
+                              value="true"
+                              class="checkbox checkbox-xs"
+                            /> Save as my default pickup info
                           </label>
                           <div class="flex gap-2">
                             <button type="submit" class="btn btn-primary btn-sm flex-1">Send</button>
-                            <button type="button" phx-click="cancel_schedule" class="btn btn-ghost btn-sm">Cancel</button>
+                            <button
+                              type="button"
+                              phx-click="cancel_schedule"
+                              class="btn btn-ghost btn-sm"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         </form>
                       <% else %>
-                        <.button_artsy variant="secondary" size="sm" phx-click="open_schedule_form" phx-value-id={order.id}>
-                          {if order.pickup_scheduled_at, do: "Reschedule Pick-up", else: "Schedule Pick-up"}
+                        <.button_artsy
+                          variant="secondary"
+                          size="sm"
+                          phx-click="open_schedule_form"
+                          phx-value-id={order.id}
+                        >
+                          {if order.pickup_scheduled_at,
+                            do: "Reschedule Pick-up",
+                            else: "Schedule Pick-up"}
                         </.button_artsy>
-                        <button :if={order.pickup_scheduled_at != nil} phx-click="cancel_pickup" phx-value-id={order.id}
-                                class="btn btn-ghost btn-sm w-full text-warning">
+                        <button
+                          :if={order.pickup_scheduled_at != nil}
+                          phx-click="cancel_pickup"
+                          phx-value-id={order.id}
+                          class="btn btn-ghost btn-sm w-full text-warning"
+                        >
                           Cancel Pick-up
                         </button>
                       <% end %>
@@ -311,56 +427,100 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                     <div :if={order.status in [:requested, :confirmed]}>
                       <%= if @add_item_order_id == order.id do %>
                         <div class="flex flex-col gap-2 bg-base-100 rounded-lg p-3">
-                          <p class="text-xs font-semibold text-base-content/70">Add an item to this order</p>
+                          <p class="text-xs font-semibold text-base-content/70">
+                            Add an item to this order
+                          </p>
                           <div class="flex flex-col gap-1 max-h-48 overflow-y-auto">
                             <button
                               :for={product <- @vendor_products}
-                              :if={!(product.unique_work && Enum.any?(order.items, &(&1.product_id == product.id)))}
+                              :if={
+                                !(product.unique_work &&
+                                    Enum.any?(order.items, &(&1.product_id == product.id)))
+                              }
                               type="button"
                               phx-click="vendor_add_item"
                               phx-value-order-id={order.id}
                               phx-value-product-id={product.id}
-                              class="flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-base-200 w-full">
+                              class="flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-base-200 w-full"
+                            >
                               <div class="w-8 h-8 rounded overflow-hidden bg-base-300 shrink-0 flex items-center justify-center">
-                                <img :if={thumb = List.first(product.product_images)} src={thumb.path} class="w-full h-full object-cover" />
+                                <img
+                                  :if={thumb = List.first(product.product_images)}
+                                  src={thumb.path}
+                                  class="w-full h-full object-cover"
+                                />
                               </div>
-                              <span class="flex-1 truncate text-xs text-base-content">{product.title}</span>
-                              <span class="text-xs text-base-content/60 shrink-0">CA${Decimal.to_string(product.price)}</span>
+                              <span class="flex-1 truncate text-xs text-base-content">
+                                {product.title}
+                              </span>
+                              <span class="text-xs text-base-content/60 shrink-0">
+                                CA${Decimal.to_string(product.price)}
+                              </span>
                             </button>
-                            <p :if={@vendor_products == []} class="text-xs text-base-content/50 px-2 py-1">
+                            <p
+                              :if={@vendor_products == []}
+                              class="text-xs text-base-content/50 px-2 py-1"
+                            >
                               You have no available products to add.
                             </p>
                           </div>
-                          <button type="button" phx-click="cancel_add_item" class="btn btn-ghost btn-sm">Cancel</button>
+                          <button
+                            type="button"
+                            phx-click="cancel_add_item"
+                            class="btn btn-ghost btn-sm"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       <% else %>
-                        <.button_artsy variant="secondary" size="sm" phx-click="open_add_item_form" phx-value-id={order.id}>
+                        <.button_artsy
+                          variant="secondary"
+                          size="sm"
+                          phx-click="open_add_item_form"
+                          phx-value-id={order.id}
+                        >
                           + Add Item
                         </.button_artsy>
                       <% end %>
                     </div>
 
-                    <.button_artsy :if={order.status in [:requested, :confirmed]} variant="ghost" size="sm" phx-click="cancel_order" phx-value-id={order.id}>
+                    <.button_artsy
+                      :if={order.status in [:requested, :confirmed]}
+                      variant="ghost"
+                      size="sm"
+                      phx-click="cancel_order"
+                      phx-value-id={order.id}
+                    >
                       Cancel Order
                     </.button_artsy>
                   </div>
 
                   <%!-- Buyer actions --%>
-                  <div :if={@current_role == :buyer && order.status in [:requested, :confirmed]} class="flex flex-col gap-2">
-                    <button :if={order.pickup_scheduled_at != nil} phx-click="cancel_pickup" phx-value-id={order.id}
-                            class="btn btn-ghost btn-sm w-full text-warning">
+                  <div
+                    :if={@current_role == :buyer && order.status in [:requested, :confirmed]}
+                    class="flex flex-col gap-2"
+                  >
+                    <button
+                      :if={order.pickup_scheduled_at != nil}
+                      phx-click="cancel_pickup"
+                      phx-value-id={order.id}
+                      class="btn btn-ghost btn-sm w-full text-warning"
+                    >
                       Request New Time
                     </button>
-                    <.button_artsy variant="ghost" size="sm" phx-click="cancel_order" phx-value-id={order.id}>
+                    <.button_artsy
+                      variant="ghost"
+                      size="sm"
+                      phx-click="cancel_order"
+                      phx-value-id={order.id}
+                    >
                       Cancel Order
                     </.button_artsy>
                   </div>
-
                 </div>
               <% end %>
             </div>
           </div>
-
         </div>
       </div>
     </Layouts.artsy_main>
@@ -380,6 +540,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       %ConversationEvent{}
       |> ConversationEvent.message_changeset(params)
       |> Map.put(:action, :validate)
+
     {:noreply, assign(socket, :form, to_form(changeset))}
   end
 
@@ -390,22 +551,23 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     actor_type = socket.assigns.current_role
 
     case Conversations.create_message_event(
-        conversation,
-        sender.id,
-        actor_type,
-        body
-      ) do
-
+           conversation,
+           sender.id,
+           actor_type,
+           body
+         ) do
       {:ok, _event} ->
-        msg_changeset = ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
-        {:noreply,
-          socket
-          |> assign(:form, to_form(msg_changeset))
-          |> assign(:message_key, System.unique_integer())}
-      {:error, changeset} ->
-           {:noreply, assign(socket, :form, to_form(changeset))}
-    end
+        msg_changeset =
+          ConversationEvent.message_changeset(%ConversationEvent{event_type: :message}, %{})
 
+        {:noreply,
+         socket
+         |> assign(:form, to_form(msg_changeset))
+         |> assign(:message_key, System.unique_integer())}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :form, to_form(changeset))}
+    end
   end
 
   def handle_event("open_schedule_form", %{"id" => id}, socket) do
@@ -421,9 +583,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     order = Enum.find(socket.assigns.open_orders, &(&1.id == order_id))
     artist = socket.assigns.current_scope.artist
 
-    date_raw     = String.trim(params["date"] || "")
-    time_raw     = String.trim(params["time"] || "")
-    address      = String.trim(params["address"] || "")
+    date_raw = String.trim(params["date"] || "")
+    time_raw = String.trim(params["time"] || "")
+    address = String.trim(params["address"] || "")
     instructions = String.trim(params["instructions"] || "")
     save_default = params["save_default"] == "true"
 
@@ -446,9 +608,16 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         date = format_picked_date(date_raw)
         time = format_picked_time(time_raw)
 
-        case Orders.schedule_pickup(order, %{date: date, time: time, address: address, instructions: instructions, completion_url: completion_url}) do
+        case Orders.schedule_pickup(order, %{
+               date: date,
+               time: time,
+               address: address,
+               instructions: instructions,
+               completion_url: completion_url
+             }) do
           {:ok, _event} ->
             {:noreply, assign(socket, :schedule_pickup_order_id, nil)}
+
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Could not send schedule. Please try again.")}
         end
@@ -458,15 +627,21 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   def handle_event("remove_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
     order = Orders.get_order!(order_id)
     actor_type = socket.assigns.current_role
+
     case Orders.remove_order_item(order, String.to_integer(item_id), actor_type) do
       {:ok, _} -> {:noreply, reload_open_orders(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove item.")}
     end
   end
 
-  def handle_event("increment_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
+  def handle_event(
+        "increment_order_item",
+        %{"order-id" => order_id, "item-id" => item_id},
+        socket
+      ) do
     order = Orders.get_order!(order_id)
     actor_type = socket.assigns.current_role
+
     case Orders.increment_order_item(order, String.to_integer(item_id), actor_type) do
       {:ok, _} -> {:noreply, reload_open_orders(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
@@ -475,10 +650,15 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
   def handle_event("confirm_order", %{"id" => id}, socket) do
     order = Orders.get_order!(id)
+
     case Orders.confirm_order(order) do
       {:ok, confirmed_order} ->
         if confirmed_order.pickup_date do
-          completion_url = url(~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}")
+          completion_url =
+            url(
+              ~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}"
+            )
+
           Orders.schedule_pickup(confirmed_order, %{
             date: confirmed_order.pickup_date,
             time: confirmed_order.pickup_time,
@@ -487,7 +667,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             completion_url: completion_url
           })
         end
+
         {:noreply, reload_open_orders(socket)}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not confirm order.")}
     end
@@ -496,6 +678,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   def handle_event("cancel_pickup", %{"id" => id}, socket) do
     order = Orders.get_order!(id)
     actor_type = socket.assigns.current_role
+
     case Orders.cancel_pickup(order, actor_type) do
       {:ok, _} -> {:noreply, reload_open_orders(socket)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not cancel pick-up.")}
@@ -505,9 +688,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   def handle_event("cancel_order", %{"id" => id}, socket) do
     order = Orders.get_order!(id)
     actor_type = socket.assigns.current_role
+
     case Orders.cancel_order(order, actor_type) do
       {:ok, _order} ->
         {:noreply, reload_open_orders(socket)}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not cancel order.")}
     end
@@ -527,7 +712,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     {:noreply, assign(socket, :add_item_order_id, nil)}
   end
 
-  def handle_event("vendor_add_item", %{"order-id" => order_id, "product-id" => product_id}, socket) do
+  def handle_event(
+        "vendor_add_item",
+        %{"order-id" => order_id, "product-id" => product_id},
+        socket
+      ) do
     order = Orders.get_order!(order_id)
     product = Products.get_product!(product_id)
 
@@ -537,6 +726,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
          socket
          |> assign(:add_item_order_id, nil)
          |> reload_open_orders()}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not add item.")}
     end
@@ -549,11 +739,16 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       else
         socket
       end
+
     {:noreply, stream_insert(socket, :messages, conv_event)}
   end
 
   defp reload_open_orders(socket) do
-    assign(socket, :open_orders, Orders.list_open_orders_for_conversation(socket.assigns.conversation.id))
+    assign(
+      socket,
+      :open_orders,
+      Orders.list_open_orders_for_conversation(socket.assigns.conversation.id)
+    )
   end
 
   # Formats a message timestamp for display next to each bubble.
@@ -562,20 +757,23 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   # Escapes the body text then wraps any http(s) URLs in clickable anchor tags.
   defp linkify(text) do
     escaped = Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string()
+
     linked =
       Regex.replace(~r/https?:\/\/[^\s]+/, escaped, fn url ->
         ~s(<a href="#{url}" target="_blank" class="underline text-primary break-all">#{url}</a>)
       end)
+
     Phoenix.HTML.raw(linked)
   end
 
   defp format_message_time(nil), do: ""
+
   defp format_message_time(dt) do
     timezone = Application.fetch_env!(:artsy_neighbor, :timezone)
     # Convert from UTC to local time before formatting.
     local = DateTime.shift_zone!(dt, timezone)
     today = DateTime.now!(timezone) |> DateTime.to_date()
-    date  = DateTime.to_date(local)
+    date = DateTime.to_date(local)
 
     if date == today do
       Calendar.strftime(local, "%I:%M %p")
@@ -607,6 +805,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   # string for storage/display, e.g. "June 5, 2026". Falls back to the raw
   # value if it somehow doesn't parse.
   defp format_picked_date(""), do: ""
+
   defp format_picked_date(iso_date) do
     case Date.from_iso8601(iso_date) do
       {:ok, date} -> Calendar.strftime(date, "%B %-d, %Y")
@@ -617,6 +816,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   # Formats the raw "HH:MM" value from the time input into a human string,
   # e.g. "2:00 PM". Falls back to the raw value if it doesn't parse.
   defp format_picked_time(""), do: ""
+
   defp format_picked_time(hh_mm) do
     with [h, m | _] <- String.split(hh_mm, ":"),
          {hour, ""} <- Integer.parse(h),
@@ -645,5 +845,4 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       true -> ""
     end
   end
-
 end

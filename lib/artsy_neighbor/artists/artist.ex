@@ -41,30 +41,41 @@ defmodule ArtsyNeighbor.Artists.Artist do
   """
   def activation_changeset(artist, attrs) do
     artist
-    |> cast(attrs, [:nickname,
-        :first_name,
-        :last_name,
-        :middle_name,
-        :email,
-        :street_address,
-        :apt_info,
-        :area_code,
-        :phone,
-        :bio,
-        :medium,
-        :user_id,
-        :delivery_options,
-        :delivery_info,
-        :onboarding_step,
-        :onboarding_complete,
-        :status,
-        :homepage,
-        :instagram,
-        :facebook,
-        :announcement,
-        :announcement_active])
-    |> validate_required([:nickname, :first_name, :last_name, :phone, :bio, :email,
-                        :street_address, :area_code, :medium])
+    |> cast(attrs, [
+      :nickname,
+      :first_name,
+      :last_name,
+      :middle_name,
+      :email,
+      :street_address,
+      :apt_info,
+      :area_code,
+      :phone,
+      :bio,
+      :medium,
+      :user_id,
+      :delivery_options,
+      :delivery_info,
+      :onboarding_step,
+      :onboarding_complete,
+      :status,
+      :homepage,
+      :instagram,
+      :facebook,
+      :announcement,
+      :announcement_active
+    ])
+    |> validate_required([
+      :nickname,
+      :first_name,
+      :last_name,
+      :phone,
+      :bio,
+      :email,
+      :street_address,
+      :area_code,
+      :medium
+    ])
     |> validate_length(:bio, min: 75, max: 4000)
     |> validate_length(:nickname, min: 2, max: 200)
     |> validate_length(:announcement, max: 100)
@@ -89,32 +100,39 @@ defmodule ArtsyNeighbor.Artists.Artist do
   """
   def registration_changeset(artist, attrs) do
     artist
-    |> cast(attrs, [:nickname,
-        :first_name,
-        :last_name,
-        :middle_name,
-        :email,
-        :street_address,
-        :apt_info,
-        :area_code,
-        :phone,
-        :user_id,
-        :homepage,
-        :instagram,
-        :facebook,
-        :announcement,
-        :announcement_active,
-        :onboarding_step,
-        :onboarding_complete])
-    |> validate_required([:nickname, :email,
-                        :first_name, :last_name,
-                        :phone, :street_address, :area_code])
+    |> cast(attrs, [
+      :nickname,
+      :first_name,
+      :last_name,
+      :middle_name,
+      :email,
+      :street_address,
+      :apt_info,
+      :area_code,
+      :phone,
+      :user_id,
+      :homepage,
+      :instagram,
+      :facebook,
+      :announcement,
+      :announcement_active,
+      :onboarding_step,
+      :onboarding_complete
+    ])
+    |> validate_required([
+      :nickname,
+      :email,
+      :first_name,
+      :last_name,
+      :phone,
+      :street_address,
+      :area_code
+    ])
     |> validate_length(:nickname, min: 2, max: 200)
     |> validate_email()
     |> assoc_constraint(:user)
     |> unique_constraint(:email)
     |> unique_constraint(:user_id)
-
   end
 
   @doc """
@@ -143,13 +161,17 @@ defmodule ArtsyNeighbor.Artists.Artist do
   # If the status field has changed, update the status_changed_at timestamp
   defp maybe_set_status_changed_at(changeset) do
     if Ecto.Changeset.changed?(changeset, :status) do
-      Ecto.Changeset.put_change(changeset, :status_changed_at, DateTime.utc_now() |> DateTime.truncate(:second))
+      Ecto.Changeset.put_change(
+        changeset,
+        :status_changed_at,
+        DateTime.utc_now() |> DateTime.truncate(:second)
+      )
     else
       changeset
     end
   end
 
-  #Verifies that delivery options are valid if they have changed
+  # Verifies that delivery options are valid if they have changed
   defp maybe_validate_delivery_options(changeset) do
     options_changed = Ecto.Changeset.changed?(changeset, :delivery_options)
     info_changed = Ecto.Changeset.changed?(changeset, :delivery_info)
@@ -160,10 +182,14 @@ defmodule ArtsyNeighbor.Artists.Artist do
       changeset
       |> validate_change(:delivery_options, fn :delivery_options, options ->
         invalid = Enum.reject(options, &(&1 in valid_options))
+
         if invalid == [] do
           []
         else
-          [delivery_options: "Delivery options must be one of: pickup, artist_delivery, shipping, other"]
+          [
+            delivery_options:
+              "Delivery options must be one of: pickup, artist_delivery, shipping, other"
+          ]
         end
       end)
       |> maybe_validate_delivery_info()
@@ -172,21 +198,22 @@ defmodule ArtsyNeighbor.Artists.Artist do
     end
   end
 
-
   # Validates that delivery_info keys match the selected delivery_options and that notes are not too long.
   defp maybe_validate_delivery_info(changeset) do
-
     delivery_options = Ecto.Changeset.get_field(changeset, :delivery_options) || []
     delivery_info = Ecto.Changeset.get_field(changeset, :delivery_info) || %{}
 
     invalid_keys = Map.keys(delivery_info) -- delivery_options
 
     if invalid_keys == [] do
-        changeset
-        |> validate_delivery_notes_length()
+      changeset
+      |> validate_delivery_notes_length()
     else
-      Ecto.Changeset.add_error(changeset, :delivery_info,
-        "contains notes for unknown delivery options: #{Enum.join(invalid_keys, ", ")}")
+      Ecto.Changeset.add_error(
+        changeset,
+        :delivery_info,
+        "contains notes for unknown delivery options: #{Enum.join(invalid_keys, ", ")}"
+      )
     end
   end
 
@@ -197,32 +224,37 @@ defmodule ArtsyNeighbor.Artists.Artist do
 
     Enum.reduce(delivery_info, changeset, fn {key, value}, acc ->
       if is_binary(value) && String.length(value) > 500 do
-        Ecto.Changeset.add_error(acc, :delivery_info,
-          "note for '#{key}' must be 500 characters or fewer")
+        Ecto.Changeset.add_error(
+          acc,
+          :delivery_info,
+          "note for '#{key}' must be 500 characters or fewer"
+        )
       else
         acc
       end
     end)
   end
 
-
-
   # Validates that a field contains a properly formatted URL
   defp validate_url(changeset, field) do
     if Ecto.Changeset.changed?(changeset, field) do
-      validate_format(changeset, field,
+      validate_format(
+        changeset,
+        field,
         ~r/^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-._~:\/?#\[\]@!$&'()*+,;=]*)?$/,
-        message: "must be a valid URL (e.g., https://www.example.com)")
+        message: "must be a valid URL (e.g., https://www.example.com)"
+      )
     else
       changeset
     end
   end
 
-
   # Validates email format
   defp validate_email(changeset) do
     changeset
-    |> validate_format(:email, ~r/^[^\s]+@[^\s]+\.[^\s]+$/, message: "must be a valid email address")
+    |> validate_format(:email, ~r/^[^\s]+@[^\s]+\.[^\s]+$/,
+      message: "must be a valid email address"
+    )
   end
 
   # Validates North American phone number format
@@ -230,13 +262,15 @@ defmodule ArtsyNeighbor.Artists.Artist do
   defp validate_phone(changeset) do
     changeset
     |> validate_format(:phone, ~r/^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/,
-        message: "must be a valid phone number (e.g., 250-555-1234 or (238) 555-1234)")
+      message: "must be a valid phone number (e.g., 250-555-1234 or (238) 555-1234)"
+    )
   end
 
   # Validates Canadian postal code format (e.g., M5H 2N2, m5h2n2, M5H2N2)
   defp validate_canadian_postal_code(changeset) do
     changeset
     |> validate_format(:area_code, ~r/^[A-Za-z]\d[A-Za-z][\s]?\d[A-Za-z]\d$/,
-        message: "must be a valid Canadian postal code (e.g., M5H 2N2)")
+      message: "must be a valid Canadian postal code (e.g., M5H 2N2)"
+    )
   end
 end

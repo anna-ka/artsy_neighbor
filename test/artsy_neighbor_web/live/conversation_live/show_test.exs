@@ -204,7 +204,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
       })
       |> render_submit()
 
-      assert ArtsyNeighbor.Repo.aggregate(ArtsyNeighbor.Conversations.ConversationEvent, :count) == 0
+      assert ArtsyNeighbor.Repo.aggregate(ArtsyNeighbor.Conversations.ConversationEvent, :count) ==
+               0
     end
   end
 
@@ -224,7 +225,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
 
       # Simulate the artist sending a message via PubSub (as the context would do).
       # We craft the event struct directly to avoid re-triggering real broadcasts.
-      {:ok, _event} = Conversations.create_message_event(conv, artist.user_id, :vendor, "Real-time hello!")
+      {:ok, _event} =
+        Conversations.create_message_event(conv, artist.user_id, :vendor, "Real-time hello!")
 
       # The LiveView subscribes to "conversation:<id>" and handles {:new_message, event}.
       # Since create_message_event already broadcasts, the view should already have it.
