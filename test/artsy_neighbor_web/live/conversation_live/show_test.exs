@@ -4,8 +4,12 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.AccountsFixtures
   import ArtsyNeighbor.ArtistsFixtures
+  import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighbor.OrdersFixtures
 
+  alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Repo
 
   # ---------------------------------------------------------------------------
@@ -260,6 +264,49 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
 
       html = render(lv)
       assert html =~ "Direct PubSub message"
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Vendor adding an item to an already-open order
+  # ---------------------------------------------------------------------------
+
+  # Regression test for a bug found via /code-review: open_add_item_form
+  # used to call Products.get_products_by_artist/1 — the public-scoped
+  # variant (requires the product :available AND the artist :active). That
+  # was wrong here: this is the vendor managing their own already-open
+  # order, not a public listing, and on_mount(:require_vendor, ...)
+  # doesn't check artist status, so a self-deactivated or admin-removed
+  # vendor could still reach this page and see zero products to add — even
+  # genuinely :available ones — purely because their own artist record
+  # wasn't :active. Fixed by switching to
+  # Products.get_products_by_artist_all_status/1, matching how the vendor
+  # dashboard already avoids this same trap.
+  describe "vendor add item to order" do
+    test "shows the vendor's own product even though it isn't :available — the vendor dashboard already gets this right, this page didn't" do
+      artist = artist_fixture(%{status: :active})
+      vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
+      order = order_fixture(%{artist_id: artist.id})
+      product = product_fixture(%{artist_id: artist.id})
+
+      # Self-deactivating cascades the product to :unavailable (see
+      # Artists.deactivate_artist/1) — the exact combination
+      # (non-:available product, vendor still able to reach this page)
+      # that used to make this list empty.
+      {:ok, _} = Artists.deactivate_artist(Artists.get_artist!(artist.id))
+      assert Products.get_product!(product.id).status == :unavailable
+
+      {:ok, lv, _html} =
+        build_conn()
+        |> log_in_user(vendor_user)
+        |> live(~p"/messages/#{order.conversation_id}")
+
+      html =
+        lv
+        |> element("[phx-click='open_add_item_form']")
+        |> render_click()
+
+      assert html =~ product.title
     end
   end
 end

@@ -75,11 +75,25 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-    Filters products for a specific artist based on the provided filter criteria.
-    All products are loaded with associations.
+    Filters products for a specific artist based on the provided filter
+    criteria, for the artist's own public store page
+    (ArtistLive.Store — /artist/:id/store). All products are loaded with
+    associations.
+
+    Bug fix: this used to have no status filter at all — not even
+    p.status == :available — so an :archived or :unavailable product
+    still showed up on the artist's own public store page. The caller
+    (ArtistLive.Store.handle_params/3) separately checks the *artist's*
+    own status before ever calling this, but nothing here checked the
+    *product's* status, or re-checked the artist's (only_available/1
+    covers both, redundantly with the caller's own check — defense in
+    depth, same reasoning as every other public product query in this
+    file). Confirmed live before the fix: an artist's archived product was
+    returned by this function.
   """
   def filter_artist_products(artist_id, filter) do
     Product
+    |> only_available()
     |> where([p], p.artist_id == ^artist_id)
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])

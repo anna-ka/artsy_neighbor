@@ -816,6 +816,23 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert length(results) == 2
     end
 
+    # Regression test: filter_artist_products/2 used to have no status
+    # filter at all, so an :archived product still showed up on the
+    # artist's own public store page (ArtistLive.Store).
+    test "excludes an archived product", %{artist: artist, p1: p1} do
+      {:ok, _} = Products.soft_delete_product(p1)
+
+      results = Products.filter_artist_products(artist.id, %{})
+      refute p1.id in Enum.map(results, & &1.id)
+    end
+
+    test "excludes an unavailable product", %{artist: artist, p1: p1} do
+      {:ok, _} = Products.update_product(p1, %{status: :unavailable})
+
+      results = Products.filter_artist_products(artist.id, %{})
+      refute p1.id in Enum.map(results, & &1.id)
+    end
+
     test "filter by category returns only matching products",
          %{artist: artist, p1: p1, p2: p2, cat1: cat1} do
       results = Products.filter_artist_products(artist.id, %{"category_id" => to_string(cat1.id)})

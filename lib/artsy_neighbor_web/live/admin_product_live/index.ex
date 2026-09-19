@@ -51,6 +51,59 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
     {:noreply, socket}
   end
 
+  # Reverses "archive" — see Products.restore_product/1. Lands on
+  # :unavailable, not :available: there is no "mark available" action yet
+  # (see that function's own doc comment), so restoring here is a real but
+  # incomplete step, not a full undo of "archive".
+  #
+  # restore_product/1 can return {:error, :artist_not_active} (the owning
+  # artist isn't currently :active — only_available/1 would hide the
+  # product regardless, so restoring it would leave a product with an
+  # unreachable seller once "mark available" exists) or
+  # {:error, :category_missing} (its category was deleted out from under
+  # it — can't actually happen from this view today, since
+  # filter_products_all_status/1 inner-joins :category, but the guard
+  # stays defensive) in addition to a changeset error — handled below with
+  # a flash for each rather than a MatchError.
+  @impl true
+  def handle_event("restore", %{"id" => id}, socket) do
+    product = Products.get_product_with_associations!(id)
+
+    socket =
+      case Products.restore_product(product) do
+        {:ok, updated_product} ->
+          message =
+            "Product \"#{product.title}\" has been restored to unavailable — marking it available again isn't built yet."
+
+          socket
+          |> stream_insert(:products, updated_product)
+          |> put_flash(:info, message)
+
+        {:error, :artist_not_active} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not restore \"#{product.title}\" — its artist isn't currently active."
+          )
+
+        {:error, :category_missing} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not restore \"#{product.title}\" — its category no longer exists."
+          )
+
+        {:error, _reason} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not restore \"#{product.title}\". Please try again."
+          )
+      end
+
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
     product = Products.get_product!(id)
@@ -138,8 +191,8 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
             </:col>
 
             <%!-- Actions --%>
-            <:col :let={{_dom_id, product}} label="Actions" col_class="w-48">
-              <div class="flex gap-2">
+            <:col :let={{_dom_id, product}} label="Actions" col_class="w-56">
+              <div class="flex flex-wrap gap-2">
                 <.link navigate={~p"/admin/products/#{product}"}>
                   <button class="btn btn-ghost btn-xs">view</button>
                 </.link>
@@ -147,9 +200,17 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
                   <button class="btn btn-ghost btn-xs">edit</button>
                 </.link>
                 <.link
+                  :if={product.status != :available}
+                  phx-click="restore"
+                  phx-value-id={product.id}
+                  data-confirm={"Restore \"#{product.title}\"? Its status will change to unavailable — marking it available again isn't built yet, so it still won't be publicly purchasable after this."}
+                >
+                  <button class="btn btn-ghost btn-xs text-success">restore</button>
+                </.link>
+                <.link
                   phx-click="archive"
                   phx-value-id={product.id}
-                  data-confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This is reversible in the database, but there is no in-app restore yet."}
+                  data-confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This can be reversed using the restore action, though restoring only brings it back to unavailable — a separate step to mark it available again isn't built yet."}
                 >
                   <button class="btn btn-ghost btn-xs text-warning">archive</button>
                 </.link>

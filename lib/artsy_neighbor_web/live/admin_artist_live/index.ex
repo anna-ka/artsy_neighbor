@@ -29,6 +29,55 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
     {:noreply, socket}
   end
 
+  # Reverses "remove" — see AdminArtists.restore_artist/1 /
+  # Artists.restore_artist/1. Lands on :inactive, not :active (the vendor
+  # still has to activate their own profile), and does not touch the
+  # artist's products (still :archived from soft_delete_artist/1) — those
+  # wait on Products.restore_product/1, itself gated on the artist being
+  # :active, so there's no "restore artist -> products instantly visible"
+  # shortcut here.
+  #
+  # restore_artist/1 can return {:error, :already_active} (stale
+  # page/double-click on an artist someone else already restored or
+  # activated) or {:error, :user_missing} (the artist's linked user
+  # account is gone — currently unreachable in practice, see that
+  # function's own doc comment) in addition to a changeset error —
+  # handled below with a flash for each rather than a MatchError.
+  @impl true
+  def handle_event("restore", %{"id" => id}, socket) do
+    artist = AdminArtists.get_artist!(id)
+
+    socket =
+      case AdminArtists.restore_artist(artist) do
+        {:ok, updated_artist} ->
+          message =
+            "Artist #{artist.nickname} has been restored to inactive — they'll need to activate their own profile before it's visible to the public again."
+
+          socket
+          |> stream_insert(:artists, updated_artist)
+          |> put_flash(:info, message)
+
+        {:error, :already_active} ->
+          put_flash(socket, :info, "#{artist.nickname} is already active — nothing to restore.")
+
+        {:error, :user_missing} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not restore #{artist.nickname} — their linked user account no longer exists."
+          )
+
+        {:error, _reason} ->
+          put_flash(
+            socket,
+            :error,
+            "Could not restore #{artist.nickname}. Please try again."
+          )
+      end
+
+    {:noreply, socket}
+  end
+
   # Permanently deletes an artist via AdminArtists.hard_delete_artist/1
   # (which delegates to Artists.hard_delete_artist/1) — a hard delete,
   # unlike the "remove" handler above. This also destroys every order,
@@ -178,8 +227,8 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
             </:col>
 
             <%!-- Actions --%>
-            <:col :let={{_dom_id, artist}} label="Actions" col_class="w-36">
-              <div class="flex gap-2">
+            <:col :let={{_dom_id, artist}} label="Actions" col_class="w-48">
+              <div class="flex flex-wrap gap-2">
                 <.link navigate={~p"/artists/#{artist}"}>
                   <button class="btn btn-ghost btn-xs">view</button>
                 </.link>
@@ -187,10 +236,20 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
                 <.link navigate={~p"/admin/artists/#{artist}/edit"}>
                   <button class="btn btn-ghost btn-xs">edit</button>
                 </.link>
+
+                <.link
+                  :if={artist.status != :active}
+                  phx-click="restore"
+                  phx-value-id={artist.id}
+                  data-confirm={"Restore #{artist.nickname}? Their status will change to inactive — they'll need to activate their own profile from the vendor dashboard before it's visible to the public again. Their products stay archived until restored individually, which itself waits on the artist being active."}
+                >
+                  <button class="btn btn-ghost btn-xs text-success">restore</button>
+                </.link>
+
                 <.link
                   phx-click="remove"
                   phx-value-id={artist.id}
-                  data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed by editing their status."}
+                  data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed using the restore action."}
                 >
                   <button class="btn btn-ghost btn-xs text-warning">mark removed</button>
                 </.link>

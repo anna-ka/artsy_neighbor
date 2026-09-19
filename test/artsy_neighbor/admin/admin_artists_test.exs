@@ -11,7 +11,8 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
     first_name: "Vincent",
     last_name: "Artist",
     phone: "416-555-1234",
-    bio: "This is a valid bio for testing purposes. It is written to be at least 75 characters long.",
+    bio:
+      "This is a valid bio for testing purposes. It is written to be at least 75 characters long.",
     main_img: "/images/test-artist.jpg",
     email: "vincent@example.com",
     street_address: "123 Test Street",
@@ -21,7 +22,8 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
 
   @update_attrs %{
     nickname: "Updated VanGogh",
-    bio: "This is an updated bio for testing purposes. It must also be at least 75 characters long."
+    bio:
+      "This is an updated bio for testing purposes. It must also be at least 75 characters long."
   }
 
   @invalid_attrs %{nickname: nil, first_name: nil, last_name: nil}
@@ -83,6 +85,21 @@ defmodule ArtsyNeighbor.Admin.AdminArtistsTest do
       artist = artist_fixture()
       assert {:ok, %Artist{}} = AdminArtists.hard_delete_artist(artist)
       assert_raise Ecto.NoResultsError, fn -> AdminArtists.get_artist!(artist.id) end
+    end
+  end
+
+  describe "restore_artist/1" do
+    test "delegates to Artists.restore_artist/1, landing on :inactive" do
+      artist = artist_fixture()
+      {:ok, removed} = AdminArtists.soft_delete_artist(artist)
+
+      assert {:ok, restored} = AdminArtists.restore_artist(removed)
+      assert restored.status == :inactive
+    end
+
+    test "refuses on an already-:active artist" do
+      artist = artist_fixture(%{status: :active})
+      assert {:error, :already_active} = AdminArtists.restore_artist(artist)
     end
   end
 

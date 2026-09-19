@@ -350,6 +350,74 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Regression coverage for a real, reachable bug found via /code-review: a
+  # :removed artist's own account could reach /vendor
+  # (on_mount(:require_vendor, ...) only checks that current_scope.artist
+  # is non-nil, not its status) and self-resurrect straight to :active via
+  # the dashboard's own "activate profile" toggle — Artists.update_artist/2
+  # had no refusal for a :removed -> :active transition, unlike
+  # restore_artist/1's own deliberate :inactive-only landing. Same bypass
+  # was independently reachable via the admin edit form's raw status
+  # dropdown. Fixed at the changeset level (Artist.activation_changeset/2
+  # and status_changeset/2 both now refuse this transition), not by
+  # patching each caller — closes every current and future entry point at
+  # once, and means an invalid changeset (not a bespoke error atom) comes
+  # back, so no caller's existing {:error, %Ecto.Changeset{}} handling
+  # needed to change.
+  # ---------------------------------------------------------------------------
+  describe "update_artist/2 — refuses :removed -> :active in one step" do
+    test "refuses, returning an invalid changeset with a status error" do
+      artist = artist_fixture(%{status: :active})
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert {:error, changeset} = Artists.update_artist(removed, %{status: :active})
+      refute changeset.valid?
+
+      assert "cannot go directly from removed to active — restore the artist first (sets status to inactive), then activate separately" in errors_on(
+               changeset
+             ).status
+
+      assert Artists.get_artist!(artist.id).status == :removed
+    end
+
+    test "does not refuse other fields being edited on a :removed artist, as long as status isn't also set to :active" do
+      artist = artist_fixture(%{status: :active})
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert {:ok, updated} = Artists.update_artist(removed, %{bio: String.duplicate("y", 100)})
+      assert updated.status == :removed
+    end
+
+    test "still allows :removed -> :inactive (the real restore_artist/1 path)" do
+      artist = artist_fixture(%{status: :active})
+      {:ok, removed} = Artists.soft_delete_artist(artist)
+
+      assert {:ok, updated} = Artists.update_artist(removed, %{status: :inactive})
+      assert updated.status == :inactive
+    end
+
+    test "still allows :inactive -> :active (the legitimate second step, after restore)" do
+      artist = artist_fixture(%{status: :inactive})
+
+      assert {:ok, updated} = Artists.update_artist(artist, %{status: :active})
+      assert updated.status == :active
+    end
+  end
+
+  describe "Artist.status_changeset/2 — same :removed -> :active refusal, belt-and-suspenders" do
+    test "refuses even though none of status_changeset/2's own callers currently attempt this" do
+      artist = artist_fixture(%{status: :removed})
+
+      changeset = Artist.status_changeset(artist, %{status: :active})
+      refute changeset.valid?
+
+      assert "cannot go directly from removed to active — restore the artist first (sets status to inactive), then activate separately" in errors_on(
+               changeset
+             ).status
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # hard_delete_artist/1 — hard delete for admin/testing cleanup. Unlike
   # soft_delete_artist/1, this permanently removes the artist row plus every
   # dependent row across orders, order_items, conversations,

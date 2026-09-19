@@ -68,6 +68,13 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   @doc """
+  Reverses soft_delete_artist/1. See Artists.restore_artist/1.
+  """
+  def restore_artist(%Artist{} = artist) do
+    Artists.restore_artist(artist)
+  end
+
+  @doc """
   Permanently deletes an artist and everything that depends on them. See
   Artists.hard_delete_artist/1.
   """

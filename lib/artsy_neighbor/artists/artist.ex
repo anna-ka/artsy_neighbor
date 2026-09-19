@@ -85,6 +85,7 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_phone()
     |> validate_canadian_postal_code()
     |> assoc_constraint(:user)
+    |> validate_status_transition()
     |> maybe_set_status_changed_at()
     |> maybe_validate_delivery_options()
     |> validate_url(:homepage)
@@ -143,7 +144,42 @@ defmodule ArtsyNeighbor.Artists.Artist do
     artist
     |> cast(attrs, [:status])
     |> validate_required([:status])
+    |> validate_status_transition()
     |> maybe_set_status_changed_at()
+  end
+
+  # Refuses a :removed -> :active transition in one step, from any
+  # changeset that casts :status — both activation_changeset/2 (used by
+  # Artists.update_artist/2, itself used by the admin edit form's raw
+  # status dropdown AND the vendor dashboard's own "activate profile"
+  # toggle) and status_changeset/2 (belt-and-suspenders; none of its own
+  # callers currently attempt this transition, since soft_delete_artist/1,
+  # deactivate_artist/1, and restore_artist/1 each only ever set a single,
+  # known-safe target status).
+  #
+  # Restoring a removed artist is meant to be two deliberate steps:
+  # restore_artist/1 (:removed -> :inactive, admin-initiated) and then the
+  # vendor separately activating their own profile (:inactive -> :active).
+  # Without this guard, either the admin edit form or the vendor's own
+  # dashboard toggle could collapse those two steps into one — a removed
+  # artist logging back in and clicking "Activate profile" would silently
+  # resurrect themselves to :active with no admin involvement at all,
+  # completely bypassing restore_artist/1's invariant that restoring
+  # "shouldn't silently re-publish" a removed profile. Confirmed
+  # reachable: on_mount(:require_vendor, ...) only checks that
+  # current_scope.artist is non-nil, not its status, so a :removed
+  # artist's own account can still reach /vendor.
+  defp validate_status_transition(changeset) do
+    validate_change(changeset, :status, fn :status, new_status ->
+      if changeset.data.status == :removed and new_status == :active do
+        [
+          status:
+            "cannot go directly from removed to active — restore the artist first (sets status to inactive), then activate separately"
+        ]
+      else
+        []
+      end
+    end)
   end
 
   @doc """
