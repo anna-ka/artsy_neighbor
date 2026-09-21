@@ -3,7 +3,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Categories
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1, back: 1]
+
+  import ArtsyNeighborWeb.CustomComponents,
+    only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -192,36 +194,17 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
 
             <%!-- Actions --%>
             <:col :let={{_dom_id, product}} label="Actions" col_class="w-56">
-              <div class="flex flex-wrap gap-2">
-                <.link navigate={~p"/admin/products/#{product}"}>
-                  <button class="btn btn-ghost btn-xs">view</button>
-                </.link>
-                <.link navigate={~p"/admin/products/#{product}/edit"}>
-                  <button class="btn btn-ghost btn-xs">edit</button>
-                </.link>
-                <.link
-                  :if={product.status != :available}
-                  phx-click="restore"
-                  phx-value-id={product.id}
-                  data-confirm={"Restore \"#{product.title}\"? Its status will change to unavailable — marking it available again isn't built yet, so it still won't be publicly purchasable after this."}
-                >
-                  <button class="btn btn-ghost btn-xs text-success">restore</button>
-                </.link>
-                <.link
-                  phx-click="archive"
-                  phx-value-id={product.id}
-                  data-confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This can be reversed using the restore action, though restoring only brings it back to unavailable — a separate step to mark it available again isn't built yet."}
-                >
-                  <button class="btn btn-ghost btn-xs text-warning">archive</button>
-                </.link>
-                <.link
-                  phx-click="delete"
-                  phx-value-id={product.id}
-                  data-confirm={"Permanently delete \"#{product.title}\"? This cannot be undone."}
-                >
-                  <button class="btn btn-ghost btn-xs text-error">delete</button>
-                </.link>
-              </div>
+              <.status_actions
+                id={product.id}
+                view_path={~p"/admin/products/#{product}"}
+                edit_path={~p"/admin/products/#{product}/edit"}
+                show_restore={product.status != :available}
+                restore_confirm={"Restore \"#{product.title}\"? Its status will change to unavailable — marking it available again isn't built yet, so it still won't be publicly purchasable after this."}
+                soft_delete_event="archive"
+                soft_delete_label="archive"
+                soft_delete_confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This can be reversed using the restore action, though restoring only brings it back to unavailable — a separate step to mark it available again isn't built yet."}
+                hard_delete_confirm={"Permanently delete \"#{product.title}\"? This cannot be undone."}
+              />
             </:col>
           </.form_table>
         </div>

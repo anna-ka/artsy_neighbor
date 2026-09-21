@@ -289,5 +289,85 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     """
   end
 
+  @doc """
+  Renders the view/edit/restore/soft-delete/hard-delete action buttons for
+  an admin index row. Shared by AdminArtistLive.Index and
+  AdminProductLive.Index — the first two admin index LiveViews to reach
+  three status tiers (restore / soft_delete / hard_delete), per
+  docs/plans/2026-09-17-entity-removal-consistency.md's Phase 2. Extracted
+  as a pure refactor: every button's event name, label, and confirm text
+  is passed in explicitly rather than templated from a shared pattern,
+  since the actual wording differs meaningfully between entities
+  (different cascade side effects, different irreversibility caveats,
+  even different quoting conventions in the confirm text) — this
+  component shares *structure* (the confirm-gated-link-wrapping-a-button
+  shape, the conditional restore visibility), not copy. The status column
+  itself (a bare `{status}` in both callers) was deliberately left inline
+  at each call site rather than folded in here — one interpolation isn't
+  real duplication, and a component wrapping it would add indirection
+  without adding reuse.
 
+  restore/hard-delete always fire "restore"/"delete" respectively (both
+  callers already agree on these two event names); soft-delete's event
+  name is the one genuine variation ("remove" for Artist, "archive" for
+  Product), so it's the one taken as an attr.
+
+  ## Examples
+
+      <.status_actions
+        id={artist.id}
+        view_path={~p"/artists/\#{artist}"}
+        edit_path={~p"/admin/artists/\#{artist}/edit"}
+        show_restore={artist.status != :active}
+        restore_confirm="Restore ...?"
+        soft_delete_event="remove"
+        soft_delete_label="mark removed"
+        soft_delete_confirm="Mark ... as removed?"
+        hard_delete_confirm="Permanently delete ...?"
+      />
+  """
+  attr :id, :any, required: true, doc: "the record's id, used for phx-value-id"
+  attr :view_path, :string, required: true
+  attr :edit_path, :string, required: true
+  attr :show_restore, :boolean, required: true
+  attr :restore_confirm, :string, required: true
+  attr :soft_delete_event, :string, required: true
+  attr :soft_delete_label, :string, required: true
+  attr :soft_delete_confirm, :string, required: true
+  attr :hard_delete_confirm, :string, required: true
+
+  def status_actions(assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2">
+      <.link navigate={@view_path}>
+        <button class="btn btn-ghost btn-xs">view</button>
+      </.link>
+
+      <.link navigate={@edit_path}>
+        <button class="btn btn-ghost btn-xs">edit</button>
+      </.link>
+
+      <.link
+        :if={@show_restore}
+        phx-click="restore"
+        phx-value-id={@id}
+        data-confirm={@restore_confirm}
+      >
+        <button class="btn btn-ghost btn-xs text-success">restore</button>
+      </.link>
+
+      <.link
+        phx-click={@soft_delete_event}
+        phx-value-id={@id}
+        data-confirm={@soft_delete_confirm}
+      >
+        <button class="btn btn-ghost btn-xs text-warning">{@soft_delete_label}</button>
+      </.link>
+
+      <.link phx-click="delete" phx-value-id={@id} data-confirm={@hard_delete_confirm}>
+        <button class="btn btn-ghost btn-xs text-error">delete</button>
+      </.link>
+    </div>
+    """
+  end
 end

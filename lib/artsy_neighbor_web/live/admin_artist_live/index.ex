@@ -2,7 +2,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Admin.AdminArtists
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, form_table: 1, back: 1]
+
+  import ArtsyNeighborWeb.CustomComponents,
+    only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -228,40 +230,17 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
 
             <%!-- Actions --%>
             <:col :let={{_dom_id, artist}} label="Actions" col_class="w-48">
-              <div class="flex flex-wrap gap-2">
-                <.link navigate={~p"/artists/#{artist}"}>
-                  <button class="btn btn-ghost btn-xs">view</button>
-                </.link>
-
-                <.link navigate={~p"/admin/artists/#{artist}/edit"}>
-                  <button class="btn btn-ghost btn-xs">edit</button>
-                </.link>
-
-                <.link
-                  :if={artist.status != :active}
-                  phx-click="restore"
-                  phx-value-id={artist.id}
-                  data-confirm={"Restore #{artist.nickname}? Their status will change to inactive — they'll need to activate their own profile from the vendor dashboard before it's visible to the public again. Their products stay archived until restored individually, which itself waits on the artist being active."}
-                >
-                  <button class="btn btn-ghost btn-xs text-success">restore</button>
-                </.link>
-
-                <.link
-                  phx-click="remove"
-                  phx-value-id={artist.id}
-                  data-confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed using the restore action."}
-                >
-                  <button class="btn btn-ghost btn-xs text-warning">mark removed</button>
-                </.link>
-
-                <.link
-                  phx-click="delete"
-                  phx-value-id={artist.id}
-                  data-confirm={"Permanently delete artist #{artist.nickname}? This will also delete ALL of their orders, order items, conversations, and reviews. This cannot be undone."}
-                >
-                  <button class="btn btn-ghost btn-xs text-error">delete</button>
-                </.link>
-              </div>
+              <.status_actions
+                id={artist.id}
+                view_path={~p"/artists/#{artist}"}
+                edit_path={~p"/admin/artists/#{artist}/edit"}
+                show_restore={artist.status != :active}
+                restore_confirm={"Restore #{artist.nickname}? Their status will change to inactive — they'll need to activate their own profile from the vendor dashboard before it's visible to the public again. Their products stay archived until restored individually, which itself waits on the artist being active."}
+                soft_delete_event="remove"
+                soft_delete_label="mark removed"
+                soft_delete_confirm={"Mark artist #{artist.nickname} as removed? Their profile and products will be hidden from the public site, but all data is kept and this can be reversed using the restore action."}
+                hard_delete_confirm={"Permanently delete artist #{artist.nickname}? This will also delete ALL of their orders, order items, conversations, and reviews. This cannot be undone."}
+              />
             </:col>
           </.form_table>
         </div>
