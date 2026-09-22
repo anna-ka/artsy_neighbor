@@ -36,12 +36,24 @@ defmodule ArtsyNeighborWeb.CategoryLive.Show do
   end
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
-    category = Categories.get_category!(id)
+  def mount(_params, _session, socket) do
+    {:ok, socket}
+  end
 
-    {:ok,
-     socket
-     |> assign(:page_title, category.name)
-     |> assign(:category, category)}
+  @impl true
+  def handle_params(%{"id" => id}, _uri, socket) do
+    case Categories.get_category(id) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Category not found.")
+         |> push_navigate(to: ~p"/categories")}
+
+      category ->
+        {:noreply,
+         socket
+         |> assign(:page_title, category.name)
+         |> assign(:category, category)}
+    end
   end
 end

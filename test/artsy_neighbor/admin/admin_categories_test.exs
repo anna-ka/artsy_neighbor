@@ -5,6 +5,7 @@ defmodule ArtsyNeighbor.Admin.AdminCategoriesTest do
   alias ArtsyNeighbor.Categories.Category
 
   import ArtsyNeighbor.CategoriesFixtures
+  import ArtsyNeighbor.ProductsFixtures
 
   @valid_attrs %{
     name: "Paintings",
@@ -21,14 +22,23 @@ defmodule ArtsyNeighbor.Admin.AdminCategoriesTest do
 
   @invalid_attrs %{name: nil, description: nil, slug: nil}
 
-  describe "list_categories/0" do
+  describe "list_categories_all_status/0" do
     test "returns all categories" do
       category = category_fixture()
-      assert AdminCategories.list_categories() == [category]
+      assert AdminCategories.list_categories_all_status() == [category]
     end
 
     test "returns empty list when no categories exist" do
-      assert AdminCategories.list_categories() == []
+      assert AdminCategories.list_categories_all_status() == []
+    end
+
+    test "includes archived categories" do
+      active = category_fixture()
+      {:ok, archived} = category_fixture() |> AdminCategories.soft_delete_category()
+
+      result = AdminCategories.list_categories_all_status()
+      assert active in result
+      assert archived in result
     end
   end
 
@@ -84,11 +94,42 @@ defmodule ArtsyNeighbor.Admin.AdminCategoriesTest do
     end
   end
 
-  describe "delete_category/1" do
+  describe "hard_delete_category/1" do
     test "deletes the category" do
       category = category_fixture()
-      assert {:ok, %Category{}} = AdminCategories.delete_category(category)
+      assert {:ok, %Category{}} = AdminCategories.hard_delete_category(category)
       assert_raise Ecto.NoResultsError, fn -> AdminCategories.get_category!(category.id) end
+    end
+
+    test "refuses when the category still has an :available product" do
+      category = category_fixture()
+      product_fixture(%{category_id: category.id})
+
+      assert AdminCategories.hard_delete_category(category) == {:error, :has_active_products}
+      assert AdminCategories.get_category!(category.id)
+    end
+  end
+
+  describe "soft_delete_category/1" do
+    test "marks the category as :archived" do
+      category = category_fixture()
+      assert {:ok, updated} = AdminCategories.soft_delete_category(category)
+      assert updated.status == :archived
+    end
+
+    test "refuses when the category still has an :available product" do
+      category = category_fixture()
+      product_fixture(%{category_id: category.id})
+
+      assert AdminCategories.soft_delete_category(category) == {:error, :has_active_products}
+    end
+  end
+
+  describe "restore_category/1" do
+    test "reverses soft_delete_category/1" do
+      {:ok, archived} = category_fixture() |> AdminCategories.soft_delete_category()
+      assert {:ok, restored} = AdminCategories.restore_category(archived)
+      assert restored.status == :active
     end
   end
 

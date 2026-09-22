@@ -14,7 +14,8 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    categories = Categories.list_categories() |> Enum.map(fn cat -> {cat.name, cat.id} end)
+    categories =
+      Categories.list_categories_all_status() |> Enum.map(fn cat -> {cat.name, cat.id} end)
 
     socket =
       socket

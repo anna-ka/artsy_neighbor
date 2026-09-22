@@ -6,22 +6,18 @@ defmodule ArtsyNeighbor.Admin.AdminCategories do
 
 
   alias ArtsyNeighbor.Repo
+  alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.Categories.Category
 
   import Ecto.Query, warn: false
 
 
   @doc """
-  Returns the list of categories.
-
-  ## Examples
-
-      iex> list_categories()
-      [%Category{}, ...]
-
+  Returns every category regardless of status, for admin use. See
+  Categories.list_categories_all_status/0.
   """
-  def list_categories do
-    Repo.all(Category)
+  def list_categories_all_status do
+    Categories.list_categories_all_status()
   end
 
   @doc """
@@ -77,19 +73,48 @@ defmodule ArtsyNeighbor.Admin.AdminCategories do
   end
 
   @doc """
-  Deletes a category.
+  Permanently deletes a category. Kept as the demoted, exceptional
+  action — for routine removal use Categories.soft_delete_category/1
+  instead, which is reversible. Stays a bare Repo.delete: products.category_id
+  is on_delete: :nilify_all, and Category is never a Flag.subject_type, so
+  this doesn't need the Multi+rescue+flag-cleanup treatment
+  hard_delete_artist/1 and hard_delete_product/1 require.
+
+  Refuses (returns {:error, :has_active_products}) if the category still
+  has :available products, same guard and criteria as
+  Categories.soft_delete_category/1 — an irreversible delete shouldn't be
+  any more permissive than the reversible one.
 
   ## Examples
 
-      iex> delete_category(category)
+      iex> hard_delete_category(category)
       {:ok, %Category{}}
 
-      iex> delete_category(category)
+      iex> hard_delete_category(category)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_category(%Category{} = category) do
-    Repo.delete(category)
+  def hard_delete_category(%Category{} = category) do
+    if Categories.has_active_products?(category) do
+      {:error, :has_active_products}
+    else
+      Repo.delete(category)
+    end
+  end
+
+  @doc """
+  Marks a category as removed (soft, reversible). See
+  Categories.soft_delete_category/1.
+  """
+  def soft_delete_category(%Category{} = category) do
+    Categories.soft_delete_category(category)
+  end
+
+  @doc """
+  Reverses soft_delete_category/1. See Categories.restore_category/1.
+  """
+  def restore_category(%Category{} = category) do
+    Categories.restore_category(category)
   end
 
   @doc """

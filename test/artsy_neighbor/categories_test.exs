@@ -5,6 +5,7 @@ defmodule ArtsyNeighbor.CategoriesTest do
   alias ArtsyNeighbor.Categories.Category
 
   import ArtsyNeighbor.CategoriesFixtures
+  import ArtsyNeighbor.ProductsFixtures
 
   @valid_attrs %{
     name: "Paintings",
@@ -19,6 +20,33 @@ defmodule ArtsyNeighbor.CategoriesTest do
       assert Categories.list_categories() == [category]
     end
 
+    test "list_categories/0 excludes archived categories" do
+      active = category_fixture()
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+
+      result = Categories.list_categories()
+      assert active in result
+      refute archived in result
+    end
+
+    test "list_categories_ordered_by_time/0 excludes archived categories" do
+      active = category_fixture()
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+
+      result = Categories.list_categories_ordered_by_time()
+      assert active in result
+      refute archived in result
+    end
+
+    test "list_categories_all_status/0 returns categories regardless of status" do
+      active = category_fixture()
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+
+      result = Categories.list_categories_all_status()
+      assert active in result
+      assert archived in result
+    end
+
     test "get_category!/1 returns the category with given id" do
       category = category_fixture()
       assert Categories.get_category!(category.id) == category
@@ -26,6 +54,86 @@ defmodule ArtsyNeighbor.CategoriesTest do
 
     test "get_category!/1 raises when category does not exist" do
       assert_raise Ecto.NoResultsError, fn -> Categories.get_category!(0) end
+    end
+
+    test "get_category!/1 returns an archived category too (unscoped)" do
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+      assert Categories.get_category!(archived.id) == archived
+    end
+
+    test "get_category/1 returns an active category" do
+      category = category_fixture()
+      assert Categories.get_category(category.id).id == category.id
+    end
+
+    test "get_category/1 returns nil for an archived category" do
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+      assert Categories.get_category(archived.id) == nil
+    end
+
+    test "get_category/1 returns nil for a nonexistent id" do
+      assert Categories.get_category(0) == nil
+    end
+  end
+
+  describe "has_active_products?/1" do
+    test "false when the category has no products" do
+      category = category_fixture()
+      refute Categories.has_active_products?(category)
+    end
+
+    test "true when the category has an :available product" do
+      category = category_fixture()
+      product_fixture(%{category_id: category.id})
+      assert Categories.has_active_products?(category)
+    end
+
+    test "false when the category's only products are :unavailable/:archived" do
+      category = category_fixture()
+      product = product_fixture(%{category_id: category.id})
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
+
+      refute Categories.has_active_products?(category)
+    end
+  end
+
+  describe "soft_delete_category/1" do
+    test "marks the category as :archived and stamps status_changed_at" do
+      category = category_fixture()
+      assert category.status == :active
+      assert {:ok, updated} = Categories.soft_delete_category(category)
+      assert updated.status == :archived
+      assert updated.status_changed_at != nil
+    end
+
+    test "refuses when the category still has an :available product" do
+      category = category_fixture()
+      product_fixture(%{category_id: category.id})
+
+      assert Categories.soft_delete_category(category) == {:error, :has_active_products}
+      assert Categories.get_category!(category.id).status == :active
+    end
+
+    test "succeeds once the category's products are no longer :available" do
+      category = category_fixture()
+      product = product_fixture(%{category_id: category.id})
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
+
+      assert {:ok, updated} = Categories.soft_delete_category(category)
+      assert updated.status == :archived
+    end
+  end
+
+  describe "restore_category/1" do
+    test "reverses soft_delete_category/1, marking the category :active again" do
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+      assert {:ok, restored} = Categories.restore_category(archived)
+      assert restored.status == :active
+    end
+
+    test "refuses to restore an already-active category" do
+      category = category_fixture()
+      assert Categories.restore_category(category) == {:error, :already_active}
     end
   end
 

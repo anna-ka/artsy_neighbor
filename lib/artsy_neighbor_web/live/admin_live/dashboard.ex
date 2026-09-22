@@ -8,7 +8,7 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
   def mount(_params, _session, socket) do
     artist_count  = length(Artists.list_artists())
     product_count = length(Products.list_products())
-    category_count = length(Categories.list_categories())
+    category_count = length(Categories.list_categories_all_status())
 
     {:ok,
      assign(socket,

@@ -44,7 +44,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
   defp assign_selects(socket, artist_id) do
     artists = Artists.list_artists() |> Enum.map(fn a -> {a.nickname, a.id} end)
-    categories = Categories.list_categories() |> Enum.map(fn c -> {c.name, c.id} end)
+    categories = Categories.list_categories_all_status() |> Enum.map(fn c -> {c.name, c.id} end)
     collections = collections_for(artist_id)
 
     socket

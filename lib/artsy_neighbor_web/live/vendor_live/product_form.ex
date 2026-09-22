@@ -63,8 +63,16 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     end
   end
 
+  # list_categories_all_status/0, not list_categories/0 — the latter is
+  # now scoped to :active, and a product being edited may already be
+  # assigned to a category that's since been archived. Without this, the
+  # select's current value would be missing from its own options list,
+  # the browser would default to selecting whatever category is first,
+  # and saving without touching the dropdown would silently reassign the
+  # product's category. Same reasoning as AdminProductLive.Form's
+  # identical fix.
   defp assign_categories(socket) do
-    categories = Categories.list_categories() |> Enum.map(fn c -> {c.name, c.id} end)
+    categories = Categories.list_categories_all_status() |> Enum.map(fn c -> {c.name, c.id} end)
     assign(socket, :categories, categories)
   end
 

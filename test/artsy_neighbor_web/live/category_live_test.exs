@@ -23,5 +23,21 @@ defmodule ArtsyNeighborWeb.CategoryLiveTest do
       {:ok, _live, html} = live(conn, ~p"/categories/#{category}")
       assert html =~ category.name
     end
+
+    test "redirects with a flash when the category is archived", %{conn: conn} do
+      {:ok, archived} = category_fixture() |> ArtsyNeighbor.Categories.soft_delete_category()
+
+      assert {:error, {:live_redirect, %{to: "/categories", flash: flash}}} =
+               live(conn, ~p"/categories/#{archived}")
+
+      assert flash["error"] == "Category not found."
+    end
+
+    test "redirects with a flash when the category does not exist", %{conn: conn} do
+      assert {:error, {:live_redirect, %{to: "/categories", flash: flash}}} =
+               live(conn, ~p"/categories/0")
+
+      assert flash["error"] == "Category not found."
+    end
   end
 end
