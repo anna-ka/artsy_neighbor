@@ -47,7 +47,7 @@ defmodule ArtsyNeighborWeb.OrderLive.Detail do
   end
 
   def handle_event("delete_vendor_review", _params, socket) do
-    case Reviews.delete_vendor_review(socket.assigns.vendor_review) do
+    case Reviews.soft_delete_vendor_review(socket.assigns.vendor_review) do
       {:ok, _} ->
         {:noreply, assign(socket, :vendor_review, nil)}
 
@@ -63,7 +63,7 @@ defmodule ArtsyNeighborWeb.OrderLive.Detail do
     product_id = String.to_integer(pid_str)
     review     = socket.assigns.product_reviews_by_product[product_id]
 
-    case review && Reviews.delete_product_review(review) do
+    case review && Reviews.soft_delete_product_review(review) do
       {:ok, _} ->
         updated = Map.delete(socket.assigns.product_reviews_by_product, product_id)
         {:noreply, assign(socket, :product_reviews_by_product, updated)}

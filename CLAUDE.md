@@ -72,6 +72,20 @@ mix phx.server           # dev server
 
 ## Conventions
 
+### Code style
+
+This codebase is maintained by a professional computer scientist who is new
+to Elixir, Phoenix and web programming in general. The person is working
+with Claude — favor explicit, readable code over dense/clever one-liners
+as long as it doesn't cost real efficiency.
+
+- Avoid `&`-capture shorthand for anonymous functions (e.g.
+  `&Map.get(attrs, &1)`, `&is_nil/1`). Prefer a named `fn x -> ... end`
+  body, or a small named helper function, so the reader doesn't have to
+  mentally expand the shorthand.
+- Abstractions are OK, but dense syntax is not desirable. Elaborate
+  abstractions merit a comment.
+
 - Layout variant string: `"public"` | `"admin"` | `"vendor"` — passed to
   `Layouts.artsy_main`.
 - `current_scope.artist` is the logged-in vendor's artist profile;

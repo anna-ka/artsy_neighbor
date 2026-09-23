@@ -3,6 +3,9 @@ defmodule ArtsyNeighbor.ReviewsTest do
 
   alias ArtsyNeighbor.Reviews
   alias ArtsyNeighbor.Reviews.Flag
+  alias ArtsyNeighbor.Reviews.VendorReview
+  alias ArtsyNeighbor.Reviews.BuyerReview
+  alias ArtsyNeighbor.Reviews.ProductReview
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Repo
 
@@ -119,9 +122,9 @@ defmodule ArtsyNeighbor.ReviewsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # update_*/2 and delete_*/2 — 30-day edit window
+  # update_*/2 and soft_delete_*/2 — 30-day edit window
   # ---------------------------------------------------------------------------
-  describe "update_vendor_review/2 and delete_vendor_review/2 edit window" do
+  describe "update_vendor_review/2 and soft_delete_vendor_review/2 edit window" do
     setup do
       buyer = user_fixture()
       artist = artist_fixture()
@@ -143,22 +146,27 @@ defmodule ArtsyNeighbor.ReviewsTest do
       assert Reviews.update_vendor_review(review, %{stars: 3}) == {:error, :edit_window_expired}
     end
 
-    test "delete within 30 days succeeds", %{review: review} do
-      assert {:ok, _deleted} = Reviews.delete_vendor_review(review)
+    test "soft delete within 30 days succeeds and sets status to :removed, not a real delete", %{
+      review: review
+    } do
+      assert {:ok, removed} = Reviews.soft_delete_vendor_review(review)
+      assert removed.status == :removed
+      assert Repo.get(VendorReview, review.id)
     end
 
-    test "delete after 30 days is refused", %{review: review} do
+    test "soft delete after 30 days is refused", %{review: review} do
       review = backdate_submission(review, 31)
-      assert Reviews.delete_vendor_review(review) == {:error, :edit_window_expired}
+      assert Reviews.soft_delete_vendor_review(review) == {:error, :edit_window_expired}
     end
 
-    test "delete after 30 days with admin: true overrides the window", %{review: review} do
+    test "soft delete after 30 days with admin: true overrides the window", %{review: review} do
       review = backdate_submission(review, 31)
-      assert {:ok, _deleted} = Reviews.delete_vendor_review(review, admin: true)
+      assert {:ok, removed} = Reviews.soft_delete_vendor_review(review, admin: true)
+      assert removed.status == :removed
     end
   end
 
-  describe "update_buyer_review/2 and delete_buyer_review/2 edit window" do
+  describe "update_buyer_review/2 and soft_delete_buyer_review/2 edit window" do
     setup do
       buyer = user_fixture()
       artist = artist_fixture()
@@ -184,22 +192,27 @@ defmodule ArtsyNeighbor.ReviewsTest do
       assert Reviews.update_buyer_review(review, %{stars: 3}) == {:error, :edit_window_expired}
     end
 
-    test "delete within 30 days succeeds", %{review: review} do
-      assert {:ok, _deleted} = Reviews.delete_buyer_review(review)
+    test "soft delete within 30 days succeeds and sets status to :removed, not a real delete", %{
+      review: review
+    } do
+      assert {:ok, removed} = Reviews.soft_delete_buyer_review(review)
+      assert removed.status == :removed
+      assert Repo.get(BuyerReview, review.id)
     end
 
-    test "delete after 30 days is refused", %{review: review} do
+    test "soft delete after 30 days is refused", %{review: review} do
       review = backdate_submission(review, 31)
-      assert Reviews.delete_buyer_review(review) == {:error, :edit_window_expired}
+      assert Reviews.soft_delete_buyer_review(review) == {:error, :edit_window_expired}
     end
 
-    test "delete after 30 days with admin: true overrides the window", %{review: review} do
+    test "soft delete after 30 days with admin: true overrides the window", %{review: review} do
       review = backdate_submission(review, 31)
-      assert {:ok, _deleted} = Reviews.delete_buyer_review(review, admin: true)
+      assert {:ok, removed} = Reviews.soft_delete_buyer_review(review, admin: true)
+      assert removed.status == :removed
     end
   end
 
-  describe "update_product_review/2 and delete_product_review/2 edit window" do
+  describe "update_product_review/2 and soft_delete_product_review/2 edit window" do
     setup do
       buyer = user_fixture()
       artist = artist_fixture()
@@ -226,28 +239,34 @@ defmodule ArtsyNeighbor.ReviewsTest do
       assert Reviews.update_product_review(review, %{stars: 3}) == {:error, :edit_window_expired}
     end
 
-    test "delete within 30 days succeeds", %{review: review} do
-      assert {:ok, _deleted} = Reviews.delete_product_review(review)
+    test "soft delete within 30 days succeeds and sets status to :removed, not a real delete", %{
+      review: review
+    } do
+      assert {:ok, removed} = Reviews.soft_delete_product_review(review)
+      assert removed.status == :removed
+      assert Repo.get(ProductReview, review.id)
     end
 
-    test "delete after 30 days is refused", %{review: review} do
+    test "soft delete after 30 days is refused", %{review: review} do
       review = backdate_submission(review, 31)
-      assert Reviews.delete_product_review(review) == {:error, :edit_window_expired}
+      assert Reviews.soft_delete_product_review(review) == {:error, :edit_window_expired}
     end
 
-    test "delete after 30 days with admin: true overrides the window", %{review: review} do
+    test "soft delete after 30 days with admin: true overrides the window", %{review: review} do
       review = backdate_submission(review, 31)
-      assert {:ok, _deleted} = Reviews.delete_product_review(review, admin: true)
+      assert {:ok, removed} = Reviews.soft_delete_product_review(review, admin: true)
+      assert removed.status == :removed
     end
   end
 
   # ---------------------------------------------------------------------------
-  # delete_vendor_review/2, delete_buyer_review/2, delete_product_review/2 —
-  # flag cleanup. Flag.subject_id is a polymorphic reference with no real DB
-  # FK, so deleting a reviewed review has to clean up matching flags by
-  # hand — same class of cleanup as Products.hard_delete_product/1.
+  # hard_delete_vendor_review/1, hard_delete_buyer_review/1,
+  # hard_delete_product_review/1 — flag cleanup. Flag.subject_id is a
+  # polymorphic reference with no real DB FK, so hard-deleting a review has
+  # to clean up matching flags by hand — same class of cleanup as
+  # Products.hard_delete_product/1.
   # ---------------------------------------------------------------------------
-  describe "review deletion cleans up flags reporting the review" do
+  describe "hard delete removes the row and cleans up flags reporting the review" do
     setup do
       buyer = user_fixture()
       reporter = user_fixture()
@@ -258,7 +277,7 @@ defmodule ArtsyNeighbor.ReviewsTest do
       %{buyer: buyer, reporter: reporter, artist: artist, product: product, order: order}
     end
 
-    test "delete_vendor_review/2 removes a flag reporting it", %{
+    test "hard_delete_vendor_review/1 removes the row and a flag reporting it", %{
       buyer: buyer,
       reporter: reporter,
       artist: artist,
@@ -275,12 +294,13 @@ defmodule ArtsyNeighbor.ReviewsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Reviews.delete_vendor_review(review)
+      {:ok, _} = Reviews.hard_delete_vendor_review(review)
 
+      assert Repo.get(VendorReview, review.id) == nil
       assert Repo.get(Flag, flag.id) == nil
     end
 
-    test "delete_buyer_review/2 removes a flag reporting it", %{
+    test "hard_delete_buyer_review/1 removes the row and a flag reporting it", %{
       buyer: buyer,
       reporter: reporter,
       artist: artist,
@@ -301,12 +321,13 @@ defmodule ArtsyNeighbor.ReviewsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Reviews.delete_buyer_review(review)
+      {:ok, _} = Reviews.hard_delete_buyer_review(review)
 
+      assert Repo.get(BuyerReview, review.id) == nil
       assert Repo.get(Flag, flag.id) == nil
     end
 
-    test "delete_product_review/2 removes a flag reporting it", %{
+    test "hard_delete_product_review/1 removes the row and a flag reporting it", %{
       buyer: buyer,
       reporter: reporter,
       product: product,
@@ -327,12 +348,13 @@ defmodule ArtsyNeighbor.ReviewsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Reviews.delete_product_review(review)
+      {:ok, _} = Reviews.hard_delete_product_review(review)
 
+      assert Repo.get(ProductReview, review.id) == nil
       assert Repo.get(Flag, flag.id) == nil
     end
 
-    test "deleting one review's flag does not affect a flag on an unrelated review", %{
+    test "hard-deleting one review's flag does not affect a flag on an unrelated review", %{
       buyer: buyer,
       reporter: reporter,
       artist: artist,
@@ -362,9 +384,95 @@ defmodule ArtsyNeighbor.ReviewsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Reviews.delete_vendor_review(review_a)
+      {:ok, _} = Reviews.hard_delete_vendor_review(review_a)
 
       assert Repo.get(Flag, unrelated_flag.id) != nil
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # soft_delete_*_review/2 + create_*_review/1 — resubmit revives a removed
+  # row, and get_*_for_order/list/avg functions no longer see :removed rows.
+  # ---------------------------------------------------------------------------
+  describe "soft-deleted reviews are invisible to reads, and resubmitting revives them" do
+    test "get_vendor_review_for_order/1 returns nil once soft-deleted" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      assert Reviews.get_vendor_review_for_order(order.id).id == review.id
+      {:ok, _} = Reviews.soft_delete_vendor_review(review)
+      assert Reviews.get_vendor_review_for_order(order.id) == nil
+    end
+
+    test "create_vendor_review/1 revives a soft-deleted row instead of inserting a new one" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      {:ok, _} = Reviews.soft_delete_vendor_review(review)
+
+      assert {:ok, revived} =
+               Reviews.create_vendor_review(%{
+                 order_id: order.id,
+                 reviewer_id: buyer.id,
+                 artist_id: artist.id,
+                 stars: 2,
+                 body: "actually it was fine"
+               })
+
+      assert revived.id == review.id
+      assert revived.status == :active
+      assert revived.stars == 2
+      assert Repo.aggregate(VendorReview, :count, :id) == 1
+    end
+
+    test "create_product_review/1 revives a soft-deleted row for the same order+product" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(artist_id: artist.id)
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        product_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          product_id: product.id
+        })
+
+      {:ok, _} = Reviews.soft_delete_product_review(review)
+
+      assert {:ok, revived} =
+               Reviews.create_product_review(%{
+                 order_id: order.id,
+                 reviewer_id: buyer.id,
+                 product_id: product.id,
+                 stars: 4,
+                 body: "changed my mind"
+               })
+
+      assert revived.id == review.id
+      assert revived.status == :active
+      assert Repo.aggregate(ProductReview, :count, :id) == 1
+    end
+
+    test "reviewed_order_ids_as_buyer/1 no longer counts an order once its review is soft-deleted" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(1)
+
+      review =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      assert MapSet.member?(Reviews.reviewed_order_ids_as_buyer(buyer.id), order.id)
+      {:ok, _} = Reviews.soft_delete_vendor_review(review)
+      refute MapSet.member?(Reviews.reviewed_order_ids_as_buyer(buyer.id), order.id)
     end
   end
 
@@ -392,6 +500,27 @@ defmodule ArtsyNeighbor.ReviewsTest do
         })
 
       assert Reviews.review_visible?(vr, br, order) == true
+    end
+
+    test "one review soft-deleted, window open, returns false even though both rows exist", %{
+      buyer: buyer,
+      artist: artist
+    } do
+      order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(2)
+
+      vr =
+        vendor_review_fixture(%{order_id: order.id, reviewer_id: buyer.id, artist_id: artist.id})
+
+      br =
+        buyer_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: artist.user_id,
+          buyer_id: buyer.id
+        })
+
+      {:ok, removed_vr} = Reviews.soft_delete_vendor_review(vr)
+
+      assert Reviews.review_visible?(removed_vr, br, order) == false
     end
 
     test "only one review submitted, window open, returns false", %{buyer: buyer, artist: artist} do
@@ -603,6 +732,18 @@ defmodule ArtsyNeighbor.ReviewsTest do
       assert {:error, changeset} =
                Reviews.create_vendor_review(%{
                  order_id: order.id,
+                 reviewer_id: buyer.id,
+                 artist_id: artist.id
+               })
+
+      refute changeset.valid?
+    end
+
+    test "missing order_id (the revive lookup's own key) returns {:error, changeset}, not a crash",
+         %{buyer: buyer, artist: artist} do
+      assert {:error, changeset} =
+               Reviews.create_vendor_review(%{
+                 stars: 4,
                  reviewer_id: buyer.id,
                  artist_id: artist.id
                })

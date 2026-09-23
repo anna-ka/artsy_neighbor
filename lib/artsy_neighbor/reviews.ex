@@ -15,28 +15,93 @@ defmodule ArtsyNeighbor.Reviews do
   # Create
   # ---------------------------------------------------------------------------
 
+  @doc """
+  Creates a vendor review — or, if the buyer previously soft-deleted their
+  review of this order (status: :removed), revives that row instead of
+  inserting a new one. Reviving in place (rather than inserting) is required
+  because the row still occupies the order's unique_constraint(:order_id)
+  slot; it also preserves the flag-cleanup/history tie to the original row.
+  """
   def create_vendor_review(attrs) do
-    %VendorReview{}
-    |> VendorReview.changeset(
-      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
-    )
-    |> Repo.insert()
+    lookup = [order_id: Map.get(attrs, :order_id)]
+    create_or_revive_review(VendorReview, lookup, attrs)
   end
 
+  @doc """
+  Creates a buyer review — or revives a previously soft-deleted one for this
+  order. See create_vendor_review/1 for why revive-in-place is necessary.
+  """
   def create_buyer_review(attrs) do
-    %BuyerReview{}
-    |> BuyerReview.changeset(
-      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
-    )
-    |> Repo.insert()
+    lookup = [order_id: Map.get(attrs, :order_id)]
+    create_or_revive_review(BuyerReview, lookup, attrs)
   end
 
+  @doc """
+  Creates a product review — or revives a previously soft-deleted one for
+  this order+product pair. See create_vendor_review/1 for why revive-in-place
+  is necessary.
+  """
   def create_product_review(attrs) do
-    %ProductReview{}
-    |> ProductReview.changeset(
-      Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    lookup = [order_id: Map.get(attrs, :order_id), product_id: Map.get(attrs, :product_id)]
+    create_or_revive_review(ProductReview, lookup, attrs)
+  end
+
+  # Shared by create_vendor_review/1, create_buyer_review/1, and
+  # create_product_review/1.
+  #
+  # `lookup` is a keyword list of the field(s) that uniquely identify "the
+  # same review" for this schema — just order_id for a vendor/buyer review,
+  # or order_id + product_id for a product review (one order can have
+  # several product reviews). Each caller above builds its own `lookup`, so
+  # this function doesn't need to know which fields matter for which schema.
+  #
+  # We use `lookup` to search for a previously soft-deleted row (status:
+  # :removed) with those same values. If one exists, we update it back to
+  # :active with the new content instead of inserting a fresh row — the old
+  # row still occupies that unique slot in the database, so a plain insert
+  # would fail.
+  defp create_or_revive_review(schema, lookup, attrs) do
+    attrs = Map.put(attrs, :submitted_at, DateTime.utc_now() |> DateTime.truncate(:second))
+
+    lookup_is_complete? =
+      Enum.all?(lookup, fn {_field, value} -> not is_nil(value) end)
+
+    removed_review =
+      if lookup_is_complete? do
+        Repo.get_by(schema, lookup ++ [status: :removed])
+      else
+        # A required field (e.g. order_id) is missing from attrs. Skip the
+        # lookup — Ecto doesn't allow nil in a query like this — and let the
+        # insert below fail normally with an ordinary changeset error instead.
+        nil
+      end
+
+    if removed_review do
+      revive_review(removed_review, schema, attrs)
+    else
+      # struct(schema) builds an empty struct for whichever module was
+      # passed in — the same as writing %VendorReview{} directly, just
+      # using a variable since this function doesn't know which schema it
+      # is until it runs.
+      new_review = struct(schema)
+      changeset = schema.changeset(new_review, attrs)
+      Repo.insert(changeset)
+    end
+  end
+
+  # Applies the normal content changeset (new stars/body/submitted_at) plus
+  # bringing status back to :active, in one update. Bypasses status_changeset/2
+  # (which only ever touches :status) since this needs both content and status
+  # in a single write.
+  defp revive_review(review, schema, attrs) do
+    review
+    |> schema.changeset(attrs)
+    |> Ecto.Changeset.put_change(:status, :active)
+    |> Ecto.Changeset.put_change(
+      :status_changed_at,
+      DateTime.utc_now() |> DateTime.truncate(:second)
     )
-    |> Repo.insert()
+    |> Repo.update()
   end
 
   def create_flag(attrs) do
@@ -49,17 +114,21 @@ defmodule ArtsyNeighbor.Reviews do
   # Read — reviews per order
   # ---------------------------------------------------------------------------
 
+  # Scoped to status: :active — a soft-deleted review reads as "no review
+  # yet" (so the review form's create-vs-edit check offers a fresh form,
+  # which create_vendor_review/1 then revives in place) rather than
+  # resurfacing removed content.
   def get_vendor_review_for_order(order_id) do
-    Repo.get_by(VendorReview, order_id: order_id)
+    Repo.get_by(VendorReview, order_id: order_id, status: :active)
   end
 
   def get_buyer_review_for_order(order_id) do
-    Repo.get_by(BuyerReview, order_id: order_id)
+    Repo.get_by(BuyerReview, order_id: order_id, status: :active)
   end
 
   def get_product_reviews_for_order(order_id) do
     ProductReview
-    |> where(order_id: ^order_id)
+    |> where(order_id: ^order_id, status: :active)
     |> Repo.all()
   end
 
@@ -77,10 +146,11 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(vr in VendorReview,
       left_join: br in BuyerReview,
-      on: br.order_id == vr.order_id,
+      on: br.order_id == vr.order_id and br.status == :active,
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
+      where: vr.status == :active,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
       order_by: [desc: vr.submitted_at]
     )
@@ -93,10 +163,11 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(br in BuyerReview,
       left_join: vr in VendorReview,
-      on: vr.order_id == br.order_id,
+      on: vr.order_id == br.order_id and vr.status == :active,
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
+      where: br.status == :active,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
       order_by: [desc: br.submitted_at]
     )
@@ -111,10 +182,11 @@ defmodule ArtsyNeighbor.Reviews do
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == pr.order_id,
       left_join: vr in VendorReview,
-      on: vr.order_id == pr.order_id,
+      on: vr.order_id == pr.order_id and vr.status == :active,
       left_join: br in BuyerReview,
-      on: br.order_id == pr.order_id,
+      on: br.order_id == pr.order_id and br.status == :active,
       where: pr.product_id == ^product_id,
+      where: pr.status == :active,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       order_by: [desc: pr.submitted_at]
     )
@@ -131,10 +203,11 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(vr in VendorReview,
       left_join: br in BuyerReview,
-      on: br.order_id == vr.order_id,
+      on: br.order_id == vr.order_id and br.status == :active,
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
+      where: vr.status == :active,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
       select: avg(vr.stars)
     )
@@ -148,10 +221,11 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(br in BuyerReview,
       left_join: vr in VendorReview,
-      on: vr.order_id == br.order_id,
+      on: vr.order_id == br.order_id and vr.status == :active,
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == br.order_id,
       where: br.buyer_id == ^buyer_id,
+      where: br.status == :active,
       where: not is_nil(vr.id) or o.completed_at <= ^window_cutoff,
       select: avg(br.stars)
     )
@@ -167,10 +241,11 @@ defmodule ArtsyNeighbor.Reviews do
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == pr.order_id,
       left_join: vr in VendorReview,
-      on: vr.order_id == pr.order_id,
+      on: vr.order_id == pr.order_id and vr.status == :active,
       left_join: br in BuyerReview,
-      on: br.order_id == pr.order_id,
+      on: br.order_id == pr.order_id and br.status == :active,
       where: pr.product_id == ^product_id,
+      where: pr.status == :active,
       where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
       select: avg(pr.stars)
     )
@@ -367,7 +442,7 @@ defmodule ArtsyNeighbor.Reviews do
 
     from(o in ArtsyNeighbor.Orders.Order,
       left_join: vr in VendorReview,
-      on: vr.order_id == o.id,
+      on: vr.order_id == o.id and vr.status == :active,
       where: o.buyer_id == ^user_id,
       where: o.status == :completed,
       where: not is_nil(o.completed_at),
@@ -385,7 +460,7 @@ defmodule ArtsyNeighbor.Reviews do
       join: a in ArtsyNeighbor.Artists.Artist,
       on: a.id == o.artist_id,
       left_join: br in BuyerReview,
-      on: br.order_id == o.id,
+      on: br.order_id == o.id and br.status == :active,
       where: a.user_id == ^user_id,
       where: o.status == :completed,
       where: not is_nil(o.completed_at),
@@ -399,7 +474,10 @@ defmodule ArtsyNeighbor.Reviews do
   # Returns a MapSet of order IDs where the buyer has already submitted a
   # vendor review — used to drive the "Reviewed / Pending" pill on order rows.
   def reviewed_order_ids_as_buyer(user_id) do
-    from(r in VendorReview, where: r.reviewer_id == ^user_id, select: r.order_id)
+    from(r in VendorReview,
+      where: r.reviewer_id == ^user_id and r.status == :active,
+      select: r.order_id
+    )
     |> Repo.all()
     |> MapSet.new()
   end
@@ -407,7 +485,10 @@ defmodule ArtsyNeighbor.Reviews do
   # Returns a MapSet of order IDs where the vendor has already submitted a
   # buyer review — used to drive the "Reviewed / Pending" pill on sales rows.
   def reviewed_order_ids_as_vendor(user_id) do
-    from(r in BuyerReview, where: r.reviewer_id == ^user_id, select: r.order_id)
+    from(r in BuyerReview,
+      where: r.reviewer_id == ^user_id and r.status == :active,
+      select: r.order_id
+    )
     |> Repo.all()
     |> MapSet.new()
   end
@@ -447,7 +528,42 @@ defmodule ArtsyNeighbor.Reviews do
   end
 
   # ---------------------------------------------------------------------------
-  # Delete
+  # Soft delete — the day-to-day path. A status flip, not a real Repo.delete,
+  # so an admin can still see removed reviews and create_*_review/1 can
+  # revive one if the same reviewer resubmits for the same order.
+  # ---------------------------------------------------------------------------
+
+  def soft_delete_vendor_review(%VendorReview{} = review, opts \\ []) do
+    if opts[:admin] || within_edit_window?(review) do
+      review |> VendorReview.status_changeset(%{status: :removed}) |> Repo.update()
+    else
+      {:error, :edit_window_expired}
+    end
+  end
+
+  def soft_delete_buyer_review(%BuyerReview{} = review, opts \\ []) do
+    if opts[:admin] || within_edit_window?(review) do
+      review |> BuyerReview.status_changeset(%{status: :removed}) |> Repo.update()
+    else
+      {:error, :edit_window_expired}
+    end
+  end
+
+  def soft_delete_product_review(%ProductReview{} = review, opts \\ []) do
+    if opts[:admin] || within_edit_window?(review) do
+      review |> ProductReview.status_changeset(%{status: :removed}) |> Repo.update()
+    else
+      {:error, :edit_window_expired}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Hard delete — the narrow, exceptional path (dev/testing, or content an
+  # admin wants truly gone rather than just hidden). No edit-window gate:
+  # unlike soft delete, this isn't a day-to-day action a reviewer reaches for
+  # themselves, so there's nothing to bypass. Matches every other entity's
+  # hard_delete_<entity>/1 shape (CLAUDE.md) — arity 1, since the opts-based
+  # admin bypass that soft_delete_*_review/2 needs doesn't apply here.
   #
   # Each of these also cleans up any Flag rows reporting the review directly
   # ("vendor_review_of"/"buyer_review_of"/"product_review_of") — same class
@@ -456,28 +572,16 @@ defmodule ArtsyNeighbor.Reviews do
   # it can't cascade and has to be done by hand.
   # ---------------------------------------------------------------------------
 
-  def delete_vendor_review(%VendorReview{} = review, opts \\ []) do
-    if opts[:admin] || within_edit_window?(review) do
-      delete_reviewed_with_flags(review, "vendor_review_of")
-    else
-      {:error, :edit_window_expired}
-    end
+  def hard_delete_vendor_review(%VendorReview{} = review) do
+    delete_reviewed_with_flags(review, "vendor_review_of")
   end
 
-  def delete_buyer_review(%BuyerReview{} = review, opts \\ []) do
-    if opts[:admin] || within_edit_window?(review) do
-      delete_reviewed_with_flags(review, "buyer_review_of")
-    else
-      {:error, :edit_window_expired}
-    end
+  def hard_delete_buyer_review(%BuyerReview{} = review) do
+    delete_reviewed_with_flags(review, "buyer_review_of")
   end
 
-  def delete_product_review(%ProductReview{} = review, opts \\ []) do
-    if opts[:admin] || within_edit_window?(review) do
-      delete_reviewed_with_flags(review, "product_review_of")
-    else
-      {:error, :edit_window_expired}
-    end
+  def hard_delete_product_review(%ProductReview{} = review) do
+    delete_reviewed_with_flags(review, "product_review_of")
   end
 
   defp delete_reviewed_with_flags(review, subject_type) do
@@ -532,10 +636,15 @@ defmodule ArtsyNeighbor.Reviews do
   # ---------------------------------------------------------------------------
 
   def review_visible?(vendor_review, buyer_review, order) do
-    both_submitted = not is_nil(vendor_review) and not is_nil(buyer_review)
-    window_expired = window_expired?(order)
-    both_submitted or window_expired
+    both_submitted = review_active?(vendor_review) and review_active?(buyer_review)
+    both_submitted or window_expired?(order)
   end
+
+  # A soft-deleted review reads as "not submitted" for visibility purposes —
+  # its content is hidden regardless of the other party's review or the
+  # window, same as if it had never been written.
+  defp review_active?(nil), do: false
+  defp review_active?(review), do: review.status == :active
 
   def edit_window_days, do: @edit_window_days
 

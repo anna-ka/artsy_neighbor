@@ -46,7 +46,7 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
   end
 
   def handle_event("delete_buyer_review", _params, socket) do
-    case Reviews.delete_buyer_review(socket.assigns.buyer_review) do
+    case Reviews.soft_delete_buyer_review(socket.assigns.buyer_review) do
       {:ok, _} ->
         {:noreply, assign(socket, :buyer_review, nil)}
 
