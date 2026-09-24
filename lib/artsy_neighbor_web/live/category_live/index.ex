@@ -2,7 +2,7 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Categories
-  import ArtsyNeighborWeb.CustomComponents, only: [ category_card: 1, back: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [category_card: 1]
 
   @impl true
   def render(assigns) do

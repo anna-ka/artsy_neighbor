@@ -4,7 +4,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Reviews
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
   import ArtsyNeighborWeb.OrderFormatters
 
   def mount(_params, _session, socket) do

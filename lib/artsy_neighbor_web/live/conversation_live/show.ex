@@ -3,12 +3,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Orders
-  alias ArtsyNeighbor.Orders.Order
   alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Artists
 
-  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
 
   def mount(_params, _session, socket) do
     {:ok,
@@ -20,7 +19,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
      )}
   end
 
-  def handle_params(%{"id" => id} = params, _uri, socket) do
+  def handle_params(%{"id" => id}, _uri, socket) do
     case Conversations.get_conversation(id) do
       nil ->
         {:noreply,
@@ -560,7 +559,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     {:noreply, assign(socket, :form, to_form(changeset))}
   end
 
-  def handle_event("post_msg", %{"conversation_event" => %{"body" => body}} = params, socket) do
+  def handle_event("post_msg", %{"conversation_event" => %{"body" => body}}, socket) do
     conversation = socket.assigns.conversation
     sender = socket.assigns.current_scope.user
 

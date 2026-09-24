@@ -207,6 +207,13 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
+  # Catch-all also covers delivery_method: :delivery orders — there is no
+  # completion flow for delivery yet (only :pickup is implemented), so a
+  # :confirmed delivery order lands here and gets :wrong_state rather than
+  # silently doing nothing. Build a real delivery-completion clause above
+  # this one when that feature is implemented.
+  def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
+
   # Posts a private review-request message to each party's system inbox.
   # System conversations are created on demand if the user doesn't have one yet.
   # Called after the order transaction commits so a messaging failure never
@@ -240,13 +247,6 @@ defmodule ArtsyNeighbor.Orders do
 
     :ok
   end
-
-  # Catch-all also covers delivery_method: :delivery orders — there is no
-  # completion flow for delivery yet (only :pickup is implemented), so a
-  # :confirmed delivery order lands here and gets :wrong_state rather than
-  # silently doing nothing. Build a real delivery-completion clause above
-  # this one when that feature is implemented.
-  def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
 
   @doc """
   Adds a product to an open order, incrementing its quantity if already present

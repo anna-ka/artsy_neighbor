@@ -97,11 +97,6 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     end
   end
 
-  defp reload_existing_images(socket) do
-    artist = Artists.get_artist!(socket.assigns.artist.id)
-    assign(socket, :existing_profile_images, artist.artist_images)
-  end
-
   @impl true
   def handle_event("save", %{"artist" => artist_params}, socket) do
     artist_params = parse_medium_field(artist_params)
@@ -126,6 +121,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
       end
 
     {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+  end
+
+  defp reload_existing_images(socket) do
+    artist = Artists.get_artist!(socket.assigns.artist.id)
+    assign(socket, :existing_profile_images, artist.artist_images)
   end
 
   defp save_artist(socket, :edit, artist_params) do

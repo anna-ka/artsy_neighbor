@@ -3,9 +3,6 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Conversations
-  alias ArtsyNeighbor.Accounts.Scope
-
-  import ArtsyNeighborWeb.CustomComponents, only: [ button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
     user   = socket.assigns.current_scope.user
