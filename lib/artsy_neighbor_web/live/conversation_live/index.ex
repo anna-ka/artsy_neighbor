@@ -96,10 +96,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
       |> assign(:has_unread_messages, not Enum.empty?(updated_set))}
   end
 
-  if Mix.env() == :dev do
-    def handle_event("delete_conversation_dev", %{"id" => id}, socket) do
-      conversation = Conversations.get_conversation!(id)
-      Conversations.delete_conversation_dev(conversation)
+  if Mix.env() != :prod do
+    def handle_event("hard_delete_conversation_dev", %{"id" => id}, socket) do
+      conversation = Conversations.get_conversation_all_status!(id)
+      Conversations.hard_delete_conversation_dev(conversation)
       {:noreply, update(socket, :conversations_as_vendor, &Enum.reject(&1, fn c -> c.id == conversation.id end))}
     end
   end
@@ -207,8 +207,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 </div>
                 <span :if={MapSet.member?(@convs_with_new, conversation.id)} class="badge badge-error badge-xs"></span>
               </.link>
-              <%= if Mix.env() == :dev do %>
-                <button phx-click="delete_conversation_dev" phx-value-id={conversation.id}
+              <%= if Mix.env() != :prod do %>
+                <button phx-click="hard_delete_conversation_dev" phx-value-id={conversation.id}
                   class="btn btn-xs btn-ghost text-error">✕</button>
               <% end %>
             </li>

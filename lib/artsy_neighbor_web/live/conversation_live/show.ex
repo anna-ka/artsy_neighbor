@@ -155,6 +155,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                   </div>
                 <% else %>
                   <% is_mine = message.actor_type == @current_role %>
+                  <% is_deleted = message.status == :deleted %>
                   <% my_role_label = if @current_role == :buyer, do: "Buyer", else: "Artist" %>
                   <% other_role_label = if @current_role == :buyer, do: "Artist", else: "Buyer" %>
                   <div class={["chat", if(is_mine, do: "chat-end", else: "chat-start")]}>
@@ -171,16 +172,31 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                         </div>
                       </div>
                     <% end %>
-                    <div class="chat-header text-xs text-base-content/50 mb-0.5">
-                      {if is_mine,
-                        do: "You (#{my_role_label})",
-                        else: "#{@other_name} (#{other_role_label})"}
+                    <div class="chat-header text-xs text-base-content/50 mb-0.5 flex items-center gap-2">
+                      <span>
+                        {if is_mine,
+                          do: "You (#{my_role_label})",
+                          else: "#{@other_name} (#{other_role_label})"}
+                      </span>
+                      <button
+                        :if={is_mine and not is_deleted}
+                        phx-click="delete_message"
+                        phx-value-id={message.id}
+                        data-confirm="Delete this message?"
+                        class="text-base-content/30 hover:text-error text-[10px]"
+                      >
+                        delete
+                      </button>
                     </div>
                     <div class={[
                       "chat-bubble",
-                      if(is_mine, do: "chat-bubble-info", else: "chat-bubble-neutral")
+                      cond do
+                        is_deleted -> "chat-bubble-neutral opacity-50 italic"
+                        is_mine -> "chat-bubble-info"
+                        true -> "chat-bubble-neutral"
+                      end
                     ]}>
-                      {message.body}
+                      {if is_deleted, do: "Message deleted", else: message.body}
                     </div>
                     <div class="chat-footer opacity-50 text-xs mt-0.5">
                       {format_message_time(message.inserted_at)}
@@ -567,6 +583,21 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_message", %{"id" => id}, socket) do
+    conversation = socket.assigns.conversation
+    user_id = socket.assigns.current_scope.user.id
+
+    with {parsed_id, ""} <- Integer.parse(id),
+         %ConversationEvent{conversation_id: conversation_id} = event <-
+           Conversations.get_conv_event(parsed_id),
+         true <- conversation_id == conversation.id,
+         {:ok, updated_event} <- Conversations.soft_delete_event(event, user_id) do
+      {:noreply, stream_insert(socket, :messages, updated_event)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Couldn't delete that message.")}
     end
   end
 

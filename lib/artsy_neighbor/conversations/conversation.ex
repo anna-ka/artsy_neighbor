@@ -18,6 +18,12 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
     field :buyer_last_read_at,  :utc_datetime
     field :vendor_last_read_at, :utc_datetime
 
+    # :active = visible to its participants. :archived = hidden/muted by an
+    # admin (e.g. a spam or abusive thread) without destroying message
+    # history a moderation review might need.
+    field :status, Ecto.Enum, values: [:active, :archived], default: :active
+    field :status_changed_at, :utc_datetime
+
     belongs_to :artist, ArtsyNeighbor.Artists.Artist, foreign_key: :artist_id
     belongs_to :buyer,  ArtsyNeighbor.Accounts.User,  foreign_key: :buyer_id
 
@@ -49,5 +55,26 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
     |> put_change(:conversation_type, :system)
     |> unique_constraint(:user_id, name: :conversations_system_user_unique,
          message: "already has a system conversation")
+  end
+
+  @doc """
+  Changeset for status-only updates (e.g. Conversations.soft_delete_conversation/1,
+  restore_conversation/1). Scoped to just :status so archiving/restoring a
+  conversation never risks re-running the participant-required validations
+  above against fields that aren't changing.
+  """
+  def status_changeset(conversation, attrs) do
+    conversation
+    |> cast(attrs, [:status])
+    |> validate_required([:status])
+    |> maybe_set_status_changed_at()
+  end
+
+  defp maybe_set_status_changed_at(changeset) do
+    if changed?(changeset, :status) do
+      put_change(changeset, :status_changed_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    else
+      changeset
+    end
   end
 end

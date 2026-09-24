@@ -389,4 +389,218 @@ defmodule ArtsyNeighbor.ConversationsTest do
       assert length(ids) == 1
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # soft_delete_conversation/1, restore_conversation/1
+  # ---------------------------------------------------------------------------
+
+  describe "soft_delete_conversation/1" do
+    test "sets status to :archived and stamps status_changed_at" do
+      {buyer, artist} = setup_buyer_and_artist()
+      conv = insert_conversation(buyer.id, artist.id)
+      assert is_nil(conv.status_changed_at)
+
+      assert {:ok, updated} = Conversations.soft_delete_conversation(conv)
+
+      assert updated.status == :archived
+      refute is_nil(updated.status_changed_at)
+    end
+  end
+
+  describe "restore_conversation/1" do
+    test "sets status back to :active" do
+      {buyer, artist} = setup_buyer_and_artist()
+      conv = insert_conversation(buyer.id, artist.id, %{status: :archived})
+
+      assert {:ok, updated} = Conversations.restore_conversation(conv)
+      assert updated.status == :active
+    end
+
+    test "refuses with {:error, :already_active} when the conversation is already :active" do
+      {buyer, artist} = setup_buyer_and_artist()
+      conv = insert_conversation(buyer.id, artist.id)
+
+      assert {:error, :already_active} = Conversations.restore_conversation(conv)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Status scoping — archived conversations are hidden from every
+  # participant-facing read path.
+  # ---------------------------------------------------------------------------
+
+  describe "status scoping for archived conversations" do
+    test "get_conversation/1 returns nil for an archived conversation" do
+      {buyer, artist} = setup_buyer_and_artist()
+      conv = insert_conversation(buyer.id, artist.id, %{status: :archived})
+
+      assert is_nil(Conversations.get_conversation(conv.id))
+    end
+
+    test "get_conversation/1 returns the conversation when :active" do
+      {buyer, artist} = setup_buyer_and_artist()
+      conv = insert_conversation(buyer.id, artist.id)
+
+      assert %Conversation{} = Conversations.get_conversation(conv.id)
+    end
+
+    test "list_conversations_for_buyer/1 excludes archived conversations" do
+      {buyer, artist} = setup_buyer_and_artist()
+      archived = insert_conversation(buyer.id, artist.id, %{status: :archived})
+
+      ids = Enum.map(Conversations.list_conversations_for_buyer(buyer.id), fn c -> c.id end)
+      refute archived.id in ids
+    end
+
+    test "list_conversations_for_artist/1 excludes archived conversations" do
+      {buyer, artist} = setup_buyer_and_artist()
+      archived = insert_conversation(buyer.id, artist.id, %{status: :archived})
+
+      ids = Enum.map(Conversations.list_conversations_for_artist(artist.id), fn c -> c.id end)
+      refute archived.id in ids
+    end
+
+    test "list_conversations_for_user/1 excludes archived conversations" do
+      {buyer, artist} = setup_buyer_and_artist()
+      archived = insert_conversation(buyer.id, artist.id, %{status: :archived})
+
+      ids = Enum.map(Conversations.list_conversations_for_user(buyer.id), fn c -> c.id end)
+      refute archived.id in ids
+    end
+
+    test "list_unread_conversation_ids_for_buyer/1 excludes an archived-but-unread conversation" do
+      {buyer, artist} = setup_buyer_and_artist()
+
+      archived =
+        insert_conversation(buyer.id, artist.id, %{
+          status: :archived,
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
+
+      refute archived.id in Conversations.list_unread_conversation_ids_for_buyer(buyer.id)
+    end
+
+    test "list_unread_conversation_ids_for_artist/1 excludes an archived-but-unread conversation" do
+      {buyer, artist} = setup_buyer_and_artist()
+
+      archived =
+        insert_conversation(buyer.id, artist.id, %{
+          status: :archived,
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
+
+      refute archived.id in Conversations.list_unread_conversation_ids_for_artist(artist.id)
+    end
+
+    test "has_unread_conversations?/2 ignores an archived-but-unread conversation" do
+      {buyer, artist} = setup_buyer_and_artist()
+
+      insert_conversation(buyer.id, artist.id, %{
+        status: :archived,
+        last_event_at: ~U[2026-04-10 12:00:00Z]
+      })
+
+      refute Conversations.has_unread_conversations?(buyer.id, nil)
+    end
+
+    test "list_system_conversations_for_user/1 excludes an archived system conversation" do
+      user = user_fixture()
+      {:ok, system_conv} = Conversations.get_or_create_system_conversation(user.id)
+      {:ok, _archived} = Conversations.soft_delete_conversation(system_conv)
+
+      assert Conversations.list_system_conversations_for_user(user.id) == []
+    end
+
+    test "list_unread_system_conversation_ids_for_user/1 excludes an archived system conversation" do
+      user = user_fixture()
+      {:ok, system_conv} = Conversations.get_or_create_system_conversation(user.id)
+      {:ok, _event} = Conversations.post_system_message(system_conv, "Welcome!")
+      system_conv = Repo.get!(Conversation, system_conv.id)
+      {:ok, _archived} = Conversations.soft_delete_conversation(system_conv)
+
+      assert Conversations.list_unread_system_conversation_ids_for_user(user.id) == []
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_conv_event/1, soft_delete_event/2
+  # ---------------------------------------------------------------------------
+
+  describe "get_conv_event/1" do
+    test "returns the event when it exists" do
+      {buyer, artist} = setup_buyer_and_artist()
+      {:ok, conv} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+      conv = Repo.preload(conv, :artist)
+      {:ok, event} = Conversations.create_message_event(conv, buyer.id, :buyer, "Hi")
+
+      assert %ConversationEvent{id: id} = Conversations.get_conv_event(event.id)
+      assert id == event.id
+    end
+
+    test "returns nil when the event doesn't exist" do
+      assert is_nil(Conversations.get_conv_event(999_999))
+    end
+  end
+
+  describe "soft_delete_event/2" do
+    setup do
+      {buyer, artist} = setup_buyer_and_artist()
+      {:ok, conv} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+      conv = Repo.preload(conv, :artist)
+      {:ok, event} = Conversations.create_message_event(conv, buyer.id, :buyer, "Delete me")
+      %{buyer: buyer, artist: artist, conv: conv, event: event}
+    end
+
+    test "the sender can delete their own message — status becomes :deleted", %{
+      buyer: buyer,
+      event: event
+    } do
+      assert {:ok, updated} = Conversations.soft_delete_event(event, buyer.id)
+      assert updated.status == :deleted
+    end
+
+    test "a different user cannot delete someone else's message", %{artist: artist, event: event} do
+      assert {:error, :not_owner} = Conversations.soft_delete_event(event, artist.user_id)
+
+      # Confirm nothing changed in the DB.
+      assert Repo.get!(ConversationEvent, event.id).status == :active
+    end
+
+    test "a :status_change event can never be deleted, even by its own actor", %{
+      buyer: buyer,
+      conv: conv
+    } do
+      {:ok, status_event} =
+        %ConversationEvent{event_type: :status_change}
+        |> ConversationEvent.status_change_changeset(%{
+          actor_type: :buyer,
+          actor_id: buyer.id,
+          to_status: "confirmed",
+          conversation_id: conv.id
+        })
+        |> Repo.insert()
+
+      assert {:error, :not_a_message} = Conversations.soft_delete_event(status_event, buyer.id)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # hard_delete_conversation_dev/1
+  # ---------------------------------------------------------------------------
+
+  describe "hard_delete_conversation_dev/1" do
+    test "deletes the conversation and all its events" do
+      {buyer, artist} = setup_buyer_and_artist()
+      {:ok, conv} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+      conv = Repo.preload(conv, :artist)
+      {:ok, _event} = Conversations.create_message_event(conv, buyer.id, :buyer, "Bye")
+
+      assert {:ok, _} = Conversations.hard_delete_conversation_dev(conv)
+
+      assert is_nil(Repo.get(Conversation, conv.id))
+
+      remaining_events = from(e in ConversationEvent, where: e.conversation_id == ^conv.id)
+      assert Repo.aggregate(remaining_events, :count) == 0
+    end
+  end
 end

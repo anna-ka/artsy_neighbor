@@ -97,54 +97,76 @@ defmodule ArtsyNeighbor.Conversations do
   end
 
   @doc """
-    Lists all conversations for a given buyer.
+  Filters a Conversation query by the given status. If status is nil, returns
+  the query unfiltered.
+  """
+  def with_status(query, nil), do: query
+  def with_status(query, status), do: where(query, [c], c.status == ^status)
+
+  @doc """
+    Lists all conversations for a given buyer. Scoped to status: :active —
+    an archived (admin-muted) thread shouldn't surface in the buyer's inbox.
   """
   def list_conversations_for_buyer(user_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.buyer_id == ^user_id,
-      # Most recently active conversations first; nil last_event_at (no messages yet) sinks to bottom.
-      order_by: [desc_nulls_last: c.last_event_at],
-      preload: [artist: :artist_images]
-    )
+    Conversation
+    |> where([c], c.buyer_id == ^user_id)
+    |> with_status(:active)
+    # Most recently active conversations first; nil last_event_at (no messages yet) sinks to bottom.
+    |> order_by([c], desc_nulls_last: c.last_event_at)
+    |> preload([artist: :artist_images])
+    |> Repo.all()
   end
 
   @doc """
-    Lists all conversations for a given artist.
+    Lists all conversations for a given artist. Scoped to status: :active —
+    an archived (admin-muted) thread shouldn't surface in the vendor's inbox.
   """
   def list_conversations_for_artist(artist_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.artist_id == ^artist_id,
-      # Most recently active conversations first; nil last_event_at sinks to bottom.
-      order_by: [desc_nulls_last: c.last_event_at],
-      preload: [:buyer]
-    )
+    Conversation
+    |> where([c], c.artist_id == ^artist_id)
+    |> with_status(:active)
+    # Most recently active conversations first; nil last_event_at sinks to bottom.
+    |> order_by([c], desc_nulls_last: c.last_event_at)
+    |> preload([:buyer])
+    |> Repo.all()
   end
 
   @doc """
     Lists all conversations for a given user, whether they are the buyer or artist.
+    Scoped to status: :active, same as list_conversations_for_buyer/1 and
+    list_conversations_for_artist/1.
   """
   def list_conversations_for_user(user_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.buyer_id == ^user_id or c.artist_id == ^user_id,
-      preload: [:buyer, artist: :artist_images]
-      )
+    Conversation
+    |> where([c], c.buyer_id == ^user_id or c.artist_id == ^user_id)
+    |> with_status(:active)
+    |> preload([:buyer, artist: :artist_images])
+    |> Repo.all()
   end
 
   @doc """
-    Gets a conversation by its ID. Raise exception if not found.
+    Gets a conversation by its ID, unscoped by status — returns an
+    :archived one too. Raises if not found. Named to mirror
+    list_categories_all_status/0 and friends: the plain get_conversation/1
+    below is the scoped/default one, this is the explicit exception.
   """
-  def get_conversation!(id)do
+  def get_conversation_all_status!(id) do
     Repo.get!(Conversation, id)
   end
 
   @doc """
-  Gets a conversation by its ID. Returns nil if not found.
+  Gets a conversation by its ID, scoped to public/participant visibility
+  (status: :active). Returns nil if the conversation doesn't exist OR isn't
+  currently active, so a direct hit on an archived conversation's URL 404s
+  the same way a bad id does, instead of leaking a thread an admin muted —
+  the same class of leak Phase 0 fixed for ProductLive.Show. This is the
+  only caller-facing lookup today (ConversationLive.Show); there's no admin
+  conversations screen yet to need an unscoped/all-status equivalent.
   """
   def get_conversation(id) do
-    Repo.get(Conversation, id)
+    Conversation
+    |> with_status(:active)
+    |> Repo.get(id)
   end
 
   @doc """
@@ -293,55 +315,68 @@ defmodule ArtsyNeighbor.Conversations do
   @doc """
   Returns a list of conversation IDs that have unread messages for the given buyer.
   Unread = last_event_at is newer than buyer_last_read_at, or buyer never opened it (nil).
+  Scoped to status: :active — an archived thread shouldn't keep surfacing the unread dot.
   """
   def list_unread_conversation_ids_for_buyer(user_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.buyer_id == ^user_id,
-      where: not is_nil(c.last_event_at) and
-             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at),
-      select: c.id
+    Conversation
+    |> where([c], c.buyer_id == ^user_id)
+    |> with_status(:active)
+    |> where(
+      [c],
+      not is_nil(c.last_event_at) and
+        (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
     )
+    |> select([c], c.id)
+    |> Repo.all()
   end
 
   @doc """
   Returns a list of conversation IDs that have unread messages for the given artist (vendor).
   Unread = last_event_at is newer than vendor_last_read_at, or vendor never opened it (nil).
+  Scoped to status: :active — an archived thread shouldn't keep surfacing the unread dot.
   """
   def list_unread_conversation_ids_for_artist(artist_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.artist_id == ^artist_id,
-      where: not is_nil(c.last_event_at) and
-             (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at),
-      select: c.id
+    Conversation
+    |> where([c], c.artist_id == ^artist_id)
+    |> with_status(:active)
+    |> where(
+      [c],
+      not is_nil(c.last_event_at) and
+        (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at)
     )
+    |> select([c], c.id)
+    |> Repo.all()
   end
 
   @doc """
   Returns conversation IDs of unread system conversations for this user.
   System conversations use buyer_last_read_at as the single read-timestamp.
+  Scoped to status: :active, same as the buyer/artist variants above.
   """
   def list_unread_system_conversation_ids_for_user(user_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.user_id == ^user_id and c.conversation_type == :system,
-      where: not is_nil(c.last_event_at) and
-             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at),
-      select: c.id
+    Conversation
+    |> where([c], c.user_id == ^user_id and c.conversation_type == :system)
+    |> with_status(:active)
+    |> where(
+      [c],
+      not is_nil(c.last_event_at) and
+        (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
     )
+    |> select([c], c.id)
+    |> Repo.all()
   end
 
   @doc """
   Returns all system conversations for a user, sorted most-recently-active first.
   Typically at most one per user, but the function returns a list for flexibility.
+  Scoped to status: :active, same as the other list_conversations_for_*/1 functions.
   """
   def list_system_conversations_for_user(user_id) do
-    Repo.all(
-      from c in Conversation,
-      where: c.user_id == ^user_id and c.conversation_type == :system,
-      order_by: [desc_nulls_last: c.last_event_at]
-    )
+    Conversation
+    |> where([c], c.user_id == ^user_id and c.conversation_type == :system)
+    |> with_status(:active)
+    |> order_by([c], desc_nulls_last: c.last_event_at)
+    |> Repo.all()
   end
 
   @doc """
@@ -378,33 +413,45 @@ defmodule ArtsyNeighbor.Conversations do
   Returns true if the user has any unread conversations, false otherwise.
   Checks both their buyer conversations and (if they are a vendor) their artist conversations.
   artist_id should be nil if the user has no artist profile.
+  Each check is scoped to status: :active, same as the list_unread_*/1 functions above.
   """
   def has_unread_conversations?(user_id, artist_id) do
-    buyer_has_unread = Repo.exists?(
-      from c in Conversation,
-      where: c.buyer_id == ^user_id,
-      where: not is_nil(c.last_event_at) and
-             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
-    )
+    buyer_has_unread =
+      Conversation
+      |> where([c], c.buyer_id == ^user_id)
+      |> with_status(:active)
+      |> where(
+        [c],
+        not is_nil(c.last_event_at) and
+          (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
+      )
+      |> Repo.exists?()
 
     vendor_has_unread =
       if artist_id do
-        Repo.exists?(
-          from c in Conversation,
-          where: c.artist_id == ^artist_id,
-          where: not is_nil(c.last_event_at) and
-                 (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at)
+        Conversation
+        |> where([c], c.artist_id == ^artist_id)
+        |> with_status(:active)
+        |> where(
+          [c],
+          not is_nil(c.last_event_at) and
+            (is_nil(c.vendor_last_read_at) or c.last_event_at > c.vendor_last_read_at)
         )
+        |> Repo.exists?()
       else
         false
       end
 
-    system_has_unread = Repo.exists?(
-      from c in Conversation,
-      where: c.user_id == ^user_id and c.conversation_type == :system,
-      where: not is_nil(c.last_event_at) and
-             (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
-    )
+    system_has_unread =
+      Conversation
+      |> where([c], c.user_id == ^user_id and c.conversation_type == :system)
+      |> with_status(:active)
+      |> where(
+        [c],
+        not is_nil(c.last_event_at) and
+          (is_nil(c.buyer_last_read_at) or c.last_event_at > c.buyer_last_read_at)
+      )
+      |> Repo.exists?()
 
     buyer_has_unread or vendor_has_unread or system_has_unread
   end
@@ -414,11 +461,73 @@ defmodule ArtsyNeighbor.Conversations do
   end
 
   @doc """
-  DEV ONLY: Deletes a conversation and all its events.
+  Marks a conversation as :archived — hides/mutes it from both participants
+  (see get_conversation/1, list_conversations_for_buyer/1, etc.) without
+  destroying its message history. Conversations are never hard-deleted under
+  normal circumstances — see hard_delete_conversation_dev/1 for the rare,
+  dev/testing-only exception.
   """
-  def delete_conversation_dev(conversation) do
-    Repo.delete_all(from e in ConversationEvent, where: e.conversation_id == ^conversation.id)
-    Repo.delete(conversation)
+  def soft_delete_conversation(%Conversation{} = conversation) do
+    conversation
+    |> Conversation.status_changeset(%{status: :archived})
+    |> Repo.update()
   end
 
+  @doc """
+  Reverses soft_delete_conversation/1, setting status back to :active.
+
+  Refuses (returns {:error, :already_active}) if the conversation is
+  currently :active — restoring is meant to bring an archived conversation
+  back into view, not silently no-op on a live one while still reporting
+  success.
+  """
+  def restore_conversation(%Conversation{status: :active}), do: {:error, :already_active}
+
+  def restore_conversation(%Conversation{} = conversation) do
+    conversation
+    |> Conversation.status_changeset(%{status: :active})
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets a single conversation event by its ID. Returns nil if not found.
+  """
+  def get_conv_event(id), do: Repo.get(ConversationEvent, id)
+
+  @doc """
+  Soft-deletes a message the given user sent — sets its status to :deleted,
+  which hides its body from the thread while leaving a "message deleted"
+  placeholder in place (see ConversationLive.Show) so a reply pointing at it
+  doesn't lose context.
+
+  Only event_type: :message rows are deletable this way, and only by the
+  user who sent them — :status_change events are the order's audit trail
+  and are never deletable by anyone through this function.
+  """
+  def soft_delete_event(
+        %ConversationEvent{event_type: :message, actor_id: actor_id} = event,
+        user_id
+      )
+      when actor_id == user_id do
+    event
+    |> ConversationEvent.delete_changeset(%{status: :deleted})
+    |> Repo.update()
+  end
+
+  def soft_delete_event(%ConversationEvent{event_type: :message}, _user_id),
+    do: {:error, :not_owner}
+
+  def soft_delete_event(%ConversationEvent{}, _user_id), do: {:error, :not_a_message}
+
+  if Mix.env() != :prod do
+    @doc """
+    DEV/TEST ONLY: Hard-deletes a conversation and all its events. Never
+    compiled into a :prod build — see the Mix.env/0 guard around this
+    function's definition.
+    """
+    def hard_delete_conversation_dev(conversation) do
+      Repo.delete_all(from e in ConversationEvent, where: e.conversation_id == ^conversation.id)
+      Repo.delete(conversation)
+    end
+  end
 end

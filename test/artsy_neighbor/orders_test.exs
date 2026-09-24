@@ -176,7 +176,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       assert conversation.last_event_at == nil
 
       %{conversation: same_conversation} = new_order(buyer: buyer, artist: artist)
-      reloaded = Conversations.get_conversation!(same_conversation.id)
+      reloaded = Conversations.get_conversation_all_status!(same_conversation.id)
       refute is_nil(reloaded.last_event_at)
     end
 

@@ -101,6 +101,23 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
       assert %{"error" => msg} = flash
       assert msg =~ "not found"
     end
+
+    # Regression test — same leak class Phase 0 fixed for ProductLive.Show:
+    # an archived (admin-muted) conversation must 404 for a direct URL hit,
+    # not just be hidden from list views, even for one of its own participants.
+    test "an archived conversation redirects with error flash, even for its own buyer",
+         %{conn: conn} do
+      %{buyer: buyer, conv: conv} = setup_conversation()
+      {:ok, _} = Conversations.soft_delete_conversation(conv)
+
+      assert {:error, {:live_redirect, %{to: "/", flash: flash}}} =
+               conn
+               |> log_in_user(buyer)
+               |> live(~p"/messages/#{conv.id}")
+
+      assert %{"error" => msg} = flash
+      assert msg =~ "not found"
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -210,6 +227,76 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
 
       assert ArtsyNeighbor.Repo.aggregate(ArtsyNeighbor.Conversations.ConversationEvent, :count) ==
                0
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Deleting a message
+  # ---------------------------------------------------------------------------
+
+  describe "deleting a message" do
+    test "the sender can delete their own message — it renders as a placeholder", %{conn: conn} do
+      %{buyer: buyer, conv: conv} = setup_conversation()
+      event = seed_message(conv, buyer.id, :buyer, "Oops, wrong thread")
+
+      {:ok, lv, _html} =
+        conn
+        |> log_in_user(buyer)
+        |> live(~p"/messages/#{conv.id}")
+
+      html =
+        lv
+        |> element("[phx-click='delete_message'][phx-value-id='#{event.id}']")
+        |> render_click()
+
+      refute html =~ "Oops, wrong thread"
+      assert html =~ "Message deleted"
+    end
+
+    test "a non-sender has no delete button on someone else's message", %{conn: conn} do
+      %{buyer: buyer, artist: artist, conv: conv} = setup_conversation()
+      seed_message(conv, buyer.id, :buyer, "Message from buyer")
+      vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
+
+      {:ok, _lv, html} =
+        conn
+        |> log_in_user(vendor_user)
+        |> live(~p"/messages/#{conv.id}")
+
+      assert html =~ "Message from buyer"
+      refute html =~ "delete_message"
+    end
+
+    test "deleting someone else's message via a forged event id fails silently and leaves it intact",
+         %{conn: _conn} do
+      %{buyer: buyer, artist: artist, conv: conv} = setup_conversation()
+      event = seed_message(conv, buyer.id, :buyer, "Message from buyer")
+      vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
+
+      {:ok, lv, _html} =
+        build_conn()
+        |> log_in_user(vendor_user)
+        |> live(~p"/messages/#{conv.id}")
+
+      # Forge the event directly rather than through the (correctly hidden) button.
+      render_click(lv, "delete_message", %{"id" => to_string(event.id)})
+
+      assert Repo.get!(ArtsyNeighbor.Conversations.ConversationEvent, event.id).status == :active
+    end
+
+    test "a non-numeric forged event id fails silently instead of crashing", %{conn: conn} do
+      %{buyer: buyer, conv: conv} = setup_conversation()
+      event = seed_message(conv, buyer.id, :buyer, "Message from buyer")
+
+      {:ok, lv, _html} =
+        conn
+        |> log_in_user(buyer)
+        |> live(~p"/messages/#{conv.id}")
+
+      html = render_click(lv, "delete_message", %{"id" => "not-a-number"})
+
+      assert html =~ "Couldn&#39;t delete that message."
+      assert Repo.get!(ArtsyNeighbor.Conversations.ConversationEvent, event.id).status == :active
     end
   end
 
