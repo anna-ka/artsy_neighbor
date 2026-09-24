@@ -99,7 +99,10 @@ longer relevant; no need to keep history here (git history covers that).
    admin acts on the flag.
    This pass is also where the still-missing `/admin/conversations` screen
    (to actually call `Conversations.soft_delete_conversation/1`/
-   `restore_conversation/1`) belongs.
+   `restore_conversation/1`) belongs, and, same shape of gap, a still-missing
+   `/admin/reviews` screen — `Reviews.soft_delete_*_review/2`/
+   `hard_delete_*_review/1` exist in the context but nothing in the admin UI
+   calls them; confirmed no `/admin/reviews` route exists today.
 2. **Email scaffolding** — buyer gets a completion link by email when the
    vendor schedules pick-up (Swoosh is already in the project).
 3. **Payment options** — cash or Interac at the door; needs a
@@ -133,6 +136,19 @@ longer relevant; no need to keep history here (git history covers that).
 - **FK cascade + remove_entity() rollout is still partial** — only Artist
   has real FK cascades; Product has its own soft-delete but its
   dependents (`product_reviews`, etc.) aren't cascaded yet.
+- **`deactivate_artist/1`/`update_artist/2` cascade off a stale in-memory
+  struct, not a locked DB read** — a narrower version of the same TOCTOU
+  race `hard_delete_artist/1` already closes with `SELECT ... FOR UPDATE`.
+  `restore_product/1` has a similar narrower check-then-act gap. Low
+  severity today; noted during the entity-removal-consistency pass,
+  not fixed.
+- **Entity-removal-consistency pass docstrings/comments need a trim once
+  done** — agreed 2026-09-21, to happen only after Phase 7 (the plan's
+  last phase) is committed: the pass-specific narrative accumulated in
+  code comments (e.g. "round 1 of /code-review found X") was useful while
+  the pass was in flight but should collapse back to durable "what + the
+  one non-obvious why" once it settles — the blow-by-blow belongs in git
+  history, not living forever in a docstring.
 - **Nullable bio/medium** on Artist — revisit when ready.
 - **Unread badge implementation** — works, but has some complexity worth
   revisiting eventually. Do NOT refactor until explicitly asked.
