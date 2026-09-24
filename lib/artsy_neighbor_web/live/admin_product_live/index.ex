@@ -3,6 +3,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.HardDelete
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
@@ -118,11 +119,11 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
           |> stream_delete(:products, product)
           |> put_flash(:info, "Product \"#{product.title}\" deleted successfully.")
 
-        {:error, _reason} ->
+        {:error, reason} ->
           put_flash(
             socket,
             :error,
-            "Could not delete \"#{product.title}\" — it may still have reviews attached. Try archiving it instead."
+            "Could not delete \"#{product.title}\": #{HardDelete.error_message(reason)}"
           )
       end
 

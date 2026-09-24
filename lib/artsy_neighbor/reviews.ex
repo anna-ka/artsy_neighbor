@@ -1,8 +1,8 @@
 defmodule ArtsyNeighbor.Reviews do
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
-  alias Ecto.Multi
 
+  alias ArtsyNeighbor.HardDelete
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
   alias ArtsyNeighbor.Reviews.ProductReview
@@ -567,44 +567,28 @@ defmodule ArtsyNeighbor.Reviews do
   #
   # Each of these also cleans up any Flag rows reporting the review directly
   # ("vendor_review_of"/"buyer_review_of"/"product_review_of") — same class
-  # of cleanup as Products.hard_delete_product/1 and Artists.hard_delete_artist/1:
+  # of cleanup as Products.hard_delete_product/1 and Artists.hard_delete_artist/1,
+  # and done by the same shared helper, ArtsyNeighbor.HardDelete:
   # Flag.subject_id is a polymorphic reference with no real DB-level FK, so
   # it can't cascade and has to be done by hand.
   # ---------------------------------------------------------------------------
 
   def hard_delete_vendor_review(%VendorReview{} = review) do
-    delete_reviewed_with_flags(review, "vendor_review_of")
+    delete_review_with_flags(review, "vendor_review_of")
   end
 
   def hard_delete_buyer_review(%BuyerReview{} = review) do
-    delete_reviewed_with_flags(review, "buyer_review_of")
+    delete_review_with_flags(review, "buyer_review_of")
   end
 
   def hard_delete_product_review(%ProductReview{} = review) do
-    delete_reviewed_with_flags(review, "product_review_of")
+    delete_review_with_flags(review, "product_review_of")
   end
 
-  defp delete_reviewed_with_flags(review, subject_type) do
-    Multi.new()
-    |> Multi.run(:deleted_flags, fn repo, _changes ->
-      {count, _} =
-        repo.delete_all(
-          from(f in Flag, where: f.subject_type == ^subject_type and f.subject_id == ^review.id)
-        )
-
-      {:ok, count}
+  defp delete_review_with_flags(review, subject_type) do
+    HardDelete.delete_with_flags(review, fn _repo, locked_review ->
+      %{subject_type => [locked_review.id]}
     end)
-    |> Multi.run(:deleted_review, fn repo, _changes -> repo.delete(review) end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{deleted_review: deleted}} -> {:ok, deleted}
-      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
-    end
-  rescue
-    error in [Ecto.ConstraintError, Postgrex.Error] ->
-      # A constraint violation Multi's own {:error, ...} tuple can't catch —
-      # fail cleanly instead of letting the exception crash the caller.
-      {:error, {:constraint_error, Exception.message(error)}}
   end
 
   # ---------------------------------------------------------------------------

@@ -432,6 +432,16 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Artists.get_artist(artist.id) == nil
     end
 
+    # The row-lock step used to be repo.one!/1, which raised
+    # Ecto.NoResultsError on an already-deleted artist; the shared HardDelete
+    # helper returns an error tuple instead.
+    test "returns {:error, :not_found} if the artist is already gone" do
+      artist = artist_fixture()
+      {:ok, _} = Artists.hard_delete_artist(artist)
+
+      assert Artists.hard_delete_artist(artist) == {:error, :not_found}
+    end
+
     test "deletes the artist's products" do
       artist = artist_fixture()
       product = product_fixture(%{artist_id: artist.id})

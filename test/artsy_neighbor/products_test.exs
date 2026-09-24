@@ -6,12 +6,16 @@ defmodule ArtsyNeighbor.ProductsTest do
   alias ArtsyNeighbor.Products.{Product, ProductImage, ProductCollection}
   alias ArtsyNeighbor.Reviews
   alias ArtsyNeighbor.Reviews.Flag
+  alias ArtsyNeighbor.Reviews.ProductReview
+  alias ArtsyNeighbor.Orders.OrderItem
   alias ArtsyNeighbor.Repo
 
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.CategoriesFixtures
   import ArtsyNeighbor.AccountsFixtures
+  import ArtsyNeighbor.OrdersFixtures
+  import ArtsyNeighbor.ReviewsFixtures
 
   # ============================================================
   # Basic CRUD — products
@@ -124,6 +128,75 @@ defmodule ArtsyNeighbor.ProductsTest do
       {:ok, _} = Products.hard_delete_product(product_a)
 
       assert Repo.get(Flag, flag_b.id) != nil
+    end
+
+    # HardDelete re-reads (and row-locks) the product before deleting it, so
+    # a stale struct for an already-deleted product — e.g. the admin clicked
+    # "delete" in two tabs — comes back as an error tuple. Before the shared
+    # helper, Repo.delete/1 on the stale struct raised Ecto.StaleEntryError.
+    test "hard_delete_product/1 returns {:error, :not_found} if the product is already gone" do
+      product = product_fixture()
+      {:ok, _} = Products.hard_delete_product(product)
+
+      assert Products.hard_delete_product(product) == {:error, :not_found}
+    end
+
+    # order_items.product_id is on_delete: :nothing. The resulting
+    # constraint error is rescued into an error tuple whose text names the
+    # blocking constraint — the admin product index shows it in a flash.
+    test "hard_delete_product/1 refuses a product that appears in an order" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+      order = order_fixture(%{buyer_id: buyer.id, artist_id: artist.id})
+
+      {:ok, _item} =
+        %OrderItem{}
+        |> OrderItem.changeset(%{
+          order_id: order.id,
+          product_id: product.id,
+          quantity: 1,
+          unit_price: "50.00",
+          product_title: product.title
+        })
+        |> Repo.insert()
+
+      assert {:error, {:database_error, message}} = Products.hard_delete_product(product)
+      assert message =~ "order_items_product_id_fkey"
+      assert Repo.get(Product, product.id) != nil
+    end
+
+    # product_reviews.product_id is on_delete: :delete_all, so the product's
+    # reviews go with it — and so must flags reporting those reviews, which
+    # would otherwise be left pointing at a deleted review id.
+    test "hard_delete_product/1 removes flags reporting the product's reviews" do
+      buyer = user_fixture()
+      reporter = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      order =
+        order_fixture(%{buyer_id: buyer.id, artist_id: artist.id}) |> complete_order(1)
+
+      review =
+        product_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          product_id: product.id
+        })
+
+      {:ok, flag} =
+        Reviews.create_flag(%{
+          subject_type: "product_review_of",
+          subject_id: review.id,
+          reason: "This review looks fake and possibly defamatory.",
+          reporter_id: reporter.id
+        })
+
+      {:ok, _} = Products.hard_delete_product(product)
+
+      assert Repo.get(ProductReview, review.id) == nil
+      assert Repo.get(Flag, flag.id) == nil
     end
 
     # soft_delete_product/1 — soft, reversible removal (status -> :archived),

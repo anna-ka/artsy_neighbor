@@ -5,14 +5,14 @@ defmodule ArtsyNeighbor.Products do
 
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
-  alias Ecto.Multi
 
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.HardDelete
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Products.ProductOption
   alias ArtsyNeighbor.Products.ProductImage
   alias ArtsyNeighbor.Products.ProductCollection
-  alias ArtsyNeighbor.Reviews.Flag
+  alias ArtsyNeighbor.Reviews.ProductReview
 
   @doc """
   Returns the list of products.
@@ -461,58 +461,38 @@ defmodule ArtsyNeighbor.Products do
   Deletes a product, and any `Flag` rows reporting it directly (subject_type
   "product") — `Flag.subject_id` is a polymorphic reference with no real DB
   FK, so it can't cascade and has to be cleaned up here by hand. Same class
-  of cleanup as `Artists.hard_delete_artist/1`'s flag handling.
+  of cleanup as `Artists.hard_delete_artist/1`'s flag handling, and done by
+  the same shared helper, `ArtsyNeighbor.HardDelete`. That helper also
+  row-locks the product for the duration of the delete, so no order item
+  or product review can be inserted against it mid-delete.
 
-  Known gap (not fixed here — see `project_flagging_feature_plan.md` for the
-  deferred follow-up): unlike `hard_delete_artist/1`, this doesn't lock the
-  product row first. A `Flag` inserted on this product in the narrow window
-  between the `delete_all` above and the `repo.delete(product)` below can
-  survive as an orphan referencing a since-deleted product. `hard_delete_artist/1`'s
-  `FOR UPDATE` lock doesn't actually close this same gap either — it only
-  blocks inserts of real-FK'd rows (orders/reviews/conversations), not
-  `Flag`, which has no FK at all — so this isn't a regression from that
-  pattern, just an unclosed race shared by both.
+  The product's reviews (`product_reviews.product_id` is
+  `on_delete: :delete_all`) cascade away with it, so flags reporting those
+  reviews ("product_review_of") are cleaned up here too.
 
-  `product_reviews.product_id` is `on_delete: :restrict` with no
-  `foreign_key_constraint`/`no_assoc_constraint` declared on
-  `Product.changeset/2`, so deleting a product that still has reviews raises
-  `Ecto.ConstraintError` rather than returning it through the Multi's own
-  `{:error, reason}` case — the `rescue` below catches that and reports it
-  the same way, so callers only ever need to handle `{:ok, _} | {:error, _}`.
+  `order_items.product_id` is `on_delete: :nothing`, so a product that
+  appears in any order can't be hard-deleted — that fails with
+  `{:error, {:database_error, message}}`. See
+  `HardDelete.delete_with_flags/2` for the full list of error reasons.
 
   ## Examples
 
       iex> hard_delete_product(product)
       {:ok, %Product{}}
 
-      iex> hard_delete_product(product)
-      {:error, %Ecto.Changeset{}}
+      iex> hard_delete_product(previously_ordered_product)
+      {:error, {:database_error, "..."}}
 
   """
   def hard_delete_product(%Product{} = product) do
-    Multi.new()
-    |> Multi.run(:deleted_flags, fn repo, _changes ->
-      {count, _} =
-        repo.delete_all(
-          from(f in Flag, where: f.subject_type == "product" and f.subject_id == ^product.id)
+    HardDelete.delete_with_flags(product, fn repo, locked_product ->
+      product_review_ids =
+        repo.all(
+          from(pr in ProductReview, where: pr.product_id == ^locked_product.id, select: pr.id)
         )
 
-      {:ok, count}
+      %{"product" => [locked_product.id], "product_review_of" => product_review_ids}
     end)
-    |> Multi.run(:deleted_product, fn repo, _changes ->
-      repo.delete(product)
-    end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{deleted_product: deleted}} -> {:ok, deleted}
-      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
-    end
-  rescue
-    error in [Ecto.ConstraintError, Postgrex.Error] ->
-      # A constraint violation Multi's own {:error, ...} tuple can't catch
-      # (e.g. existing product_reviews rows, on_delete: :restrict) — fail
-      # cleanly instead of letting the exception crash the caller.
-      {:error, {:constraint_error, Exception.message(error)}}
   end
 
   @doc """

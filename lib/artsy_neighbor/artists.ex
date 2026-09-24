@@ -8,6 +8,7 @@ defmodule ArtsyNeighbor.Artists do
   alias Ecto.Multi
 
   alias ArtsyNeighbor.Accounts
+  alias ArtsyNeighbor.HardDelete
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
@@ -16,7 +17,6 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
   alias ArtsyNeighbor.Reviews.ProductReview
-  alias ArtsyNeighbor.Reviews.Flag
 
   @doc "The name of the default collection created for every new artist."
   def default_collection_name, do: "Uncategorized"
@@ -504,7 +504,9 @@ defmodule ArtsyNeighbor.Artists do
   `subject_id` is a polymorphic reference (it can point at an artist, a
   product, or any of three review tables depending on `subject_type`), so
   Postgres can't enforce a real FK on it and this function still cleans
-  flags up by hand.
+  flags up by hand, via `ArtsyNeighbor.HardDelete` (which also row-locks the
+  artist so no new order/review/conversation can be inserted against them
+  mid-delete).
 
   Intended for admin/testing cleanup — for a normal "take this vendor down"
   action use soft_delete_artist/1 instead, which is reversible.
@@ -512,78 +514,43 @@ defmodule ArtsyNeighbor.Artists do
   For routine removal of artists, use soft_delete_artist/1 instead. The current function is for admin/testing cleanup and is irreversible. soft_delete_artist/1 only flag an artist as removed.
   """
   def hard_delete_artist(%Artist{} = artist) do
-    Multi.new()
-    |> Multi.run(:locked_artist, fn repo, _changes ->
-      # Lock the artist row for the duration of this transaction. Postgres
-      # takes a FOR KEY SHARE lock on the referenced row for every
-      # FK-checked insert, so holding FOR UPDATE here blocks any concurrent
-      # insert of an order/conversation/review against this artist_id until
-      # we commit or roll back.
-      {:ok, repo.one!(from(a in Artist, where: a.id == ^artist.id, lock: "FOR UPDATE"))}
+    HardDelete.delete_with_flags(artist, fn repo, locked_artist ->
+      artist_flag_subjects(repo, locked_artist)
     end)
-    |> Multi.run(:flag_subject_ids, fn repo, %{locked_artist: locked_artist} ->
-      # Collected up front, before anything cascades away, so we still know
-      # which review ids belonged to this artist once they're gone.
-      order_ids =
-        repo.all(from(o in Order, where: o.artist_id == ^locked_artist.id, select: o.id))
+  end
 
-      product_ids =
-        repo.all(from(p in Product, where: p.artist_id == ^locked_artist.id, select: p.id))
+  # Every flaggable thing that disappears when this artist is deleted: the
+  # artist themselves, their products, and all three kinds of review tied to
+  # their orders/products. Computed before the delete (HardDelete runs this
+  # first), since once the DB cascades run these ids can't be looked up.
+  defp artist_flag_subjects(repo, artist) do
+    order_ids =
+      repo.all(from(o in Order, where: o.artist_id == ^artist.id, select: o.id))
 
-      vendor_review_ids =
-        repo.all(
-          from(vr in VendorReview, where: vr.artist_id == ^locked_artist.id, select: vr.id)
+    product_ids =
+      repo.all(from(p in Product, where: p.artist_id == ^artist.id, select: p.id))
+
+    vendor_review_ids =
+      repo.all(from(vr in VendorReview, where: vr.artist_id == ^artist.id, select: vr.id))
+
+    buyer_review_ids =
+      repo.all(from(br in BuyerReview, where: br.order_id in ^order_ids, select: br.id))
+
+    product_review_ids =
+      repo.all(
+        from(pr in ProductReview,
+          where: pr.order_id in ^order_ids or pr.product_id in ^product_ids,
+          select: pr.id
         )
+      )
 
-      buyer_review_ids =
-        repo.all(from(br in BuyerReview, where: br.order_id in ^order_ids, select: br.id))
-
-      product_review_ids =
-        repo.all(
-          from(pr in ProductReview,
-            where: pr.order_id in ^order_ids or pr.product_id in ^product_ids,
-            select: pr.id
-          )
-        )
-
-      {:ok,
-       %{
-         vendor: [locked_artist.id],
-         product: product_ids,
-         vendor_review_of: vendor_review_ids,
-         buyer_review_of: buyer_review_ids,
-         product_review_of: product_review_ids
-       }}
-    end)
-    |> Multi.run(:deleted_flags, fn repo, %{flag_subject_ids: ids} ->
-      {count, _} =
-        repo.delete_all(
-          from(f in Flag,
-            where:
-              (f.subject_type == "vendor" and f.subject_id in ^ids.vendor) or
-                (f.subject_type == "product" and f.subject_id in ^ids.product) or
-                (f.subject_type == "vendor_review_of" and f.subject_id in ^ids.vendor_review_of) or
-                (f.subject_type == "buyer_review_of" and f.subject_id in ^ids.buyer_review_of) or
-                (f.subject_type == "product_review_of" and f.subject_id in ^ids.product_review_of)
-          )
-        )
-
-      {:ok, count}
-    end)
-    |> Multi.run(:deleted_artist, fn repo, %{locked_artist: locked_artist} ->
-      repo.delete(locked_artist)
-    end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{deleted_artist: deleted}} -> {:ok, deleted}
-      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
-    end
-  rescue
-    error in [Ecto.ConstraintError, Postgrex.Error] ->
-      # A constraint violation Multi's own {:error, ...} tuple can't catch
-      # (e.g. a row we didn't know to account for) — fail cleanly instead of
-      # letting the exception propagate and crash the caller.
-      {:error, {:constraint_error, Exception.message(error)}}
+    %{
+      "vendor" => [artist.id],
+      "product" => product_ids,
+      "vendor_review_of" => vendor_review_ids,
+      "buyer_review_of" => buyer_review_ids,
+      "product_review_of" => product_review_ids
+    }
   end
 
   @doc """

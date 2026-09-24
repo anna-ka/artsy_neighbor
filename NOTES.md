@@ -128,11 +128,12 @@ longer relevant; no need to keep history here (git history covers that).
   without first checking `mix format --check-formatted <file>` — it's easy
   to accidentally blast a 200+ line unrelated reformat onto a file with
   real, wanted changes buried in it.**
-- **Flag-cleanup delete paths have a narrow race + triplicated code** —
-  `delete_product/1`, `delete_reviewed_with_flags/2`, `delete_artist/1`
-  each delete matching `Flag` rows then the entity in one unlocked
-  `Ecto.Multi`, so a `Flag` inserted in that instant can outlive the
-  entity it references; the same Multi shape is hand-copied 3x.
+- **Flag-cleanup delete paths have a narrow race** — every hard delete
+  that cleans up `Flag` rows goes through `ArtsyNeighbor.HardDelete`
+  (Phase 6 of the entity-removal pass; it used to be hand-copied 3x). It
+  row-locks the entity, but `Flag` has no FK for that lock to block, so a
+  `Flag` inserted between the flag cleanup and the entity delete can
+  outlive the entity it references.
 - **FK cascade + remove_entity() rollout is still partial** — only Artist
   has real FK cascades; Product has its own soft-delete but its
   dependents (`product_reviews`, etc.) aren't cascaded yet.

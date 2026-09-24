@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Admin.AdminArtists
+  alias ArtsyNeighbor.HardDelete
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
@@ -89,9 +90,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   # flips status and is fully reversible. The confirm dialog in the
   # template spells this out to the admin before the event ever fires.
   #
-  # hard_delete_artist/1 can return {:error, _} (e.g. new activity for this
-  # artist landed between page load and this click) rather than crashing —
-  # handled below with a flash instead of a MatchError.
+  # hard_delete_artist/1 can return {:error, reason} rather than crashing —
+  # handled below with a flash showing the actual reason (admin-only page,
+  # so the raw database reason is more useful than a guess at the cause).
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
     artist = AdminArtists.get_artist!(id)
@@ -106,11 +107,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
           |> stream_delete(:artists, artist)
           |> put_flash(:info, message)
 
-        {:error, _reason} ->
+        {:error, reason} ->
           put_flash(
             socket,
             :error,
-            "Could not delete #{artist.nickname} — they may have new activity since this page loaded. Please refresh and try again."
+            "Could not delete #{artist.nickname}: #{HardDelete.error_message(reason)}"
           )
       end
 
