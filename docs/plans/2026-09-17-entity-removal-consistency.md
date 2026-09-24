@@ -267,7 +267,13 @@ Add `status` (`:active | :suspended | :removed` — three states, since
 "admin-suspended" and "self/admin-removed" are meaningfully different) +
 `status_changed_at` + `status_changeset/2` to `Accounts.User` (currently has
 none — see `lib/artsy_neighbor/accounts/user.ex`), following the Artist
-shape. Add `Accounts.list_users_all_status/0` + `with_status/2`.
+shape. Add `Accounts.with_status/2`.
+*(As built: no separate `list_users_all_status/0` — users are never listed
+publicly, so the existing `list_users/0` already was the all-status admin
+list; it just gained the active → suspended → removed sort. An active-only
+list belongs with the future enforcement pass, whose admin artist form
+owner-dropdown must still include an artist's current, possibly
+non-active, owner.)*
 
 **Explicitly not in this phase:** no `soft_delete_user/1`/`hard_delete_user/1`
 functions that touch orders/reviews/flags, no auth-pipeline enforcement (a

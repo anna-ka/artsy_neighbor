@@ -10,9 +10,37 @@ defmodule ArtsyNeighbor.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
 
+    # :suspended — an admin action (e.g. after moderation), expected to be
+    # temporary. :removed — the account is gone from the user's point of
+    # view (self- or admin-removed). Nothing enforces either yet: a
+    # non-:active user can still log in until the auth pipeline checks this
+    # (a separate future pass, see Phase 7 of
+    # docs/plans/2026-09-17-entity-removal-consistency.md).
+    field :status, Ecto.Enum, values: [:active, :suspended, :removed], default: :active
+    field :status_changed_at, :utc_datetime
+
     timestamps(type: :utc_datetime)
   end
 
+  @doc """
+  Changeset for updating only the user's status field.
+  Sets status_changed_at whenever the status actually changes.
+  """
+  def status_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:status])
+    |> validate_required([:status])
+    |> maybe_set_status_changed_at()
+  end
+
+  # If the status field has changed, update the status_changed_at timestamp
+  defp maybe_set_status_changed_at(changeset) do
+    if changed?(changeset, :status) do
+      put_change(changeset, :status_changed_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    else
+      changeset
+    end
+  end
 
   @doc """
   A user changeset for registration.

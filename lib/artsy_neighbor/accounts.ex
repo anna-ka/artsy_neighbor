@@ -11,13 +11,29 @@ defmodule ArtsyNeighbor.Accounts do
   ## Database getters
 
   @doc """
-  Returns all users ordered by username.
+  Returns all users regardless of status (users are never listed publicly).
+  Sorted active → suspended → removed, then by username within each group.
   """
   def list_users do
     User
-    |> order_by(asc: :username)
+    |> order_by(
+      [u],
+      fragment(
+        "CASE WHEN ? = 'active' THEN 0 WHEN ? = 'suspended' THEN 1 ELSE 2 END",
+        u.status,
+        u.status
+      )
+    )
+    |> order_by([u], asc: u.username)
     |> Repo.all()
   end
+
+  @doc """
+  Filters a users query by the given status.
+  If status is nil, returns the query unchanged.
+  """
+  def with_status(query, nil), do: query
+  def with_status(query, status), do: where(query, [u], u.status == ^status)
 
   @doc """
   Gets a user by email.

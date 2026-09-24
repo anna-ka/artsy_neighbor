@@ -394,4 +394,69 @@ defmodule ArtsyNeighbor.AccountsTest do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
     end
   end
+
+  describe "User status" do
+    test "a newly registered user is :active with no status_changed_at" do
+      user = user_fixture()
+      assert user.status == :active
+      assert user.status_changed_at == nil
+    end
+
+    test "status_changeset/2 changes status and sets status_changed_at" do
+      user = user_fixture()
+
+      {:ok, updated} =
+        user |> User.status_changeset(%{status: :suspended}) |> Repo.update()
+
+      assert updated.status == :suspended
+      assert updated.status_changed_at != nil
+    end
+
+    test "status_changeset/2 leaves status_changed_at alone when status doesn't change" do
+      user = user_fixture()
+      changeset = User.status_changeset(user, %{status: :active})
+      refute Ecto.Changeset.changed?(changeset, :status_changed_at)
+    end
+
+    test "status_changeset/2 rejects an unknown status" do
+      user = user_fixture()
+      changeset = User.status_changeset(user, %{status: :banished})
+      refute changeset.valid?
+      assert %{status: ["is invalid"]} = errors_on(changeset)
+    end
+  end
+
+  describe "list_users/0" do
+    test "returns every user, sorted active → suspended → removed, then by username" do
+      removed = user_fixture(%{username: "aaa_removed"})
+      suspended = user_fixture(%{username: "bbb_suspended"})
+      active_b = user_fixture(%{username: "zzz_active"})
+      active_a = user_fixture(%{username: "ccc_active"})
+
+      {:ok, _} = removed |> User.status_changeset(%{status: :removed}) |> Repo.update()
+      {:ok, _} = suspended |> User.status_changeset(%{status: :suspended}) |> Repo.update()
+
+      ids =
+        Enum.map(Accounts.list_users(), fn user -> user.id end)
+
+      assert ids == [active_a.id, active_b.id, suspended.id, removed.id]
+    end
+  end
+
+  describe "with_status/2" do
+    test "filters by the given status, or returns everything for nil" do
+      active = user_fixture()
+      suspended = user_fixture()
+      {:ok, _} = suspended |> User.status_changeset(%{status: :suspended}) |> Repo.update()
+
+      suspended_ids =
+        User |> Accounts.with_status(:suspended) |> Repo.all() |> Enum.map(fn user -> user.id end)
+
+      all_ids =
+        User |> Accounts.with_status(nil) |> Repo.all() |> Enum.map(fn user -> user.id end)
+
+      assert suspended_ids == [suspended.id]
+      assert Enum.sort(all_ids) == Enum.sort([active.id, suspended.id])
+    end
+  end
 end
