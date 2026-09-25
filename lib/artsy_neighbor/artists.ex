@@ -464,18 +464,11 @@ defmodule ArtsyNeighbor.Artists do
 
   Also refuses (returns {:error, :user_missing}) if the artist's linked
   User account no longer exists. Nothing in the app can currently delete a
-  User (Accounts has no delete_user/1), so this can't be hit today — it's
-  a defensive guard for when that changes, not a live check. This is
-  deliberately a minimal existence check, not an active/inactive check:
-  User has no status field yet (that's Phase 7 of
-  docs/plans/2026-09-17-entity-removal-consistency.md, deferred on
-  purpose — User touches auth and has several FK/polymorphic landmines
-  that each need their own decision). Once Phase 7 adds User status, this
-  guard should be extended to also require the user be active — and
-  whatever separate procedure reactivates a user should run before this
-  function is called, not inside it, the same way a vendor has to
-  reactivate their own profile separately after this function restores
-  them to :inactive.
+  User, so this is a defensive guard, not a live check. It checks only
+  that the user exists, not the user's status — User status isn't
+  enforced anywhere yet. When it is, this guard should also require an
+  :active user; reactivating the user should be a separate step that
+  runs before this function, not inside it.
   """
   def restore_artist(%Artist{status: :active}), do: {:error, :already_active}
 

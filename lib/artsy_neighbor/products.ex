@@ -80,16 +80,10 @@ defmodule ArtsyNeighbor.Products do
     (ArtistLive.Store — /artist/:id/store). All products are loaded with
     associations.
 
-    Bug fix: this used to have no status filter at all — not even
-    p.status == :available — so an :archived or :unavailable product
-    still showed up on the artist's own public store page. The caller
-    (ArtistLive.Store.handle_params/3) separately checks the *artist's*
-    own status before ever calling this, but nothing here checked the
-    *product's* status, or re-checked the artist's (only_available/1
-    covers both, redundantly with the caller's own check — defense in
-    depth, same reasoning as every other public product query in this
-    file). Confirmed live before the fix: an artist's archived product was
-    returned by this function.
+    Only available products are returned (only_available/1). The caller
+    (ArtistLive.Store.handle_params/3) already checks the artist's own
+    status; only_available/1 checks it again here as defense in depth,
+    like every other public product query in this file.
   """
   def filter_artist_products(artist_id, filter) do
     Product
@@ -135,19 +129,11 @@ defmodule ArtsyNeighbor.Products do
   # the artist's nickname — used by filter_products/1 and
   # filter_products_all_status/1, both of which join :artist.
   #
-  # Bug fix: this replaces a previous pair of with_string/1 (a proper
-  # `where`, ANDed with everything else) + with_artist_search_term/1 (an
-  # `or_where`). Ecto's or_where ORs against the *entire* accumulated
-  # WHERE clause, not just the other search conditions — so a search term
-  # matching the artist's nickname used to bypass only_available/1
-  # entirely (status/artist-active checks included) and also ignored any
-  # category/artist filter already applied. Confirmed via a live query: an
-  # :inactive artist's :unavailable product was still returned by
-  # filter_products/1 when searching their nickname. Folding all four
-  # conditions into one OR-grouped `where` (ANDed with the rest of the
-  # query, same as with_string/1 always was) closes this — a search still
-  # matches on any of the four fields, but doing so can no longer bypass
-  # availability, category, or artist-name filters.
+  # All four conditions are ORed inside a single `where`, which is then
+  # ANDed with the rest of the query. Don't split this into `or_where`
+  # calls: Ecto's or_where ORs against the *entire* WHERE clause built so
+  # far, so a nickname match would bypass only_available/1 and every
+  # other filter.
   defp with_search_term(query, nil), do: query
   defp with_search_term(query, ""), do: query
 
@@ -399,41 +385,25 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Reverses soft_delete_product/1 — but, unlike a first version of this
-  function, does NOT go straight back to :available. It lands on
-  :unavailable instead: an intermediate "un-archived, not yet republished"
-  state, mirroring Artists.restore_artist/1's own landing on :inactive
-  rather than assuming a product is automatically safe to show the moment
-  it's un-archived.
+  Reverses soft_delete_product/1. Lands on :unavailable, not :available —
+  an "un-archived, not yet republished" state, mirroring
+  Artists.restore_artist/1 landing on :inactive.
 
-  Known gap, left open deliberately: there is currently no separate
-  action — vendor or admin — that moves a product from :unavailable to
-  :available (unlike Artist, which has a self-service active/inactive
-  toggle on the vendor dashboard). Calling this function alone does not
-  make a product purchasable again; a follow-up "mark available" action
-  still needs to be built. See
-  docs/plans/2026-09-17-entity-removal-consistency.md.
+  Known gap: nothing yet — vendor or admin — moves a product from
+  :unavailable to :available, so restoring alone does not make a product
+  purchasable again. A "mark available" action still needs to be built.
 
-  Refuses (returns {:error, :artist_not_active}) unless the owning artist is
-  currently :active. This guard predates only_available/1 itself also
-  checking artist status (added the same day, as a separate, focused
-  commit) — kept as a belt-and-suspenders check at the write path in
-  addition to the query-layer one, and because the error tuple here is
-  more specific/actionable than a silently-empty query result would be.
-  Requiring :active rather than just "not :removed" matters because
-  Artists.restore_artist/1 itself only ever lands on :inactive, never
-  :active — so right after restoring a removed artist, their products are
-  still correctly blocked here until the vendor actively re-activates from
-  their dashboard.
+  Refuses (returns {:error, :artist_not_active}) unless the owning artist
+  is currently :active. only_available/1 also checks this at query time;
+  the check here gives a specific error instead of a silently empty
+  result. Requiring :active (not just "not :removed") matters because
+  Artists.restore_artist/1 only lands on :inactive, so a just-restored
+  artist's products stay blocked until the vendor re-activates.
 
   Refuses (returns {:error, :category_missing}) if the product's category
-  no longer exists. products.category_id is on_delete: :nilify_all, and
-  AdminCategories.delete_category/1 is a bare Repo.delete with no
-  soft-delete of its own yet (Category's own status field is Phase 3 of
-  the entity-removal-consistency plan) — so a product can already have its
-  category quietly nilified out from under it in the interim. This only
-  checks that a category still exists, not that it's "active" — Category
-  has no status field yet either, so that half waits on Phase 3 too.
+  no longer exists (products.category_id is on_delete: :nilify_all, so
+  AdminCategories.hard_delete_category/1 leaves it nil). It checks only
+  that the category exists, not that it is :active.
   """
   def restore_product(%Product{} = product) do
     # force: true — a caller may pass in a product whose :artist/:category

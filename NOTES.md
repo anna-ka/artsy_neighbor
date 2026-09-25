@@ -16,9 +16,9 @@ mistakes can be cleaned up quickly. Debt is paid as we go (clean up the
 area being worked on), not in big dedicated passes — except formatting,
 which is mechanical and done once, up front.
 
-0. **Housekeeping** — ~~`mix format` sweep~~ (done 2026-09-25), trim
-   the entity-removal docstrings (Tech debt), fix the compose-box bug
-   (Known bugs).
+0. **Housekeeping** — ~~`mix format` sweep~~, ~~trim the entity-removal
+   docstrings~~ (both done 2026-09-25), fix the compose-box bug (Known
+   bugs).
 1. **Design system + branding** — mockups → pick a direction → DaisyUI
    theme, layout/nav (incl. the small-screen nav issue), shared
    components, LocalPalette name (#14); restyle only the key public pages
@@ -252,13 +252,6 @@ working on the code should keep in mind.
   `restore_product/1` has a similar narrower check-then-act gap. Low
   severity today; noted during the entity-removal-consistency pass,
   not fixed.
-- **Entity-removal-consistency pass docstrings/comments need a trim once
-  done** — agreed 2026-09-21, to happen only after Phase 7 (the plan's
-  last phase) is committed: the pass-specific narrative accumulated in
-  code comments (e.g. "round 1 of /code-review found X") was useful while
-  the pass was in flight but should collapse back to durable "what + the
-  one non-obvious why" once it settles — the blow-by-blow belongs in git
-  history, not living forever in a docstring.
 - **Nullable bio/medium** on Artist — revisit when ready.
 - **Unread badge implementation** — works, but has some complexity worth
   revisiting eventually. Do NOT refactor until explicitly asked.

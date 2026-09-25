@@ -13,9 +13,8 @@ defmodule ArtsyNeighbor.Accounts.User do
     # :suspended — an admin action (e.g. after moderation), expected to be
     # temporary. :removed — the account is gone from the user's point of
     # view (self- or admin-removed). Nothing enforces either yet: a
-    # non-:active user can still log in until the auth pipeline checks this
-    # (a separate future pass, see Phase 7 of
-    # docs/plans/2026-09-17-entity-removal-consistency.md).
+    # non-:active user can still log in until the auth pipeline checks
+    # this (see NOTES.md).
     field :status, Ecto.Enum, values: [:active, :suspended, :removed], default: :active
     field :status_changed_at, :utc_datetime
 

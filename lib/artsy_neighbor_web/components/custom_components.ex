@@ -316,20 +316,10 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   @doc """
   Renders the view/edit/restore/soft-delete/hard-delete action buttons for
   an admin index row. Shared by AdminArtistLive.Index and
-  AdminProductLive.Index — the first two admin index LiveViews to reach
-  three status tiers (restore / soft_delete / hard_delete), per
-  docs/plans/2026-09-17-entity-removal-consistency.md's Phase 2. Extracted
-  as a pure refactor: every button's event name, label, and confirm text
-  is passed in explicitly rather than templated from a shared pattern,
-  since the actual wording differs meaningfully between entities
-  (different cascade side effects, different irreversibility caveats,
-  even different quoting conventions in the confirm text) — this
-  component shares *structure* (the confirm-gated-link-wrapping-a-button
-  shape, the conditional restore visibility), not copy. The status column
-  itself (a bare `{status}` in both callers) was deliberately left inline
-  at each call site rather than folded in here — one interpolation isn't
-  real duplication, and a component wrapping it would add indirection
-  without adding reuse.
+  AdminProductLive.Index. Labels and confirm texts are passed in by the
+  caller rather than generated here, because the wording differs between
+  entities (different cascade side effects and irreversibility caveats) —
+  this component shares the structure, not the copy.
 
   restore/hard-delete always fire "restore"/"delete" respectively (both
   callers already agree on these two event names); soft-delete's event

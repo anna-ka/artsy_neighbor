@@ -359,7 +359,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       assert event2.body =~ "Buyer added"
     end
 
-    # --- Regression coverage: the do_amend fix from this session ---
+    # --- Regression coverage: amending a :confirmed order keeps it :confirmed ---
     test "adding an item to a :confirmed order leaves it :confirmed and keeps the same completion token" do
       %{order: order, artist: artist} = new_order()
       confirmed = confirm!(order)
@@ -493,7 +493,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       assert Orders.remove_order_item(completed, item.id, :buyer) == {:error, :wrong_state}
     end
 
-    # --- Regression coverage: the do_amend fix from this session ---
+    # --- Regression coverage: amending a :confirmed order keeps it :confirmed ---
     test "decrementing (without emptying) a :confirmed order with a scheduled pickup stays :confirmed" do
       %{order: order} = new_order(quantity: 2)
       confirmed = confirm!(order)
@@ -560,7 +560,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       assert Orders.increment_order_item(cancelled, item.id, :buyer) == {:error, :wrong_state}
     end
 
-    # --- Regression coverage: the do_amend fix from this session ---
+    # --- Regression coverage: amending a :confirmed order keeps it :confirmed ---
     test "incrementing on a :confirmed order with a scheduled pickup stays :confirmed with the same token" do
       %{order: order} = new_order()
       confirmed = confirm!(order)
@@ -608,10 +608,9 @@ defmodule ArtsyNeighbor.OrdersTest do
   # ---------------------------------------------------------------------------
   # cancel_order/2
   #
-  # Includes the status-guard regression test added this session: cancel_order
-  # used to have no status guard at all, so a :completed order could be
-  # cancelled after the fact (after review-request messages/emails had
-  # already gone out). It's now restricted to :requested/:confirmed.
+  # Only :requested/:confirmed orders can be cancelled. Includes a
+  # regression test: a :completed order used to be cancellable after the
+  # fact (after review-request messages had already gone out).
   # ---------------------------------------------------------------------------
   describe "cancel_order/2" do
     test "cancels a :requested order" do
@@ -635,7 +634,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       assert cancelled.status == :cancelled
     end
 
-    # --- Regression coverage: the status-guard fix from this session ---
+    # --- Regression coverage: cancel_order/2's status guard ---
     test "refuses to cancel a :completed order" do
       %{order: order} = new_order()
       completed = confirm!(order) |> complete!()

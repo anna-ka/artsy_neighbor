@@ -57,8 +57,7 @@ defmodule ArtsyNeighbor.Categories do
   Gets a single category, scoped to public visibility (status: :active).
   Returns nil if the category doesn't exist OR isn't currently active, so
   a direct hit on an archived category's URL 404s the same way a bad id
-  does, instead of leaking the category page — the same class of leak
-  Phase 0 fixed for ProductLive.Show. For the admin equivalent, see
+  does, instead of leaking the category page. For the admin equivalent, see
   AdminCategories.get_category!/1, which is already unscoped.
   """
   def get_category(id) do

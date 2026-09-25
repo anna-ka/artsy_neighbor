@@ -158,10 +158,8 @@ defmodule ArtsyNeighbor.Conversations do
   Gets a conversation by its ID, scoped to public/participant visibility
   (status: :active). Returns nil if the conversation doesn't exist OR isn't
   currently active, so a direct hit on an archived conversation's URL 404s
-  the same way a bad id does, instead of leaking a thread an admin muted —
-  the same class of leak Phase 0 fixed for ProductLive.Show. This is the
-  only caller-facing lookup today (ConversationLive.Show); there's no admin
-  conversations screen yet to need an unscoped/all-status equivalent.
+  the same way a bad id does, instead of leaking a thread an admin muted.
+  For the unscoped admin equivalent, see get_conversation_all_status!/1.
   """
   def get_conversation(id) do
     Conversation

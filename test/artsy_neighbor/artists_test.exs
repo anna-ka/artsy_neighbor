@@ -290,10 +290,9 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # update_artist/2 — general-purpose profile update, used by the vendor's
   # own profile form AND the admin edit form (which has a raw status
   # dropdown that can set :inactive directly, bypassing
-  # deactivate_artist/1 entirely). Regression coverage for the fix: this
-  # general path now cascades the same way deactivate_artist/1 does,
-  # whenever it includes a transition from :active to :inactive, so the
-  # invariant holds regardless of which form performed the edit.
+  # deactivate_artist/1 entirely). This general path must cascade the same
+  # way deactivate_artist/1 does on an :active -> :inactive transition, so
+  # the invariant holds regardless of which form performed the edit.
   # ---------------------------------------------------------------------------
   describe "update_artist/2 — status transition cascade" do
     test "cascades :available products to :unavailable on an :active -> :inactive transition, even outside deactivate_artist/1" do
@@ -350,20 +349,13 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Regression coverage for a real, reachable bug found via /code-review: a
-  # :removed artist's own account could reach /vendor
-  # (on_mount(:require_vendor, ...) only checks that current_scope.artist
-  # is non-nil, not its status) and self-resurrect straight to :active via
-  # the dashboard's own "activate profile" toggle — Artists.update_artist/2
-  # had no refusal for a :removed -> :active transition, unlike
-  # restore_artist/1's own deliberate :inactive-only landing. Same bypass
-  # was independently reachable via the admin edit form's raw status
-  # dropdown. Fixed at the changeset level (Artist.activation_changeset/2
-  # and status_changeset/2 both now refuse this transition), not by
-  # patching each caller — closes every current and future entry point at
-  # once, and means an invalid changeset (not a bespoke error atom) comes
-  # back, so no caller's existing {:error, %Ecto.Changeset{}} handling
-  # needed to change.
+  # Regression coverage: a :removed artist's own account can still reach
+  # /vendor (on_mount(:require_vendor, ...) doesn't check artist status),
+  # and used to be able to self-resurrect straight to :active via the
+  # dashboard's "activate profile" toggle, or via the admin edit form's
+  # status dropdown. The refusal lives in the changesets
+  # (Artist.activation_changeset/2 and status_changeset/2), so every entry
+  # point gets it and callers see an ordinary invalid changeset.
   # ---------------------------------------------------------------------------
   describe "update_artist/2 — refuses :removed -> :active in one step" do
     test "refuses, returning an invalid changeset with a status error" do

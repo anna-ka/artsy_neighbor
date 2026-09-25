@@ -307,8 +307,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     # Guards against restoring a product whose category has been deleted
     # out from under it — products.category_id is on_delete: :nilify_all,
-    # and Category has no soft-delete of its own yet (Phase 3), so this can
-    # already happen today via AdminCategories.delete_category/1.
+    # so AdminCategories.hard_delete_category/1 leaves it nil.
     test "refuses to restore a product whose category no longer exists" do
       artist = artist_fixture(%{status: :active})
       category = category_fixture()
@@ -721,13 +720,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       refute p2.id in ids
     end
 
-    # Regression test for a real bug found while reviewing this session's
-    # diff: with_artist_search_term/1 used to be a bare `or_where`, which
-    # in Ecto ORs against the *entire* accumulated WHERE clause, not just
-    # the other search conditions — so searching by an artist's own
-    # nickname bypassed only_available/1 (and any category/artist filter)
-    # entirely. Confirmed live before the fix: an :inactive artist's
-    # :unavailable product was still returned by this exact search.
+    # Regression test: the nickname part of the search used to be a bare
+    # `or_where`, which in Ecto ORs against the *entire* WHERE clause built
+    # so far — so searching by an artist's own nickname bypassed
+    # only_available/1 (and any category/artist filter) entirely.
     test "does NOT surface a product whose artist is not :active, even when searching by that artist's own nickname",
          %{p2: p2, artist2: artist2} do
       force_artist_status(artist2, :inactive)
@@ -744,8 +740,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     # in their own title/category text or artist nickname, and p2 (the
     # only product that does match, via artist2's nickname) isn't in
     # cat_painting — so the correct result for this combination is empty.
-    # Before the fix, the category filter was bypassed entirely and this
-    # returned p2 despite the category_id filter.
+    # With the bug, this returned p2 despite the category_id filter.
     test "does not bypass an active category filter when the search term matches an unrelated artist's nickname",
          %{p2: p2, cat_painting: cat_painting, artist2: artist2} do
       results =

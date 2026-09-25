@@ -102,8 +102,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
       assert msg =~ "not found"
     end
 
-    # Regression test — same leak class Phase 0 fixed for ProductLive.Show:
-    # an archived (admin-muted) conversation must 404 for a direct URL hit,
+    # Regression test: an archived (admin-muted) conversation must 404 for a direct URL hit,
     # not just be hidden from list views, even for one of its own participants.
     test "an archived conversation redirects with error flash, even for its own buyer",
          %{conn: conn} do
@@ -358,17 +357,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
   # Vendor adding an item to an already-open order
   # ---------------------------------------------------------------------------
 
-  # Regression test for a bug found via /code-review: open_add_item_form
-  # used to call Products.get_products_by_artist/1 — the public-scoped
-  # variant (requires the product :available AND the artist :active). That
-  # was wrong here: this is the vendor managing their own already-open
-  # order, not a public listing, and on_mount(:require_vendor, ...)
-  # doesn't check artist status, so a self-deactivated or admin-removed
-  # vendor could still reach this page and see zero products to add — even
-  # genuinely :available ones — purely because their own artist record
-  # wasn't :active. Fixed by switching to
-  # Products.get_products_by_artist_all_status/1, matching how the vendor
-  # dashboard already avoids this same trap.
+  # Regression test: open_add_item_form used to use the public-scoped
+  # Products.get_products_by_artist/1, so a vendor whose own profile wasn't
+  # :active saw zero products to add to their own open order.
   describe "vendor add item to order" do
     test "shows the vendor's own product even though it isn't :available — the vendor dashboard already gets this right, this page didn't" do
       artist = artist_fixture(%{status: :active})

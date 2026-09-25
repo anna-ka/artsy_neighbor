@@ -47,14 +47,9 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   @doc """
-  Updates an artist. Delegates to Artists.update_artist/2, matching every
-  other function in this module — not a separate implementation. This
-  used to do its own change_artist/2 + Repo.update/1 directly, which meant
-  it silently skipped Artists.update_artist/2's own :active -> :inactive
-  product cascade (see that function's doc comment) despite looking
-  identical to it. Not currently called from any LiveView (only this
-  module's own tests exercise it) — fixed now so it isn't a live trap if
-  it ever is.
+  Updates an artist. Delegates to Artists.update_artist/2 so the
+  :active -> :inactive product cascade always runs; don't replace this
+  with a direct Repo.update/1.
   """
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
     Artists.update_artist(artist, attrs)

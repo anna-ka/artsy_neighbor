@@ -63,7 +63,7 @@ defmodule ArtsyNeighborWeb.FlagLive.NewTest do
       reporter = user_fixture()
 
       # "vendor_review_of" stays schema-valid on Flag itself, but nothing in
-      # the UI links to it this pass, so the resolver refuses it too.
+      # the UI links to it yet, so the resolver refuses it too.
       assert {:error, {:live_redirect, %{flash: flash}}} =
                conn
                |> log_in_user(reporter)

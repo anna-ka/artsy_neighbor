@@ -728,17 +728,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     end
   end
 
-  # Bug fix: this used to call Products.get_products_by_artist/1 — the
-  # public-scoped variant (only_available/1: requires the product
-  # :available AND the artist :active). That's wrong here: this is the
-  # vendor managing their own already-open order/conversation, not a
-  # public listing, and on_mount(:require_vendor, ...) doesn't check
-  # artist status, so a self-deactivated or admin-removed vendor could
-  # still reach this page and see zero products to add — even ones
-  # genuinely :available — purely because their own artist record wasn't
-  # :active. The vendor dashboard already avoids this same trap by using
-  # get_products_by_artist_all_status/1 for exactly this reason; this
-  # call site just hadn't been audited for it.
+  # Uses the all-status product list, not the public-scoped
+  # get_products_by_artist/1: this is the vendor managing their own open
+  # order, and the public variant returns nothing at all when the
+  # vendor's own artist profile isn't :active (same reason the vendor
+  # dashboard uses the all-status version).
   def handle_event("open_add_item_form", %{"id" => id}, socket) do
     artist = socket.assigns.current_scope.artist
     products = Products.get_products_by_artist_all_status(artist.id)
