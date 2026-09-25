@@ -215,8 +215,16 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
               >
                 <div class="flex gap-2 items-end">
                   <div class="flex-1">
+                    <%!-- The input's id changes with @message_key after each
+                         send, so LiveView replaces it with a fresh, empty
+                         input. With a fixed id it would keep the old element,
+                         and LiveView never overwrites the value of the input
+                         that has focus. phx-mounted puts focus back in the
+                         new input, but only after a send (not on page load). --%>
                     <.input
                       field={@form[:body]}
+                      id={"new_msg_body-#{@message_key}"}
+                      phx-mounted={@message_key != 0 && JS.focus()}
                       type="text"
                       placeholder="Type your message..."
                       phx-debounce="2000"
@@ -578,7 +586,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         {:noreply,
          socket
          |> assign(:form, to_form(msg_changeset))
-         |> assign(:message_key, System.unique_integer())}
+         |> update(:message_key, fn key -> key + 1 end)}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}

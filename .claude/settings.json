@@ -3,7 +3,12 @@
     "allow": [
       "Bash(mix compile *)",
       "Bash(mix test *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_evaluate"
     ]
   }
 }

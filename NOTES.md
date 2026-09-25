@@ -16,12 +16,12 @@ mistakes can be cleaned up quickly. Debt is paid as we go (clean up the
 area being worked on), not in big dedicated passes — except formatting,
 which is mechanical and done once, up front.
 
-0. **Housekeeping** — ~~`mix format` sweep~~, ~~trim the entity-removal
-   docstrings~~ (both done 2026-09-25), fix the compose-box bug (Known
-   bugs).
+0. **Housekeeping** — done 2026-09-25 (`mix format` sweep, docstring
+   trim, compose-box bug).
 1. **Design system + branding** — mockups → pick a direction → DaisyUI
    theme, layout/nav (incl. the small-screen nav issue), shared
-   components, LocalPalette name (#14); restyle only the key public pages
+   components, LocalPalette name (#14), a favicon (`/images/favicon.ico`
+   currently 404s on every page); restyle only the key public pages
    (home, artist page, store). Later pages get the new look as they are
    built or reworked. Consider a throwaway branch for trying directions.
 2. **Private deployment (just the developer)** — Fly.io, Tigris for image
@@ -53,14 +53,7 @@ on how the test suite is organized is a good first step.
 
 ## Known bugs
 
-- **Message compose box doesn't clear after sending**, in both Chrome and
-  Firefox — noticed 2026-09-24 while reviewing the Conversation/
-  ConversationEvent status-field work. Pre-existing, unrelated to that
-  change. `ConversationLive.Show`'s `post_msg` handler resets `message_key`
-  to force a fresh form (`lib/artsy_neighbor_web/live/conversation_live/show.ex`),
-  which isn't actually clearing the input in the browser — worth a look at
-  whether the `id={"new_msg-#{@message_key}"}` remount is actually firing,
-  or whether the input's `phx-debounce` is fighting it.
+- None currently known.
 
 ## Known limitations / deliberately deferred
 
@@ -229,6 +222,8 @@ working on the code should keep in mind.
   19. Audit of tests: for now they are all written by Claude, most decisions are made by Claude and I only skim them. This is one of my weaker points as I have never done true deployment. But I do want good informative test covereage. So I suppose an audit of existing tests and probably extending them.
 
   21. A very serious and thorough security audit. I am thinking of running Claude Fable on it and later (or earlier) also askign an experienced human developper for suggestions. I have no experience in this area.
+
+  22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 
 
 

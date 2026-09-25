@@ -55,3 +55,6 @@ npm-debug.log
 
 # Draft commit message (Claude writes it, the developer edits it, then `git commit -F`)
 /COMMIT_MSG.txt
+
+# Page snapshots and console logs written by the Playwright MCP browser tool
+/.playwright-mcp/
