@@ -11,6 +11,13 @@ online.
 For now, it is designed for one city. But the hope is to have multiple independent instances running 
 in various cities in Canada.
 
+The developer working on this project is a professional researcher in natural
+language processing, not a professional software developer. She understands
+programming well, but this is her first web dev project and her first Elixir and
+Phoenix project. She relies on Claude for guidance on architecture, security,
+workflow, and coding style. For any such guidance, suggest it and ask her to
+confirm before acting on it.
+
 This shapes a few things worth keeping in mind while working on it:
 
 - **Vendors are individuals, not companies.** Products, pricing, and availability
@@ -79,10 +86,9 @@ mix phx.server           # dev server
 
 ### Code style
 
-This codebase is maintained by a professional computer scientist who is new
-to Elixir, Phoenix and web programming in general. The person is working
-with Claude — favor explicit, readable code over dense/clever one-liners
-as long as it doesn't cost real efficiency.
+Because the developer is new to Elixir and web programming (see above),
+favor explicit, readable code over dense/clever one-liners as long as it
+doesn't cost real efficiency.
 
 - Avoid `&`-capture shorthand for anonymous functions (e.g.
   `&Map.get(attrs, &1)`, `&is_nil/1`). Prefer a named `fn x -> ... end`
@@ -107,6 +113,44 @@ as long as it doesn't cost real efficiency.
 - Back navigation uses `return_to` + `return_label` query params rather than
   browser history.
 - `ProductImage` field is `path`, not `url`.
+
+## Git and GitHub
+
+- Claude commits only after an explicit request or approval, and never
+  pushes to a remote — pushing is always done by the developer.
+- Claude drafts each commit message in `COMMIT_MSG.txt` at the repo root
+  (gitignored, overwritten for every commit). The developer reviews/edits
+  it there; on approval Claude commits with `git commit -F COMMIT_MSG.txt`.
+
+### Commit message style
+
+Commit messages should be easy to skim and read like plain prose, not
+pseudocode.
+
+- **Line 1: a headline** that makes sense on its own, in the past tense,
+  ~70 characters max. It's what `git log --oneline` and GitHub show.
+- **`SUMMARY:` block**: 1–8 short lines giving the overview of the commit.
+- **Then one block per area of work** (a file, context, or feature), each
+  with a short label and hyphenated items.
+- Past tense, short sentences, lines wrapped at ~72 characters.
+- The `Co-Authored-By:` trailer, when used, goes last.
+
+Example:
+
+```
+Added the agreed order of work to NOTES.md and Git rules to CLAUDE.md
+
+SUMMARY:
+- Recorded the plan for what to build next, in order.
+- Wrote down the Git workflow: commit only on approval, never push.
+
+NOTES.md:
+- Added an "Order of work" section.
+- Added new backlog items.
+
+.gitignore:
+- Ignored COMMIT_MSG.txt.
+```
 
 ## Schemas (key fields)
 

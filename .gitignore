@@ -52,3 +52,6 @@ npm-debug.log
 #environment variables
 .env
 
+
+# Draft commit message (Claude writes it, the developer edits it, then `git commit -F`)
+/COMMIT_MSG.txt
