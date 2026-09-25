@@ -17,6 +17,36 @@ longer relevant; no need to keep history here (git history covers that).
   whether the `id={"new_msg-#{@message_key}"}` remount is actually firing,
   or whether the input's `phx-debounce` is fighting it.
 
+## Known limitations / deliberately deferred
+
+Things that are knowingly incomplete by design (not bugs), and that anyone
+working on the code should keep in mind.
+
+- **Upload storage is dev-only.** Files land in `priv/static/uploads/`, which is
+  wiped on deploy. Needs S3/ex_aws, Tigris, or Cloudinary before shipping —
+  Waffle is a good fit for the upload-handling layer.
+- **Upload filenames** use `System.unique_integer` in
+  `vendor_live/product_form.ex`, which resets across restarts — fine for dev,
+  should become `Ecto.UUID.generate()` before this matters.
+- **Delivery as a fulfillment method is schema-only.** `delivery_options` can
+  contain `"delivery"` but nothing in the UI lets a buyer choose it, and
+  `complete_pickup/2` has no delivery clause. Not planned for initial launch.
+- **No real payment processing yet.** Charge/refund functions are `Logger`
+  stubs; a `payment_method` field (cash/Interac) is planned but not yet on the
+  `Order` schema.
+- **Flagging: reporting works for vendors/products/buyers; reviews and
+  admin moderation don't yet.** Buyers/vendors can report a rogue vendor,
+  product, or buyer via `/flag/:subject_type/:subject_id` (`FlagLive.New`)
+  — see `Reviews.resolve_subject/2` and `Reviews.create_flag/1`.
+  `resolve_subject/2` also handles the three `*_review_of` types
+  (flagging a review itself), but nothing in the UI links to them yet,
+  because reviews aren't shown publicly anywhere today — only to the two
+  parties on an order, on their own private pages. A future UI pass needs
+  to cover, together: a public reviews display, "flag this review" entry
+  points once that exists, and the `/admin/flags` moderation view
+  (review/resolve/dismiss reports) — plus notifying a reporter when their
+  flag's status changes, which depends on that moderation view existing.
+
 ## Deferred follow-ups (small, scoped)
 
 - **No PubSub broadcast when a message is soft-deleted.** `ConversationLive.Show`'s
@@ -92,8 +122,8 @@ longer relevant; no need to keep history here (git history covers that).
 1. **Admin moderation pass** — `/admin/flags` (review/resolve/dismiss
    reports), a public reviews display, "flag this review" entry points,
    and notifying a reporter when their flag's status changes.
-   `CLAUDE.md`'s Known Issues bullet says these four need to ship
-   together. **Design decision already made, not yet built:** `Flag` needs
+   The "Flagging" bullet under Known limitations above says these four
+   need to ship together. **Design decision already made, not yet built:** `Flag` needs
    a new status (e.g. `:subject_removed`, not `:dismissed`/`:removed`) for
    when a flagged review is soft-deleted by its own author before any
    admin acts on the flag.
