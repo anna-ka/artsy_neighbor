@@ -7,30 +7,26 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <.header>
         Product Categories
-
       </.header>
 
-
-
-
       <div class="grid grid-cols-1 gap-8">
-      <%!-- Categories (3 images in a row) --%>
-      <section>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <.category_card :for={category <- @categories} category={category} />
-
-        </div>
-
-
-      </section>
-    </div>
+        <%!-- Categories (3 images in a row) --%>
+        <section>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <.category_card :for={category <- @categories} category={category} />
+          </div>
+        </section>
+      </div>
     </Layouts.artsy_main>
     """
   end
@@ -42,8 +38,6 @@ defmodule ArtsyNeighborWeb.CategoryLive.Index do
      |> assign(:page_title, "Listing Categories")
      |> assign(:categories, list_categories())}
   end
-
-
 
   defp list_categories() do
     Categories.list_categories()

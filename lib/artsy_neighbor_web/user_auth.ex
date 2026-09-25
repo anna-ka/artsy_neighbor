@@ -238,13 +238,15 @@ defmodule ArtsyNeighborWeb.UserAuth do
   end
 
   def on_mount(:require_admin, _params, _session, socket) do
-
     if socket.assigns.current_scope && socket.assigns.current_scope.admin do
       {:cont, socket}
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must be logged in as an administrator to access this page.")
+        |> Phoenix.LiveView.put_flash(
+          :error,
+          "You must be logged in as an administrator to access this page."
+        )
         |> Phoenix.LiveView.redirect(to: ~p"/")
 
       {:halt, socket}
@@ -252,13 +254,15 @@ defmodule ArtsyNeighborWeb.UserAuth do
   end
 
   def on_mount(:require_vendor, _params, _session, socket) do
-
     if socket.assigns.current_scope && socket.assigns.current_scope.artist do
       {:cont, socket}
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must be logged in as an artist (vendor) to access this page.")
+        |> Phoenix.LiveView.put_flash(
+          :error,
+          "You must be logged in as an artist (vendor) to access this page."
+        )
         |> Phoenix.LiveView.redirect(to: ~p"/vendor/profile/new")
 
       {:halt, socket}
@@ -266,7 +270,10 @@ defmodule ArtsyNeighborWeb.UserAuth do
   end
 
   def on_mount(:load_categories, _params, _session, socket) do
-    {:cont, Phoenix.Component.assign_new(socket, :nav_categories, fn -> Categories.list_categories_ordered_by_time() end)}
+    {:cont,
+     Phoenix.Component.assign_new(socket, :nav_categories, fn ->
+       Categories.list_categories_ordered_by_time()
+     end)}
   end
 
   def on_mount(:load_pending_reviews, _params, _session, socket) do
@@ -277,10 +284,13 @@ defmodule ArtsyNeighborWeb.UserAuth do
         {0, 0}
       else
         user_id = current_scope.user.id
-        buyer   = ArtsyNeighbor.Reviews.pending_reviews_of_vendor_count(user_id)
-        vendor  = if current_scope.artist,
-                    do:   ArtsyNeighbor.Reviews.pending_reviews_of_buyer_count(user_id),
-                    else: 0
+        buyer = ArtsyNeighbor.Reviews.pending_reviews_of_vendor_count(user_id)
+
+        vendor =
+          if current_scope.artist,
+            do: ArtsyNeighbor.Reviews.pending_reviews_of_buyer_count(user_id),
+            else: 0
+
         {buyer, vendor}
       end
 
@@ -299,7 +309,7 @@ defmodule ArtsyNeighborWeb.UserAuth do
     if is_nil(current_scope) || is_nil(current_scope.user) do
       {:cont, Phoenix.Component.assign(socket, :has_unread_messages, false)}
     else
-      user   = current_scope.user
+      user = current_scope.user
       artist = current_scope.artist
       # Query the DB once for the initial state — covers the page-load case.
       has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
@@ -318,38 +328,40 @@ defmodule ArtsyNeighborWeb.UserAuth do
             socket
           end
 
-        socket = Phoenix.LiveView.attach_hook(socket, :unread_badge, :handle_info, fn
-          # A new message arrived for this user — light up the badge.
-          # {:cont, socket} lets the message flow through to handle_info so Phoenix
-          # LiveView completes the cycle and pushes the diff to the client.
-          {:conversation_updated, event}, socket ->
-            open_conversation = Map.get(socket.assigns, :conversation)
-            already_viewing = open_conversation && open_conversation.id == event.conversation_id
-            if already_viewing do
-              role    = socket.assigns.current_role
-              user_id = socket.assigns.current_scope.user.id
-              Conversations.mark_conversation_read(open_conversation, role, user_id)
+        socket =
+          Phoenix.LiveView.attach_hook(socket, :unread_badge, :handle_info, fn
+            # A new message arrived for this user — light up the badge.
+            # {:cont, socket} lets the message flow through to handle_info so Phoenix
+            # LiveView completes the cycle and pushes the diff to the client.
+            {:conversation_updated, event}, socket ->
+              open_conversation = Map.get(socket.assigns, :conversation)
+              already_viewing = open_conversation && open_conversation.id == event.conversation_id
+
+              if already_viewing do
+                role = socket.assigns.current_role
+                user_id = socket.assigns.current_scope.user.id
+                Conversations.mark_conversation_read(open_conversation, role, user_id)
+                {:cont, socket}
+              else
+                {:cont, Phoenix.Component.assign(socket, :has_unread_messages, true)}
+              end
+
+            # The user opened a conversation — re-check whether any unread remain.
+            {:marked_read, _conversation_id}, socket ->
+              user = socket.assigns.current_scope.user
+              artist = socket.assigns.current_scope.artist
+              has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
+              {:cont, Phoenix.Component.assign(socket, :has_unread_messages, has_unread)}
+
+            # A new conversation was created (vendor inbox update).
+            # Not relevant outside the Index page — pass through so the diff cycle completes.
+            {:new_conversation, _conversation}, socket ->
               {:cont, socket}
-            else
-              {:cont, Phoenix.Component.assign(socket, :has_unread_messages, true)}
-            end
 
-          # The user opened a conversation — re-check whether any unread remain.
-          {:marked_read, _conversation_id}, socket ->
-            user       = socket.assigns.current_scope.user
-            artist     = socket.assigns.current_scope.artist
-            has_unread = Conversations.has_unread_conversations?(user.id, artist && artist.id)
-            {:cont, Phoenix.Component.assign(socket, :has_unread_messages, has_unread)}
-
-          # A new conversation was created (vendor inbox update).
-          # Not relevant outside the Index page — pass through so the diff cycle completes.
-          {:new_conversation, _conversation}, socket ->
-            {:cont, socket}
-
-          # Any other message — pass through to the LiveView's own handle_info.
-          _other, socket ->
-            {:cont, socket}
-        end)
+            # Any other message — pass through to the LiveView's own handle_info.
+            _other, socket ->
+              {:cont, socket}
+          end)
 
         {:cont, socket}
       end
@@ -409,10 +421,9 @@ defmodule ArtsyNeighborWeb.UserAuth do
   Plug for routes that require an administrator to be authenticated.
   """
   def require_admin_user(conn, _opts) do
-    if conn.assigns.current_scope
-      && conn.assigns.current_scope.user
-      && conn.assigns.current_scope.admin
-    do
+    if conn.assigns.current_scope &&
+         conn.assigns.current_scope.user &&
+         conn.assigns.current_scope.admin do
       conn
     else
       conn
@@ -426,10 +437,9 @@ defmodule ArtsyNeighborWeb.UserAuth do
   Plug for routes that require an administrator to be authenticated.
   """
   def require_vendor_user(conn, _opts) do
-    if conn.assigns.current_scope
-      && conn.assigns.current_scope.user
-      && conn.assigns.current_scope.artist
-    do
+    if conn.assigns.current_scope &&
+         conn.assigns.current_scope.user &&
+         conn.assigns.current_scope.artist do
       conn
     else
       conn

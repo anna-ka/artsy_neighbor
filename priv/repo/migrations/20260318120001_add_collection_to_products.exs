@@ -18,16 +18,16 @@ defmodule ArtsyNeighbor.Repo.Migrations.AddCollectionToProducts do
     # This runs after the product_collections table and "All Works" rows already exist
     # (created by the previous migration).
     execute """
-    UPDATE products
-    SET collection_id = (
-      SELECT id FROM product_collections
-      WHERE artist_id = products.artist_id
-        AND name = 'All Works'
-      LIMIT 1
-    )
-    WHERE collection_id IS NULL
-    """,
-    # Down: nothing needed — the column is dropped when this migration is reversed
-    ""
+            UPDATE products
+            SET collection_id = (
+              SELECT id FROM product_collections
+              WHERE artist_id = products.artist_id
+                AND name = 'All Works'
+              LIMIT 1
+            )
+            WHERE collection_id IS NULL
+            """,
+            # Down: nothing needed — the column is dropped when this migration is reversed
+            ""
   end
 end

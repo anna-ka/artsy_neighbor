@@ -30,7 +30,9 @@ defmodule ArtsyNeighbor.ConversationsFixtures do
         to_status: "some to_status"
       })
 
-    {:ok, conversation_event} = ArtsyNeighbor.Conversations.create_conversation_event(scope, attrs)
+    {:ok, conversation_event} =
+      ArtsyNeighbor.Conversations.create_conversation_event(scope, attrs)
+
     conversation_event
   end
 end

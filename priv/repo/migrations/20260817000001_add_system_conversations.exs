@@ -18,10 +18,10 @@ defmodule ArtsyNeighbor.Repo.Migrations.AddSystemConversations do
     # One system inbox per user — enforced at the database level with a
     # partial unique index so it only applies to system-type rows.
     create unique_index(
-      :conversations,
-      [:user_id],
-      where: "conversation_type = 'system'",
-      name: :conversations_system_user_unique
-    )
+             :conversations,
+             [:user_id],
+             where: "conversation_type = 'system'",
+             name: :conversations_system_user_unique
+           )
   end
 end

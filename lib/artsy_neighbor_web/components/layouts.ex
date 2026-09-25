@@ -13,13 +13,18 @@ defmodule ArtsyNeighborWeb.Layouts do
   # and other static content.
   embed_templates "layouts/*"
 
-
   @doc """
   Base layout with navigation and footer.
   This is used as a wrapper by artsy_main and artsy_wide layouts.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role"
+
+  attr :variant, :string,
+    default: "public",
+    values: ["public", "admin", "vendor"],
+    doc:
+      "the layout variant to render, which can be used to conditionally show/hide elements based on user role"
+
   attr :nav_categories, :list, default: [], doc: "list of categories for the nav category bar"
   attr :current_scope, :map, default: nil
   attr :has_unread, :boolean, default: false
@@ -34,7 +39,8 @@ defmodule ArtsyNeighborWeb.Layouts do
       Special Holiday Sale! Get 20% off all artwork until December 25th.
     </ArtsyNeighborWeb.CustomComponents.site_wide_banner>
 
-    <header class={["px-4 sm:px-6 lg:px-8",
+    <header class={[
+      "px-4 sm:px-6 lg:px-8",
       @variant == "admin" && "bg-neutral text-neutral-content",
       @variant == "vendor" && "bg-info text-info-content "
     ]}>
@@ -49,8 +55,7 @@ defmodule ArtsyNeighborWeb.Layouts do
           </a>
 
           <.button navigate={~p"/products"}>
-            <.icon name="hero-bars-4" class="size-4 mr-1" />
-            Explore
+            <.icon name="hero-bars-4" class="size-4 mr-1" /> Explore
           </.button>
 
           <input
@@ -69,7 +74,11 @@ defmodule ArtsyNeighborWeb.Layouts do
             id="site-nav-scroll"
             phx-hook="CategoryScroll"
           >
-            <button class="btn btn-ghost btn-sm px-1 flex-none" data-scroll-dir="-1" aria-label="Scroll left">
+            <button
+              class="btn btn-ghost btn-sm px-1 flex-none"
+              data-scroll-dir="-1"
+              aria-label="Scroll left"
+            >
               <.icon name="hero-chevron-left" class="size-4" />
             </button>
 
@@ -84,84 +93,112 @@ defmodule ArtsyNeighborWeb.Layouts do
                 <a href={~p"/offer-art"} class="btn btn-ghost btn-sm whitespace-nowrap">Offer art</a>
               </li>
               <li class="flex-none">
-                <a href={~p"/products"} class="btn btn-ghost btn-sm whitespace-nowrap">Purchase art</a>
+                <a href={~p"/products"} class="btn btn-ghost btn-sm whitespace-nowrap">
+                  Purchase art
+                </a>
               </li>
               <li :if={@current_scope && @current_scope.user} class="flex-none">
-                <.link navigate={~p"/messages"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
+                <.link
+                  navigate={~p"/messages"}
+                  class="btn btn-ghost btn-sm whitespace-nowrap relative"
+                >
                   Messages
-                  <span :if={@has_unread} class="badge badge-error badge-xs absolute -top-0.5 -right-0.5"></span>
+                  <span
+                    :if={@has_unread}
+                    class="badge badge-error badge-xs absolute -top-0.5 -right-0.5"
+                  >
+                  </span>
                 </.link>
               </li>
               <li :if={@current_scope && @current_scope.user} class="flex-none">
                 <.link navigate={~p"/orders"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
                   Orders
-                  <span :if={@pending_reviews_as_buyer > 0} class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"></span>
+                  <span
+                    :if={@pending_reviews_as_buyer > 0}
+                    class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"
+                  >
+                  </span>
                 </.link>
               </li>
               <li :if={@current_scope && @current_scope.artist} class="flex-none">
                 <.link navigate={~p"/vendor"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
                   Dashboard
-                  <span :if={@pending_reviews_as_vendor > 0} class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"></span>
+                  <span
+                    :if={@pending_reviews_as_vendor > 0}
+                    class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"
+                  >
+                  </span>
                 </.link>
               </li>
               <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
                 <a href={~p"/users/log-in"} class="btn btn-ghost btn-sm whitespace-nowrap">Log in</a>
               </li>
               <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
-                <a href={~p"/users/register"} class="btn btn-ghost btn-sm whitespace-nowrap">Sign up</a>
+                <a href={~p"/users/register"} class="btn btn-ghost btn-sm whitespace-nowrap">
+                  Sign up
+                </a>
               </li>
               <li class="flex-none">
-                <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost btn-sm whitespace-nowrap">Our mission</a>
+                <a
+                  href="https://github.com/phoenixframework/phoenix"
+                  class="btn btn-ghost btn-sm whitespace-nowrap"
+                >
+                  Our mission
+                </a>
               </li>
               <li class="flex-none">
                 <.theme_toggle />
               </li>
             </ul>
 
-            <button class="btn btn-ghost btn-sm px-1 flex-none" data-scroll-dir="1" aria-label="Scroll right">
+            <button
+              class="btn btn-ghost btn-sm px-1 flex-none"
+              data-scroll-dir="1"
+              aria-label="Scroll right"
+            >
               <.icon name="hero-chevron-right" class="size-4" />
             </button>
           </div>
         </nav>
-        </div>
-
-        <!-- Second row: Category links (scrollable) -->
-        <nav
-          aria-label="Category navigation"
-          class="relative flex items-center w-full py-1"
-          id="category-nav"
-          phx-hook="CategoryScroll"
+      </div>
+      
+    <!-- Second row: Category links (scrollable) -->
+      <nav
+        aria-label="Category navigation"
+        class="relative flex items-center w-full py-1"
+        id="category-nav"
+        phx-hook="CategoryScroll"
+      >
+        <button
+          class="btn btn-ghost btn-sm px-1 flex-none"
+          data-scroll-dir="-1"
+          aria-label="Scroll categories left"
         >
-          <button
-            class="btn btn-ghost btn-sm px-1 flex-none"
-            data-scroll-dir="-1"
-            aria-label="Scroll categories left"
-          >
-            <.icon name="hero-chevron-left" class="size-4" />
-          </button>
+          <.icon name="hero-chevron-left" class="size-4" />
+        </button>
 
-          <ul
-            data-scroll-inner
-            class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-          >
-            <li class="flex-none">
-              <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
-            </li>
-            <li :for={category <- @nav_categories} class="flex-none">
-              <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
-                {category.name}
-              </.link>
-            </li>
-          </ul>
+        <ul
+          data-scroll-inner
+          class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        >
+          <li class="flex-none">
+            <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
+          </li>
+          <li :for={category <- @nav_categories} class="flex-none">
+            <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
+              {category.name}
+            </.link>
+          </li>
+        </ul>
 
-          <button
-            class="btn btn-ghost btn-sm px-1 flex-none"
-            data-scroll-dir="1"
-            aria-label="Scroll categories right"
-          >
-            <.icon name="hero-chevron-right" class="size-4" />
-          </button>
-        </nav>
+        <button
+          class="btn btn-ghost btn-sm px-1 flex-none"
+          data-scroll-dir="1"
+          aria-label="Scroll categories right"
+        >
+          <.icon name="hero-chevron-right" class="size-4" />
+        </button>
+      </nav>
     </header>
 
     <!-- Main content area (customized by child layouts) -->
@@ -171,8 +208,8 @@ defmodule ArtsyNeighborWeb.Layouts do
     <footer class="bg-gray-900 text-white py-12">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-
-          <!-- Column 1: Company Info -->
+          
+    <!-- Column 1: Company Info -->
           <div>
             <h3 class="text-lg font-semibold mb-4">Company</h3>
             <ul class="space-y-2">
@@ -182,13 +219,12 @@ defmodule ArtsyNeighborWeb.Layouts do
                 <.link href={~p"/contactus"}>
                   Contact
                 </.link>
-
               </li>
               <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
             </ul>
           </div>
-
-          <!-- Column 2: Legal -->
+          
+    <!-- Column 2: Legal -->
           <div>
             <h3 class="text-lg font-semibold mb-4">Legal</h3>
             <ul class="space-y-2">
@@ -198,8 +234,8 @@ defmodule ArtsyNeighborWeb.Layouts do
               <li><a href="#" class="text-gray-400 hover:text-white">Terms of Service</a></li>
             </ul>
           </div>
-
-          <!-- Column 3: Social Media -->
+          
+    <!-- Column 3: Social Media -->
           <div>
             <h3 class="text-lg font-semibold mb-4">Follow Us</h3>
             <ul class="space-y-2">
@@ -209,13 +245,12 @@ defmodule ArtsyNeighborWeb.Layouts do
               <li><a href="#" class="text-gray-400 hover:text-white">Pinterest</a></li>
             </ul>
           </div>
-
         </div>
-
-        <!-- Row 2: Divider -->
+        
+    <!-- Row 2: Divider -->
         <div class="border-t border-gray-700 my-8"></div>
-
-        <!-- Row 3: Copyright -->
+        
+    <!-- Row 3: Copyright -->
         <div class="text-center text-gray-400">
           <p>&copy; 2025 Artsy Neighbor. All rights reserved.</p>
         </div>
@@ -231,10 +266,17 @@ defmodule ArtsyNeighborWeb.Layouts do
   Uses navlayout for navigation and footer.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
+
   attr :current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+
+  attr :variant, :string,
+    default: "public",
+    values: ["public", "admin", "vendor"],
+    doc:
+      "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+
   attr :nav_categories, :list, default: []
   attr :has_unread, :boolean, default: false
   attr :pending_reviews_as_buyer, :integer, default: 0
@@ -244,7 +286,15 @@ defmodule ArtsyNeighborWeb.Layouts do
 
   def artsy_main(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread} pending_reviews_as_buyer={@pending_reviews_as_buyer} pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+    <.navlayout
+      flash={@flash}
+      variant={@variant}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <main class="flex justify-center">
         <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
           {render_slot(@inner_block)}
@@ -253,7 +303,6 @@ defmodule ArtsyNeighborWeb.Layouts do
     </.navlayout>
     """
   end
-
 
   @doc """
   Full-width content layout for admin tables and wide content.
@@ -266,7 +315,13 @@ defmodule ArtsyNeighborWeb.Layouts do
   attr :current_scope, :map,
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-  attr :variant, :string, default: "public", values: ["public", "admin", "vendor"], doc: "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+
+  attr :variant, :string,
+    default: "public",
+    values: ["public", "admin", "vendor"],
+    doc:
+      "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
+
   attr :nav_categories, :list, default: []
 
   slot :inner_block, required: true
@@ -282,9 +337,6 @@ defmodule ArtsyNeighborWeb.Layouts do
     </.navlayout>
     """
   end
-
-
-
 
   @doc """
   Renders your app layout.

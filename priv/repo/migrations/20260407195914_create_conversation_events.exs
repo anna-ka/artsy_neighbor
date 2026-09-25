@@ -15,10 +15,8 @@ defmodule ArtsyNeighbor.Repo.Migrations.CreateConversationEvents do
       timestamps(updated_at: false, type: :utc_datetime)
     end
 
-
     create index(:conversation_events, [:order_id])
     create index(:conversation_events, [:actor_id])
     create index(:conversation_events, [:conversation_id, :inserted_at])
-
   end
 end

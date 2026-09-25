@@ -121,10 +121,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.IndexTest do
     test "read conversations do not show the red dot", %{conn: conn} do
       {buyer, artist} = setup_buyer_and_artist()
       # buyer_last_read_at is after last_event_at → fully read.
-      _conv = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 10:00:00Z],
-        buyer_last_read_at: ~U[2026-04-10 11:00:00Z]
-      })
+      _conv =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 10:00:00Z],
+          buyer_last_read_at: ~U[2026-04-10 11:00:00Z]
+        })
 
       {:ok, _lv, html} =
         conn
@@ -134,7 +135,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.IndexTest do
       refute html =~ "badge-error"
     end
 
-    test "conversation with no messages (null last_event_at) does not show the red dot", %{conn: conn} do
+    test "conversation with no messages (null last_event_at) does not show the red dot", %{
+      conn: conn
+    } do
       {buyer, artist} = setup_buyer_and_artist()
       _conv = insert_conversation(buyer.id, artist.id, %{})
 
@@ -190,10 +193,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.IndexTest do
       vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
 
       # Insert a read conversation for the vendor so the dot is initially absent.
-      conv = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 10:00:00Z],
-        vendor_last_read_at: ~U[2026-04-10 11:00:00Z]
-      })
+      conv =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 10:00:00Z],
+          vendor_last_read_at: ~U[2026-04-10 11:00:00Z]
+        })
 
       {:ok, lv, html} =
         conn
@@ -231,10 +235,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.IndexTest do
       {buyer, artist} = setup_buyer_and_artist()
 
       # An unread conversation for the buyer.
-      conv = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-        # buyer_last_read_at nil → unread
-      })
+      conv =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+          # buyer_last_read_at nil → unread
+        })
 
       {:ok, lv, html} =
         conn
@@ -258,12 +263,15 @@ defmodule ArtsyNeighborWeb.ConversationLive.IndexTest do
       other_artist = artist_fixture()
 
       # Two unread conversations.
-      conv1 = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
-      _conv2 = insert_conversation(buyer.id, other_artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
+      conv1 =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
+
+      _conv2 =
+        insert_conversation(buyer.id, other_artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
 
       {:ok, lv, html} =
         conn

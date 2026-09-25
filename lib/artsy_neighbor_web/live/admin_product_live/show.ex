@@ -52,19 +52,27 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
-
         <%!-- Admin Actions Header --%>
         <.header>
-          <%= @product.title %>
+          {@product.title}
           <:actions>
             <.button_artsy navigate={~p"/admin/products"} variant="ghost">
               <.icon name="hero-arrow-left" /> Back
             </.button_artsy>
-            <.button_artsy navigate={~p"/admin/products/#{@product}/edit?return_to=show"} variant="primary">
+            <.button_artsy
+              navigate={~p"/admin/products/#{@product}/edit?return_to=show"}
+              variant="primary"
+            >
               <.icon name="hero-pencil-square" /> Edit
             </.button_artsy>
           </:actions>
@@ -72,13 +80,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
 
         <%!-- Main Section: Two Columns --%>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12 items-start mt-8">
-
           <%!-- Left Column: Image Gallery --%>
           <div>
             <%!-- Main Image --%>
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
-                src={Enum.at(@images, @current_image_index, %{path: "/images/avatar-placeholder.png"}).path}
+                src={
+                  Enum.at(@images, @current_image_index, %{path: "/images/avatar-placeholder.png"}).path
+                }
                 alt={@product.title}
                 class="w-full h-full object-contain"
               />
@@ -87,9 +96,21 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
               <button
                 :if={length(@images) > 1}
                 phx-click="prev_image"
-                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"
+                  />
                 </svg>
               </button>
 
@@ -97,9 +118,21 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
               <button
                 :if={length(@images) > 1}
                 phx-click="next_image"
-                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
               </button>
             </div>
@@ -110,9 +143,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
                 <div
                   phx-click="select_image"
                   phx-value-index={idx}
-                  class={["aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
-                    if(idx == @current_image_index, do: "border-primary", else: "border-transparent hover:border-primary")
-                  ]}>
+                  class={[
+                    "aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
+                    if(idx == @current_image_index,
+                      do: "border-primary",
+                      else: "border-transparent hover:border-primary"
+                    )
+                  ]}
+                >
                   <img
                     src={image.path}
                     alt={"#{@product.title} - thumbnail #{idx + 1}"}
@@ -125,15 +163,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
 
           <%!-- Right Column: Product Information --%>
           <div>
-
             <%!-- Title, Artist, Category --%>
             <div class="mb-5">
-              <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @product.title %></h1>
+              <h1 class="text-4xl font-bold mb-2 text-base-content">{@product.title}</h1>
               <p class="text-xl text-base-content/70">
                 by
                 <%= if @product.artist do %>
                   <.link navigate={~p"/admin/artists/#{@product.artist}/edit"} class="hover:underline">
-                    <%= @product.artist.nickname %>
+                    {@product.artist.nickname}
                   </.link>
                 <% else %>
                   <span class="italic">No artist (orphaned product)</span>
@@ -141,7 +178,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
               </p>
               <p class="text-sm text-base-content/50 mt-1">
                 <%= if @product.category do %>
-                  <%= @product.category.name %>
+                  {@product.category.name}
                 <% else %>
                   <span class="italic">No category</span>
                 <% end %>
@@ -151,43 +188,46 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
             <%!-- Price --%>
             <div class="mb-6">
               <p class="text-3xl font-bold text-base-content">
-                CA$<%= Decimal.to_string(@product.price) %>
+                CA${Decimal.to_string(@product.price)}
               </p>
             </div>
 
             <%!-- Description --%>
             <div class="rounded-lg bg-base-100 mt-6">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">Description</h2>
-              <p class="text-base-content/80 leading-relaxed"><%= @product.descr %></p>
+              <p class="text-base-content/80 leading-relaxed">{@product.descr}</p>
             </div>
 
             <%!-- Dimensions --%>
-            <div :if={@product.width || @product.length || @product.height} class="rounded-lg bg-base-100 mt-6">
+            <div
+              :if={@product.width || @product.length || @product.height}
+              class="rounded-lg bg-base-100 mt-6"
+            >
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions</h2>
               <p class="text-base-content/80">
-                <%= [
-                  @product.width  && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
+                {[
+                  @product.width && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
                   @product.length && "L: #{Decimal.to_string(@product.length)} #{@product.units}",
                   @product.height && "H: #{Decimal.to_string(@product.height)} #{@product.units}"
-                ] |> Enum.filter(& &1) |> Enum.join("; ") %>
+                ]
+                |> Enum.filter(& &1)
+                |> Enum.join("; ")}
               </p>
             </div>
 
             <%!-- Materials --%>
             <div :if={@product.materials} class="rounded-lg bg-base-100 mt-6">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials</h2>
-              <p class="text-base-content/80"><%= @product.materials %></p>
+              <p class="text-base-content/80">{@product.materials}</p>
             </div>
 
             <%!-- Details --%>
             <div class="rounded-lg bg-base-100 mt-6">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
-              <p class="text-base-content/80 leading-relaxed"><%= @product.details %></p>
+              <p class="text-base-content/80 leading-relaxed">{@product.details}</p>
             </div>
-
           </div>
         </div>
-
       </div>
     </Layouts.artsy_main>
     """

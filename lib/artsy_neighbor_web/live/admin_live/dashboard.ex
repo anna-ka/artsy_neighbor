@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
   alias ArtsyNeighbor.Categories
 
   def mount(_params, _session, socket) do
-    artist_count  = length(Artists.list_artists())
+    artist_count = length(Artists.list_artists())
     product_count = length(Products.list_products())
     category_count = length(Categories.list_categories_all_status())
 
@@ -21,11 +21,16 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="space-y-10">
-
         <%!-- Header --%>
         <div>
           <h1 class="text-3xl font-bold">Admin Dashboard</h1>
@@ -34,7 +39,6 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
 
         <%!-- Stats row --%>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
           <div class="stat bg-base-200 rounded-box">
             <div class="stat-title">Artists</div>
             <div class="stat-value">{@artist_count}</div>
@@ -58,7 +62,6 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
               <.link navigate={~p"/admin/categories"} class="btn btn-sm btn-ghost">Manage →</.link>
             </div>
           </div>
-
         </div>
 
         <%!-- Quick links --%>
@@ -76,7 +79,6 @@ defmodule ArtsyNeighborWeb.AdminLive.Dashboard do
             </.link>
           </div>
         </div>
-
       </div>
     </Layouts.artsy_main>
     """

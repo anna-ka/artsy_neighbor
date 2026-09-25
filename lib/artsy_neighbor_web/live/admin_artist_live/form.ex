@@ -1,5 +1,4 @@
 defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
-
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
@@ -12,7 +11,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   def mount(params, _session, socket) do
     socket =
       socket
-      |> allow_upload(:profile_images, accept: ~w(.jpg .jpeg .png .webp), max_entries: 5, max_file_size: 5_000_000)
+      |> allow_upload(:profile_images,
+        accept: ~w(.jpg .jpeg .png .webp),
+        max_entries: 5,
+        max_file_size: 5_000_000
+      )
 
     {:ok, apply_action(socket, socket.assigns.live_action, params)}
   end
@@ -21,13 +24,14 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     artist = Artists.get_artist!(id)
 
     # Convert medium array to comma-separated string for display in form
-    artist_with_string_medium = Map.update!(artist, :medium, fn medium_list ->
-      if is_list(medium_list) do
-        Enum.join(medium_list, ", ")
-      else
-        medium_list
-      end
-    end)
+    artist_with_string_medium =
+      Map.update!(artist, :medium, fn medium_list ->
+        if is_list(medium_list) do
+          Enum.join(medium_list, ", ")
+        else
+          medium_list
+        end
+      end)
 
     changeset = Artists.change_artist(artist_with_string_medium)
 
@@ -133,7 +137,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
       {:ok, artist} ->
         existing_count = length(socket.assigns.existing_profile_images)
 
-        upload_dir = Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+        upload_dir =
+          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+
         File.mkdir_p!(upload_dir)
 
         image_paths =
@@ -163,7 +169,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   defp save_artist(socket, :new, artist_params) do
     case Artists.create_artist(artist_params) do
       {:ok, artist} ->
-        upload_dir = Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+        upload_dir =
+          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+
         File.mkdir_p!(upload_dir)
 
         image_paths =
@@ -190,9 +198,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     end
   end
 
-  defp error_to_string(:too_large),     do: "File too large (max 5 MB)"
+  defp error_to_string(:too_large), do: "File too large (max 5 MB)"
   defp error_to_string(:too_many_files), do: "Too many files (max 5)"
-  defp error_to_string(:not_accepted),  do: "File type not accepted (jpg, png, webp only)"
+  defp error_to_string(:not_accepted), do: "File type not accepted (jpg, png, webp only)"
 
   defp parse_medium_field(params) do
     case params["medium"] do
@@ -213,24 +221,30 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="w-full px-8 py-8">
-
         <.back navigate={~p"/admin/artists"}>
           Back
         </.back>
 
         <.header>
-          <%= @page_title %>
+          {@page_title}
         </.header>
 
         <.form for={@form} id="artist_form" phx-submit="save" phx-change="validate">
-
           <%!-- ===== IDENTITY ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Identity</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Identity
+            </h3>
             <.input
               field={@form[:user_id]}
               type="select"
@@ -268,7 +282,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== CONTACT ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Contact</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Contact
+            </h3>
             <div class="grid grid-cols-2 gap-4">
               <.input
                 field={@form[:email]}
@@ -290,7 +306,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== LOCATION ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Location</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Location
+            </h3>
             <div class="grid grid-cols-3 gap-4">
               <div class="col-span-2">
                 <.input
@@ -318,7 +336,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== ARTIST PROFILE ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Artist Profile</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Artist Profile
+            </h3>
             <.input
               field={@form[:bio]}
               type="textarea"
@@ -338,7 +358,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== ANNOUNCEMENT ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Announcement Banner</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Announcement Banner
+            </h3>
             <.input
               field={@form[:announcement]}
               type="textarea"
@@ -356,7 +378,9 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== IMAGES ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Images</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Images
+            </h3>
             <p class="text-sm text-base-content/60 mb-4">
               Accepted formats: jpg, png, webp · max 5 MB each · up to 5 images total.
             </p>
@@ -369,29 +393,41 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
                   :for={{img, index} <- Enum.with_index(@existing_profile_images)}
                   class="flex items-center gap-3"
                 >
-                  <img src={img.path} class="w-24 h-24 object-cover rounded-lg border border-base-300" />
-                  <div class="flex flex-col gap-1 tooltip tooltip-right" data-tip="Use arrows to reorder images">
+                  <img
+                    src={img.path}
+                    class="w-24 h-24 object-cover rounded-lg border border-base-300"
+                  />
+                  <div
+                    class="flex flex-col gap-1 tooltip tooltip-right"
+                    data-tip="Use arrows to reorder images"
+                  >
                     <button
                       :if={index > 0}
                       type="button"
                       phx-click="move_image_up"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↑</button>
+                    >
+                      ↑
+                    </button>
                     <button
                       :if={index < length(@existing_profile_images) - 1}
                       type="button"
                       phx-click="move_image_down"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↓</button>
+                    >
+                      ↓
+                    </button>
                   </div>
                   <button
                     type="button"
                     phx-click="delete_image"
                     phx-value-imageid={img.id}
                     class="btn btn-ghost btn-xs text-error"
-                  >✕</button>
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             </div>
@@ -401,11 +437,16 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
               upload={@uploads.profile_images}
               class="file-input file-input-bordered w-full"
             />
-            <p class="text-xs text-base-content/50 mt-1">New images are appended after existing ones. Save first, then reorder.</p>
+            <p class="text-xs text-base-content/50 mt-1">
+              New images are appended after existing ones. Save first, then reorder.
+            </p>
 
             <div class="space-y-3 mt-3">
               <div :for={entry <- @uploads.profile_images.entries} class="flex items-center gap-3">
-                <.live_img_preview entry={entry} class="w-16 h-16 object-cover rounded-lg border border-base-300" />
+                <.live_img_preview
+                  entry={entry}
+                  class="w-16 h-16 object-cover rounded-lg border border-base-300"
+                />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm truncate">{entry.client_name}</p>
                   <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
@@ -415,8 +456,13 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
                   phx-click="cancel_upload"
                   phx-value-ref={entry.ref}
                   class="btn btn-ghost btn-xs text-error"
-                >✕</button>
-                <p :for={err <- upload_errors(@uploads.profile_images, entry)} class="text-error text-xs">
+                >
+                  ✕
+                </button>
+                <p
+                  :for={err <- upload_errors(@uploads.profile_images, entry)}
+                  class="text-error text-xs"
+                >
                   {error_to_string(err)}
                 </p>
               </div>
@@ -429,17 +475,29 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
           <%!-- ===== ONLINE PRESENCE ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Online Presence</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Online Presence
+            </h3>
             <div class="grid grid-cols-3 gap-4">
-              <.input field={@form[:homepage]}  label="Homepage"  placeholder="https://..." />
-              <.input field={@form[:facebook]}  label="Facebook"  placeholder="https://facebook.com/..." />
-              <.input field={@form[:instagram]} label="Instagram" placeholder="https://instagram.com/..." />
+              <.input field={@form[:homepage]} label="Homepage" placeholder="https://..." />
+              <.input
+                field={@form[:facebook]}
+                label="Facebook"
+                placeholder="https://facebook.com/..."
+              />
+              <.input
+                field={@form[:instagram]}
+                label="Instagram"
+                placeholder="https://instagram.com/..."
+              />
             </div>
           </div>
 
           <%!-- ===== STATUS ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Profile Status</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Profile Status
+            </h3>
             <.input
               field={@form[:status]}
               type="select"
@@ -456,13 +514,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
               Save Artist
             </.button_artsy>
           </div>
-
         </.form>
 
         <.back navigate={~p"/admin/artists"}>
           Back
         </.back>
-
       </div>
     </Layouts.artsy_main>
     """

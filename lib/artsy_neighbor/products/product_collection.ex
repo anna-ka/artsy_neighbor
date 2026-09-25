@@ -3,7 +3,7 @@ defmodule ArtsyNeighbor.Products.ProductCollection do
   import Ecto.Changeset
 
   schema "product_collections" do
-    field :name,     :string
+    field :name, :string
     field :position, :integer
 
     belongs_to :artist, ArtsyNeighbor.Artists.Artist

@@ -3,13 +3,13 @@ defmodule ArtsyNeighbor.Repo.Migrations.CreateFlags do
 
   def change do
     create table(:flags) do
-      add :reporter_id,   references(:users, on_delete: :restrict), null: false
-      add :subject_type,  :string, null: false
-      add :subject_id,    :integer, null: false
-      add :reason,        :text, null: false
-      add :status,        :string, null: false, default: "pending"
-      add :reviewed_at,   :utc_datetime
-      add :reviewed_by,   references(:users, on_delete: :nilify_all)
+      add :reporter_id, references(:users, on_delete: :restrict), null: false
+      add :subject_type, :string, null: false
+      add :subject_id, :integer, null: false
+      add :reason, :text, null: false
+      add :status, :string, null: false, default: "pending"
+      add :reviewed_at, :utc_datetime
+      add :reviewed_by, references(:users, on_delete: :nilify_all)
 
       timestamps(type: :utc_datetime)
     end

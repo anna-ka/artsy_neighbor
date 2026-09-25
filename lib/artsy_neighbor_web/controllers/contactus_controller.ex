@@ -4,5 +4,4 @@ defmodule ArtsyNeighborWeb.ContactusController do
   def contactus(conn, _params) do
     render(conn, :contact)
   end
-
 end

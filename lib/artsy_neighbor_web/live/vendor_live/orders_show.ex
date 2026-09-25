@@ -8,7 +8,7 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
   import ArtsyNeighborWeb.OrderFormatters
 
   def mount(%{"id" => id}, _session, socket) do
-    order  = Orders.get_order!(id)
+    order = Orders.get_order!(id)
     artist = socket.assigns.current_scope.artist
 
     # Guard: the current vendor must own this order.
@@ -25,12 +25,15 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
   defp load_review(socket, order) do
     {buyer_review, artist_review, product_reviews_by_product, days_left} =
       if order.status == :completed do
-        br  = Reviews.get_buyer_review_for_order(order.id)
-        ar  = Reviews.get_vendor_review_for_order(order.id)
-        prs = order.id
-              |> Reviews.get_product_reviews_for_order()
-              |> Map.new(&{&1.product_id, &1})
-        dl  = Reviews.days_remaining_in_window(order)
+        br = Reviews.get_buyer_review_for_order(order.id)
+        ar = Reviews.get_vendor_review_for_order(order.id)
+
+        prs =
+          order.id
+          |> Reviews.get_product_reviews_for_order()
+          |> Map.new(&{&1.product_id, &1})
+
+        dl = Reviews.days_remaining_in_window(order)
         {br, ar, prs, dl}
       else
         {nil, nil, %{}, 0}
@@ -51,7 +54,8 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
         {:noreply, assign(socket, :buyer_review, nil)}
 
       {:error, :edit_window_expired} ->
-        {:noreply, put_flash(socket, :error, "The 30-day edit window for this review has closed.")}
+        {:noreply,
+         put_flash(socket, :error, "The 30-day edit window for this review has closed.")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not delete the review. Please try again.")}
@@ -69,20 +73,23 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
       <div class="max-w-2xl mx-auto px-4 py-10">
-
-        <.link navigate={~p"/vendor/orders"} class="text-sm text-base-content/50 hover:text-base-content inline-flex items-center gap-1 mb-6">
+        <.link
+          navigate={~p"/vendor/orders"}
+          class="text-sm text-base-content/50 hover:text-base-content inline-flex items-center gap-1 mb-6"
+        >
           ← Back to sales
         </.link>
 
         <div class="bg-base-200 rounded-2xl p-6 mt-4 flex flex-col gap-6">
-
           <%!-- Header: buyer + status --%>
           <div class="flex items-start justify-between gap-4">
             <div>
               <h1 class="text-xl font-bold text-base-content">Sale to {@order.buyer_email}</h1>
               <p class="text-xs text-base-content/50 mt-1">Placed {format_dt(@order.inserted_at)}</p>
               <.link
-                navigate={~p"/flag/buyer/#{@order.buyer_id}?#{[return_to: ~p"/vendor/orders/#{@order.id}", return_label: "Sale details"]}"}
+                navigate={
+                  ~p"/flag/buyer/#{@order.buyer_id}?#{[return_to: ~p"/vendor/orders/#{@order.id}", return_label: "Sale details"]}"
+                }
                 class="text-xs text-base-content/40 underline"
               >
                 Report a concern about this buyer
@@ -95,7 +102,9 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
 
           <%!-- Item list --%>
           <div>
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">Items</h2>
+            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">
+              Items
+            </h2>
             <ul class="flex flex-col gap-3">
               <li :for={item <- @order.items} class="flex items-center gap-3">
                 <div class="w-12 h-12 rounded-lg overflow-hidden bg-base-300 shrink-0">
@@ -135,11 +144,20 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
           </div>
 
           <%!-- Pickup details — shown once scheduled --%>
-          <div :if={@order.pickup_scheduled_at} class="bg-base-300/50 rounded-xl p-4 text-sm flex flex-col gap-1">
+          <div
+            :if={@order.pickup_scheduled_at}
+            class="bg-base-300/50 rounded-xl p-4 text-sm flex flex-col gap-1"
+          >
             <p class="font-semibold text-base-content/80 mb-1">Pickup details</p>
-            <p :if={@order.pickup_date} class="text-base-content/70"><span class="font-medium">Date:</span> {@order.pickup_date}</p>
-            <p :if={@order.pickup_time} class="text-base-content/70"><span class="font-medium">Time:</span> {@order.pickup_time}</p>
-            <p class="text-base-content/70"><span class="font-medium">Address:</span> {@order.pickup_address}</p>
+            <p :if={@order.pickup_date} class="text-base-content/70">
+              <span class="font-medium">Date:</span> {@order.pickup_date}
+            </p>
+            <p :if={@order.pickup_time} class="text-base-content/70">
+              <span class="font-medium">Time:</span> {@order.pickup_time}
+            </p>
+            <p class="text-base-content/70">
+              <span class="font-medium">Address:</span> {@order.pickup_address}
+            </p>
             <p :if={@order.pickup_instructions} class="text-base-content/70">
               <span class="font-medium">Notes:</span> {@order.pickup_instructions}
             </p>
@@ -150,13 +168,21 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
           </p>
 
           <%!-- Buyer review — only on completed orders --%>
-          <div :if={@order.status == :completed} class="border-t border-base-content/10 pt-4 flex flex-col gap-3">
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50">Your review of the buyer</h2>
+          <div
+            :if={@order.status == :completed}
+            class="border-t border-base-content/10 pt-4 flex flex-col gap-3"
+          >
+            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50">
+              Your review of the buyer
+            </h2>
             <div class="flex items-center justify-between gap-3">
               <span class="text-sm text-base-content">Review of buyer</span>
               <%= cond do %>
                 <% is_nil(@buyer_review) and @days_left > 0 -> %>
-                  <.link navigate={~p"/vendor/orders/#{@order.id}/review/buyer"} class="btn btn-xs btn-primary shrink-0">
+                  <.link
+                    navigate={~p"/vendor/orders/#{@order.id}/review/buyer"}
+                    class="btn btn-xs btn-primary shrink-0"
+                  >
                     Leave a review
                   </.link>
                 <% is_nil(@buyer_review) -> %>
@@ -165,7 +191,12 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                   <div class="flex items-center gap-2 shrink-0">
                     <span class="text-xs text-success">Submitted ✓</span>
                     <%= if Reviews.within_edit_window?(@buyer_review) do %>
-                      <.link navigate={~p"/vendor/orders/#{@order.id}/review/buyer"} class="btn btn-xs btn-ghost">Edit</.link>
+                      <.link
+                        navigate={~p"/vendor/orders/#{@order.id}/review/buyer"}
+                        class="btn btn-xs btn-ghost"
+                      >
+                        Edit
+                      </.link>
                       <button
                         phx-click="delete_buyer_review"
                         data-confirm="Delete your buyer review? This cannot be undone."
@@ -180,8 +211,13 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
           </div>
 
           <%!-- Buyer's reviews of you — only on completed orders --%>
-          <div :if={@order.status == :completed} class="border-t border-base-content/10 pt-4 flex flex-col gap-4">
-            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50">Buyer's reviews of you</h2>
+          <div
+            :if={@order.status == :completed}
+            class="border-t border-base-content/10 pt-4 flex flex-col gap-4"
+          >
+            <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50">
+              Buyer's reviews of you
+            </h2>
 
             <%!-- Hidden until the vendor has submitted their own review (blind review pattern) --%>
             <%= if is_nil(@buyer_review) and @days_left > 0 do %>
@@ -189,7 +225,6 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                 Submit your review of the buyer first — you'll be able to see their reviews of you once you have.
               </p>
             <% else %>
-
               <%!-- Vendor (artist) review --%>
               <div class="flex flex-col gap-1">
                 <p class="text-sm font-medium text-base-content">Review of you as an artist</p>
@@ -200,7 +235,10 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                     </span>
                     <span class="text-xs text-base-content/50">{@artist_review.stars}/5</span>
                   </div>
-                  <p :if={@artist_review.body && @artist_review.body != ""} class="text-sm text-base-content/70 mt-1">
+                  <p
+                    :if={@artist_review.body && @artist_review.body != ""}
+                    class="text-sm text-base-content/70 mt-1"
+                  >
                     "{@artist_review.body}"
                   </p>
                 <% else %>
@@ -209,13 +247,18 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
               </div>
 
               <%!-- Per-product reviews --%>
-              <div :for={item <- @order.items} :if={not is_nil(item.product_id)}
-                   class="flex gap-3 pl-4 border-l-2 border-base-300">
+              <div
+                :for={item <- @order.items}
+                :if={not is_nil(item.product_id)}
+                class="flex gap-3 pl-4 border-l-2 border-base-300"
+              >
                 <div class="w-10 h-10 rounded-md overflow-hidden bg-base-300 shrink-0 mt-0.5">
                   <%= if path = thumb_path(item) do %>
                     <img src={path} alt={item.product_title} class="w-full h-full object-cover" />
                   <% else %>
-                    <div class="w-full h-full flex items-center justify-center text-base-content/20 text-xs">?</div>
+                    <div class="w-full h-full flex items-center justify-center text-base-content/20 text-xs">
+                      ?
+                    </div>
                   <% end %>
                 </div>
                 <div class="flex flex-col gap-1 min-w-0">
@@ -236,15 +279,16 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                   <% end %>
                 </div>
               </div>
-
             <% end %>
           </div>
 
           <%!-- Link to the order conversation --%>
-          <.link navigate={~p"/messages/#{@order.conversation_id}"} class="btn btn-ghost btn-sm w-full">
+          <.link
+            navigate={~p"/messages/#{@order.conversation_id}"}
+            class="btn btn-ghost btn-sm w-full"
+          >
             View conversation →
           </.link>
-
         </div>
       </div>
     </Layouts.artsy_main>

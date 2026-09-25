@@ -30,14 +30,9 @@ defmodule ArtsyNeighbor.Accounts.Scope do
 
   def for_user(%User{} = user) do
     artist = Artists.get_artist_by_user_id(user.id)
-    admin  = Accounts.admin?(user.id)
+    admin = Accounts.admin?(user.id)
     %__MODULE__{user: user, artist: artist, admin: admin}
   end
-
-
-
-
-
 
   def for_user(nil), do: nil
 end

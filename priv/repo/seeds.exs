@@ -42,7 +42,8 @@ Repo.delete_all(User)
 # Artists
 # ============================================================
 
-elena = %Artist{}
+elena =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "Elena_Oils",
     first_name: "Elena",
@@ -53,7 +54,8 @@ elena = %Artist{}
     apt_info: "Studio 3B",
     area_code: "M5V 2T6",
     phone: "416-555-0101",
-    bio: "Contemporary oil painter specializing in vibrant landscapes and abstract compositions. My work explores the relationship between color, light, and emotion.",
+    bio:
+      "Contemporary oil painter specializing in vibrant landscapes and abstract compositions. My work explores the relationship between color, light, and emotion.",
     medium: ["Oil painting", "Acrylic painting", "Mixed media"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -62,19 +64,26 @@ elena = %Artist{}
   })
   |> Repo.insert!()
 
-elena_collection = %ProductCollection{}
+elena_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: elena.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/1/profile.jpg", 1},
-  {"/uploads/artists/1/studio-1.jpg", 2},
-  {"/uploads/artists/1/studio-2.jpg", 3}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: elena.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/1/profile.jpg", 1},
+    {"/uploads/artists/1/studio-1.jpg", 2},
+    {"/uploads/artists/1/studio-2.jpg", 3}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: elena.id})
+    |> Repo.insert!()
+  end
+)
 
-tom = %Artist{}
+tom =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "TomSculpts",
     first_name: "Thomas",
@@ -85,7 +94,8 @@ tom = %Artist{}
     apt_info: nil,
     area_code: "M6J 1G3",
     phone: "647-555-0202",
-    bio: "Sculptor working primarily with clay and wood. I create organic forms inspired by nature and the human experience.",
+    bio:
+      "Sculptor working primarily with clay and wood. I create organic forms inspired by nature and the human experience.",
     medium: ["Clay sculpture", "Wood carving", "Bronze casting"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -94,18 +104,25 @@ tom = %Artist{}
   })
   |> Repo.insert!()
 
-_tom_collection = %ProductCollection{}
+_tom_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: tom.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/2/profile.jpg", 1},
-  {"/uploads/artists/2/workshop.jpg", 2}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: tom.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/2/profile.jpg", 1},
+    {"/uploads/artists/2/workshop.jpg", 2}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: tom.id})
+    |> Repo.insert!()
+  end
+)
 
-sarah = %Artist{}
+sarah =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "SarahInks",
     first_name: "Sarah",
@@ -116,7 +133,8 @@ sarah = %Artist{}
     apt_info: "Unit 405",
     area_code: "M4W 1A9",
     phone: "416-555-0303",
-    bio: "Watercolor artist and illustrator. I specialize in botanical illustrations and dreamy landscapes with a focus on delicate details.",
+    bio:
+      "Watercolor artist and illustrator. I specialize in botanical illustrations and dreamy landscapes with a focus on delicate details.",
     medium: ["Watercolor", "Ink drawing", "Digital illustration"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -125,20 +143,27 @@ sarah = %Artist{}
   })
   |> Repo.insert!()
 
-sarah_collection = %ProductCollection{}
+sarah_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: sarah.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/3/profile.jpg", 1},
-  {"/uploads/artists/3/studio.jpg", 2},
-  {"/uploads/artists/3/workspace.jpg", 3},
-  {"/uploads/artists/3/gallery.jpg", 4}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: sarah.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/3/profile.jpg", 1},
+    {"/uploads/artists/3/studio.jpg", 2},
+    {"/uploads/artists/3/workspace.jpg", 3},
+    {"/uploads/artists/3/gallery.jpg", 4}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: sarah.id})
+    |> Repo.insert!()
+  end
+)
 
-raj = %Artist{}
+raj =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "Raj_Ceramics",
     first_name: "Rajesh",
@@ -149,7 +174,8 @@ raj = %Artist{}
     apt_info: "Workshop B",
     area_code: "M6P 1Y6",
     phone: "647-555-0404",
-    bio: "Ceramic artist creating functional pottery and decorative pieces. My work combines traditional techniques with contemporary design.",
+    bio:
+      "Ceramic artist creating functional pottery and decorative pieces. My work combines traditional techniques with contemporary design.",
     medium: ["Ceramics", "Pottery", "Porcelain"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -158,19 +184,26 @@ raj = %Artist{}
   })
   |> Repo.insert!()
 
-raj_collection = %ProductCollection{}
+raj_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: raj.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/4/profile.jpg", 1},
-  {"/uploads/artists/4/kiln.jpg", 2},
-  {"/uploads/artists/4/studio.jpg", 3}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: raj.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/4/profile.jpg", 1},
+    {"/uploads/artists/4/kiln.jpg", 2},
+    {"/uploads/artists/4/studio.jpg", 3}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: raj.id})
+    |> Repo.insert!()
+  end
+)
 
-maria = %Artist{}
+maria =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "MariaFiber",
     first_name: "Maria",
@@ -181,7 +214,8 @@ maria = %Artist{}
     apt_info: "Loft 2",
     area_code: "M6G 1C5",
     phone: "416-555-0505",
-    bio: "Textile artist and weaver. I create intricate wall hangings and fiber art pieces using natural dyes and traditional weaving techniques.",
+    bio:
+      "Textile artist and weaver. I create intricate wall hangings and fiber art pieces using natural dyes and traditional weaving techniques.",
     medium: ["Textile art", "Weaving", "Fiber sculpture"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -190,21 +224,28 @@ maria = %Artist{}
   })
   |> Repo.insert!()
 
-maria_collection = %ProductCollection{}
+maria_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: maria.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/5/profile.jpg", 1},
-  {"/uploads/artists/5/loom.jpg", 2},
-  {"/uploads/artists/5/workspace.jpg", 3},
-  {"/uploads/artists/5/gallery-show.jpg", 4},
-  {"/uploads/artists/5/process.jpg", 5}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: maria.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/5/profile.jpg", 1},
+    {"/uploads/artists/5/loom.jpg", 2},
+    {"/uploads/artists/5/workspace.jpg", 3},
+    {"/uploads/artists/5/gallery-show.jpg", 4},
+    {"/uploads/artists/5/process.jpg", 5}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: maria.id})
+    |> Repo.insert!()
+  end
+)
 
-david = %Artist{}
+david =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "David_Photos",
     first_name: "David",
@@ -215,7 +256,8 @@ david = %Artist{}
     apt_info: "Suite 12",
     area_code: "M5T 2C2",
     phone: "647-555-0606",
-    bio: "Fine art photographer focusing on urban landscapes and street photography. I capture the beauty in everyday moments.",
+    bio:
+      "Fine art photographer focusing on urban landscapes and street photography. I capture the beauty in everyday moments.",
     medium: ["Photography", "Digital art", "Printmaking"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -224,18 +266,25 @@ david = %Artist{}
   })
   |> Repo.insert!()
 
-_david_collection = %ProductCollection{}
+_david_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: david.id})
   |> Repo.insert!()
 
-Enum.each([
-  {"/uploads/artists/6/profile.jpg", 1},
-  {"/uploads/artists/6/darkroom.jpg", 2}
-], fn {path, pos} ->
-  %ArtistImage{} |> ArtistImage.changeset(%{path: path, position: pos, artist_id: david.id}) |> Repo.insert!()
-end)
+Enum.each(
+  [
+    {"/uploads/artists/6/profile.jpg", 1},
+    {"/uploads/artists/6/darkroom.jpg", 2}
+  ],
+  fn {path, pos} ->
+    %ArtistImage{}
+    |> ArtistImage.changeset(%{path: path, position: pos, artist_id: david.id})
+    |> Repo.insert!()
+  end
+)
 
-anna = %Artist{}
+anna =
+  %Artist{}
   |> Artist.changeset(%{
     nickname: "Anna's Magnificent Art Studio",
     first_name: "Anna",
@@ -246,7 +295,8 @@ anna = %Artist{}
     apt_info: "Suite 12",
     area_code: "M5T 2C2",
     phone: "647-555-0606",
-    bio: "I am mostly an oil painter though sometimes I work in watercolor and do some fiber art. I capture the beauty in everyday moments.",
+    bio:
+      "I am mostly an oil painter though sometimes I work in watercolor and do some fiber art. I capture the beauty in everyday moments.",
     medium: ["Oil painting", "Acrylic painting", "Mixed media"],
     status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
@@ -255,21 +305,31 @@ anna = %Artist{}
   })
   |> Repo.insert!()
 
-_anna_collection = %ProductCollection{}
+_anna_collection =
+  %ProductCollection{}
   |> ProductCollection.changeset(%{name: "Uncategorized", position: 1, artist_id: anna.id})
   |> Repo.insert!()
 
 %ArtistImage{}
-  |> ArtistImage.changeset(%{path: "/images/Crow-Wolfgang-Heubeck.webp", position: 1, artist_id: anna.id})
-  |> Repo.insert!()
+|> ArtistImage.changeset(%{
+  path: "/images/Crow-Wolfgang-Heubeck.webp",
+  position: 1,
+  artist_id: anna.id
+})
+|> Repo.insert!()
 
 # ============================================================
 # Admin user account (dev only — reads credentials from .env)
 # ============================================================
 
 if Mix.env() == :dev do
-  admin_email    = System.get_env("SEED_ADMIN_EMAIL")    || raise "SEED_ADMIN_EMAIL is not set. Add it to your .env file."
-  admin_password = System.get_env("SEED_ADMIN_PASSWORD") || raise "SEED_ADMIN_PASSWORD is not set. Add it to your .env file."
+  admin_email =
+    System.get_env("SEED_ADMIN_EMAIL") ||
+      raise "SEED_ADMIN_EMAIL is not set. Add it to your .env file."
+
+  admin_password =
+    System.get_env("SEED_ADMIN_PASSWORD") ||
+      raise "SEED_ADMIN_PASSWORD is not set. Add it to your .env file."
 
   anna_user =
     %User{}
@@ -295,13 +355,13 @@ if Mix.env() == :dev do
   seed_password = "DevPassword1!"
 
   for {artist, email, username} <- [
-    {elena, "elena@example.com",  "elena"},
-    {tom,   "thomas@example.com", "thomas"},
-    {sarah, "sarah@example.com",  "sarah"},
-    {raj,   "rajesh@example.com", "rajesh"},
-    {maria, "maria@example.com",  "maria"},
-    {david, "david@example.com",  "david"}
-  ] do
+        {elena, "elena@example.com", "elena"},
+        {tom, "thomas@example.com", "thomas"},
+        {sarah, "sarah@example.com", "sarah"},
+        {raj, "rajesh@example.com", "rajesh"},
+        {maria, "maria@example.com", "maria"},
+        {david, "david@example.com", "david"}
+      ] do
     user =
       %User{}
       |> User.registration_changeset(%{email: email, username: username})
@@ -323,16 +383,19 @@ IO.puts("Seeded 7 artists, their default collections, and artist images successf
 # Categories
 # ============================================================
 
-paintings = %Category{}
+paintings =
+  %Category{}
   |> Category.changeset(%{
     name: "Paintings",
-    description: "Beautiful paintings by local artists. Explore a diverse range of styles and mediums, from vibrant oil paintings to delicate watercolors.",
+    description:
+      "Beautiful paintings by local artists. Explore a diverse range of styles and mediums, from vibrant oil paintings to delicate watercolors.",
     main_img: "/images/cat-painting.jpg",
     slug: "paintings"
   })
   |> Repo.insert!()
 
-sculptures = %Category{}
+sculptures =
+  %Category{}
   |> Category.changeset(%{
     name: "Sculptures",
     description: "Unique sculptures from talented artisans",
@@ -341,7 +404,8 @@ sculptures = %Category{}
   })
   |> Repo.insert!()
 
-jewelry = %Category{}
+jewelry =
+  %Category{}
   |> Category.changeset(%{
     name: "Jewelry",
     description: "Handcrafted jewelry pieces",
@@ -350,7 +414,8 @@ jewelry = %Category{}
   })
   |> Repo.insert!()
 
-pottery = %Category{}
+pottery =
+  %Category{}
   |> Category.changeset(%{
     name: "Pottery",
     description: "Artistic pottery creations",
@@ -359,7 +424,8 @@ pottery = %Category{}
   })
   |> Repo.insert!()
 
-fiber_art = %Category{}
+fiber_art =
+  %Category{}
   |> Category.changeset(%{
     name: "Fiber Art",
     description: "Beautiful textile art and crafts",
@@ -368,7 +434,8 @@ fiber_art = %Category{}
   })
   |> Repo.insert!()
 
-clothing = %Category{}
+clothing =
+  %Category{}
   |> Category.changeset(%{
     name: "Clothing",
     description: "Unique clothing designs by local designers",
@@ -377,7 +444,8 @@ clothing = %Category{}
   })
   |> Repo.insert!()
 
-other_art = %Category{}
+other_art =
+  %Category{}
   |> Category.changeset(%{
     name: "Other Art",
     description: "Other unique art forms",
@@ -392,7 +460,8 @@ IO.puts("Seeded 7 categories successfully!")
 # Products
 # ============================================================
 
-abstract_sunset = %Product{}
+abstract_sunset =
+  %Product{}
   |> Product.changeset(%{
     title: "Abstract Sunset",
     descr: "Abstract painting",
@@ -409,11 +478,32 @@ abstract_sunset = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/painting.jpg", position: 1, product_id: abstract_sunset.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/ocean-painting.jpg", position: 2, product_id: abstract_sunset.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/urban-painting.jpg", position: 3, product_id: abstract_sunset.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/painting.jpg",
+  position: 1,
+  product_id: abstract_sunset.id
+})
+|> Repo.insert!()
 
-mountain_serenity = %Product{}
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/ocean-painting.jpg",
+  position: 2,
+  product_id: abstract_sunset.id
+})
+|> Repo.insert!()
+
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/urban-painting.jpg",
+  position: 3,
+  product_id: abstract_sunset.id
+})
+|> Repo.insert!()
+
+mountain_serenity =
+  %Product{}
   |> Product.changeset(%{
     title: "Mountain Serenity",
     descr: "Landscape painting",
@@ -430,11 +520,32 @@ mountain_serenity = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/ocean-painting.jpg", position: 1, product_id: mountain_serenity.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/painting.jpg", position: 2, product_id: mountain_serenity.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/urban-painting.jpg", position: 3, product_id: mountain_serenity.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/ocean-painting.jpg",
+  position: 1,
+  product_id: mountain_serenity.id
+})
+|> Repo.insert!()
 
-urban_dreams = %Product{}
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/painting.jpg",
+  position: 2,
+  product_id: mountain_serenity.id
+})
+|> Repo.insert!()
+
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/urban-painting.jpg",
+  position: 3,
+  product_id: mountain_serenity.id
+})
+|> Repo.insert!()
+
+urban_dreams =
+  %Product{}
   |> Product.changeset(%{
     title: "Urban Dreams",
     descr: "Modern painting",
@@ -451,9 +562,16 @@ urban_dreams = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/urban-painting.jpg", position: 1, product_id: urban_dreams.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/urban-painting.jpg",
+  position: 1,
+  product_id: urban_dreams.id
+})
+|> Repo.insert!()
 
-silver_necklace = %Product{}
+silver_necklace =
+  %Product{}
   |> Product.changeset(%{
     title: "Handcrafted Silver Necklace",
     descr: "Handcrafted necklace",
@@ -469,11 +587,32 @@ silver_necklace = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: silver_necklace.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 2, product_id: silver_necklace.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 3, product_id: silver_necklace.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 1,
+  product_id: silver_necklace.id
+})
+|> Repo.insert!()
 
-turquoise_piece = %Product{}
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 2,
+  product_id: silver_necklace.id
+})
+|> Repo.insert!()
+
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 3,
+  product_id: silver_necklace.id
+})
+|> Repo.insert!()
+
+turquoise_piece =
+  %Product{}
   |> Product.changeset(%{
     title: "Turquoise Statement Piece",
     descr: "Statement necklace",
@@ -486,9 +625,16 @@ turquoise_piece = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: turquoise_piece.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 1,
+  product_id: turquoise_piece.id
+})
+|> Repo.insert!()
 
-beaded_necklace = %Product{}
+beaded_necklace =
+  %Product{}
   |> Product.changeset(%{
     title: "Artisan Beaded Necklace",
     descr: "Artisan necklace",
@@ -501,9 +647,16 @@ beaded_necklace = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: beaded_necklace.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 1,
+  product_id: beaded_necklace.id
+})
+|> Repo.insert!()
 
-ceramic_mug = %Product{}
+ceramic_mug =
+  %Product{}
   |> Product.changeset(%{
     title: "Handmade Ceramic Mug",
     descr: "Ceramic drinkware",
@@ -520,11 +673,24 @@ ceramic_mug = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: ceramic_mug.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/pottery-cat.jpg", position: 2, product_id: ceramic_mug.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 3, product_id: ceramic_mug.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: ceramic_mug.id})
+|> Repo.insert!()
 
-rustic_mug = %Product{}
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/pottery-cat.jpg",
+  position: 2,
+  product_id: ceramic_mug.id
+})
+|> Repo.insert!()
+
+%ProductImage{}
+|> ProductImage.changeset(%{path: "/images/mug.jpg", position: 3, product_id: ceramic_mug.id})
+|> Repo.insert!()
+
+rustic_mug =
+  %Product{}
   |> Product.changeset(%{
     title: "Rustic Coffee Mug",
     descr: "Rustic drinkware",
@@ -537,9 +703,12 @@ rustic_mug = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: rustic_mug.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: rustic_mug.id})
+|> Repo.insert!()
 
-ceramic_cat = %Product{}
+ceramic_cat =
+  %Product{}
   |> Product.changeset(%{
     title: "Ceramic Cat Sculpture",
     descr: "Ceramic figurine",
@@ -552,9 +721,16 @@ ceramic_cat = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/pottery-cat.jpg", position: 1, product_id: ceramic_cat.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/pottery-cat.jpg",
+  position: 1,
+  product_id: ceramic_cat.id
+})
+|> Repo.insert!()
 
-wool_sweater = %Product{}
+wool_sweater =
+  %Product{}
   |> Product.changeset(%{
     title: "Hand-Knit Wool Sweater",
     descr: "Hand-knit sweater",
@@ -567,9 +743,16 @@ wool_sweater = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: wool_sweater.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/sweater.jpg",
+  position: 1,
+  product_id: wool_sweater.id
+})
+|> Repo.insert!()
 
-cable_knit = %Product{}
+cable_knit =
+  %Product{}
   |> Product.changeset(%{
     title: "Cozy Cable Knit",
     descr: "Cable-knit sweater",
@@ -582,9 +765,12 @@ cable_knit = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: cable_knit.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: cable_knit.id})
+|> Repo.insert!()
 
-artisan_cardigan = %Product{}
+artisan_cardigan =
+  %Product{}
   |> Product.changeset(%{
     title: "Artisan Cardigan",
     descr: "Woven wearable art",
@@ -597,11 +783,32 @@ artisan_cardigan = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: artisan_cardigan.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 2, product_id: artisan_cardigan.id}) |> Repo.insert!()
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 3, product_id: artisan_cardigan.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/sweater.jpg",
+  position: 1,
+  product_id: artisan_cardigan.id
+})
+|> Repo.insert!()
 
-sunset_reflection = %Product{}
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/sweater.jpg",
+  position: 2,
+  product_id: artisan_cardigan.id
+})
+|> Repo.insert!()
+
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/sweater.jpg",
+  position: 3,
+  product_id: artisan_cardigan.id
+})
+|> Repo.insert!()
+
+sunset_reflection =
+  %Product{}
   |> Product.changeset(%{
     title: "Sunset Reflection",
     descr: "Impressionist",
@@ -614,9 +821,16 @@ sunset_reflection = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/painting.jpg", position: 1, product_id: sunset_reflection.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/painting.jpg",
+  position: 1,
+  product_id: sunset_reflection.id
+})
+|> Repo.insert!()
 
-silver_moon = %Product{}
+silver_moon =
+  %Product{}
   |> Product.changeset(%{
     title: "Silver Moon Necklace",
     descr: "Silver moon pendant",
@@ -629,9 +843,16 @@ silver_moon = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/necklace.jpg", position: 1, product_id: silver_moon.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/necklace.jpg",
+  position: 1,
+  product_id: silver_moon.id
+})
+|> Repo.insert!()
 
-mug_set = %Product{}
+mug_set =
+  %Product{}
   |> Product.changeset(%{
     title: "Morning Brew Mug Set",
     descr: "Mug set, drinkware",
@@ -644,9 +865,12 @@ mug_set = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: mug_set.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{path: "/images/mug.jpg", position: 1, product_id: mug_set.id})
+|> Repo.insert!()
 
-handwoven_pullover = %Product{}
+handwoven_pullover =
+  %Product{}
   |> Product.changeset(%{
     title: "Handwoven Pullover",
     descr: "Handwoven pullover",
@@ -659,6 +883,12 @@ handwoven_pullover = %Product{}
   })
   |> Repo.insert!()
 
-%ProductImage{} |> ProductImage.changeset(%{path: "/images/sweater.jpg", position: 1, product_id: handwoven_pullover.id}) |> Repo.insert!()
+%ProductImage{}
+|> ProductImage.changeset(%{
+  path: "/images/sweater.jpg",
+  position: 1,
+  product_id: handwoven_pullover.id
+})
+|> Repo.insert!()
 
 IO.puts("Seeded 16 products with images successfully!")

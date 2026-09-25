@@ -1,5 +1,4 @@
 defmodule ArtsyNeighborWeb.ProductLive.Show do
-
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
@@ -11,7 +10,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     {:ok, assign(socket, return_to: nil, return_label: nil)}
   end
 
-  def handle_params(%{"id" => id}=params, _uri, socket) do
+  def handle_params(%{"id" => id} = params, _uri, socket) do
     case Products.get_product_with_associations(id) do
       nil ->
         {:noreply,
@@ -76,8 +75,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   def handle_event("request_to_buy", _params, socket) do
     product = socket.assigns.product
-    buyer   = socket.assigns.current_scope.user
-    artist  = product.artist
+    buyer = socket.assigns.current_scope.user
+    artist = product.artist
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
     result =
@@ -96,8 +95,11 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     case result do
       {:ok, _} ->
         {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
+
       {:error, :unique_work_already_in_order} ->
-        {:noreply, put_flash(socket, :error, "This is a unique work and it is already in your order.")}
+        {:noreply,
+         put_flash(socket, :error, "This is a unique work and it is already in your order.")}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Something went wrong. Please try again.")}
     end
@@ -105,10 +107,14 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
-
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div>
         <.back :if={@return_to && @return_label} navigate={@return_to}>
           {@return_label}
@@ -116,18 +122,16 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       </div>
 
       <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
-
-
-
         <%!-- Main Section: Two Columns --%>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12 items-start">
-
           <%!-- Left Column: Image Gallery --%>
           <div>
             <%!-- Main Image --%>
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
-                src={Enum.at(@images, @current_image_index, %{path: "/images/placeholder-product.jpg"}).path}
+                src={
+                  Enum.at(@images, @current_image_index, %{path: "/images/placeholder-product.jpg"}).path
+                }
                 alt={@product.title}
                 class="w-full h-full object-contain"
               />
@@ -136,9 +140,21 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
               <button
                 :if={length(@images) > 1}
                 phx-click="prev_image"
-                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"
+                  />
                 </svg>
               </button>
 
@@ -146,9 +162,21 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
               <button
                 :if={length(@images) > 1}
                 phx-click="next_image"
-                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
               </button>
             </div>
@@ -159,9 +187,14 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
                 <div
                   phx-click="select_image"
                   phx-value-index={idx}
-                  class={["aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
-                    if(idx == @current_image_index, do: "border-primary", else: "border-transparent hover:border-primary")
-                  ]}>
+                  class={[
+                    "aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
+                    if(idx == @current_image_index,
+                      do: "border-primary",
+                      else: "border-transparent hover:border-primary"
+                    )
+                  ]}
+                >
                   <img
                     src={image.path}
                     alt={"#{@product.title} - thumbnail #{idx + 1}"}
@@ -174,134 +207,143 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
           <%!-- Right Column: Product Information --%>
           <div>
-
-          <%!--  Title and Artist --%>
-          <div class="mb-5">
-            <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @product.title %></h1>
-            <p class="text-xl text-base-content/70">by <%= @product.artist.nickname %></p>
-            <div :if={@product.unique_work} class="flex items-center gap-1 mt-2 text-sm text-base-content/60">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-              <span>Unique work — one of a kind</span>
+            <%!--  Title and Artist --%>
+            <div class="mb-5">
+              <h1 class="text-4xl font-bold mb-2 text-base-content">{@product.title}</h1>
+              <p class="text-xl text-base-content/70">by {@product.artist.nickname}</p>
+              <div
+                :if={@product.unique_work}
+                class="flex items-center gap-1 mt-2 text-sm text-base-content/60"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 text-secondary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                  />
+                </svg>
+                <span>Unique work — one of a kind</span>
+              </div>
             </div>
-          </div>
 
-          <div > <%!-- Price --%>
-            <div class="rounded-lg  mb-5 bg-base-100">
-              <%!-- <h2 class="text-sm font-semibold text-base-content/60 mb-2">Price</h2> --%>
-              <p class="text-3xl font-bold text-base-content">
-                CA$<%= Decimal.to_string(@product.price) %>
-              </p>
-            </div>
+            <div>
+              <%!-- Price --%>
+              <div class="rounded-lg  mb-5 bg-base-100">
+                <%!-- <h2 class="text-sm font-semibold text-base-content/60 mb-2">Price</h2> --%>
+                <p class="text-3xl font-bold text-base-content">
+                  CA${Decimal.to_string(@product.price)}
+                </p>
+              </div>
 
-            <%= if @current_scope && @current_scope.user do %>
-
-              <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
-                <.button_artsy variant="primary" size="block" phx-click="request_to_buy">
-                  Request to Buy
-                </.button_artsy>
-
-                <!--div class="text-base-content/80">
+              <%= if @current_scope && @current_scope.user do %>
+                <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
+                  <.button_artsy variant="primary" size="block" phx-click="request_to_buy">
+                    Request to Buy
+                  </.button_artsy>
+                  
+    <!--div class="text-base-content/80">
                   or
                 </div-->
 
-                <.button_artsy variant="secondary" size="block" phx-click="message_seller">
-                  Message Seller
-                </.button_artsy>
+                  <.button_artsy variant="secondary" size="block" phx-click="message_seller">
+                    Message Seller
+                  </.button_artsy>
 
-                <.link
-                  navigate={~p"/flag/product/#{@product.id}?#{[return_to: ~p"/products/#{@product.id}", return_label: "Product page"]}"}
-                  class="text-xs text-base-content/40 underline"
-                >
-                  Report this listing
-                </.link>
+                  <.link
+                    navigate={
+                      ~p"/flag/product/#{@product.id}?#{[return_to: ~p"/products/#{@product.id}", return_label: "Product page"]}"
+                    }
+                    class="text-xs text-base-content/40 underline"
+                  >
+                    Report this listing
+                  </.link>
+                </div>
+              <% else %>
+                <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
+                  <.button_artsy variant="primary" size="block" navigate={~p"/users/log-in"}>
+                    Log-in to Buy or to Message Seller
+                  </.button_artsy>
+                </div>
+              <% end %>
             </div>
 
-            <% else %>
-            <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
-               <.button_artsy variant="primary" size="block" navigate={~p"/users/log-in"}>
-                  Log-in to Buy or to Message Seller
-                </.button_artsy>
-            </div>
-
-            <% end %>
-
-
-
-          </div>
-
-          <div >
-
-            <%!-- Category & Subcategory --%>
-            <%!-- <div class="rounded-lg p-6 bg-base-100">
+            <div>
+              <%!-- Category & Subcategory --%>
+              <%!-- <div class="rounded-lg p-6 bg-base-100">
               <h2 class="text-sm font-semibold text-base-content/60 mb-2">Category</h2>
               <p class="text-lg text-base-content"><%= @product.category %> · <%= @product.subcategory %></p>
             </div> --%>
 
+              <%!-- Product Description (placeholder) --%>
+              <div class="rounded-lg bg-base-100 mt-6">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
+                <p class="text-base-content/80 leading-relaxed">
+                  {@product.descr}
+                </p>
+              </div>
 
+              <%!-- Dimensions --%>
+              <div
+                :if={@product.width || @product.length || @product.height}
+                class="rounded-lg bg-base-100 mt-6"
+              >
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions</h2>
+                <p class="text-base-content/80">
+                  {[
+                    @product.width && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
+                    @product.length && "L: #{Decimal.to_string(@product.length)} #{@product.units}",
+                    @product.height && "H: #{Decimal.to_string(@product.height)} #{@product.units}"
+                  ]
+                  |> Enum.filter(& &1)
+                  |> Enum.join("; ")}
+                </p>
+              </div>
 
+              <%!-- Materials --%>
+              <div :if={@product.materials} class="rounded-lg bg-base-100 mt-6">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials</h2>
+                <p class="text-base-content/80">{@product.materials}</p>
+              </div>
 
-            <%!-- Product Description (placeholder) --%>
-            <div class="rounded-lg bg-base-100 mt-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                <%= @product.descr %>
-              </p>
+              <%!-- Details (placeholder) --%>
+              <div class="rounded-lg bg-base-100 space-y-6">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
+                <p class="text-base-content/80 leading-relaxed">
+                  {@product.details}
+                </p>
+              </div>
+
+              <%!-- Delivery Information --%>
+              <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
+                <p class="text-base-content/80 leading-relaxed">
+                  Pick up at the artist studio. Contact the seller to check about delivery/shipping options and cost.
+                </p>
+              </div>
+
+              <%!-- Return policy --%>
+              <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
+                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
+                <p class="text-base-content/80 leading-relaxed">
+                  Items in original packaging can be returned if in original condition.
+                </p>
+              </div>
             </div>
-
-            <%!-- Dimensions --%>
-            <div :if={@product.width || @product.length || @product.height} class="rounded-lg bg-base-100 mt-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions</h2>
-              <p class="text-base-content/80">
-                <%= [
-                  @product.width  && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
-                  @product.length && "L: #{Decimal.to_string(@product.length)} #{@product.units}",
-                  @product.height && "H: #{Decimal.to_string(@product.height)} #{@product.units}"
-                ] |> Enum.filter(& &1) |> Enum.join("; ") %>
-              </p>
-            </div>
-
-            <%!-- Materials --%>
-            <div :if={@product.materials} class="rounded-lg bg-base-100 mt-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials</h2>
-              <p class="text-base-content/80"><%= @product.materials %></p>
-            </div>
-
-            <%!-- Details (placeholder) --%>
-            <div class="rounded-lg bg-base-100 space-y-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                <%= @product.details %>
-              </p>
-            </div>
-
-            <%!-- Delivery Information --%>
-            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                Pick up at the artist studio. Contact the seller to check about delivery/shipping options and cost.
-              </p>
-            </div>
-
-            <%!-- Return policy --%>
-            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                Items in original packaging can be returned if in original condition.
-              </p>
-            </div>
-
-
-            </div>
-
-
           </div>
         </div>
 
         <%!-- More by This Artist Section --%>
         <div :if={length(@products_by_artist) > 0} class="mb-12">
-          <h2 class="text-2xl font-bold mb-6 text-base-content">More by <%= @product.artist.nickname %></h2>
+          <h2 class="text-2xl font-bold mb-6 text-base-content">
+            More by {@product.artist.nickname}
+          </h2>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <.product_card :for={product <- @products_by_artist} product={product} />
           </div>
@@ -314,10 +356,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             <.product_card :for={product <- @similar_products} product={product} />
           </div>
         </div>
-
       </div>
     </Layouts.artsy_main>
     """
   end
-
 end

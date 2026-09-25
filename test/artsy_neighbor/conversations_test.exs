@@ -136,7 +136,8 @@ defmodule ArtsyNeighbor.ConversationsTest do
       # Buyer's own inbox should NOT receive this notification.
       Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{buyer.id}")
 
-      {:ok, event} = Conversations.create_message_event(conv, buyer.id, :buyer, "Message from buyer")
+      {:ok, event} =
+        Conversations.create_message_event(conv, buyer.id, :buyer, "Message from buyer")
 
       assert_receive {:conversation_updated, ^event}
 
@@ -153,7 +154,8 @@ defmodule ArtsyNeighbor.ConversationsTest do
       # Vendor/artist's inbox should NOT receive this notification.
       Phoenix.PubSub.subscribe(ArtsyNeighbor.PubSub, "user:#{vendor_user}")
 
-      {:ok, event} = Conversations.create_message_event(conv, vendor_user, :vendor, "Reply from vendor")
+      {:ok, event} =
+        Conversations.create_message_event(conv, vendor_user, :vendor, "Reply from vendor")
 
       assert_receive {:conversation_updated, ^event}
 
@@ -232,6 +234,7 @@ defmodule ArtsyNeighbor.ConversationsTest do
 
     test "returns true when buyer has an unread conversation (last_event_at > buyer_last_read_at)" do
       {buyer, artist} = setup_buyer_and_artist()
+
       insert_conversation(buyer.id, artist.id, %{
         last_event_at: ~U[2026-04-10 12:00:00Z],
         buyer_last_read_at: ~U[2026-04-10 11:00:00Z]
@@ -242,6 +245,7 @@ defmodule ArtsyNeighbor.ConversationsTest do
 
     test "returns true when buyer_last_read_at is nil (conversation never opened)" do
       {buyer, artist} = setup_buyer_and_artist()
+
       insert_conversation(buyer.id, artist.id, %{
         last_event_at: ~U[2026-04-10 12:00:00Z]
         # buyer_last_read_at left as nil
@@ -252,6 +256,7 @@ defmodule ArtsyNeighbor.ConversationsTest do
 
     test "returns true when vendor has an unread conversation (last_event_at > vendor_last_read_at)" do
       {buyer, artist} = setup_buyer_and_artist()
+
       insert_conversation(buyer.id, artist.id, %{
         last_event_at: ~U[2026-04-10 12:00:00Z],
         vendor_last_read_at: ~U[2026-04-10 11:00:00Z]
@@ -263,6 +268,7 @@ defmodule ArtsyNeighbor.ConversationsTest do
 
     test "returns false when artist_id is nil even if vendor_last_read_at would indicate unread" do
       {buyer, artist} = setup_buyer_and_artist()
+
       insert_conversation(buyer.id, artist.id, %{
         last_event_at: ~U[2026-04-10 12:00:00Z],
         vendor_last_read_at: ~U[2026-04-10 11:00:00Z],
@@ -291,10 +297,11 @@ defmodule ArtsyNeighbor.ConversationsTest do
     test "returns IDs of conversations with unread messages for the buyer" do
       {buyer, artist} = setup_buyer_and_artist()
 
-      unread = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-        # buyer_last_read_at nil — never opened
-      })
+      unread =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+          # buyer_last_read_at nil — never opened
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_buyer(buyer.id)
       assert unread.id in ids
@@ -303,10 +310,11 @@ defmodule ArtsyNeighbor.ConversationsTest do
     test "does not return IDs of read conversations" do
       {buyer, artist} = setup_buyer_and_artist()
 
-      read = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 10:00:00Z],
-        buyer_last_read_at: ~U[2026-04-10 11:00:00Z]
-      })
+      read =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 10:00:00Z],
+          buyer_last_read_at: ~U[2026-04-10 11:00:00Z]
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_buyer(buyer.id)
       refute read.id in ids
@@ -324,12 +332,15 @@ defmodule ArtsyNeighbor.ConversationsTest do
       {buyer, artist} = setup_buyer_and_artist()
       other_buyer = user_fixture()
 
-      _mine = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
-      _theirs = insert_conversation(other_buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
+      _mine =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
+
+      _theirs =
+        insert_conversation(other_buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_buyer(buyer.id)
       # Should contain only the buyer's conversation.
@@ -345,10 +356,11 @@ defmodule ArtsyNeighbor.ConversationsTest do
     test "returns IDs of conversations with unread messages for the artist" do
       {buyer, artist} = setup_buyer_and_artist()
 
-      unread = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-        # vendor_last_read_at nil — never opened
-      })
+      unread =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+          # vendor_last_read_at nil — never opened
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_artist(artist.id)
       assert unread.id in ids
@@ -357,10 +369,11 @@ defmodule ArtsyNeighbor.ConversationsTest do
     test "does not return IDs of read conversations" do
       {buyer, artist} = setup_buyer_and_artist()
 
-      read = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 10:00:00Z],
-        vendor_last_read_at: ~U[2026-04-10 11:00:00Z]
-      })
+      read =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 10:00:00Z],
+          vendor_last_read_at: ~U[2026-04-10 11:00:00Z]
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_artist(artist.id)
       refute read.id in ids
@@ -378,12 +391,15 @@ defmodule ArtsyNeighbor.ConversationsTest do
       {buyer, artist} = setup_buyer_and_artist()
       other_artist = artist_fixture()
 
-      _mine = insert_conversation(buyer.id, artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
-      _theirs = insert_conversation(buyer.id, other_artist.id, %{
-        last_event_at: ~U[2026-04-10 12:00:00Z]
-      })
+      _mine =
+        insert_conversation(buyer.id, artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
+
+      _theirs =
+        insert_conversation(buyer.id, other_artist.id, %{
+          last_event_at: ~U[2026-04-10 12:00:00Z]
+        })
 
       ids = Conversations.list_unread_conversation_ids_for_artist(artist.id)
       assert length(ids) == 1

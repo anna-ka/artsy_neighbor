@@ -6,6 +6,7 @@ defmodule ArtsyNeighbor.Orders.Order do
     field :status, Ecto.Enum,
       values: [:requested, :confirmed, :completed, :cancelled, :refunded],
       default: :requested
+
     field :delivery_method, Ecto.Enum, values: [:pickup, :delivery], default: :pickup
     field :delivery_address, :string
     field :subtotal, :decimal
@@ -14,17 +15,17 @@ defmodule ArtsyNeighbor.Orders.Order do
     field :complete_token, :string
     field :complete_token_at, :utc_datetime
 
-    field :pickup_date,         :string
-    field :pickup_time,         :string
-    field :pickup_address,      :string
+    field :pickup_date, :string
+    field :pickup_time, :string
+    field :pickup_address, :string
     field :pickup_instructions, :string
     field :pickup_scheduled_at, :utc_datetime
 
     field :completed_at, :utc_datetime
 
-    field :buyer_email,  :string
+    field :buyer_email, :string
     field :vendor_email, :string
-    field :artist_name,  :string
+    field :artist_name, :string
 
     belongs_to :conversation, ArtsyNeighbor.Conversations.Conversation
     belongs_to :buyer, ArtsyNeighbor.Accounts.User, foreign_key: :buyer_id
@@ -39,12 +40,28 @@ defmodule ArtsyNeighbor.Orders.Order do
   @doc false
   def changeset(order, attrs) do
     order
-    |> cast(attrs, [:status, :delivery_method, :delivery_address, :subtotal,
-                    :platform_fee, :total, :complete_token, :complete_token_at,
-                    :pickup_date, :pickup_time, :pickup_address, :pickup_instructions, :pickup_scheduled_at,
-                    :conversation_id, :buyer_id, :artist_id,
-                    :completed_at, :buyer_email, :vendor_email, :artist_name])
+    |> cast(attrs, [
+      :status,
+      :delivery_method,
+      :delivery_address,
+      :subtotal,
+      :platform_fee,
+      :total,
+      :complete_token,
+      :complete_token_at,
+      :pickup_date,
+      :pickup_time,
+      :pickup_address,
+      :pickup_instructions,
+      :pickup_scheduled_at,
+      :conversation_id,
+      :buyer_id,
+      :artist_id,
+      :completed_at,
+      :buyer_email,
+      :vendor_email,
+      :artist_name
+    ])
     |> validate_required([:status, :delivery_method, :conversation_id, :buyer_id, :artist_id])
   end
-
 end

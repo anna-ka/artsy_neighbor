@@ -123,15 +123,14 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
     ~H"""
     <Layouts.artsy_wide flash={@flash} variant="admin" nav_categories={@nav_categories}>
       <div class="admin-index">
-
-       <div>
-        <.back navigate={~p"/admin"}>
-              Admin Dashboard
-        </.back>
-      </div>
+        <div>
+          <.back navigate={~p"/admin"}>
+            Admin Dashboard
+          </.back>
+        </div>
 
         <.header>
-          <%= @page_title %>
+          {@page_title}
           <:actions>
             <.button_artsy navigate={~p"/admin/categories/new"} variant="secondary">
               New Category
@@ -141,7 +140,6 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
 
         <div class="overflow-x-auto">
           <.form_table id="admin-categories-table" rows={@streams.categories}>
-
             <%!-- Image --%>
             <:col :let={{_dom_id, category}} label="Image" col_class="w-20">
               <div class="avatar">
@@ -153,17 +151,18 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
 
             <%!-- Name --%>
             <:col :let={{_dom_id, category}} label="Name" col_class="w-32">
-              <%= category.name %>
+              {category.name}
             </:col>
 
             <%!-- Slug --%>
             <:col :let={{_dom_id, category}} label="Slug" col_class="w-32">
-              <span class="badge badge-outline"><%= category.slug %></span>
+              <span class="badge badge-outline">{category.slug}</span>
             </:col>
 
             <%!-- Description (truncated) --%>
             <:col :let={{_dom_id, category}} label="Description" col_class="w-64">
-              <%= String.slice(category.description, 0, 60) %><%= if String.length(category.description) > 60, do: "..." %>
+              {String.slice(category.description, 0, 60)}{if String.length(category.description) > 60,
+                do: "..."}
             </:col>
 
             <%!-- Status --%>
@@ -185,7 +184,6 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
                 hard_delete_confirm={"Permanently delete #{category.name}? Any products using it will be unassigned from it, not deleted. This cannot be undone."}
               />
             </:col>
-
           </.form_table>
         </div>
       </div>

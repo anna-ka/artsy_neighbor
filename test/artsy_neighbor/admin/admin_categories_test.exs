@@ -82,14 +82,20 @@ defmodule ArtsyNeighbor.Admin.AdminCategoriesTest do
   describe "update_category/2" do
     test "with valid data updates the category" do
       category = category_fixture()
-      assert {:ok, %Category{} = updated} = AdminCategories.update_category(category, @update_attrs)
+
+      assert {:ok, %Category{} = updated} =
+               AdminCategories.update_category(category, @update_attrs)
+
       assert updated.name == "Updated Paintings"
       assert updated.slug == "updated-paintings"
     end
 
     test "with invalid data returns error changeset" do
       category = category_fixture()
-      assert {:error, %Ecto.Changeset{}} = AdminCategories.update_category(category, @invalid_attrs)
+
+      assert {:error, %Ecto.Changeset{}} =
+               AdminCategories.update_category(category, @invalid_attrs)
+
       assert category == AdminCategories.get_category!(category.id)
     end
   end

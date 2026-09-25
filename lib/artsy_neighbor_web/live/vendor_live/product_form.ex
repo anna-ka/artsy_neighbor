@@ -20,7 +20,8 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
       |> allow_upload(:images,
         accept: ~w(.jpg .jpeg .png .webp),
         max_entries: 5,
-        max_file_size: 5_000_000  # 5 MB per file
+        # 5 MB per file
+        max_file_size: 5_000_000
       )
       |> apply_action(socket.assigns.live_action, params)
 
@@ -34,7 +35,8 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     socket
     |> assign(:page_title, "Create New Product")
     |> assign(:product, product)
-    |> assign(:existing_images, [])  # no existing images for a new product
+    # no existing images for a new product
+    |> assign(:existing_images, [])
     |> assign(:form, to_form(Products.change_product(product)))
     |> assign(:new_collection_form_open, false)
     |> assign_categories()
@@ -78,9 +80,11 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   defp assign_collections(socket) do
     artist = socket.assigns.current_scope.artist
+
     collections =
       Products.list_collections_for_artist(artist.id)
       |> Enum.map(fn c -> {c.name, c.id} end)
+
     assign(socket, :collections, collections)
   end
 
@@ -122,10 +126,11 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             socket.assigns.form.source
             |> Ecto.Changeset.put_change(:collection_id, new_collection.id)
 
-          {:noreply, socket
-            |> assign(:collections, updated_collections)
-            |> assign(:form, to_form(updated_changeset))
-            |> assign(:new_collection_form_open, false)}
+          {:noreply,
+           socket
+           |> assign(:collections, updated_collections)
+           |> assign(:form, to_form(updated_changeset))
+           |> assign(:new_collection_form_open, false)}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Could not create collection.")}
@@ -144,14 +149,16 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   @impl true
   def handle_event("move_image_up", %{"imageid" => image_id}, socket) do
     image_id = String.to_integer(image_id)
-    images = socket.assigns.existing_images  # already sorted by position
+    # already sorted by position
+    images = socket.assigns.existing_images
     index = Enum.find_index(images, fn img -> img.id == image_id end)
 
     if index && index > 0 do
       Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index - 1))
       {:noreply, reload_existing_images(socket)}
     else
-      {:noreply, socket}  # already first, nothing to do
+      # already first, nothing to do
+      {:noreply, socket}
     end
   end
 
@@ -165,7 +172,8 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
       Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index + 1))
       {:noreply, reload_existing_images(socket)}
     else
-      {:noreply, socket}  # already last, nothing to do
+      # already last, nothing to do
+      {:noreply, socket}
     end
   end
 
@@ -200,12 +208,17 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
               ext = Path.extname(entry.client_name)
               # System.unique_integer gives a collision-free number for the filename
               filename = "#{System.unique_integer([:positive])}#{ext}"
+
               dest =
                 Path.join([
                   # :code.priv_dir/1 returns the absolute path to priv/ at runtime
                   :code.priv_dir(:artsy_neighbor),
-                  "static", "uploads", "products", filename
+                  "static",
+                  "uploads",
+                  "products",
+                  filename
                 ])
+
               # Move the temp file to permanent storage
               File.cp!(tmp_path, dest)
               # Return the web-accessible URL path (relative to priv/static/)
@@ -246,11 +259,16 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
           consume_uploaded_entries(socket, :images, fn %{path: tmp_path}, entry ->
             ext = Path.extname(entry.client_name)
             filename = "#{System.unique_integer([:positive])}#{ext}"
+
             dest =
               Path.join([
                 :code.priv_dir(:artsy_neighbor),
-                "static", "uploads", "products", filename
+                "static",
+                "uploads",
+                "products",
+                filename
               ])
+
             File.cp!(tmp_path, dest)
             {:ok, "/uploads/products/#{filename}"}
           end)
@@ -283,21 +301,25 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="vendor"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="w-full px-8 py-8">
-
         <.back navigate={~p"/vendor"}>
           Artist Dashboard
         </.back>
 
         <.header>
-          <%= @page_title %>
+          {@page_title}
         </.header>
 
         <.form for={@form} id="product-form" phx-change="validate" phx-submit="save">
-
           <%!-- Title --%>
           <.input
             field={@form[:title]}
@@ -358,15 +380,31 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             prompt="Select a collection"
             options={@collections}
           />
-          <button type="button" phx-click="toggle_new_collection_form" class="btn btn-ghost btn-xs -mt-2 mb-2">
+          <button
+            type="button"
+            phx-click="toggle_new_collection_form"
+            class="btn btn-ghost btn-xs -mt-2 mb-2"
+          >
             + New collection
           </button>
 
           <%!-- Dimensions --%>
           <div class="grid grid-cols-3 gap-4">
-            <.input field={@form[:width]}  type="number" label="Width"  step="any" phx-debounce="blur" />
-            <.input field={@form[:length]} type="number" label="Length" step="any" phx-debounce="blur" />
-            <.input field={@form[:height]} type="number" label="Height" step="any" phx-debounce="blur" />
+            <.input field={@form[:width]} type="number" label="Width" step="any" phx-debounce="blur" />
+            <.input
+              field={@form[:length]}
+              type="number"
+              label="Length"
+              step="any"
+              phx-debounce="blur"
+            />
+            <.input
+              field={@form[:height]}
+              type="number"
+              label="Height"
+              step="any"
+              phx-debounce="blur"
+            />
           </div>
 
           <%!-- Units --%>
@@ -390,11 +428,9 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
                IMAGE UPLOAD SECTION
                ============================================================ --%>
           <div class="space-y-4 py-4">
-
             <div class="label">
               <span class="label-text font-semibold">
-                Images
-                <%!-- Only show the required asterisk when there are no existing images --%>
+                Images <%!-- Only show the required asterisk when there are no existing images --%>
                 <span :if={@existing_images == []} class="text-error">*</span>
               </span>
               <span class="label-text-alt text-base-content/60">
@@ -414,7 +450,10 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
                     src={img.path}
                     class="w-24 h-24 object-cover rounded-lg border border-base-300"
                   />
-                  <div class="flex flex-col gap-1 tooltip tooltip-right" data-tip="Use arrows to change the ordering of images">
+                  <div
+                    class="flex flex-col gap-1 tooltip tooltip-right"
+                    data-tip="Use arrows to change the ordering of images"
+                  >
                     <%!-- ↑ hidden on the first image --%>
                     <button
                       :if={index > 0}
@@ -422,7 +461,9 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
                       phx-click="move_image_up"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↑</button>
+                    >
+                      ↑
+                    </button>
                     <%!-- ↓ hidden on the last image --%>
                     <button
                       :if={index < length(@existing_images) - 1}
@@ -430,7 +471,9 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
                       phx-click="move_image_down"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↓</button>
+                    >
+                      ↓
+                    </button>
                   </div>
                 </div>
               </div>
@@ -451,7 +494,6 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
                  picks files, before they submit the form. --%>
             <div class="space-y-3">
               <div :for={entry <- @uploads.images.entries} class="flex items-center gap-3">
-
                 <%!-- live_img_preview renders a thumbnail from the local file
                      immediately — no server round-trip needed. --%>
                 <.live_img_preview
@@ -492,20 +534,17 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             <p :for={err <- upload_errors(@uploads.images)} class="text-error text-sm">
               {error_to_string(err)}
             </p>
-
           </div>
           <%!-- ============================================================ --%>
 
           <.button_artsy variant="primary" disable_with="Saving...">
             Save Product
           </.button_artsy>
-
         </.form>
 
         <.back navigate={~p"/vendor"}>
           Artist Dashboard
         </.back>
-
       </div>
 
       <%!-- New collection modal — lives outside the product <form> to avoid nested forms --%>
@@ -522,13 +561,18 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             />
             <div class="modal-action">
               <button type="submit" class="btn btn-primary btn-sm">Save</button>
-              <button type="button" phx-click="toggle_new_collection_form" class="btn btn-ghost btn-sm">Cancel</button>
+              <button
+                type="button"
+                phx-click="toggle_new_collection_form"
+                class="btn btn-ghost btn-sm"
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
         <div class="modal-backdrop" phx-click="toggle_new_collection_form"></div>
       </div>
-
     </Layouts.artsy_main>
     """
   end

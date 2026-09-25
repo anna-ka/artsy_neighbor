@@ -7,10 +7,14 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
-
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <%!-- Hero --%>
       <div class="text-center py-16 border-b border-base-300">
         <h1 class="text-5xl font-bold mb-4">Share your art with your community</h1>
@@ -19,8 +23,8 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
           Create your artist profile and start selling today — no fees to get started.
         </p>
         <.link navigate={~p"/users/register"} class="btn btn-primary btn-lg">
-            Create an account
-          </.link>
+          Create an account
+        </.link>
 
         <%= if @current_scope && @current_scope.artist do %>
           <span class="mx-2">or visit your</span>
@@ -33,12 +37,10 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             Create Artist Profile
           </.link>
         <% end %>
-
       </div>
 
       <%!-- Benefits --%>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 py-16 border-b border-base-300">
-
         <div class="text-center px-4">
           <h3 class="text-xl font-semibold mb-2">Your own shop</h3>
           <p class="text-base-content/70">
@@ -59,7 +61,6 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             Lower fees than big platforms. More money stays with you and your craft.
           </p>
         </div>
-
       </div>
 
       <%!-- How it works --%>
@@ -70,21 +71,27 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             <span class="text-2xl font-bold text-primary">1</span>
             <div>
               <h4 class="font-semibold">Create an account</h4>
-              <p class="text-base-content/70">Register with your email — no password needed, we use magic links.</p>
+              <p class="text-base-content/70">
+                Register with your email — no password needed, we use magic links.
+              </p>
             </div>
           </li>
           <li class="flex gap-4">
             <span class="text-2xl font-bold text-primary">2</span>
             <div>
               <h4 class="font-semibold">Build your artist profile</h4>
-              <p class="text-base-content/70">Tell buyers who you are, what you create, and where you're based.</p>
+              <p class="text-base-content/70">
+                Tell buyers who you are, what you create, and where you're based.
+              </p>
             </div>
           </li>
           <li class="flex gap-4">
             <span class="text-2xl font-bold text-primary">3</span>
             <div>
               <h4 class="font-semibold">List your products</h4>
-              <p class="text-base-content/70">Add photos, descriptions, and prices. Your work goes live immediately.</p>
+              <p class="text-base-content/70">
+                Add photos, descriptions, and prices. Your work goes live immediately.
+              </p>
             </div>
           </li>
         </ol>
@@ -98,20 +105,19 @@ defmodule ArtsyNeighborWeb.OfferArtLive do
             Create an account
           </.link>
 
-        <%= if @current_scope && @current_scope.artist do %>
-          <span class="mx-2">or visit your</span>
-          <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
-            Artist Dashboard
-          </.link>
-        <% else %>
-          <span class="mx-2">or</span>
-          <.link navigate={~p"/vendor/profile/new"} class="btn btn-outline btn-lg">
-            Create Artist Profile
-          </.link>
-        <% end %>
+          <%= if @current_scope && @current_scope.artist do %>
+            <span class="mx-2">or visit your</span>
+            <.link navigate={~p"/vendor"} class="btn btn-outline btn-lg">
+              Artist Dashboard
+            </.link>
+          <% else %>
+            <span class="mx-2">or</span>
+            <.link navigate={~p"/vendor/profile/new"} class="btn btn-outline btn-lg">
+              Create Artist Profile
+            </.link>
+          <% end %>
         </div>
       </div>
-
     </Layouts.artsy_main>
     """
   end

@@ -7,7 +7,6 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
 
   def mount(_params, _session, socket) do
-
     {:ok, assign(socket, return_to: nil, return_label: nil)}
   end
 
@@ -24,6 +23,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
             socket
             |> load_artist_assigns(artist, params)
             |> put_flash(:info, "Preview — your profile is not yet visible to the public.")
+
           {:noreply, socket}
         else
           {:noreply,
@@ -91,25 +91,28 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
-
-    <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
+      <%!-- <pre class="text-xs bg-warning p-2"><%= inspect(@return_to) %>
     <%= inspect(@return_label) %>
     </pre> --%>
 
       <div>
-      <.back :if={@return_to && @return_label} navigate={@return_to}>
-        {@return_label}
-      </.back>
+        <.back :if={@return_to && @return_label} navigate={@return_to}>
+          {@return_label}
+        </.back>
       </div>
 
       <%!-- Top Section: Artist Profile with bg-base-100 --%>
       <div class="bg-base-100">
         <div class="max-w-7xl mx-auto px-4 py-8">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
             <%!-- Left Column: Image Carousel --%>
             <div>
               <%!-- DaisyUI Carousel --%>
@@ -122,8 +125,18 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
                       class="w-full h-full object-cover"
                     />
                     <div class="absolute flex justify-between transform -translate-y-1/2 left-2 right-2 top-1/2">
-                      <a href={"#slide#{if index == 1, do: @total_slides, else: index - 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❮</a>
-                      <a href={"#slide#{if index == @total_slides, do: 1, else: index + 1}"} class="btn btn-circle btn-sm opacity-70 hover:opacity-100">❯</a>
+                      <a
+                        href={"#slide#{if index == 1, do: @total_slides, else: index - 1}"}
+                        class="btn btn-circle btn-sm opacity-70 hover:opacity-100"
+                      >
+                        ❮
+                      </a>
+                      <a
+                        href={"#slide#{if index == @total_slides, do: 1, else: index + 1}"}
+                        class="btn btn-circle btn-sm opacity-70 hover:opacity-100"
+                      >
+                        ❯
+                      </a>
                     </div>
                   </div>
                 <% end %>
@@ -132,29 +145,30 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
               <%!-- Carousel Indicators (Dots) --%>
               <div class="flex justify-center w-full py-4 gap-2">
                 <%= for {_img, index} <- Enum.with_index(@artist_images, 1) do %>
-                  <a href={"#slide#{index}"} class="btn btn-xs"><%= index %></a>
+                  <a href={"#slide#{index}"} class="btn btn-xs">{index}</a>
                 <% end %>
               </div>
             </div>
 
             <%!-- Right Column: Artist Information --%>
             <div>
-
               <%!-- Name and Nickname --%>
               <div class="mb-6">
-                <h1 class="text-4xl font-bold mb-2 text-base-content"><%= @artist.nickname %></h1>
+                <h1 class="text-4xl font-bold mb-2 text-base-content">{@artist.nickname}</h1>
               </div>
 
               <%!-- Announcement Banner --%>
-              <div :if={@artist.announcement_active && @artist.announcement not in [nil, ""]}
-                   class="alert alert-info mb-6 text-sm">
-                <%= @artist.announcement %>
+              <div
+                :if={@artist.announcement_active && @artist.announcement not in [nil, ""]}
+                class="alert alert-info mb-6 text-sm"
+              >
+                {@artist.announcement}
               </div>
 
               <%!-- Neighborhood Badge --%>
               <div class="mb-6">
                 <div class="badge badge-secondary badge-outline badge-lg">
-                  <%= @artist.area_code %>
+                  {@artist.area_code}
                 </div>
               </div>
 
@@ -164,7 +178,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
                 <div class="flex flex-wrap gap-2">
                   <%= for medium <- @artist.medium do %>
                     <span class="badge badge-primary">
-                      <%= medium %>
+                      {medium}
                     </span>
                   <% end %>
                 </div>
@@ -174,7 +188,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
               <div class="rounded-lg bg-base-100 mb-6">
                 <h2 class="text-sm font-semibold text-base-content/60 mb-2">About the Artist</h2>
                 <p class="text-base-content/80 leading-relaxed">
-                  <%= @artist.bio %>
+                  {@artist.bio}
                 </p>
               </div>
 
@@ -184,9 +198,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
                 <ul class="space-y-1">
                   <%= for option <- @artist.delivery_options do %>
                     <li class="text-sm text-base-content/80">
-                      <span class="font-medium"><%= delivery_option_label(option) %></span>
+                      <span class="font-medium">{delivery_option_label(option)}</span>
                       <%= if (get_in(@artist.delivery_info, [option]) || "") != "" do %>
-                        <span class="text-base-content/60"> — <%= get_in(@artist.delivery_info, [option]) %></span>
+                        <span class="text-base-content/60">
+                          — {get_in(@artist.delivery_info, [option])}
+                        </span>
                       <% end %>
                     </li>
                   <% end %>
@@ -197,13 +213,31 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
               <div :if={@artist.homepage || @artist.instagram || @artist.facebook} class="mb-6">
                 <h2 class="text-sm font-semibold text-base-content/60 mb-2">Online</h2>
                 <div class="flex flex-wrap gap-3">
-                  <a :if={@artist.homepage} href={@artist.homepage} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                  <a
+                    :if={@artist.homepage}
+                    href={@artist.homepage}
+                    target="_blank"
+                    rel="noopener"
+                    class="btn btn-ghost btn-sm"
+                  >
                     🌐 Website
                   </a>
-                  <a :if={@artist.instagram} href={@artist.instagram} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                  <a
+                    :if={@artist.instagram}
+                    href={@artist.instagram}
+                    target="_blank"
+                    rel="noopener"
+                    class="btn btn-ghost btn-sm"
+                  >
                     📷 Instagram
                   </a>
-                  <a :if={@artist.facebook} href={@artist.facebook} target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+                  <a
+                    :if={@artist.facebook}
+                    href={@artist.facebook}
+                    target="_blank"
+                    rel="noopener"
+                    class="btn btn-ghost btn-sm"
+                  >
                     📘 Facebook
                   </a>
                 </div>
@@ -211,31 +245,34 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
               <%!-- Contact Buttons --%>
               <div class="flex flex-col items-center gap-3 mb-8">
+                <%= if @current_scope && @current_scope.user do %>
+                  <.button_artsy variant="primary" size="wide" phx-click="message_artist">
+                    Contact Artist
+                  </.button_artsy>
+                <% else %>
+                  <.button_artsy variant="primary" size="wide" navigate={~p"/users/log-in"}>
+                    Log-in to Message Artist
+                  </.button_artsy>
+                <% end %>
 
-              <%= if @current_scope && @current_scope.user do %>
-                <.button_artsy variant="primary" size="wide" phx-click="message_artist">
-                  Contact Artist
-                </.button_artsy>
-              <% else %>
-               <.button_artsy variant="primary" size="wide" navigate={~p"/users/log-in"}>
-                  Log-in to Message Artist
-                </.button_artsy>
-
-              <% end %>
-
-                <.button_artsy variant="secondary" size="wide" navigate={~p"/artists/#{@artist}/store"<> "?" <> create_return_to_params(assigns)}>
+                <.button_artsy
+                  variant="secondary"
+                  size="wide"
+                  navigate={~p"/artists/#{@artist}/store"<> "?" <> create_return_to_params(assigns)}
+                >
                   View Shop
                 </.button_artsy>
 
                 <.link
                   :if={@current_scope && @current_scope.user}
-                  navigate={~p"/flag/vendor/#{@artist.id}?#{[return_to: ~p"/artists/#{@artist.id}", return_label: "Artist profile"]}"}
+                  navigate={
+                    ~p"/flag/vendor/#{@artist.id}?#{[return_to: ~p"/artists/#{@artist.id}", return_label: "Artist profile"]}"
+                  }
                   class="text-xs text-base-content/40 underline"
                 >
                   Report a concern
                 </.link>
               </div>
-
             </div>
           </div>
         </div>
@@ -244,9 +281,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       <%!-- Bottom Section: Works --%>
       <div class="bg-base-200 py-12">
         <div class="max-w-7xl mx-auto px-4">
-
           <.header>
-            Collections by <%= @artist.nickname %>
+            Collections by {@artist.nickname}
           </.header>
 
           <%= if length(@collections) == 1 do %>
@@ -259,26 +295,31 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <%= for collection <- @collections do %>
                 <% first_img =
-                    collection.products
-                    |> List.first()
-                    |> case do
-                      nil -> nil
-                      p -> p.product_images |> List.first() |> case do
+                  collection.products
+                  |> List.first()
+                  |> case do
+                    nil ->
+                      nil
+
+                    p ->
+                      p.product_images
+                      |> List.first()
+                      |> case do
                         nil -> nil
                         img -> img.path
                       end
-                    end %>
+                  end %>
                 <div
                   style={"background-image: url(#{first_img || "/images/placeholder-category.jpg"})"}
-                  class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center bg-gray-200">
+                  class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center bg-gray-200"
+                >
                   <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold">
-                    <%= collection.name %>
+                    {collection.name}
                   </button>
                 </div>
               <% end %>
             </div>
           <% end %>
-
         </div>
       </div>
 
@@ -289,7 +330,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           <div class="relative flex items-center">
             <button
               class="btn btn-circle btn-sm absolute left-0 z-10 shadow"
-              onclick="this.nextElementSibling.scrollBy({left: -320, behavior: 'smooth'})">
+              onclick="this.nextElementSibling.scrollBy({left: -320, behavior: 'smooth'})"
+            >
               ❮
             </button>
             <div class="flex overflow-x-auto scroll-smooth gap-4 py-2 px-10">
@@ -299,21 +341,20 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
             </div>
             <button
               class="btn btn-circle btn-sm absolute right-0 z-10 shadow"
-              onclick="this.previousElementSibling.scrollBy({left: 320, behavior: 'smooth'})">
+              onclick="this.previousElementSibling.scrollBy({left: 320, behavior: 'smooth'})"
+            >
               ❯
             </button>
           </div>
         </div>
       </div>
-
     </Layouts.artsy_main>
     """
   end
 
-  defp delivery_option_label("pickup"),          do: "Pickup"
+  defp delivery_option_label("pickup"), do: "Pickup"
   defp delivery_option_label("artist_delivery"), do: "Artist delivers"
-  defp delivery_option_label("shipping"),        do: "Shipping"
-  defp delivery_option_label("other"),           do: "Other"
-  defp delivery_option_label(other),             do: other
-
+  defp delivery_option_label("shipping"), do: "Shipping"
+  defp delivery_option_label("other"), do: "Other"
+  defp delivery_option_label(other), do: other
 end

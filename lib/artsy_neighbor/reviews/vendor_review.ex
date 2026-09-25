@@ -3,15 +3,15 @@ defmodule ArtsyNeighbor.Reviews.VendorReview do
   import Ecto.Changeset
 
   schema "vendors_reviewed" do
-    field :stars,        :integer
-    field :body,         :string
+    field :stars, :integer
+    field :body, :string
     field :submitted_at, :utc_datetime
     field :status, Ecto.Enum, values: [:active, :removed], default: :active
     field :status_changed_at, :utc_datetime
 
-    belongs_to :order,    ArtsyNeighbor.Orders.Order
+    belongs_to :order, ArtsyNeighbor.Orders.Order
     belongs_to :reviewer, ArtsyNeighbor.Accounts.User, foreign_key: :reviewer_id
-    belongs_to :artist,   ArtsyNeighbor.Artists.Artist
+    belongs_to :artist, ArtsyNeighbor.Artists.Artist
 
     timestamps(type: :utc_datetime)
   end

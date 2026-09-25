@@ -1,16 +1,13 @@
 defmodule ArtsyNeighbor.Admin.AdminCategories do
-
   @moduledoc """
   Admin context module for managing categories of products.
   """
-
 
   alias ArtsyNeighbor.Repo
   alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.Categories.Category
 
   import Ecto.Query, warn: false
-
 
   @doc """
   Returns every category regardless of status, for admin use. See
@@ -129,6 +126,4 @@ defmodule ArtsyNeighbor.Admin.AdminCategories do
   def change_category(%Category{} = category, attrs \\ %{}) do
     Category.changeset(category, attrs)
   end
-
-
 end

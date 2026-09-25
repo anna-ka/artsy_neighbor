@@ -8,9 +8,9 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersIndex do
   import ArtsyNeighborWeb.OrderFormatters
 
   def mount(_params, _session, socket) do
-    artist  = socket.assigns.current_scope.artist
+    artist = socket.assigns.current_scope.artist
     user_id = socket.assigns.current_scope.user.id
-    orders  = Orders.list_orders_for_artist(artist.id)
+    orders = Orders.list_orders_for_artist(artist.id)
     reviewed_ids = Reviews.reviewed_order_ids_as_vendor(user_id)
 
     {:ok,
@@ -36,7 +36,8 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersIndex do
         <div :if={@pending_reviews_as_vendor > 0} class="alert alert-warning mb-6">
           <.icon name="hero-exclamation-triangle" class="size-5 shrink-0" />
           <span>
-            You have {@pending_reviews_as_vendor} completed sale{if @pending_reviews_as_vendor != 1, do: "s"} awaiting your review.
+            You have {@pending_reviews_as_vendor} completed sale{if @pending_reviews_as_vendor != 1,
+              do: "s"} awaiting your review.
             Click an order below to leave your feedback.
           </span>
         </div>

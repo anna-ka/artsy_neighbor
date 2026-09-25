@@ -16,9 +16,9 @@ mistakes can be cleaned up quickly. Debt is paid as we go (clean up the
 area being worked on), not in big dedicated passes — except formatting,
 which is mechanical and done once, up front.
 
-0. **Housekeeping** — `mix format`
-   sweep in one mechanical commit (#20), trim the entity-removal
-   docstrings (Tech debt), fix the compose-box bug (Known bugs).
+0. **Housekeeping** — ~~`mix format` sweep~~ (done 2026-09-25), trim
+   the entity-removal docstrings (Tech debt), fix the compose-box bug
+   (Known bugs).
 1. **Design system + branding** — mockups → pick a direction → DaisyUI
    theme, layout/nav (incl. the small-screen nav issue), shared
    components, LocalPalette name (#14); restyle only the key public pages
@@ -228,8 +228,6 @@ working on the code should keep in mind.
 
   19. Audit of tests: for now they are all written by Claude, most decisions are made by Claude and I only skim them. This is one of my weaker points as I have never done true deployment. But I do want good informative test covereage. So I suppose an audit of existing tests and probably extending them.
 
-  20. Get rid of formatting debt.
-
   21. A very serious and thorough security audit. I am thinking of running Claude Fable on it and later (or earlier) also askign an experienced human developper for suggestions. I have no experience in this area.
 
 
@@ -239,15 +237,6 @@ working on the code should keep in mind.
 
 ## Tech debt
 
-- **`mix format` debt scattered across the codebase** — confirmed files
-  so far: early LiveView templates written while learning Phoenix
-  (200+ line diffs each), plus several more discovered mid-pass
-  (`custom_components.ex`, `conversations.ex`, `conversation.ex`,
-  `conversation_event.ex`, `conversation_live/index.ex`, and others).
-  **Lesson learned the hard way, twice: never run `mix format` on a file
-  without first checking `mix format --check-formatted <file>` — it's easy
-  to accidentally blast a 200+ line unrelated reformat onto a file with
-  real, wanted changes buried in it.**
 - **Flag-cleanup delete paths have a narrow race** — every hard delete
   that cleans up `Flag` rows goes through `ArtsyNeighbor.HardDelete`
   (Phase 6 of the entity-removal pass; it used to be hand-copied 3x). It

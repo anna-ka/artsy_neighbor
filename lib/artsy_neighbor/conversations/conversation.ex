@@ -9,13 +9,13 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
     field :conversation_type, Ecto.Enum, values: [:order, :system], default: :order
 
     # When the last message or system event was posted — used to detect unread.
-    field :last_event_at,      :utc_datetime
+    field :last_event_at, :utc_datetime
 
     # When each party last opened this conversation.
     # nil = never opened = always treated as unread.
     # For :system conversations, buyer_last_read_at doubles as the user's
     # read timestamp (there is no vendor side).
-    field :buyer_last_read_at,  :utc_datetime
+    field :buyer_last_read_at, :utc_datetime
     field :vendor_last_read_at, :utc_datetime
 
     # :active = visible to its participants. :archived = hidden/muted by an
@@ -25,7 +25,7 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
     field :status_changed_at, :utc_datetime
 
     belongs_to :artist, ArtsyNeighbor.Artists.Artist, foreign_key: :artist_id
-    belongs_to :buyer,  ArtsyNeighbor.Accounts.User,  foreign_key: :buyer_id
+    belongs_to :buyer, ArtsyNeighbor.Accounts.User, foreign_key: :buyer_id
 
     # Owner of a :system conversation. Nil for :order conversations.
     belongs_to :user, ArtsyNeighbor.Accounts.User, foreign_key: :user_id
@@ -53,8 +53,10 @@ defmodule ArtsyNeighbor.Conversations.Conversation do
     |> cast(attrs, [:user_id])
     |> validate_required([:user_id])
     |> put_change(:conversation_type, :system)
-    |> unique_constraint(:user_id, name: :conversations_system_user_unique,
-         message: "already has a system conversation")
+    |> unique_constraint(:user_id,
+      name: :conversations_system_user_unique,
+      message: "already has a system conversation"
+    )
   end
 
   @doc """

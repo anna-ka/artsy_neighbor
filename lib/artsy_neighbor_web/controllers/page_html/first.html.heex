@@ -1,10 +1,12 @@
 <Layouts.artsy_main flash={@flash}>
   <div class="grid grid-cols-1 gap-8">
-
     <%!-- Row 1: Hero Section --%>
-     <section class="hero">
-      
-      <div style={"background-image: url(#{~p"/images/artist-hero.jpg"})"} class="mt-8 w-full h-96 bg-cover bg-center rounded-lg"></div>
+    <section class="hero">
+      <div
+        style={"background-image: url(#{~p"/images/artist-hero.jpg"})"}
+        class="mt-8 w-full h-96 bg-cover bg-center rounded-lg"
+      >
+      </div>
       <h1 class="text-4xl font-bold mt-6 text-white">Discover Unique Art from Local Artists</h1>
     </section>
 
@@ -14,8 +16,11 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div
           style={"background-image: url(#{~p"/images/pottery-cat.jpg"})"}
-          class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative">
-          <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold">Paintings</button>
+          class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative"
+        >
+          <button class="btn rounded-xl bg-white text-black hover:bg-gray-100 font-semibold">
+            Paintings
+          </button>
         </div>
         <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
           <span class="text-xl font-semibold">Sculpture</span>
@@ -25,29 +30,29 @@
         </div>
       </div>
 
-
       <%!-- Collapsible section for more categories --%>
-  <div class="collapse mt-8">
-    <input type="checkbox" id="more-categories" />
-    <label for="more-categories" class="collapse-title text-lg font-medium text-right cursor-pointer">
-      See more categories ➔
-    </label>
-    <div class="collapse-content">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
-          <span class="text-xl font-semibold">Fiber art</span>
-        </div>
-        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
-          <span class="text-xl font-semibold">Clothing</span>
-        </div>
-        <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
-          <span class="text-xl font-semibold">Wall art</span>
+      <div class="collapse mt-8">
+        <input type="checkbox" id="more-categories" />
+        <label
+          for="more-categories"
+          class="collapse-title text-lg font-medium text-right cursor-pointer"
+        >
+          See more categories ➔
+        </label>
+        <div class="collapse-content">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+              <span class="text-xl font-semibold">Fiber art</span>
+            </div>
+            <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+              <span class="text-xl font-semibold">Clothing</span>
+            </div>
+            <div class="bg-gray-200 rounded-lg p-6 h-64 flex items-center justify-center">
+              <span class="text-xl font-semibold">Wall art</span>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-
-
     </section>
 
     <%!-- Row 4: Featured Products --%>
@@ -111,6 +116,5 @@
         </div>
       </div>
     </section>
-
   </div>
 </Layouts.artsy_main>

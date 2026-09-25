@@ -7,7 +7,5 @@ defmodule ArtsyNeighbor.Repo.Migrations.AddUserToArtistTable do
     end
 
     create index(:artists, [:user_id])
-
-
   end
 end

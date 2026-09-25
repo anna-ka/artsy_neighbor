@@ -4,9 +4,4 @@ defmodule ArtsyNeighborWeb.PageController do
   # def home(conn, _params) do
   #   render(conn, :first)
   # end
-
-
-
-
-
 end

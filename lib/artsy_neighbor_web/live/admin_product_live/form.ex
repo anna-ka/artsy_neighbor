@@ -54,6 +54,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   end
 
   defp collections_for(nil), do: []
+
   defp collections_for(artist_id) do
     Products.list_collections_for_artist(artist_id)
     |> Enum.map(fn c -> {c.name, c.id} end)
@@ -167,31 +168,37 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     end)
   end
 
-  defp error_to_string(:too_large),      do: "File too large (max 5 MB)"
+  defp error_to_string(:too_large), do: "File too large (max 5 MB)"
   defp error_to_string(:too_many_files), do: "Too many files (max 5)"
-  defp error_to_string(:not_accepted),   do: "File type not accepted (jpg, png, webp only)"
+  defp error_to_string(:not_accepted), do: "File type not accepted (jpg, png, webp only)"
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="w-full px-8 py-8">
-
         <.back navigate={~p"/admin/products"}>
           Admin Products
         </.back>
 
         <.header>
-          <%= @page_title %>
+          {@page_title}
         </.header>
 
         <.form for={@form} id="product-form" phx-change="validate" phx-submit="save">
-
           <%!-- ===== PRODUCT DETAILS ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Product Details</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Product Details
+            </h3>
             <.input
               field={@form[:title]}
               type="text"
@@ -229,7 +236,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
           <%!-- ===== CLASSIFICATION ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Classification</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Classification
+            </h3>
             <.input
               field={@form[:artist_id]}
               type="select"
@@ -249,7 +258,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
               field={@form[:collection_id]}
               type="select"
               label="Collection"
-              prompt={if @collections == [], do: "Select an artist first", else: "Select a collection"}
+              prompt={
+                if @collections == [], do: "Select an artist first", else: "Select a collection"
+              }
               options={@collections}
               disabled={@collections == []}
             />
@@ -257,11 +268,31 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
           <%!-- ===== DIMENSIONS & MATERIALS ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Dimensions & Materials</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Dimensions & Materials
+            </h3>
             <div class="grid grid-cols-3 gap-4">
-              <.input field={@form[:width]}  type="number" label="Width"  step="any" phx-debounce="blur" />
-              <.input field={@form[:length]} type="number" label="Length" step="any" phx-debounce="blur" />
-              <.input field={@form[:height]} type="number" label="Height" step="any" phx-debounce="blur" />
+              <.input
+                field={@form[:width]}
+                type="number"
+                label="Width"
+                step="any"
+                phx-debounce="blur"
+              />
+              <.input
+                field={@form[:length]}
+                type="number"
+                label="Length"
+                step="any"
+                phx-debounce="blur"
+              />
+              <.input
+                field={@form[:height]}
+                type="number"
+                label="Height"
+                step="any"
+                phx-debounce="blur"
+              />
             </div>
             <.input
               field={@form[:units]}
@@ -280,7 +311,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
           <%!-- ===== IMAGES ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">Images</h3>
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Images
+            </h3>
             <p class="text-sm text-base-content/60 mb-4">
               Up to 5 files · jpg, png, webp · max 5 MB each
             </p>
@@ -292,7 +325,10 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
                   :for={{img, index} <- Enum.with_index(@existing_images)}
                   class="flex items-center gap-3"
                 >
-                  <img src={img.path} class="w-24 h-24 object-cover rounded-lg border border-base-300" />
+                  <img
+                    src={img.path}
+                    class="w-24 h-24 object-cover rounded-lg border border-base-300"
+                  />
                   <div class="flex flex-col gap-1 tooltip tooltip-right" data-tip="Reorder images">
                     <button
                       :if={index > 0}
@@ -300,25 +336,34 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
                       phx-click="move_image_up"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↑</button>
+                    >
+                      ↑
+                    </button>
                     <button
                       :if={index < length(@existing_images) - 1}
                       type="button"
                       phx-click="move_image_down"
                       phx-value-imageid={img.id}
                       class="btn btn-ghost btn-xs"
-                    >↓</button>
+                    >
+                      ↓
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
             <.live_file_input upload={@uploads.images} class="file-input file-input-bordered w-full" />
-            <p class="text-xs text-base-content/50 mt-1">New images are appended after existing ones.</p>
+            <p class="text-xs text-base-content/50 mt-1">
+              New images are appended after existing ones.
+            </p>
 
             <div class="space-y-3 mt-3">
               <div :for={entry <- @uploads.images.entries} class="flex items-center gap-3">
-                <.live_img_preview entry={entry} class="w-16 h-16 object-cover rounded-lg border border-base-300" />
+                <.live_img_preview
+                  entry={entry}
+                  class="w-16 h-16 object-cover rounded-lg border border-base-300"
+                />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm truncate">{entry.client_name}</p>
                   <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
@@ -328,7 +373,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
                   phx-click="cancel_upload"
                   phx-value-ref={entry.ref}
                   class="btn btn-ghost btn-xs text-error"
-                >✕</button>
+                >
+                  ✕
+                </button>
                 <p :for={err <- upload_errors(@uploads.images, entry)} class="text-error text-xs">
                   {error_to_string(err)}
                 </p>
@@ -345,13 +392,11 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
               Save Product
             </.button_artsy>
           </div>
-
         </.form>
 
         <.back navigate={~p"/admin/products"}>
           Admin Products
         </.back>
-
       </div>
     </Layouts.artsy_main>
     """

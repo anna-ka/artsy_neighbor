@@ -208,22 +208,30 @@ defmodule ArtsyNeighbor.CategoriesTest do
     end
 
     test "accepts description of exactly 10 characters" do
-      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :description, "1234567890"))
+      changeset =
+        Category.changeset(%Category{}, Map.put(@valid_attrs, :description, "1234567890"))
+
       assert changeset.valid?
     end
 
     test "rejects name longer than 100 characters" do
-      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 101)))
+      changeset =
+        Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 101)))
+
       assert errors_on(changeset).name != []
     end
 
     test "accepts name of exactly 100 characters" do
-      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 100)))
+      changeset =
+        Category.changeset(%Category{}, Map.put(@valid_attrs, :name, String.duplicate("a", 100)))
+
       assert changeset.valid?
     end
 
     test "rejects slug longer than 50 characters" do
-      changeset = Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, String.duplicate("a", 51)))
+      changeset =
+        Category.changeset(%Category{}, Map.put(@valid_attrs, :slug, String.duplicate("a", 51)))
+
       assert errors_on(changeset).slug != []
     end
   end

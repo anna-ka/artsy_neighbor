@@ -4,13 +4,18 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
   alias ArtsyNeighbor.Admin.AdminCategories
   alias ArtsyNeighbor.Categories.Category
 
-
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="admin" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <.header>
         {@page_title}
         <:subtitle>Use this form to manage category records in your database.</:subtitle>
@@ -21,7 +26,11 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
         <.input field={@form[:description]} type="textarea" label="Description" />
         <.input field={@form[:main_img]} type="text" label="Main img" />
         <div :if={@form[:main_img].value not in [nil, ""]} class="mt-2 mb-4">
-          <img src={@form[:main_img].value} alt="Category image preview" class="h-40 object-cover rounded" />
+          <img
+            src={@form[:main_img].value}
+            alt="Category image preview"
+            class="h-40 object-cover rounded"
+          />
         </div>
         <.input field={@form[:slug]} type="text" label="Slug" />
         <footer>

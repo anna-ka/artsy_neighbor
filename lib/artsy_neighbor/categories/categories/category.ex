@@ -24,7 +24,9 @@ defmodule ArtsyNeighbor.Categories.Category do
     |> validate_length(:description, min: 10, max: 1000)
     |> validate_length(:slug, min: 1, max: 50)
     |> validate_format(:slug, ~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-        message: "A slug can only contain lowercase letters, numbers, and hyphens (no leading/trailing/consecutive hyphens)")
+      message:
+        "A slug can only contain lowercase letters, numbers, and hyphens (no leading/trailing/consecutive hyphens)"
+    )
     |> unique_constraint(:slug)
     |> unique_constraint(:name)
   end

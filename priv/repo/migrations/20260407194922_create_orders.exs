@@ -18,8 +18,6 @@ defmodule ArtsyNeighbor.Repo.Migrations.CreateOrders do
       timestamps(type: :utc_datetime)
     end
 
-
-
     create index(:orders, [:conversation_id])
     create index(:orders, [:status])
     create index(:orders, [:buyer_id])

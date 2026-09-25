@@ -23,7 +23,6 @@ defmodule ArtsyNeighborWeb.UserLive.Registration do
         </div>
 
         <.form for={@form} id="registration_form" phx-submit="save" phx-change="validate">
-
           <.input
             field={@form[:username]}
             type="text"
@@ -40,8 +39,6 @@ defmodule ArtsyNeighborWeb.UserLive.Registration do
             autocomplete="username"
             required
           />
-
-
 
           <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
             Create an account

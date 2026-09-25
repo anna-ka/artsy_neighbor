@@ -12,10 +12,10 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
   alias ArtsyNeighbor.Reviews
 
   def mount(%{"id" => id}, _session, socket) do
-    order     = Orders.get_order!(id)
-    user      = socket.assigns.current_scope.user
+    order = Orders.get_order!(id)
+    user = socket.assigns.current_scope.user
     days_left = Reviews.days_remaining_in_window(order)
-    existing  = Reviews.get_vendor_review_for_order(order.id)
+    existing = Reviews.get_vendor_review_for_order(order.id)
 
     # Guard checks run in priority order: wrong user first (security), then
     # business-logic guards, then edit-vs-create decision.
@@ -83,19 +83,19 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
       {:noreply, assign(socket, :error, "Please choose a star rating before continuing.")}
     else
       order = socket.assigns.order
-      user  = socket.assigns.current_scope.user
+      user = socket.assigns.current_scope.user
 
       attrs = %{
-        order_id:    order.id,
+        order_id: order.id,
         reviewer_id: user.id,
-        artist_id:   order.artist_id,
-        stars:       socket.assigns.stars,
-        body:        String.trim(socket.assigns.body)
+        artist_id: order.artist_id,
+        stars: socket.assigns.stars,
+        body: String.trim(socket.assigns.body)
       }
 
       result =
         case socket.assigns.existing_review do
-          nil      -> Reviews.create_vendor_review(attrs)
+          nil -> Reviews.create_vendor_review(attrs)
           existing -> Reviews.update_vendor_review(existing, attrs)
         end
 
@@ -135,7 +135,6 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
     >
       <div class="max-w-lg mx-auto px-4 py-12">
         <div class="bg-base-200 rounded-xl p-6 flex flex-col gap-6">
-
           <div>
             <p class="text-xs text-base-content/50 uppercase tracking-widest mb-2">Step 1 of 2</p>
             <h1 class="text-2xl font-bold text-base-content">
@@ -158,11 +157,14 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
                 class={[
                   "text-4xl transition-colors select-none leading-none",
                   if((@stars || 0) >= i,
-                    do:   "text-warning",
-                    else: "text-base-content/20 hover:text-warning/50")
+                    do: "text-warning",
+                    else: "text-base-content/20 hover:text-warning/50"
+                  )
                 ]}
                 aria-label={"#{i} star#{if i != 1, do: "s"}"}
-              >★</button>
+              >
+                ★
+              </button>
             </div>
             <p :if={@stars} class="text-xs text-base-content/50 mt-1">{star_label(@stars)}</p>
           </div>
@@ -170,8 +172,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
           <form phx-submit="submit" phx-change="form_changed" class="flex flex-col gap-4">
             <div>
               <label class="text-sm font-medium text-base-content block mb-2">
-                Share your experience
-                <span class="text-base-content/40 font-normal">(optional)</span>
+                Share your experience <span class="text-base-content/40 font-normal">(optional)</span>
               </label>
               <textarea
                 name="body"
@@ -196,7 +197,6 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfVendorStep do
           >
             {if @existing_review, do: "Skip to product reviews", else: "Skip vendor review"}
           </.link>
-
         </div>
       </div>
     </Layouts.artsy_main>

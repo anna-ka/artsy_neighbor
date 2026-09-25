@@ -3,11 +3,11 @@ defmodule ArtsyNeighbor.Repo.Migrations.CreateProductReviews do
 
   def change do
     create table(:product_reviews) do
-      add :order_id,    references(:orders,   on_delete: :restrict), null: false
-      add :product_id,  references(:products, on_delete: :restrict), null: false
-      add :reviewer_id, references(:users,    on_delete: :restrict), null: false
-      add :stars,       :integer, null: false
-      add :body,        :text
+      add :order_id, references(:orders, on_delete: :restrict), null: false
+      add :product_id, references(:products, on_delete: :restrict), null: false
+      add :reviewer_id, references(:users, on_delete: :restrict), null: false
+      add :stars, :integer, null: false
+      add :body, :text
 
       add :submitted_at, :utc_datetime, null: false
 

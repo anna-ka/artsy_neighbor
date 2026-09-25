@@ -1,5 +1,4 @@
 defmodule ArtsyNeighbor.OldProduct do
-
   defstruct [
     :id,
     :title,
@@ -9,13 +8,9 @@ defmodule ArtsyNeighbor.OldProduct do
     :price,
     :image
   ]
-
 end
 
-
 defmodule ArtsyNeighbor.OldProducts do
-
-
   def list_products do
     [
       # Paintings
@@ -174,7 +169,6 @@ defmodule ArtsyNeighbor.OldProducts do
     ]
   end
 
-
   def get_product(id) when is_integer(id) do
     list_products()
     |> Enum.find(fn product -> product.id == id end)
@@ -186,10 +180,7 @@ defmodule ArtsyNeighbor.OldProducts do
 
   def get_featured_products(current_product) do
     list_products()
-      |> List.delete(current_product)
-      |> Enum.take(4)
+    |> List.delete(current_product)
+    |> Enum.take(4)
   end
-
-
-
 end

@@ -1,11 +1,10 @@
 defmodule ArtsyNeighborWeb.ConversationLive.Index do
-
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Conversations
 
   def mount(_params, _session, socket) do
-    user   = socket.assigns.current_scope.user
+    user = socket.assigns.current_scope.user
     artist = socket.assigns.current_scope.artist
 
     if connected?(socket) do
@@ -13,12 +12,15 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
     end
 
     # Load unread conversation IDs from the DB so the dots survive page navigation.
-    buyer_unread  = Conversations.list_unread_conversation_ids_for_buyer(user.id)
-    vendor_unread = if artist do
-      Conversations.list_unread_conversation_ids_for_artist(artist.id)
-    else
-      []
-    end
+    buyer_unread = Conversations.list_unread_conversation_ids_for_buyer(user.id)
+
+    vendor_unread =
+      if artist do
+        Conversations.list_unread_conversation_ids_for_artist(artist.id)
+      else
+        []
+      end
+
     system_unread = Conversations.list_unread_system_conversation_ids_for_user(user.id)
 
     # Merge all three lists into a MapSet (no duplicates, fast membership checks).
@@ -37,7 +39,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
   end
 
   def handle_params(_params, _uri, socket) do
-    current_user   = socket.assigns.current_scope.user
+    current_user = socket.assigns.current_scope.user
     convs_with_new = socket.assigns.convs_with_new
 
     conversations_as_buyer =
@@ -56,51 +58,61 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
       Conversations.list_system_conversations_for_user(current_user.id)
 
     {:noreply,
-      socket
-      |> assign(:conversations_as_buyer, conversations_as_buyer)
-      |> assign(:conversations_as_vendor, conversations_as_vendor)
-      |> assign(:system_conversations, system_conversations)
-    }
+     socket
+     |> assign(:conversations_as_buyer, conversations_as_buyer)
+     |> assign(:conversations_as_vendor, conversations_as_vendor)
+     |> assign(:system_conversations, system_conversations)}
   end
 
   # Splits the list into two groups — unread first, then read — while preserving
   # the last_event_at ordering within each group.
   defp sort_unread_first(conversations, convs_with_new) do
-    {unread, read} = Enum.split_with(conversations, fn c -> MapSet.member?(convs_with_new, c.id) end)
+    {unread, read} =
+      Enum.split_with(conversations, fn c -> MapSet.member?(convs_with_new, c.id) end)
+
     unread ++ read
   end
 
   def handle_info({:new_conversation, conversation}, socket) do
     conversation = Conversations.preload_participants(conversation)
-    {:noreply, update(socket, :conversations_as_vendor, fn current_list -> [conversation | current_list] end)}
+
+    {:noreply,
+     update(socket, :conversations_as_vendor, fn current_list -> [conversation | current_list] end)}
   end
 
   def handle_info({:conversation_updated, event}, socket) do
     # A new message arrived — add this conversation to the unread set.
     updated_set = MapSet.put(socket.assigns.convs_with_new, event.conversation_id)
+
     {:noreply,
-      socket
-      |> assign(:convs_with_new, updated_set)
-      |> assign(:has_unread_messages, true)}
+     socket
+     |> assign(:convs_with_new, updated_set)
+     |> assign(:has_unread_messages, true)}
   end
 
   def handle_info({:marked_read, conversation_id}, socket) do
     # The user opened this conversation — remove it from the unread set.
     updated_set = MapSet.delete(socket.assigns.convs_with_new, conversation_id)
+
     {:noreply,
-      socket
-      |> assign(:convs_with_new, updated_set)
-      |> assign(:has_unread_messages, not Enum.empty?(updated_set))}
+     socket
+     |> assign(:convs_with_new, updated_set)
+     |> assign(:has_unread_messages, not Enum.empty?(updated_set))}
   end
 
   if Mix.env() != :prod do
     def handle_event("hard_delete_conversation_dev", %{"id" => id}, socket) do
       conversation = Conversations.get_conversation_all_status!(id)
       Conversations.hard_delete_conversation_dev(conversation)
-      {:noreply, update(socket, :conversations_as_vendor, &Enum.reject(&1, fn c -> c.id == conversation.id end))}
+
+      {:noreply,
+       update(
+         socket,
+         :conversations_as_vendor,
+         &Enum.reject(&1, fn c -> c.id == conversation.id end)
+       )}
     end
   end
-
 
   # Formats last_event_at for display in the inbox list:
   # - nil            → "No messages yet"
@@ -108,17 +120,18 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
   # - this year      → "Apr 12"
   # - older          → "Apr 12, 2025"
   defp format_last_event_at(nil), do: "No messages yet"
+
   defp format_last_event_at(dt) do
     timezone = Application.fetch_env!(:artsy_neighbor, :timezone)
     # Convert from UTC to local time before formatting.
     local = DateTime.shift_zone!(dt, timezone)
     today = DateTime.now!(timezone) |> DateTime.to_date()
-    date  = DateTime.to_date(local)
+    date = DateTime.to_date(local)
 
     cond do
-      date == today           -> Calendar.strftime(local, "%I:%M %p")
+      date == today -> Calendar.strftime(local, "%I:%M %p")
       date.year == today.year -> Calendar.strftime(local, "%b %-d")
-      true                    -> Calendar.strftime(local, "%b %-d, %Y")
+      true -> Calendar.strftime(local, "%b %-d, %Y")
     end
   end
 
@@ -126,9 +139,14 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
 
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="max-w-2xl mx-auto px-4 py-8">
         <h1 class="text-2xl font-bold mb-6 text-base-content">Your Messages</h1>
 
@@ -139,8 +157,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
           </h2>
           <ul class="divide-y divide-base-200">
             <li :for={conversation <- @system_conversations} id={"conv-system-#{conversation.id}"}>
-              <.link navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors">
+              <.link
+                navigate={~p"/messages/#{conversation.id}"}
+                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors"
+              >
                 <div class="avatar placeholder">
                   <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                     <span class="text-lg font-bold">✦</span>
@@ -148,9 +168,15 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-semibold text-base-content">{platform_name()}</p>
-                  <p class="text-xs text-base-content/50">{format_last_event_at(conversation.last_event_at)}</p>
+                  <p class="text-xs text-base-content/50">
+                    {format_last_event_at(conversation.last_event_at)}
+                  </p>
                 </div>
-                <span :if={MapSet.member?(@convs_with_new, conversation.id)} class="badge badge-error badge-xs"></span>
+                <span
+                  :if={MapSet.member?(@convs_with_new, conversation.id)}
+                  class="badge badge-error badge-xs"
+                >
+                </span>
               </.link>
             </li>
           </ul>
@@ -158,21 +184,35 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
 
         <%!-- Buying section --%>
         <section class="mb-8">
-          <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">Buying</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">
+            Buying
+          </h2>
           <ul class="divide-y divide-base-200">
             <li :for={conversation <- @conversations_as_buyer} id={"conv-buyer-#{conversation.id}"}>
-              <.link navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors">
+              <.link
+                navigate={~p"/messages/#{conversation.id}"}
+                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors"
+              >
                 <div class="avatar">
                   <div class="w-12 h-12 rounded-full">
-                    <img src={List.first(conversation.artist.artist_images, %{path: "/images/placeholder.jpg"}).path} />
+                    <img src={
+                      List.first(conversation.artist.artist_images, %{path: "/images/placeholder.jpg"}).path
+                    } />
                   </div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="font-semibold text-base-content truncate">{conversation.artist.nickname}</p>
-                  <p class="text-xs text-base-content/50">{format_last_event_at(conversation.last_event_at)}</p>
+                  <p class="font-semibold text-base-content truncate">
+                    {conversation.artist.nickname}
+                  </p>
+                  <p class="text-xs text-base-content/50">
+                    {format_last_event_at(conversation.last_event_at)}
+                  </p>
                 </div>
-                <span :if={MapSet.member?(@convs_with_new, conversation.id)} class="badge badge-error badge-xs"></span>
+                <span
+                  :if={MapSet.member?(@convs_with_new, conversation.id)}
+                  class="badge badge-error badge-xs"
+                >
+                </span>
               </.link>
             </li>
           </ul>
@@ -183,12 +223,19 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
 
         <%!-- Selling section — vendors only --%>
         <section :if={@current_scope.artist}>
-          <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">Selling</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-widest text-base-content/50 mb-3">
+            Selling
+          </h2>
           <ul class="divide-y divide-base-200">
-            <li :for={conversation <- @conversations_as_vendor} id={"conv-vendor-#{conversation.id}"}
-                class="flex items-center gap-4 py-3 px-2">
-              <.link navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 flex-1 rounded-lg hover:bg-base-200 transition-colors">
+            <li
+              :for={conversation <- @conversations_as_vendor}
+              id={"conv-vendor-#{conversation.id}"}
+              class="flex items-center gap-4 py-3 px-2"
+            >
+              <.link
+                navigate={~p"/messages/#{conversation.id}"}
+                class="flex items-center gap-4 flex-1 rounded-lg hover:bg-base-200 transition-colors"
+              >
                 <div class="avatar placeholder">
                   <div class="w-12 h-12 rounded-full bg-base-300 text-base-content">
                     <span class="text-lg font-bold">
@@ -200,13 +247,24 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                   <p class="font-semibold text-base-content truncate">
                     {conversation.buyer.username || conversation.buyer.email}
                   </p>
-                  <p class="text-xs text-base-content/50">{format_last_event_at(conversation.last_event_at)}</p>
+                  <p class="text-xs text-base-content/50">
+                    {format_last_event_at(conversation.last_event_at)}
+                  </p>
                 </div>
-                <span :if={MapSet.member?(@convs_with_new, conversation.id)} class="badge badge-error badge-xs"></span>
+                <span
+                  :if={MapSet.member?(@convs_with_new, conversation.id)}
+                  class="badge badge-error badge-xs"
+                >
+                </span>
               </.link>
               <%= if Mix.env() != :prod do %>
-                <button phx-click="hard_delete_conversation_dev" phx-value-id={conversation.id}
-                  class="btn btn-xs btn-ghost text-error">✕</button>
+                <button
+                  phx-click="hard_delete_conversation_dev"
+                  phx-value-id={conversation.id}
+                  class="btn btn-xs btn-ghost text-error"
+                >
+                  ✕
+                </button>
               <% end %>
             </li>
           </ul>
@@ -218,5 +276,4 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
     </Layouts.artsy_main>
     """
   end
-
 end

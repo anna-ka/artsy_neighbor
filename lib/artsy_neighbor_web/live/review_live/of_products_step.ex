@@ -14,8 +14,8 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
   alias ArtsyNeighbor.Reviews
 
   def mount(%{"id" => id}, _session, socket) do
-    order     = Orders.get_order!(id)
-    user      = socket.assigns.current_scope.user
+    order = Orders.get_order!(id)
+    user = socket.assigns.current_scope.user
     days_left = Reviews.days_remaining_in_window(order)
 
     cond do
@@ -53,7 +53,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
           |> Enum.uniq_by(& &1.product_id)
           |> Enum.map(fn item ->
             %{
-              id:    item.product_id,
+              id: item.product_id,
               title: item.product_title,
               thumb: item.product && List.first(item.product.product_images)
             }
@@ -62,14 +62,15 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
         reviews =
           Map.new(products, fn p ->
             existing = Map.get(existing_by_product, p.id)
+
             {p.id,
              %{
-               stars:           existing && existing.stars,
-               body:            (existing && existing.body) || "",
-               submitted:       not is_nil(existing),
-               editing:         false,
+               stars: existing && existing.stars,
+               body: (existing && existing.body) || "",
+               submitted: not is_nil(existing),
+               editing: false,
                existing_review: existing,
-               error:           nil
+               error: nil
              }}
           end)
 
@@ -87,7 +88,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
   # so a single event handler can serve all cards on the page.
   def handle_event("set_stars", %{"product-id" => pid_str, "stars" => stars_str}, socket) do
     product_id = String.to_integer(pid_str)
-    stars      = String.to_integer(stars_str)
+    stars = String.to_integer(stars_str)
 
     reviews =
       Map.update!(socket.assigns.reviews, product_id, fn r ->
@@ -100,7 +101,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
   # Reveal the edit form for an already-submitted product card.
   def handle_event("edit_product", %{"product-id" => pid_str}, socket) do
     product_id = String.to_integer(pid_str)
-    reviews    = Map.update!(socket.assigns.reviews, product_id, &%{&1 | editing: true})
+    reviews = Map.update!(socket.assigns.reviews, product_id, &%{&1 | editing: true})
     {:noreply, assign(socket, :reviews, reviews)}
   end
 
@@ -108,16 +109,16 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
   # can route the body update to the right entry in @reviews.
   def handle_event("form_changed", %{"product_id" => pid_str} = params, socket) do
     product_id = String.to_integer(pid_str)
-    body       = Map.get(params, "body", "")
-    reviews    = Map.update!(socket.assigns.reviews, product_id, &%{&1 | body: body})
+    body = Map.get(params, "body", "")
+    reviews = Map.update!(socket.assigns.reviews, product_id, &%{&1 | body: body})
     {:noreply, assign(socket, :reviews, reviews)}
   end
 
   def handle_event("submit_product", %{"product_id" => pid_str} = params, socket) do
     product_id = String.to_integer(pid_str)
-    order      = socket.assigns.order
-    user       = socket.assigns.current_scope.user
-    state      = socket.assigns.reviews[product_id]
+    order = socket.assigns.order
+    user = socket.assigns.current_scope.user
+    state = socket.assigns.reviews[product_id]
 
     # The hidden <input name="stars"> in the form mirrors the assign, but the
     # assign is the source of truth. We fall back to the form param only in case
@@ -125,26 +126,32 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
     stars =
       case Map.get(params, "stars", "") do
         "" -> nil
-        s  -> String.to_integer(s)
+        s -> String.to_integer(s)
       end
 
     stars = state.stars || stars
 
     if is_nil(stars) do
-      reviews = Map.update!(socket.assigns.reviews, product_id, &%{&1 | error: "Please choose a star rating."})
+      reviews =
+        Map.update!(
+          socket.assigns.reviews,
+          product_id,
+          &%{&1 | error: "Please choose a star rating."}
+        )
+
       {:noreply, assign(socket, :reviews, reviews)}
     else
       attrs = %{
-        order_id:    order.id,
+        order_id: order.id,
         reviewer_id: user.id,
-        product_id:  product_id,
-        stars:       stars,
-        body:        String.trim(Map.get(params, "body", state.body))
+        product_id: product_id,
+        stars: stars,
+        body: String.trim(Map.get(params, "body", state.body))
       }
 
       result =
         case state.existing_review do
-          nil      -> Reviews.create_product_review(attrs)
+          nil -> Reviews.create_product_review(attrs)
           existing -> Reviews.update_product_review(existing, attrs)
         end
 
@@ -155,10 +162,17 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
             Map.update!(socket.assigns.reviews, product_id, fn r ->
               %{r | submitted: true, editing: false, existing_review: saved_review, error: nil}
             end)
+
           {:noreply, assign(socket, :reviews, reviews)}
 
         {:error, :edit_window_expired} ->
-          reviews = Map.update!(socket.assigns.reviews, product_id, &%{&1 | error: "The 30-day edit window has closed."})
+          reviews =
+            Map.update!(
+              socket.assigns.reviews,
+              product_id,
+              &%{&1 | error: "The 30-day edit window has closed."}
+            )
+
           {:noreply, assign(socket, :reviews, reviews)}
 
         {:error, changeset} ->
@@ -191,7 +205,6 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
       <div class="max-w-lg mx-auto px-4 py-12 flex flex-col gap-6">
-
         <div>
           <p class="text-xs text-base-content/50 uppercase tracking-widest mb-2">Step 2 of 2</p>
           <h1 class="text-2xl font-bold text-base-content">Review your items</h1>
@@ -209,16 +222,23 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
               <%= if product.thumb do %>
                 <img src={product.thumb.path} alt={product.title} class="w-full h-full object-cover" />
               <% else %>
-                <div class="w-full h-full flex items-center justify-center text-base-content/20 text-xs">?</div>
+                <div class="w-full h-full flex items-center justify-center text-base-content/20 text-xs">
+                  ?
+                </div>
               <% end %>
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-base-content truncate">{product.title}</p>
-              <p :if={state.submitted and not state.editing} class="text-xs text-success mt-0.5">Review submitted ✓</p>
+              <p :if={state.submitted and not state.editing} class="text-xs text-success mt-0.5">
+                Review submitted ✓
+              </p>
             </div>
             <%!-- Edit button — only while the 30-day edit window is open --%>
             <button
-              :if={state.submitted and not state.editing and state.existing_review && Reviews.within_edit_window?(state.existing_review)}
+              :if={
+                (state.submitted and not state.editing and state.existing_review) &&
+                  Reviews.within_edit_window?(state.existing_review)
+              }
               phx-click="edit_product"
               phx-value-product-id={product.id}
               class="btn btn-xs btn-ghost shrink-0"
@@ -244,12 +264,17 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
                   class={[
                     "text-3xl transition-colors select-none leading-none",
                     if((state.stars || 0) >= i,
-                      do:   "text-warning",
-                      else: "text-base-content/20 hover:text-warning/50")
+                      do: "text-warning",
+                      else: "text-base-content/20 hover:text-warning/50"
+                    )
                   ]}
-                >★</button>
+                >
+                  ★
+                </button>
               </div>
-              <p :if={state.stars} class="text-xs text-base-content/50 mt-1">{star_label(state.stars)}</p>
+              <p :if={state.stars} class="text-xs text-base-content/50 mt-1">
+                {star_label(state.stars)}
+              </p>
             </div>
 
             <form phx-submit="submit_product" phx-change="form_changed" class="flex flex-col gap-3">
@@ -263,7 +288,9 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
                   class="textarea textarea-bordered w-full text-sm resize-none"
                   placeholder="Share your thoughts on this piece (optional)"
                 >{state.body}</textarea>
-                <p class="text-right text-xs text-base-content/40 mt-1">{String.length(state.body)}/500</p>
+                <p class="text-right text-xs text-base-content/40 mt-1">
+                  {String.length(state.body)}/500
+                </p>
               </div>
               <p :if={state.error} class="text-sm text-error">{state.error}</p>
               <button type="submit" class="btn btn-primary btn-sm w-full">
@@ -276,7 +303,6 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
         <button phx-click="done" class="btn btn-ghost w-full">
           Done — back to order
         </button>
-
       </div>
     </Layouts.artsy_main>
     """

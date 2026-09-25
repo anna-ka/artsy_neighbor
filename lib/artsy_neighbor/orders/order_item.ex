@@ -19,7 +19,15 @@ defmodule ArtsyNeighbor.Orders.OrderItem do
   @doc false
   def changeset(order_item, attrs) do
     order_item
-    |> cast(attrs, [:order_id, :product_id, :quantity, :unit_price, :product_title, :return_policy_snapshot, :selected_options])
+    |> cast(attrs, [
+      :order_id,
+      :product_id,
+      :quantity,
+      :unit_price,
+      :product_title,
+      :return_policy_snapshot,
+      :selected_options
+    ])
     |> validate_required([:order_id, :product_id, :quantity, :unit_price, :product_title])
   end
 end

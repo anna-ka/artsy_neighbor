@@ -68,11 +68,16 @@ defmodule ArtsyNeighbor.OrdersTest do
   defp new_order(attrs \\ %{}) do
     buyer = attrs[:buyer] || user_fixture()
     artist = attrs[:artist] || artist_fixture()
-    product = attrs[:product] || product_fixture(artist_id: artist.id, price: attrs[:price] || "50.00")
+
+    product =
+      attrs[:product] || product_fixture(artist_id: artist.id, price: attrs[:price] || "50.00")
+
     quantity = attrs[:quantity] || 1
 
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
-    {:ok, order} = Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: quantity}])
+
+    {:ok, order} =
+      Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: quantity}])
 
     %{order: order, buyer: buyer, artist: artist, product: product, conversation: conversation}
   end
@@ -288,7 +293,16 @@ defmodule ArtsyNeighbor.OrdersTest do
       artist = artist_fixture()
       product = product_fixture(artist_id: artist.id)
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
-      {:ok, order} = Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}], :delivery)
+
+      {:ok, order} =
+        Orders.create_order(
+          conversation,
+          buyer,
+          artist,
+          [%{product: product, quantity: 1}],
+          :delivery
+        )
+
       confirmed = confirm!(order) |> then(&Orders.get_order!(&1.id))
 
       assert Orders.complete_pickup(confirmed, confirmed.complete_token) == {:error, :wrong_state}
@@ -411,7 +425,12 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, artist: artist, buyer: buyer} = new_order(quantity: 1)
       second_product = product_fixture(artist_id: artist.id)
       {:ok, order} = Orders.add_item_to_order(order, second_product, :buyer)
-      first_item = Enum.find(Repo.preload(order, :items, force: true).items, &(&1.product_id != second_product.id))
+
+      first_item =
+        Enum.find(
+          Repo.preload(order, :items, force: true).items,
+          &(&1.product_id != second_product.id)
+        )
 
       assert {:ok, updated} = Orders.remove_order_item(order, first_item.id, :buyer)
       remaining = Repo.preload(updated, :items, force: true).items
@@ -565,7 +584,10 @@ defmodule ArtsyNeighbor.OrdersTest do
       p3 = product_fixture(artist_id: artist.id, price: "5.00")
 
       assert {:ok, updated} =
-               Orders.amend_order(order, [%{product: p2, quantity: 2}, %{product: p3, quantity: 4}])
+               Orders.amend_order(order, [
+                 %{product: p2, quantity: 2},
+                 %{product: p3, quantity: 4}
+               ])
 
       items = Repo.preload(updated, :items, force: true).items
       assert length(items) == 2
@@ -578,7 +600,8 @@ defmodule ArtsyNeighbor.OrdersTest do
       completed = confirm!(order) |> complete!()
       p2 = product_fixture(artist_id: artist.id)
 
-      assert Orders.amend_order(completed, [%{product: p2, quantity: 1}]) == {:error, :wrong_state}
+      assert Orders.amend_order(completed, [%{product: p2, quantity: 1}]) ==
+               {:error, :wrong_state}
     end
   end
 
@@ -722,7 +745,14 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "refuses to schedule a pickup for a :requested (not yet confirmed) order" do
       %{order: order} = new_order()
-      assert Orders.schedule_pickup(order, %{date: "", time: "", address: "x", instructions: "", completion_url: "x"}) ==
+
+      assert Orders.schedule_pickup(order, %{
+               date: "",
+               time: "",
+               address: "x",
+               instructions: "",
+               completion_url: "x"
+             }) ==
                {:error, :wrong_state}
     end
 
@@ -730,7 +760,13 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       {:ok, cancelled} = Orders.cancel_order(order, :buyer)
 
-      assert Orders.schedule_pickup(cancelled, %{date: "", time: "", address: "x", instructions: "", completion_url: "x"}) ==
+      assert Orders.schedule_pickup(cancelled, %{
+               date: "",
+               time: "",
+               address: "x",
+               instructions: "",
+               completion_url: "x"
+             }) ==
                {:error, :wrong_state}
     end
   end
@@ -841,8 +877,11 @@ defmodule ArtsyNeighbor.OrdersTest do
       p2 = product_fixture(artist_id: artist.id)
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
-      {:ok, _first} = Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
-      {:ok, second} = Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
+      {:ok, _first} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
+
+      {:ok, second} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
 
       assert Orders.get_open_order_for_conversation(conversation.id).id == second.id
     end
@@ -857,10 +896,17 @@ defmodule ArtsyNeighbor.OrdersTest do
       p3 = product_fixture(artist_id: artist.id)
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
-      {:ok, requested} = Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
-      {:ok, to_confirm} = Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
+      {:ok, requested} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
+
+      {:ok, to_confirm} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
+
       confirmed = confirm!(to_confirm)
-      {:ok, to_cancel} = Orders.create_order(conversation, buyer, artist, [%{product: p3, quantity: 1}])
+
+      {:ok, to_cancel} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p3, quantity: 1}])
+
       {:ok, _cancelled} = Orders.cancel_order(to_cancel, :buyer)
 
       open = Orders.list_open_orders_for_conversation(conversation.id)
@@ -891,11 +937,18 @@ defmodule ArtsyNeighbor.OrdersTest do
       artist = artist_fixture()
       p = product_fixture(artist_id: artist.id)
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
-      {:ok, other_conversation} = Conversations.find_or_create_conversation(other_buyer.id, artist.id)
 
-      {:ok, first} = Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
-      {:ok, second} = Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
-      {:ok, _other} = Orders.create_order(other_conversation, other_buyer, artist, [%{product: p, quantity: 1}])
+      {:ok, other_conversation} =
+        Conversations.find_or_create_conversation(other_buyer.id, artist.id)
+
+      {:ok, first} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
+
+      {:ok, second} =
+        Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
+
+      {:ok, _other} =
+        Orders.create_order(other_conversation, other_buyer, artist, [%{product: p, quantity: 1}])
 
       result = Orders.list_orders_for_buyer(buyer.id)
       assert Enum.map(result, & &1.id) == [second.id, first.id]

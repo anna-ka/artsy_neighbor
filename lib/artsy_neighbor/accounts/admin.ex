@@ -1,5 +1,4 @@
 defmodule ArtsyNeighbor.Accounts.Admin do
-
   @moduledoc """
   The Admin schema, which represents users with administrative privileges in the system.
   """
@@ -11,5 +10,4 @@ defmodule ArtsyNeighbor.Accounts.Admin do
 
     timestamps(updated_at: false)
   end
-
 end

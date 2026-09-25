@@ -8,8 +8,8 @@ defmodule ArtsyNeighborWeb.OrderLive.Index do
   import ArtsyNeighborWeb.OrderFormatters
 
   def mount(_params, _session, socket) do
-    user         = socket.assigns.current_scope.user
-    orders       = Orders.list_orders_for_buyer(user.id)
+    user = socket.assigns.current_scope.user
+    orders = Orders.list_orders_for_buyer(user.id)
     reviewed_ids = Reviews.reviewed_order_ids_as_buyer(user.id)
 
     {:ok,
@@ -35,7 +35,8 @@ defmodule ArtsyNeighborWeb.OrderLive.Index do
         <div :if={@pending_reviews_as_buyer > 0} class="alert alert-warning mb-6">
           <.icon name="hero-exclamation-triangle" class="size-5 shrink-0" />
           <span>
-            You have {@pending_reviews_as_buyer} completed order{if @pending_reviews_as_buyer != 1, do: "s"} awaiting your review.
+            You have {@pending_reviews_as_buyer} completed order{if @pending_reviews_as_buyer != 1,
+              do: "s"} awaiting your review.
             Click an order below to leave your feedback.
           </span>
         </div>

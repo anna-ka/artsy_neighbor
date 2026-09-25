@@ -13,7 +13,11 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
 
   defp apply_action(socket, :new, _params) do
     artist = socket.assigns.current_scope.artist
-    collection = %ProductCollection{artist_id: artist.id, position: next_collection_position(artist.id)}
+
+    collection = %ProductCollection{
+      artist_id: artist.id,
+      position: next_collection_position(artist.id)
+    }
 
     socket
     |> assign(:page_title, "Create Collection")
@@ -93,21 +97,25 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_main flash={@flash} variant="vendor" nav_categories={@nav_categories} current_scope={@current_scope} has_unread={@has_unread_messages}
+    <Layouts.artsy_main
+      flash={@flash}
+      variant="vendor"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
-      pending_reviews_as_vendor={@pending_reviews_as_vendor}>
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="w-full px-8 py-8">
-
         <.back navigate={~p"/vendor"}>
           Artist Dashboard
         </.back>
 
         <.header>
-          <%= @page_title %>
+          {@page_title}
         </.header>
 
         <.form for={@form} id="collection-form" phx-change="validate" phx-submit="save">
-
           <.input
             field={@form[:name]}
             type="text"
@@ -119,13 +127,11 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
           <.button_artsy variant="primary" disable_with="Saving...">
             Save Collection
           </.button_artsy>
-
         </.form>
 
         <.back navigate={~p"/vendor"}>
           Artist Dashboard
         </.back>
-
       </div>
     </Layouts.artsy_main>
     """

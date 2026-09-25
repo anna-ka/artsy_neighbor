@@ -3,8 +3,8 @@ defmodule ArtsyNeighbor.Conversations do
   The Conversations context.
   """
 
-  #module attribute to set how many messages to load by default when loading a conversation.
-  #also acts as a buffer size for loading more
+  # module attribute to set how many messages to load by default when loading a conversation.
+  # also acts as a buffer size for loading more
   @conversation_events_limit 50
 
   import Ecto.Query, warn: false
@@ -12,8 +12,6 @@ defmodule ArtsyNeighbor.Conversations do
 
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
-
-
 
   @doc """
   Subscribes to scoped notifications about any conversation changes.
@@ -43,10 +41,11 @@ defmodule ArtsyNeighbor.Conversations do
     broadcast_to_conversation(conversation_id, {:new_message, event})
 
     conversation = Repo.get!(Conversation, conversation_id) |> Repo.preload(artist: [])
+
     case event.actor_type do
-      :buyer  -> broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
+      :buyer -> broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
       :vendor -> broadcast_to_user(conversation.buyer_id, {:conversation_updated, event})
-      _       -> :ok
+      _ -> :ok
     end
   end
 
@@ -60,20 +59,19 @@ defmodule ArtsyNeighbor.Conversations do
     Phoenix.PubSub.broadcast(ArtsyNeighbor.PubSub, "user:#{user_id}", message)
   end
 
-  @doc"""
-  Returns a changeset for a conversation."""
+  @doc """
+  Returns a changeset for a conversation.\"""
   def change_conversation(%Conversation{} = conversation, attrs \\ %{}) do
     Conversation.changeset(conversation, attrs)
   end
 
-  @doc """  Returns a changeset for a conversation event.
+  @doc \"""  Returns a changeset for a conversation event.
   """
   def change_conversation_event(%ConversationEvent{} = conversation_event, attrs \\ %{}) do
     ConversationEvent.message_changeset(conversation_event, attrs)
   end
 
-
-  #functions written by Anna
+  # functions written by Anna
 
   @doc """
     Finds an existing conversation between a buyer and artist, or creates one if it doesn't exist.
@@ -88,12 +86,14 @@ defmodule ArtsyNeighbor.Conversations do
             artist = Repo.get!(ArtsyNeighbor.Artists.Artist, conversation.artist_id)
             broadcast_to_user(artist.user_id, {:new_conversation, conversation})
             {:ok, conversation}
-          error -> error
+
+          error ->
+            error
         end
+
       conversation ->
         {:ok, conversation}
     end
-
   end
 
   @doc """
@@ -113,7 +113,7 @@ defmodule ArtsyNeighbor.Conversations do
     |> with_status(:active)
     # Most recently active conversations first; nil last_event_at (no messages yet) sinks to bottom.
     |> order_by([c], desc_nulls_last: c.last_event_at)
-    |> preload([artist: :artist_images])
+    |> preload(artist: :artist_images)
     |> Repo.all()
   end
 
@@ -190,10 +190,12 @@ defmodule ArtsyNeighbor.Conversations do
     # events posted within the same second (a status-change event immediately
     # followed by another action, which happens routinely) would otherwise
     # sort arbitrarily relative to each other.
-    Repo.all(from e in ConversationEvent,
-      where: e.conversation_id == ^conversation_id,
-      order_by: [desc: e.inserted_at, desc: e.id],
-      limit: ^limit)
+    Repo.all(
+      from e in ConversationEvent,
+        where: e.conversation_id == ^conversation_id,
+        order_by: [desc: e.inserted_at, desc: e.id],
+        limit: ^limit
+    )
     |> Enum.reverse()
   end
 
@@ -203,10 +205,12 @@ defmodule ArtsyNeighbor.Conversations do
     Sorted by most recent first.
   """
   def list_events_before(conversation_id, before_dt, limit \\ @conversation_events_limit) do
-    Repo.all(from e in ConversationEvent,
-      where: e.conversation_id == ^conversation_id and e.inserted_at < ^before_dt,
-      order_by: [desc: e.inserted_at, desc: e.id],
-      limit: ^limit)
+    Repo.all(
+      from e in ConversationEvent,
+        where: e.conversation_id == ^conversation_id and e.inserted_at < ^before_dt,
+        order_by: [desc: e.inserted_at, desc: e.id],
+        limit: ^limit
+    )
     |> Enum.reverse()
   end
 
@@ -214,8 +218,10 @@ defmodule ArtsyNeighbor.Conversations do
     Checks if there are any conversation events for a given conversation that were created before a certain datetime.
   """
   def has_events_before?(conversation_id, before_dt) do
-    Repo.exists?(from e in ConversationEvent,
-      where: e.conversation_id == ^conversation_id and e.inserted_at < ^before_dt)
+    Repo.exists?(
+      from e in ConversationEvent,
+        where: e.conversation_id == ^conversation_id and e.inserted_at < ^before_dt
+    )
   end
 
   @doc """
@@ -244,6 +250,7 @@ defmodule ArtsyNeighbor.Conversations do
       {:ok, conv_event} ->
         # Stamp last_event_at on the conversation so unread queries work.
         now = DateTime.utc_now() |> DateTime.truncate(:second)
+
         Repo.update_all(
           from(c in Conversation, where: c.id == ^conversation.id),
           set: [last_event_at: now]
@@ -257,7 +264,7 @@ defmodule ArtsyNeighbor.Conversations do
           :buyer ->
             # Buyer sent the message — notify the artist's user inbox.
             artist_user_id = conversation.artist.user_id
-              broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
+            broadcast_to_user(artist_user_id, {:conversation_updated, conv_event})
 
           :vendor ->
             # Vendor sent the message — notify the buyer's inbox.
@@ -296,11 +303,12 @@ defmodule ArtsyNeighbor.Conversations do
 
     # :user is the role for system conversations; reuses buyer_last_read_at
     # since there is no vendor side in that context.
-    field = case role do
-      :buyer  -> :buyer_last_read_at
-      :vendor -> :vendor_last_read_at
-      :user   -> :buyer_last_read_at
-    end
+    field =
+      case role do
+        :buyer -> :buyer_last_read_at
+        :vendor -> :vendor_last_read_at
+        :user -> :buyer_last_read_at
+      end
 
     conversation
     |> Ecto.Changeset.change([{field, now}])

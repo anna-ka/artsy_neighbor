@@ -6,6 +6,5 @@ defmodule ArtsyNeighbor.Repo.Migrations.AddReturnPolicyToProducts do
       add :return_policy, :string,
         default: "All sales final unless item is significantly not as described."
     end
-
   end
 end
