@@ -24,6 +24,25 @@ which is mechanical and done once, up front.
    currently 404s on every page); restyle only the key public pages
    (home, artist page, store). Later pages get the new look as they are
    built or reworked. Consider a throwaway branch for trying directions.
+   Agreed approach (2026-09-25):
+   - Developer collects reference screenshots, with a line on what she
+     likes about each (colours, fonts, artwork layout, spaciousness).
+   - Claude builds 2–3 static mockups of one key page in different
+     directions; the developer picks one.
+   - The chosen direction becomes a DaisyUI theme plus shared
+     components in `core_components.ex`.
+   - Then restyle page by page, with Playwright screenshots of each
+     result for review.
+   - Minimal JS; DaisyUI + Tailwind only — keep the site lightweight.
+   - Logo: the developer's daughter is designing it; the favicon comes
+     from it.
+   - Plan doc / design brief: `docs/plans/2026-09-28-design-system.md`.
+   - **Audience (guiding principle):** launch city is Victoria, BC, with
+     an older population. Many artists will be over 60, a good share
+     over 50, likely most over 40. Design for intuitive and easy over
+     flashy: comfortable text size and contrast, large click targets,
+     buttons labelled with words (not icon-only), nothing that only
+     works on hover, familiar patterns, few steps, clear confirmations.
 2. **Private deployment (just the developer)** — Fly.io, Tigris for image
    storage (#17, #18), basic-auth password on the whole site. Done step
    by step with a written runbook in `docs/deploy.md`; finish by tearing
@@ -222,6 +241,11 @@ working on the code should keep in mind.
   19. Audit of tests: for now they are all written by Claude, most decisions are made by Claude and I only skim them. This is one of my weaker points as I have never done true deployment. But I do want good informative test covereage. So I suppose an audit of existing tests and probably extending them.
 
   21. A very serious and thorough security audit. I am thinking of running Claude Fable on it and later (or earlier) also askign an experienced human developper for suggestions. I have no experience in this area.
+
+  22. **A real phone app**, wanted in the near future (added 2026-09-28).
+      The site is built mobile-friendly first; how to make the app (an
+      installable web app, LiveView Native, or a separate app talking
+      to the server) is still to be decided.
 
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 

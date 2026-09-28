@@ -8,8 +8,13 @@ set up a public profile and product catalog, local buyers browse and order, pick
 the order completes both sides can leave reviews. Think "farmers market for art,"
 online.
 
-For now, it is designed for one city. But the hope is to have multiple independent instances running 
+For now, it is designed for one city: Victoria, BC. But the hope is to have multiple independent instances running 
 in various cities in Canada.
+
+Victoria's population skews older: many artists on the site will be over
+60, a good share over 50, and likely most over 40. UI should be intuitive
+and easy rather than flashy — see the design principles under step 1 of
+"Order of work" in `NOTES.md`.
 
 The developer working on this project is a professional researcher in natural
 language processing, not a professional software developer. She understands
