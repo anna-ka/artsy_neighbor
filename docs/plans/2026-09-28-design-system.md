@@ -1,6 +1,6 @@
 # Design system + branding (step 1 of the Order of work)
 
-Status: brief written 2026-09-28, mockups not started yet.
+Status: artist-page mockup in progress (see "Progress" at the end).
 This is a living document — visual decisions will be revisited, and
 this file should be updated whenever one changes.
 
@@ -121,3 +121,54 @@ mobile-first now helps whichever route is picked.
 - Fonts (one clean sans-serif throughout, or a warmer serif for
   headings).
 - Final logo.
+
+## Progress
+
+### Where we stopped (2026-09-28)
+
+Working on `docs/design/mockups/artist-page.html` (artist page, the
+first of three mockups). Decided so far:
+
+- **Layout follows the current artist page:** large square photo on the
+  left (half the width) with thumbnails under it instead of carousel
+  arrows; on the right the name, location, Mediums, About the artist,
+  Delivery options, then "Contact artist" / "View shop". Below:
+  Collections, then More works (a grid, not a carousel), then the
+  footer. "Report a concern about this artist" is a small right-aligned
+  link at the bottom, just above the footer.
+- **Colours: Coastal (C)** is the favourite — warm white page, seal
+  slate for the main button and accents. Gallery and Cream stay in the
+  mockup switcher for comparison.
+- **Text:** body 16px (18px felt too big). Location under the name is
+  smaller (14px); more space (32px) between Mediums / About / Delivery.
+- **Artist photo:** soft shadow tinted with the text colour, no outline.
+- **Artworks sit on neutral grey mats** (`#ECECEC`, like Artsy) and are
+  shown whole, not cropped. Collections use the same mats. The mat is
+  deliberately neutral, independent of the colour scheme.
+- **Dividers** are content-width, not full-width. Two sections, two
+  dividers.
+
+Tried and dropped: full-width wavy dividers; a wave between every
+section; the fonts in the first round (Inter / Lora / Nunito Sans) and
+18px text; a smaller, fixed-width artist photo.
+
+### Next steps
+
+1. **Explore the Gallery (A) colours further.** They are more neutral,
+   which may be more practical for art: a neutral frame flatters every
+   artwork, while slate can clash with some. Develop Gallery on the
+   current layout (it may borrow a touch of slate, e.g. for the main
+   button) and compare it with Coastal side by side.
+2. **Decide the divider:** straight lines, or the small spiral crest
+   (counter-clockwise, sitting on the line — drawn once and reused, so
+   it could become a small repeating motif). Both are in the mockup's
+   "Dividers" switch. Still open: how the spiral would repeat around
+   the site.
+3. **Font comparison page:** 4–5 candidate fonts side by side, at a
+   couple of sizes. The mockup uses a plain system font until then.
+4. **Real photo** of the developer painting, to replace the
+   watermarked stock photo (`artist-hand.jpg`).
+5. Small open question: footer and side panels are still slate-tinted;
+   maybe make them neutral too.
+6. Then the **product page** mockup, then **home**, then turn the
+   result into the real DaisyUI theme and shared components.

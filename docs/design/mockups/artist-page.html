@@ -66,6 +66,13 @@
     --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
     --text-base: 16px;
+    /* Soft shadow for the artist photo, tinted with the text colour. */
+    --shadow-photo: 0 12px 28px -10px color-mix(in srgb, var(--color-base-content) 40%, transparent),
+                    0 2px 6px color-mix(in srgb, var(--color-base-content) 10%, transparent);
+    /* Artwork frames ("mats"): a neutral grey, independent of the colour
+       scheme, so the mat never tints how an artwork looks. */
+    --frame-color: #ECECEC;
+    --frame-pad: 14px;
   }
 
   /* ---------- Page styles: only use the names above ---------- */
@@ -108,21 +115,22 @@
 
   /* 1. Top: photos left, details right */
   .top { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 32px 0 40px; }
-  .main-photo { border-radius: var(--radius-box); overflow: hidden; border: var(--border) solid var(--color-base-300); aspect-ratio: 1; background: var(--color-base-200); }
+  .main-photo { border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); aspect-ratio: 1; background: var(--color-base-200); }
   .main-photo img { width: 100%; height: 100%; object-fit: cover; }
   .thumbs { display: flex; gap: 10px; margin-top: 10px; }
   .thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: var(--border) solid var(--color-base-300); }
   .thumbs img.current { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
   .details h1 { font-size: 30px; }
-  .area { color: var(--color-muted); margin-top: 4px; }
-  .block { margin-top: 20px; }
+  .area { color: var(--color-muted); margin-top: 4px; font-size: 14px; }
+  .block { margin-top: 32px; }
   .label { font-weight: 600; margin-bottom: 6px; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip { padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
   .details p { margin: 0; }
-  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
-  .report { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--color-muted); }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
+  .report { display: inline-block; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
+  .report-row { text-align: right; }
 
   /* Wave divider: one soft curve, drawn in the line colour */
   .divider { color: var(--color-base-300); margin-top: 8px; margin-bottom: 8px; }
@@ -139,14 +147,15 @@
   section { padding: 28px 0; }
   section h2 { font-size: 22px; margin-bottom: 18px; }
   .collections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-  .collection { position: relative; display: block; border-radius: var(--radius-box); overflow: hidden; border: var(--border) solid var(--color-base-300); aspect-ratio: 4 / 3; }
-  .collection img { width: 100%; height: 100%; object-fit: cover; }
-  .collection span { position: absolute; left: 12px; bottom: 12px; background: var(--color-base-100); color: var(--color-base-content); padding: 4px 14px; border-radius: 999px; font-weight: 600; }
+  .collection { position: relative; display: block; border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; }
+  .collection img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+  .collection span { position: absolute; left: calc(var(--frame-pad) + 10px); bottom: calc(var(--frame-pad) + 10px); background: var(--color-base-100); color: var(--color-base-content); padding: 4px 14px; border-radius: 999px; font-weight: 600; }
 
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .card { text-decoration: none; color: inherit; display: block; }
-  .card .pic { border-radius: var(--radius-box); overflow: hidden; background: var(--color-base-200); border: var(--border) solid var(--color-base-300); aspect-ratio: 1; }
-  .card .pic img { width: 100%; height: 100%; object-fit: cover; }
+  /* The whole artwork is shown (not cropped), centred on its mat. */
+  .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+  .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
   .card h3 { font-size: 16px; font-weight: 600; margin-top: 10px; }
   .card .sub { color: var(--color-muted); font-size: 15px; }
   .card .price { font-weight: 600; margin-top: 2px; }
@@ -254,7 +263,6 @@
         <a class="btn btn-primary" href="#">Contact artist</a>
         <a class="btn btn-outline" href="#">View shop</a>
       </div>
-      <a class="report" href="#">Report a concern</a>
     </div>
   </div>
 </main>
@@ -318,6 +326,8 @@
       </a>
     </div>
   </section>
+
+  <div class="report-row"><a class="report" href="#">Report a concern about this artist</a></div>
 </main>
 
 <!-- 4. Footer -->
