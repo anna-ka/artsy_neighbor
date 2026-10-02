@@ -247,6 +247,14 @@ working on the code should keep in mind.
       installable web app, LiveView Native, or a separate app talking
       to the server) is still to be decided.
 
+  23. **Featured works on the artist profile** (added 2026-10-02). The
+      artist page shows a "Featured works" row right under the artist's
+      details, so their best work is visible without scrolling (see the
+      artist-page mockup). Artists need a way to choose which works are
+      featured (and probably their order) from their vendor tools —
+      belongs with the vendor tools pass (#16). Needs a product decision
+      on how many (four fill one row) and what shows if none are chosen.
+
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-direction="c">
+<html lang="en" data-direction="a">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,7 +28,7 @@
     --color-secondary: #4C5075;     /* links, small accents */
     --color-soft: #E3E5EE;          /* soft buttons, chips */
     --radius-box: 16px;
-    --radius-field: 999px;
+    --radius-field: 10px;
     --border: 1px;
   }
   /* ---------- Direction A: "Gallery" — warm white, near-black ---------- */
@@ -43,7 +43,7 @@
     --color-secondary: #5A5E80;
     --color-soft: #EFE8DC;
     --radius-box: 16px;
-    --radius-field: 999px;
+    --radius-field: 10px;
     --border: 1px;
   }
   /* ---------- Direction B: "Cream" — creamier ---------- */
@@ -58,14 +58,14 @@
     --color-secondary: #5A5E80;
     --color-soft: #EADBC0;
     --radius-box: 16px;
-    --radius-field: 999px;
+    --radius-field: 10px;
     --border: 1px;
   }
   /* Fonts: deliberately neutral until the font comparison step. */
   html {
     --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
     --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --text-base: 16px;
+    --text-base: 15px;   /* body text, buttons, artwork titles — matches the nav bar */
     /* Soft shadow for the artist photo, tinted with the text colour. */
     --shadow-photo: 0 12px 28px -10px color-mix(in srgb, var(--color-base-content) 40%, transparent),
                     0 2px 6px color-mix(in srgb, var(--color-base-content) 10%, transparent);
@@ -73,6 +73,8 @@
        scheme, so the mat never tints how an artwork looks. */
     --frame-color: #ECECEC;
     --frame-pad: 14px;
+    /* Width of the artist photo (its height follows from the 7:10 shape). */
+    --artist-photo-width: 309px;
   }
 
   /* ---------- Page styles: only use the names above ---------- */
@@ -89,45 +91,74 @@
   a { color: var(--color-secondary); }
   img { display: block; max-width: 100%; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  /* 80% of the screen width, centred. */
+  .wrap.wide { max-width: 80%; padding: 0; }
   .line { border-bottom: var(--border) solid var(--color-base-300); }
 
   /* Direction switcher (mockup only) */
   .switcher { background: #222; color: #fff; font: 13px system-ui; padding: 6px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .switcher button { font: inherit; border: 1px solid #777; background: #333; color: #fff; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
   .switcher button[aria-pressed="true"] { background: #fff; color: #222; }
+  /* Hidden for now; delete this line to bring the switcher back. */
+  .switcher { display: none; }
 
   /* Header */
-  header .wrap { display: flex; align-items: center; gap: 20px; padding-top: 10px; padding-bottom: 10px; }
+  /* The header spans the full screen: logo in the top-left corner. */
+  header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; padding: 10px 24px; }
   .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; flex: none; }
-  .brand .logo { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex: none; }
+  .brand .logo { width: 66px; height: 66px; border-radius: 50%; overflow: hidden; flex: none; }
   .brand .logo img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); }
   .brand span { font-weight: 700; font-size: 19px; }
-  .search { flex: 1; display: flex; align-items: center; gap: 8px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); padding: 8px 16px; color: var(--color-muted); background: var(--color-base-100); min-width: 0; }
+  /* About 30% of the content column, pushed to the right next to the links. */
+  .search { flex: 0 1 320px; height: 42px; margin-left: auto; font-size: 15px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); padding: 8px 16px; color: var(--color-muted); background: var(--color-base-100); min-width: 0; }
   .nav-right { display: flex; gap: 18px; align-items: center; white-space: nowrap; }
-  .nav-right a { color: var(--color-base-content); text-decoration: none; font-weight: 500; }
+  .nav-right a { color: var(--color-base-content); text-decoration: none; font-weight: 400; font-size: 15px; }
   nav.cats .wrap { display: flex; gap: 24px; padding-top: 8px; padding-bottom: 10px; overflow-x: auto; }
-  nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; }
+  nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; font-size: 15px; }
 
   /* Buttons */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 600 16px var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 600 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
   .btn-primary { background: var(--color-primary); color: var(--color-primary-content); }
   .btn-outline { background: transparent; color: var(--color-base-content); border-color: var(--color-base-content); }
+  /* Same height as the search box next to it; the gap pulls it close. */
+  .btn-search { height: 42px; min-height: 0; padding: 0 18px; margin-left: -12px; font-size: 15px; }
 
   /* 1. Top: photos left, details right */
-  .top { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; padding: 32px 0 40px; }
-  .main-photo { border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); aspect-ratio: 1; background: var(--color-base-200); }
+  /* Photo column is exactly as wide as the photo; the details take the rest. */
+  .top { display: grid; grid-template-columns: var(--artist-photo-width) 1fr; gap: 72px; padding: 32px 0 40px; }
+  /* Tall 7:10 rectangle, fixed width (set by --artist-photo-width). */
+  .main-photo { width: var(--artist-photo-width); aspect-ratio: 7 / 10; border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); background: var(--color-base-200); }
   .main-photo img { width: 100%; height: 100%; object-fit: cover; }
-  .thumbs { display: flex; gap: 10px; margin-top: 10px; }
-  .thumbs img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: var(--border) solid var(--color-base-300); }
+  /* Same width as the main photo, thumbnails centred under it. */
+  .carousel { position: relative; }
+  .carousel img[hidden] { display: none; }
+  .carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%;
+                    border: 0; background: color-mix(in srgb, var(--color-base-100) 88%, transparent); color: var(--color-base-content);
+                    font: 400 26px/1 var(--font-body); padding-bottom: 3px; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); }
+  .carousel-arrow.prev { left: 10px; }
+  .carousel-arrow.next { right: 10px; }
+  .carousel-dots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; }
+  .carousel-dots span { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--color-base-100) 60%, transparent); box-shadow: 0 0 2px rgb(0 0 0 / 0.4); }
+  .carousel-dots span.current { background: var(--color-base-100); }
+  .thumbs { width: var(--artist-photo-width); display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
+  .thumbs img { width: 60px; aspect-ratio: 7 / 10; height: auto; object-fit: cover; border-radius: 10px; border: var(--border) solid var(--color-base-300); }
   .thumbs img.current { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
   .details h1 { font-size: 30px; }
-  .area { color: var(--color-muted); margin-top: 4px; font-size: 14px; }
+  .motto { font-size: 18px; margin-top: 4px; }
+  .area { color: var(--color-muted); margin-top: 6px; font-size: 14px; }
   .block { margin-top: 32px; }
   .label { font-weight: 600; margin-bottom: 6px; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip { padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
   .details p { margin: 0; }
+  /* Bio: show the first --bio-lines lines, fade out the last one. */
+  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); }
+  .bio p + p { margin-top: 0.8em; }
+  .bio.clamped { max-height: calc(var(--bio-lines) * var(--bio-line-height)); overflow: hidden;
+                 -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent);
+                 mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent); }
+  .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 600 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
   .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
   .report { display: inline-block; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
   .report-row { text-align: right; }
@@ -154,23 +185,26 @@
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .card { text-decoration: none; color: inherit; display: block; }
   /* The whole artwork is shown (not cropped), centred on its mat. */
-  .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+  /* Same width and 4:3 shape as the collection tiles. */
+  .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
-  .card h3 { font-size: 16px; font-weight: 600; margin-top: 10px; }
+  .card h3 { font-size: var(--text-base); font-weight: 600; margin-top: 10px; }
   .card .sub { color: var(--color-muted); font-size: 15px; }
   .card .price { font-weight: 600; margin-top: 2px; }
 
   /* 4. Footer */
   footer { margin-top: 32px; background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300); padding: 32px 0; }
   footer .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-  footer h3 { font-size: 16px; margin-bottom: 8px; }
+  footer h3 { font-size: var(--text-base); margin-bottom: 8px; }
   footer a { display: block; color: var(--color-base-content); text-decoration: none; padding: 2px 0; }
   footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
 
   /* ---------- Phone width ---------- */
   @media (max-width: 760px) {
     header .wrap { flex-wrap: wrap; gap: 10px; }
-    .search { order: 3; flex-basis: 100%; }
+    /* Search box and button share their own row under the logo. */
+    .search { order: 3; flex: 1 1 60%; margin-left: 0; }
+    .btn-search { order: 4; margin-left: 0; }
     .nav-right { margin-left: auto; gap: 14px; }
     .nav-right .hide-sm { display: none; }
     .top { grid-template-columns: 1fr; gap: 24px; padding-top: 20px; }
@@ -206,13 +240,14 @@
 <header class="line">
   <div class="wrap">
     <a class="brand" href="#">
-      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-1-draft.jpg" alt=""></span>
+      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-seal-palette.png" alt=""></span>
       <span>LocalPalette</span>
     </a>
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
       What are you looking for?
     </div>
+    <a class="btn btn-outline btn-search" href="#">Search</a>
     <div class="nav-right">
       <a href="#" class="hide-sm">Artists</a>
       <a href="#" class="hide-sm">Offer art</a>
@@ -227,37 +262,42 @@
   </div>
 </nav>
 
-<main class="wrap">
+<main class="wrap wide">
   <!-- 1. Top: photos left, details right -->
   <div class="top">
     <div>
-      <div class="main-photo"><img src="../../../priv/static/images/screenshots/artist-hand.jpg" alt="Portrait of the artist" style="object-position: 50% 30%"></div>
-      <div class="thumbs">
-        <img class="current" src="../../../priv/static/images/screenshots/artist-hand.jpg" alt="" style="object-position: 50% 30%">
-
-        <!-- <img class="current" src="../../../priv/static/images/screenshots/beret-portrait.jpg" alt="" style="object-position: 50% 30%"> -->
-        <img src="../../../priv/static/images/crow-with-stones.jpg" alt="">
-        <img src="../../../priv/static/images/mother-otter.jpg" alt="">
+      <!-- Carousel: arrows and dots sit on top of the photo, so it takes no
+           extra vertical space. Arrows are always visible (no hover needed). -->
+      <div class="main-photo carousel" id="carousel" aria-roledescription="carousel" aria-label="Photos of the artist">
+        <img src="../../../priv/static/images/screenshots/artist-hand.jpg" alt="The artist at work" style="object-position: 50% 30%">
+        <img src="../../../priv/static/images/crow-with-stones.jpg" alt="Crow with Stones" hidden>
+        <img src="../../../priv/static/images/mother-otter.jpg" alt="Mother Otter" hidden>
+        <button type="button" class="carousel-arrow prev" aria-label="Previous photo">‹</button>
+        <button type="button" class="carousel-arrow next" aria-label="Next photo">›</button>
+        <div class="carousel-dots" aria-hidden="true"></div>
       </div>
     </div>
     <div class="details">
       <h1>Maren Holt</h1>
+      <!-- The artist's own motto, chosen by them. -->
+      <div class="motto">Oils with a splash</div>
       <div class="area">Fernwood, Victoria</div>
 
       <div class="block">
-        <div class="label">Mediums</div>
         <div class="chips"><span class="chip">Oil painting</span><span class="chip">Silver leaf</span><span class="chip">Drawing</span></div>
       </div>
 
       <div class="block">
         <div class="label">About the artist</div>
-        <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases.</p>
+        <!-- Shows the first --bio-lines lines; "Read more" reveals the rest. -->
+        <div class="bio" id="bio">
+          <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases — the circle feels like a window, or a tide pool.</p>
+          <p>I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window.</p>
+          <p>Every painting here is an original. I am always happy to talk about how a piece was made, to show work in progress at the studio, or to discuss a commission of your favourite place on the coast. Drop me a message — I usually reply the same day.</p>
+        </div>
+        <button type="button" class="more-link" id="bio-toggle" aria-controls="bio" aria-expanded="false" hidden>Read full bio ›</button>
       </div>
 
-      <div class="block">
-        <div class="label">Delivery options</div>
-        <p>Pick-up — from my studio in Fernwood; we arrange a time by message.</p>
-      </div>
 
       <div class="actions">
         <a class="btn btn-primary" href="#">Contact artist</a>
@@ -267,7 +307,7 @@
   </div>
 </main>
 
-<div class="wrap divider" aria-hidden="true">
+<div class="wrap wide divider" aria-hidden="true">
   <div class="crest">
     <!-- Same height and y-scale as the spiral, so the two lines meet exactly. -->
     <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
@@ -275,30 +315,10 @@
   </div>
 </div>
 
-<main class="wrap">
-  <!-- 2. Collections -->
+<main class="wrap wide">
+  <!-- 2. Featured works: chosen by the artist, shown near the top. -->
   <section>
-    <h2>Collections by Maren Holt</h2>
-    <div class="collections">
-      <a class="collection" href="#"><img src="../../../priv/static/images/crow-with-stones.jpg" alt=""><span>Crows</span></a>
-      <a class="collection" href="#"><img src="../../../priv/static/images/mother-otter.jpg" alt=""><span>Shore animals</span></a>
-      <a class="collection" href="#"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""><span>Legends</span></a>
-    </div>
-  </section>
-</main>
-
-<div class="wrap divider" aria-hidden="true">
-  <div class="crest">
-    <!-- Same height and y-scale as the spiral, so the two lines meet exactly. -->
-    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
-    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
-  </div>
-</div>
-
-<main class="wrap">
-  <!-- 3. More works -->
-  <section>
-    <h2>More works</h2>
+    <h2>Featured works</h2>
     <div class="grid">
       <a class="card" href="#">
         <div class="pic"><img src="../../../priv/static/images/silver-crow.jpg" alt=""></div>
@@ -326,6 +346,26 @@
       </a>
     </div>
   </section>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <!-- Same height and y-scale as the spiral, so the two lines meet exactly. -->
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- 3. Collections -->
+  <section>
+    <h2>Collections by Maren Holt</h2>
+    <div class="collections">
+      <a class="collection" href="#"><img src="../../../priv/static/images/crow-with-stones.jpg" alt=""><span>Crows</span></a>
+      <a class="collection" href="#"><img src="../../../priv/static/images/mother-otter.jpg" alt=""><span>Shore animals</span></a>
+      <a class="collection" href="#"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""><span>Legends</span></a>
+    </div>
+  </section>
 
   <div class="report-row"><a class="report" href="#">Report a concern about this artist</a></div>
 </main>
@@ -351,7 +391,38 @@
     buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.dir === dir); });
   }
   buttons.forEach(function (b) { b.addEventListener("click", function () { setDirection(b.dataset.dir); }); });
-  setDirection(new URLSearchParams(location.search).get("direction") || "c");
+  setDirection(new URLSearchParams(location.search).get("direction") || "a");
+
+  // Carousel: arrows step through the photos (wrapping around); dots show position.
+  const carousel = document.getElementById("carousel");
+  const slides = carousel.querySelectorAll("img");
+  const dots = carousel.querySelector(".carousel-dots");
+  let currentSlide = 0;
+  slides.forEach(function () { dots.appendChild(document.createElement("span")); });
+  function showSlide(index) {
+    currentSlide = (index + slides.length) % slides.length;
+    slides.forEach(function (img, i) { img.hidden = i !== currentSlide; });
+    dots.querySelectorAll("span").forEach(function (dot, i) { dot.classList.toggle("current", i === currentSlide); });
+  }
+  carousel.querySelector(".prev").addEventListener("click", function () { showSlide(currentSlide - 1); });
+  carousel.querySelector(".next").addEventListener("click", function () { showSlide(currentSlide + 1); });
+  showSlide(0);
+
+  // Bio "Read more": clamp only if the text is longer than the allowed lines.
+  const bio = document.getElementById("bio");
+  const bioToggle = document.getElementById("bio-toggle");
+  bio.classList.add("clamped");
+  if (bio.scrollHeight > bio.clientHeight + 1) {
+    bioToggle.hidden = false;
+    bioToggle.addEventListener("click", function () {
+      const expanding = bio.classList.contains("clamped");
+      bio.classList.toggle("clamped", !expanding);
+      bioToggle.textContent = expanding ? "Show less ‹" : "Read more ›";
+      bioToggle.setAttribute("aria-expanded", expanding);
+    });
+  } else {
+    bio.classList.remove("clamped");
+  }
 
   const dividerButtons = document.querySelectorAll(".switcher button[data-divider]");
   function setDivider(name) {
@@ -359,7 +430,7 @@
     dividerButtons.forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.divider === name); });
   }
   dividerButtons.forEach(function (b) { b.addEventListener("click", function () { setDivider(b.dataset.divider); }); });
-  setDivider(new URLSearchParams(location.search).get("divider") || "spiral");
+  setDivider(new URLSearchParams(location.search).get("divider") || "straight");
 </script>
 </body>
 </html>

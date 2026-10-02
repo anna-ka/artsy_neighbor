@@ -148,6 +148,33 @@ first of three mockups). Decided so far:
 - **Dividers** are content-width, not full-width. Two sections, two
   dividers.
 
+Added 2026-10-01 (Gallery colours now the default in the mockup):
+logo in the screen's top-left corner, 50% larger; smaller search box
+on the right with a "Search" button; tall 7:10 artist photo with
+matching centred thumbnails; and an **artist motto** line under the
+name ("Oils with a splash"), 18px. The motto will need a new optional
+Artist field (separate from the existing temporary `announcement`).
+Also: header links, categories and search all 15px, regular weight;
+all buttons have 10px corners instead of pills (chips and collection
+labels still pills); the artist section is 80% of the screen width
+(the developer likes this width), with a much smaller artist photo.
+
+2026-10-02: photo fixed at 309px wide (7:10), 72px from the text;
+thumbnails replaced by a carousel (arrows + dots on the photo);
+6-line bio with "Read full bio ›"; Delivery options moved off this
+page (they belong on the shop page); body text 15px; dividers are
+straight lines at the 80% width. **Featured works** (chosen by the
+artist — see `NOTES.md` #23) now come right after the artist section,
+then Collections; both use the 80% width and the same tile size.
+
+**(Resolved 2026-10-02) Paused mid-change (2026-10-01):** the artist section has a large
+empty gap between the small photo and the details, because the photo
+column is still half the section. Next: give the photo a fixed size
+(about 240 × 340px), let its column fit the photo, and start the
+details right beside it; then tidy the remaining empty space. Also
+still open: whether Collections / More works should match the 80%
+width, so the page has one left edge.
+
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
 18px text; a smaller, fixed-width artist photo.
@@ -159,11 +186,16 @@ section; the fonts in the first round (Inter / Lora / Nunito Sans) and
    artwork, while slate can clash with some. Develop Gallery on the
    current layout (it may borrow a touch of slate, e.g. for the main
    button) and compare it with Coastal side by side.
-2. **Decide the divider:** straight lines, or the small spiral crest
-   (counter-clockwise, sitting on the line — drawn once and reused, so
-   it could become a small repeating motif). Both are in the mockup's
-   "Dividers" switch. Still open: how the spiral would repeat around
-   the site.
+2. **Dividers: straight lines for now** (decided 2026-10-02), spanning
+   the artist section's 80% width. **Keep the spiral crest in mind:**
+   the developer likes it but hasn't found a good place for it yet. It
+   is a straight line that, at its right end, rises (never dipping
+   below the line), loops back over to the left and winds inward
+   counter-clockwise — like a scroll or a curling wave, echoing the
+   seal's curve in the logo. It is drawn once as the `crest-spiral`
+   symbol in `artist-page.html` (size via `--spiral-size`, now 32px)
+   and can be shown again with `?divider=spiral`. Possible future uses:
+   a small motif on section headings, empty states, or the footer.
 3. **Font comparison page:** 4–5 candidate fonts side by side, at a
    couple of sizes. The mockup uses a plain system font until then.
 4. **Real photo** of the developer painting, to replace the
