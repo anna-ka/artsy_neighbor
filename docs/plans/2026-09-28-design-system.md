@@ -196,8 +196,29 @@ section; the fonts in the first round (Inter / Lora / Nunito Sans) and
    symbol in `artist-page.html` (size via `--spiral-size`, now 32px)
    and can be shown again with `?divider=spiral`. Possible future uses:
    a small motif on section headings, empty states, or the footer.
-3. **Font comparison page:** 4–5 candidate fonts side by side, at a
-   couple of sizes. The mockup uses a plain system font until then.
+3. **Fonts: chosen (2026-10-02), refine as we go.** Pairing found on
+   artgalleria.com: **Sentient** (serif, Fontshare) for titles and
+   **Switzer** (sans-serif, Fontshare) for everything else, plus
+   **Spline Sans Mono** (Google Fonts) for one small label.
+   - Sentient Light (300): artist name 36px, section titles 26px;
+     motto 20px in Light *italic*.
+   - Nav links and categories: **Sentient Regular 400 at 16px**
+     (chosen 2026-10-05 after trying Switzer Regular, Medium and Light).
+   - Switzer: bio Light 300 at
+     15px (a bit hard on the eyes — revisit); buttons Medium 500;
+     artwork titles and small headings Bold; other text Regular 15px.
+   - Spline Sans Mono: location line, 12px capitals.
+   - Use the **variable** font files in the real app (one file per
+     style holds all weights).
+   - **License:** Fontshare's ITF Free Font License allows self-hosting
+     on our own site but **not redistributing the files** (including
+     via a repository). The trial files live in
+     `docs/design/mockups/fonts/` (gitignored); each developer
+     downloads their own copy. Re-check how to ship them with the app.
+   - Mockup switches: `?nav=sans` (Switzer Light nav), `?motto=upright`,
+     `?fonts=plain` (old system font).
+   - Possible tweak: the Search button (Medium) is a touch heavier than
+     the light nav links next to it.
 4. **Real photo** of the developer painting, to replace the
    watermarked stock photo (`artist-hand.jpg`).
 5. Small open question: footer and side panels are still slate-tinted;

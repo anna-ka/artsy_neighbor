@@ -61,11 +61,41 @@
     --radius-field: 10px;
     --border: 1px;
   }
-  /* Fonts: deliberately neutral until the font comparison step. */
+  /* Trial fonts (files in fonts/, gitignored — see .gitignore). */
+  /* Sentient as variable fonts: one file holds every weight (200–700). */
+  @font-face { font-family: "Sentient"; font-weight: 200 700; font-style: normal; font-display: swap;
+               src: url("fonts/Sentient_Complete/Fonts/WEB/fonts/Sentient-Variable.woff2") format("woff2"); }
+  @font-face { font-family: "Sentient"; font-weight: 200 700; font-style: italic; font-display: swap;
+               src: url("fonts/Sentient_Complete/Fonts/WEB/fonts/Sentient-VariableItalic.woff2") format("woff2"); }
+  @font-face { font-family: "Switzer"; font-weight: 400; font-style: normal; font-display: swap;
+               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "Switzer"; font-weight: 300; font-style: normal; font-display: swap;
+               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Light.woff2") format("woff2"); }
+  @font-face { font-family: "Switzer"; font-weight: 500; font-style: normal; font-display: swap;
+               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Medium.woff2") format("woff2"); }
+  @font-face { font-family: "Switzer"; font-weight: 600; font-style: normal; font-display: swap;
+               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Semibold.woff2") format("woff2"); }
+  @font-face { font-family: "Switzer"; font-weight: 700; font-style: normal; font-display: swap;
+               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Bold.woff2") format("woff2"); }
+  @font-face { font-family: "Spline Sans Mono"; font-weight: 400; font-style: normal; font-display: swap;
+               src: url("fonts/Spline_Sans_Mono/static/SplineSansMono-Regular.ttf") format("truetype"); }
+
+  /* Fonts: one with character for titles, one calm font for everything else,
+     plus a small monospace for labels. ?fonts=plain shows the old system font. */
   html {
-    --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-heading: "Sentient", Georgia, serif;
+    --heading-weight: 300;
+    --font-body: "Switzer", system-ui, sans-serif;
+    --font-label: "Spline Sans Mono", ui-monospace, monospace;
     --text-base: 15px;   /* body text, buttons, artwork titles — matches the nav bar */
+  }
+  html[data-fonts="plain"] {
+    --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --heading-weight: 600;
+    --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-label: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html {
     /* Soft shadow for the artist photo, tinted with the text colour. */
     --shadow-photo: 0 12px 28px -10px color-mix(in srgb, var(--color-base-content) 40%, transparent),
                     0 2px 6px color-mix(in srgb, var(--color-base-content) 10%, transparent);
@@ -87,7 +117,7 @@
     font-size: var(--text-base);
     line-height: 1.55;
   }
-  h1, h2, h3 { font-family: var(--font-heading); font-weight: 600; line-height: 1.25; margin: 0; }
+  h1, h2, h3 { font-family: var(--font-heading); font-weight: var(--heading-weight); line-height: 1.2; margin: 0; }
   a { color: var(--color-secondary); }
   img { display: block; max-width: 100%; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
@@ -104,20 +134,29 @@
 
   /* Header */
   /* The header spans the full screen: logo in the top-left corner. */
-  header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; padding: 10px 24px; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; flex: none; }
-  .brand .logo { width: 66px; height: 66px; border-radius: 50%; overflow: hidden; flex: none; }
+  /* Header measurements, shared so the category row can line up with "LocalPalette". */
+  header, nav.cats { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
+  header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
+  .brand { display: flex; align-items: center; gap: var(--logo-gap); text-decoration: none; color: inherit; flex: none; }
+  .brand .logo { width: var(--logo-size); height: var(--logo-size); border-radius: 50%; overflow: hidden; flex: none; }
   .brand .logo img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); }
-  .brand span { font-weight: 700; font-size: 19px; }
+  /* Site name: trying Sentient Medium (was Switzer Bold 19px). */
+  .brand span { font-family: var(--font-heading); font-weight: 500; font-size: 24px; }
   /* About 30% of the content column, pushed to the right next to the links. */
   .search { flex: 0 1 320px; height: 42px; margin-left: auto; font-size: 15px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); padding: 8px 16px; color: var(--color-muted); background: var(--color-base-100); min-width: 0; }
   .nav-right { display: flex; gap: 18px; align-items: center; white-space: nowrap; }
   .nav-right a { color: var(--color-base-content); text-decoration: none; font-weight: 400; font-size: 15px; }
-  nav.cats .wrap { display: flex; gap: 24px; padding-top: 8px; padding-bottom: 10px; overflow-x: auto; }
+  /* Starts exactly under the word "LocalPalette": screen edge + logo + gap. */
+  nav.cats .wrap { max-width: none; display: flex; gap: 24px; padding: 8px var(--header-edge) 10px calc(var(--header-edge) + var(--logo-size) + var(--logo-gap)); overflow-x: auto; }
   nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; font-size: 15px; }
+  /* Nav links and categories: Sentient Regular at 16px;
+     ?nav=sans shows the Switzer Light version for comparison. */
+  .nav-right a, nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
+  html[data-nav="sans"] .nav-right a,
+  html[data-nav="sans"] nav.cats a { font-family: var(--font-body); font-weight: 300; }
 
   /* Buttons */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 600 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 500 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
   .btn-primary { background: var(--color-primary); color: var(--color-primary-content); }
   .btn-outline { background: transparent; color: var(--color-base-content); border-color: var(--color-base-content); }
   /* Same height as the search box next to it; the gap pulls it close. */
@@ -144,21 +183,25 @@
   .thumbs img { width: 60px; aspect-ratio: 7 / 10; height: auto; object-fit: cover; border-radius: 10px; border: var(--border) solid var(--color-base-300); }
   .thumbs img.current { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
-  .details h1 { font-size: 30px; }
-  .motto { font-size: 18px; margin-top: 4px; }
-  .area { color: var(--color-muted); margin-top: 6px; font-size: 14px; }
+  .details h1 { font-size: 36px; }
+  .motto { font-family: var(--font-heading); font-weight: var(--heading-weight); font-size: 20px; margin-top: 6px; }
+  /* Trying an italic motto (?motto=upright shows it upright). */
+  html:not([data-motto="upright"]) .motto { font-style: italic; }
+  /* Small label in the monospace font, in capitals. */
+  .area { font-family: var(--font-label); color: var(--color-muted); margin-top: 10px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
   .block { margin-top: 32px; }
   .label { font-weight: 600; margin-bottom: 6px; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip { padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
   .details p { margin: 0; }
   /* Bio: show the first --bio-lines lines, fade out the last one. */
-  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); }
+  /* Trying Switzer Light for the bio (weight 300). */
+  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; }
   .bio p + p { margin-top: 0.8em; }
   .bio.clamped { max-height: calc(var(--bio-lines) * var(--bio-line-height)); overflow: hidden;
                  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent);
                  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent); }
-  .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 600 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
+  .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
   .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
   .report { display: inline-block; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
   .report-row { text-align: right; }
@@ -176,7 +219,7 @@
 
   /* 2. Collections, 3. More works */
   section { padding: 28px 0; }
-  section h2 { font-size: 22px; margin-bottom: 18px; }
+  section h2 { font-size: 26px; margin-bottom: 18px; }
   .collections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .collection { position: relative; display: block; border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; }
   .collection img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
@@ -188,14 +231,14 @@
   /* Same width and 4:3 shape as the collection tiles. */
   .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
-  .card h3 { font-size: var(--text-base); font-weight: 600; margin-top: 10px; }
+  .card h3 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 700; margin-top: 10px; }
   .card .sub { color: var(--color-muted); font-size: 15px; }
   .card .price { font-weight: 600; margin-top: 2px; }
 
   /* 4. Footer */
   footer { margin-top: 32px; background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300); padding: 32px 0; }
   footer .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-  footer h3 { font-size: var(--text-base); margin-bottom: 8px; }
+  footer h3 { font-family: var(--font-body); font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; }
   footer a { display: block; color: var(--color-base-content); text-decoration: none; padding: 2px 0; }
   footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
 
@@ -281,7 +324,7 @@
       <h1>Maren Holt</h1>
       <!-- The artist's own motto, chosen by them. -->
       <div class="motto">Oils with a splash</div>
-      <div class="area">Fernwood, Victoria</div>
+      <div class="area">Fernwood · Victoria</div>
 
       <div class="block">
         <div class="chips"><span class="chip">Oil painting</span><span class="chip">Silver leaf</span><span class="chip">Drawing</span></div>
@@ -291,8 +334,7 @@
         <div class="label">About the artist</div>
         <!-- Shows the first --bio-lines lines; "Read more" reveals the rest. -->
         <div class="bio" id="bio">
-          <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases — the circle feels like a window, or a tide pool.</p>
-          <p>I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window.</p>
+          <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases — the circle feels like a window, or a tide pool.I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window.</p>
           <p>Every painting here is an original. I am always happy to talk about how a piece was made, to show work in progress at the studio, or to discuss a commission of your favourite place on the coast. Drop me a message — I usually reply the same day.</p>
         </div>
         <button type="button" class="more-link" id="bio-toggle" aria-controls="bio" aria-expanded="false" hidden>Read full bio ›</button>
@@ -392,6 +434,12 @@
   }
   buttons.forEach(function (b) { b.addEventListener("click", function () { setDirection(b.dataset.dir); }); });
   setDirection(new URLSearchParams(location.search).get("direction") || "a");
+  // Mockup only: ?nav=sans shows the nav links in Switzer instead of Sentient.
+  root.dataset.nav = new URLSearchParams(location.search).get("nav") || "serif";
+  // Mockup only: ?motto=upright shows the motto without italics.
+  root.dataset.motto = new URLSearchParams(location.search).get("motto") || "italic";
+  // Mockup only: ?fonts=plain shows the old system font for comparison.
+  root.dataset.fonts = new URLSearchParams(location.search).get("fonts") || "trial";
 
   // Carousel: arrows step through the photos (wrapping around); dots show position.
   const carousel = document.getElementById("carousel");

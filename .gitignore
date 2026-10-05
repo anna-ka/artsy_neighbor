@@ -58,3 +58,8 @@ npm-debug.log
 
 # Page snapshots and console logs written by the Playwright MCP browser tool
 /.playwright-mcp/
+
+# Trial fonts for the design mockups. The Fontshare license (ITF FFL) does
+# not allow redistributing font files, including via a repository, so each
+# developer downloads their own copy from fontshare.com.
+/docs/design/mockups/fonts/
