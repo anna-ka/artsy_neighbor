@@ -77,6 +77,11 @@
                src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Semibold.woff2") format("woff2"); }
   @font-face { font-family: "Switzer"; font-weight: 700; font-style: normal; font-display: swap;
                src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Bold.woff2") format("woff2"); }
+  /* Candidates for more readable body text (Regular only, for the bio comparison). */
+  @font-face { font-family: "Satoshi"; font-weight: 400; font-style: normal; font-display: swap;
+               src: url("fonts/Satoshi/Fonts/WEB/fonts/Satoshi-Regular.woff2") format("woff2"); }
+  @font-face { font-family: "General Sans"; font-weight: 400; font-style: normal; font-display: swap;
+               src: url("fonts/General Sans/Fonts/WEB/fonts/GeneralSans-Regular.woff2") format("woff2"); }
   @font-face { font-family: "Spline Sans Mono"; font-weight: 400; font-style: normal; font-display: swap;
                src: url("fonts/Spline_Sans_Mono/static/SplineSansMono-Regular.ttf") format("truetype"); }
 
@@ -136,6 +141,57 @@
   /* The header spans the full screen: logo in the top-left corner. */
   /* Header measurements, shared so the category row can line up with "LocalPalette". */
   header, nav.cats { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
+  /* Site hat background: a faint water photo, tinted in a theme colour.
+     The photo is a luminance mask: its light ripples let the tint colour
+     show through, its dark parts hide it. So the photo's own blue never
+     shows — only --hat-tint, at --hat-opacity.
+     ?hat=ripples uses the other photo; ?hat=none removes it.
+     --hat-position: the second number moves the photo; higher % = the
+     water sits higher in the band. --hat-fade-start: where the fade into
+     the page colour begins (the bottom edge is always fully faded). */
+  /* Side margins: the same wave photo as the site hat (Matt Hardy on
+     Unsplash), tinted the same way, fixed behind the
+     page (it doesn't scroll). The fade covers the middle 80% with the page
+     colour, so only the margins show water, strongest at the screen edges.
+     --sides-position: higher % shows lower (more textured) water.
+     ?sides=none removes it. */
+  .page-sides { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+                --sides-opacity: 0.22; --sides-position: center 85%;
+                --sides-image: url("../../../priv/static/images/hat-water-wave.jpg"); }
+  /* ?sides=sea: a busier alternative (sides-water-sea.jpg). */
+  html[data-sides="sea"] .page-sides { --sides-image: url("../../../priv/static/images/sides-water-sea.jpg"); --sides-position: center 30%; }
+  .sides-photo { position: absolute; inset: 0; background: var(--hat-tint, var(--color-secondary)); opacity: var(--sides-opacity);
+                 -webkit-mask-image: var(--sides-image); mask-image: var(--sides-image);
+                 -webkit-mask-size: cover; mask-size: cover;
+                 -webkit-mask-position: var(--sides-position); mask-position: var(--sides-position);
+                 -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mask-mode: luminance; }
+  .sides-fade { position: absolute; inset: 0;
+                background: linear-gradient(to right, transparent 0%, var(--color-base-100) 10%, var(--color-base-100) 90%, transparent 100%); }
+  html[data-sides="none"] .page-sides { display: none; }
+  /* Everything else sits above the side layer. The site hat gets a solid
+     background so the side water doesn't show through behind it. */
+  body > *:not(.page-sides):not(script) { position: relative; z-index: 1; }
+  .site-hat { background: var(--color-base-100); }
+  .site-hat { position: relative; overflow: hidden;
+              --hat-tint: var(--color-secondary);   /* seal slate */
+              --hat-opacity: 0.22;
+              --hat-image: url("../../../priv/static/images/hat-water-wave.jpg");
+              --hat-position: center 58%;
+              --hat-size: cover;
+              --hat-fade-start: 45%; }
+  html[data-hat="ripples"] .site-hat { --hat-image: url("../../../priv/static/images/hat-water-ripples.jpg"); --hat-position: center; }
+  .site-hat > header, .site-hat > nav.cats { position: relative; z-index: 1; }
+  .hat-photo { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+               background: var(--hat-tint); opacity: var(--hat-opacity);
+               -webkit-mask-image: var(--hat-image); mask-image: var(--hat-image);
+               -webkit-mask-size: var(--hat-size); mask-size: var(--hat-size);
+               -webkit-mask-position: var(--hat-position); mask-position: var(--hat-position);
+               -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+               mask-mode: luminance; }
+  /* Soft fade from the photo into the page colour towards the bottom. */
+  .hat-fade { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+              background: linear-gradient(to bottom, transparent var(--hat-fade-start), var(--color-base-100)); }
+  html[data-hat="none"] .hat-photo, html[data-hat="none"] .hat-fade { display: none; }
   header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
   .brand { display: flex; align-items: center; gap: var(--logo-gap); text-decoration: none; color: inherit; flex: none; }
   .brand .logo { width: var(--logo-size); height: var(--logo-size); border-radius: 50%; overflow: hidden; flex: none; }
@@ -149,14 +205,18 @@
   /* Starts exactly under the word "LocalPalette": screen edge + logo + gap. */
   nav.cats .wrap { max-width: none; display: flex; gap: 24px; padding: 8px var(--header-edge) 10px calc(var(--header-edge) + var(--logo-size) + var(--logo-gap)); overflow-x: auto; }
   nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; font-size: 15px; }
-  /* Nav links and categories: Sentient Regular at 16px;
-     ?nav=sans shows the Switzer Light version for comparison. */
-  .nav-right a, nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
-  html[data-nav="sans"] .nav-right a,
-  html[data-nav="sans"] nav.cats a { font-family: var(--font-body); font-weight: 300; }
+  /* Nav links and categories: Switzer Regular at 15px, matching the search
+     box and button; ?nav=serif shows the Sentient Regular 16px version. */
+  .nav-right a, nav.cats a { font-family: var(--font-body); font-weight: 400; font-size: 15px; }
+  html[data-nav="serif"] .nav-right a,
+  html[data-nav="serif"] nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
 
   /* Buttons */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 500 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 400 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
+  /* Mockup comparison: ?buttons=medium shows the earlier Switzer Medium buttons. */
+  html[data-buttons="medium"] .btn { font-weight: 500; }
+  /* ?buttons=serif tries Sentient Regular for button text, like the nav links. */
+  html[data-buttons="serif"] .btn { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
   .btn-primary { background: var(--color-primary); color: var(--color-primary-content); }
   .btn-outline { background: transparent; color: var(--color-base-content); border-color: var(--color-base-content); }
   /* Same height as the search box next to it; the gap pulls it close. */
@@ -197,6 +257,11 @@
   /* Bio: show the first --bio-lines lines, fade out the last one. */
   /* Trying Switzer Light for the bio (weight 300). */
   .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; }
+  /* Mockup comparison: ?bio=switzer | satoshi | general shows the bio in
+     that font, Regular at 16px (default: Switzer Light 15px). */
+  html[data-bio="switzer"] .bio { font-weight: 400; font-size: 16px; }
+  html[data-bio="satoshi"] .bio { font-family: "Satoshi", var(--font-body); font-weight: 400; font-size: 16px; }
+  html[data-bio="general"] .bio { font-family: "General Sans", var(--font-body); font-weight: 400; font-size: 16px; }
   .bio p + p { margin-top: 0.8em; }
   .bio.clamped { max-height: calc(var(--bio-lines) * var(--bio-line-height)); overflow: hidden;
                  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent);
@@ -280,6 +345,16 @@
   <button data-divider="straight">Straight lines</button>
 </div>
 
+<!-- The "site hat": header + category bar, with a faint water photo behind it. -->
+<!-- Faint water in the side margins: the same photo as the site hat,
+     fixed behind the page, faded out over the content area. -->
+<div class="page-sides" aria-hidden="true"><div class="sides-photo"></div><div class="sides-fade"></div></div>
+
+<div class="site-hat">
+  <!-- Background: a water photo used as a stencil over one theme colour,
+       so the ripples always come out in the site's own palette. -->
+  <div class="hat-photo" aria-hidden="true"></div>
+  <div class="hat-fade" aria-hidden="true"></div>
 <header class="line">
   <div class="wrap">
     <a class="brand" href="#">
@@ -304,6 +379,7 @@
     <a href="#">All categories</a><a href="#">Paintings</a><a href="#">Sculptures</a><a href="#">Jewelry</a><a href="#">Pottery</a><a href="#">Fiber Art</a><a href="#">Clothing</a><a href="#">Other Art</a>
   </div>
 </nav>
+</div>
 
 <main class="wrap wide">
   <!-- 1. Top: photos left, details right -->
@@ -434,8 +510,16 @@
   }
   buttons.forEach(function (b) { b.addEventListener("click", function () { setDirection(b.dataset.dir); }); });
   setDirection(new URLSearchParams(location.search).get("direction") || "a");
-  // Mockup only: ?nav=sans shows the nav links in Switzer instead of Sentient.
-  root.dataset.nav = new URLSearchParams(location.search).get("nav") || "serif";
+  // Mockup only: ?nav=serif shows the nav links in Sentient instead of Switzer.
+  root.dataset.nav = new URLSearchParams(location.search).get("nav") || "sans";
+  // Mockup only: ?bio=switzer | satoshi | general compares bio fonts.
+  root.dataset.bio = new URLSearchParams(location.search).get("bio") || "switzer-light";
+  // Mockup only: ?buttons=medium shows button text in Medium instead of Regular.
+  root.dataset.buttons = new URLSearchParams(location.search).get("buttons") || "regular";
+  // Mockup only: ?sides=sea shows the busier sea photo; ?sides=none removes the side water.
+  root.dataset.sides = new URLSearchParams(location.search).get("sides") || "wave";
+  // Mockup only: ?hat=ripples uses the other water photo; ?hat=none removes the photo.
+  root.dataset.hat = new URLSearchParams(location.search).get("hat") || "wave";
   // Mockup only: ?motto=upright shows the motto without italics.
   root.dataset.motto = new URLSearchParams(location.search).get("motto") || "italic";
   // Mockup only: ?fonts=plain shows the old system font for comparison.

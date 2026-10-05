@@ -175,9 +175,31 @@ details right beside it; then tidy the remaining empty space. Also
 still open: whether Collections / More works should match the 80%
 width, so the page has one left edge.
 
+2026-10-05: **faint water background** — "we live on an island" —
+underlines the local, coastal feel without clutter. A calm photo of a
+wave (Matt Hardy, Unsplash; free licence) is used as a *luminance mask*
+over the seal-slate theme colour at 22% strength, so only the site's
+own colour shows, never the photo's blue. It sits behind the header and
+category bar (fading into the page colour towards the bottom) and in
+the side margins outside the 80% content (fixed, fading towards the
+content). Buttons are Switzer Regular. Settings: `--hat-tint`,
+`--hat-opacity`, `--hat-position`, `--hat-fade-start`, `--sides-opacity`,
+`--sides-position`. Alternatives kept as switches: `?hat=ripples`,
+`?sides=sea` (busier), `?hat=none`, `?sides=none`.
+- **View the mockup through the local server**
+  (`python3 -m http.server 8765` in the repo root, then
+  http://127.0.0.1:8765/docs/design/mockups/artist-page.html):
+  browsers block CSS masks on pages opened straight from disk.
+- Web-size copies live in `priv/static/images/` (gitignored):
+  `hat-water-wave.jpg` (~570 KB, crop it smaller before real use),
+  `hat-water-ripples.jpg`, `sides-water-sea.jpg`.
+- On phones, use the full width and drop the side water (the 80% width
+  wastes space there).
+
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
-18px text; a smaller, fixed-width artist photo.
+18px text; a smaller, fixed-width artist photo; drawn SVG wave lines as
+a header background (looked like wallpaper).
 
 ### Next steps
 
@@ -202,10 +224,13 @@ section; the fonts in the first round (Inter / Lora / Nunito Sans) and
    **Spline Sans Mono** (Google Fonts) for one small label.
    - Sentient Light (300): artist name 36px, section titles 26px;
      motto 20px in Light *italic*.
-   - Nav links and categories: **Sentient Regular 400 at 16px**
-     (chosen 2026-10-05 after trying Switzer Regular, Medium and Light).
+   - Nav links and categories: **Switzer Regular 400 at 15px**, matching
+     the search box and button (chosen 2026-10-05, after going back and
+     forth with Sentient Regular 16px and Switzer Light 16px — still a
+     close call; `?nav=serif` shows the Sentient version).
    - Switzer: bio Light 300 at
-     15px (a bit hard on the eyes — revisit); buttons Medium 500;
+     15px (a bit hard on the eyes — revisit); buttons **Regular 400**
+     (chosen 2026-10-05 over Medium; `?buttons=medium` to compare);
      artwork titles and small headings Bold; other text Regular 15px.
    - Spline Sans Mono: location line, 12px capitals.
    - Use the **variable** font files in the real app (one file per
@@ -215,10 +240,14 @@ section; the fonts in the first round (Inter / Lora / Nunito Sans) and
      via a repository). The trial files live in
      `docs/design/mockups/fonts/` (gitignored); each developer
      downloads their own copy. Re-check how to ship them with the app.
-   - Mockup switches: `?nav=sans` (Switzer Light nav), `?motto=upright`,
+   - Mockup switches: `?nav=serif` (Sentient nav), `?motto=upright`,
      `?fonts=plain` (old system font).
-   - Possible tweak: the Search button (Medium) is a touch heavier than
-     the light nav links next to it.
+   - 2026-10-05: compared the bio with Avenir-like fonts (inspired by
+     artevo-consulting.com, all Avenir Next): `?bio=switzer` (Regular
+     16px), `?bio=satoshi`, `?bio=general`. Kept Switzer Light 15px for
+     now; most of the readability gain came from Regular at 16px, so
+     that is the first thing to try if the bio feels hard to read.
+
 4. **Real photo** of the developer painting, to replace the
    watermarked stock photo (`artist-hand.jpg`).
 5. Small open question: footer and side panels are still slate-tinted;
