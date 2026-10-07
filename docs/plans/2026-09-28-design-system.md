@@ -23,6 +23,13 @@ over 50, likely most over 40. Intuitive and easy over flashy:
 - Familiar patterns, few steps, clear confirmations.
 - No sales pressure: no countdown timers, "hurry" banners, or pop-ups.
 
+## Storefront first (guiding principle, agreed 2026-10-05)
+
+The site should look like a beautiful storefront. People come to look at
+and buy art; reading (bios, descriptions) matters but is secondary.
+Layout priority: show as many of the artist's works as possible without
+scrolling, at a size where the art can actually be seen.
+
 ## Direction
 
 Artsy's calm, mostly black-and-white base, warmed up and softened:
@@ -161,7 +168,8 @@ labels still pills); the artist section is 80% of the screen width
 
 2026-10-02: photo fixed at 309px wide (7:10), 72px from the text;
 thumbnails replaced by a carousel (arrows + dots on the photo);
-6-line bio with "Read full bio ›"; Delivery options moved off this
+6-line bio with "Show full bio ›" / "Show less ‹" (labels settled
+2026-10-05); Delivery options moved off this
 page (they belong on the shop page); body text 15px; dividers are
 straight lines at the 80% width. **Featured works** (chosen by the
 artist — see `NOTES.md` #23) now come right after the artist section,
@@ -191,10 +199,38 @@ content). Buttons are Switzer Regular. Settings: `--hat-tint`,
   http://127.0.0.1:8765/docs/design/mockups/artist-page.html):
   browsers block CSS masks on pages opened straight from disk.
 - Web-size copies live in `priv/static/images/` (gitignored):
-  `hat-water-wave.jpg` (~570 KB, crop it smaller before real use),
+  `hat-water-wave.jpg` (2400×1600, ~570 KB; may still be replaced by
+  a better photo; before real use, shrink and compress it, e.g. ~1600px
+  wide, greyscale, lower JPEG quality, since only its brightness shows
+  faintly),
   `hat-water-ripples.jpg`, `sides-water-sea.jpg`.
 - On phones, use the full width and drop the side water (the 80% width
   wastes space there).
+
+2026-10-05 (later): **page width** — content (and the header, which now
+lines up with it above phone width) is 80% of the screen but stops
+growing at **1600px** (`--content-width`); 1200px felt too narrow on
+the developer's big monitor and MacBook. `?width=1200 | 1400 | none`
+compares. The bio is capped at **100 characters per line** (70 left a
+weird empty strip). Strictly fixed widths per device type were
+considered and not used: window widths vary too much within "laptop"
+and "desktop"; 80%-up-to-1600px already behaves as fixed on big
+screens. Next: shorten the artist section so works show in the first
+screen; then try 3 works per row on laptops / 4 on big screens (the
+featured-work images felt small).
+
+2026-10-07: bio back to plain left alignment (centred + justified tried,
+looked bad). Gap between artist photo and text grows with the screen:
+`clamp(72px, 6vw, 160px)` (`?gap=72` = old). **Works per row:** 4 from
+1280px up, 3 on tablets/small laptops, 2 on phones (collections the
+same); a 4th featured work wrapping alone on tablets is accepted for
+now. **Featured-work tiles are now cropped to fill a landscape 4:3
+area inside the mat, like collections** (`?tiles=whole` = old
+uncropped version) — portrait tiles and other layouts (square crop,
+equal-height rows) were discussed and put off as too many options for
+now; the product page must show the whole work. Upload checks and
+automatic resizing: `NOTES.md` #24. Idea for later: line the artist
+photo and text up with the works grid columns below.
 
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and

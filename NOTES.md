@@ -257,6 +257,22 @@ working on the code should keep in mind.
 
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 
+  24. **Check and process uploaded images automatically** (added
+      2026-10-07). Image sizes are mystifying to most people, so artists
+      should never have to think about pixels or file sizes. On upload
+      (product photos, collection covers, artist photos): accept any
+      ordinary photo; refuse only ones that are genuinely too small, in
+      plain words ("This photo is too small to look good. Please use a
+      larger one." — e.g. under ~800px on the long side); then
+      automatically resize and compress to web sizes (a thumbnail size
+      for tiles plus a larger one for the product page). Probably also
+      check the file really is an image (part of the security check,
+      #21). Ties in with image storage (#17) and the dev-only upload
+      storage under "Known limitations". Tiles on the artist page crop
+      to a landscape 4:3 shape (decided 2026-10-07), so the product page
+      must always show the whole, uncropped work; a later option is to
+      let artists choose which part a tile shows.
+
 
 
 

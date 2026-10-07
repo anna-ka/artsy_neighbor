@@ -110,7 +110,13 @@
     --frame-pad: 14px;
     /* Width of the artist photo (its height follows from the 7:10 shape). */
     --artist-photo-width: 309px;
+    /* Main content width: 80% of the screen, but never wider than 1600px. */
+    --content-width: min(80%, 1600px);
   }
+  /* Mockup comparison: ?width=1200 | 1400 | none (none = always 80%, no limit). */
+  html[data-width="1200"] { --content-width: min(80%, 1200px); }
+  html[data-width="1400"] { --content-width: min(80%, 1400px); }
+  html[data-width="none"] { --content-width: 80%; }
 
   /* ---------- Page styles: only use the names above ---------- */
   * { box-sizing: border-box; }
@@ -126,8 +132,8 @@
   a { color: var(--color-secondary); }
   img { display: block; max-width: 100%; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
-  /* 80% of the screen width, centred. */
-  .wrap.wide { max-width: 80%; padding: 0; }
+  /* 80% of the screen width (at most 1200px), centred. */
+  .wrap.wide { max-width: none; width: var(--content-width); padding: 0; }
   .line { border-bottom: var(--border) solid var(--color-base-300); }
 
   /* Direction switcher (mockup only) */
@@ -166,7 +172,11 @@
                  -webkit-mask-position: var(--sides-position); mask-position: var(--sides-position);
                  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mask-mode: luminance; }
   .sides-fade { position: absolute; inset: 0;
-                background: linear-gradient(to right, transparent 0%, var(--color-base-100) 10%, var(--color-base-100) 90%, transparent 100%); }
+                /* Solid page colour behind the content; water fades in from its edges. */
+                background: linear-gradient(to right, transparent 0%,
+                  var(--color-base-100) calc(50% - var(--content-width) / 2),
+                  var(--color-base-100) calc(50% + var(--content-width) / 2),
+                  transparent 100%); }
   html[data-sides="none"] .page-sides { display: none; }
   /* Everything else sits above the side layer. The site hat gets a solid
      background so the side water doesn't show through behind it. */
@@ -210,6 +220,12 @@
   .nav-right a, nav.cats a { font-family: var(--font-body); font-weight: 400; font-size: 15px; }
   html[data-nav="serif"] .nav-right a,
   html[data-nav="serif"] nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
+  /* Above phone width, the header lines up with the content: the logo
+     starts at the content's left edge, the links end at its right edge. */
+  @media (min-width: 761px) {
+    header .wrap { width: var(--content-width); padding-left: 0; padding-right: 0; }
+    nav.cats .wrap { width: var(--content-width); padding-left: calc(var(--logo-size) + var(--logo-gap)); padding-right: 0; }
+  }
 
   /* Buttons */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 400 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
@@ -224,7 +240,10 @@
 
   /* 1. Top: photos left, details right */
   /* Photo column is exactly as wide as the photo; the details take the rest. */
-  .top { display: grid; grid-template-columns: var(--artist-photo-width) 1fr; gap: 72px; padding: 32px 0 40px; }
+  /* Gap between photo and text grows with the screen: 6% of its width,
+     but at least 72px and at most 160px. ?gap=72 shows the old fixed gap. */
+  .top { display: grid; grid-template-columns: var(--artist-photo-width) 1fr; gap: clamp(72px, 6vw, 160px); padding: 32px 0 40px; }
+  html[data-gap="72"] .top { gap: 72px; }
   /* Tall 7:10 rectangle, fixed width (set by --artist-photo-width). */
   .main-photo { width: var(--artist-photo-width); aspect-ratio: 7 / 10; border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); background: var(--color-base-200); }
   .main-photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -256,7 +275,9 @@
   .details p { margin: 0; }
   /* Bio: show the first --bio-lines lines, fade out the last one. */
   /* Trying Switzer Light for the bio (weight 300). */
-  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; }
+  /* max-width keeps lines to about 100 characters (70 felt too narrow).
+     Centred and justified versions were tried and dropped (2026-10-07). */
+  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; max-width: 100ch; }
   /* Mockup comparison: ?bio=switzer | satoshi | general shows the bio in
      that font, Regular at 16px (default: Switzer Light 15px). */
   html[data-bio="switzer"] .bio { font-weight: 400; font-size: 16px; }
@@ -292,10 +313,13 @@
 
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .card { text-decoration: none; color: inherit; display: block; }
-  /* The whole artwork is shown (not cropped), centred on its mat. */
-  /* Same width and 4:3 shape as the collection tiles. */
+  /* Same width and landscape 4:3 shape as the collection tiles. Like
+     collections, the image is cropped to fill the area inside the mat
+     (decided 2026-10-07); the product page shows the whole work.
+     ?tiles=whole shows the earlier version (whole artwork, not cropped). */
   .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
-  .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
+  .card .pic img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+  html[data-tiles="whole"] .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
   .card h3 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 700; margin-top: 10px; }
   .card .sub { color: var(--color-muted); font-size: 15px; }
   .card .price { font-weight: 600; margin-top: 2px; }
@@ -306,6 +330,12 @@
   footer h3 { font-family: var(--font-body); font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; }
   footer a { display: block; color: var(--color-base-content); text-decoration: none; padding: 2px 0; }
   footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
+
+  /* ---------- Tablet width (iPads, small laptops) ---------- */
+  /* Works per row: 4 from 1280px up, 3 on tablets, 2 on phones. */
+  @media (max-width: 1279px) {
+    .collections, .grid { grid-template-columns: repeat(3, 1fr); }
+  }
 
   /* ---------- Phone width ---------- */
   @media (max-width: 760px) {
@@ -408,12 +438,12 @@
 
       <div class="block">
         <div class="label">About the artist</div>
-        <!-- Shows the first --bio-lines lines; "Read more" reveals the rest. -->
+        <!-- Shows the first --bio-lines lines; "Show full bio" reveals the rest. -->
         <div class="bio" id="bio">
-          <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases — the circle feels like a window, or a tide pool.I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window.</p>
+          <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases. I work mostly in oils on round canvases — the circle feels like a window, or a tide pool.I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window. I grew up on a farm in the Okanagan and came to the coast to study at art school. After many years of teaching painting classes in community centres around the city, I now paint full time in a small studio in Fernwood, in the back of an old house with a big north-facing window.</p>
           <p>Every painting here is an original. I am always happy to talk about how a piece was made, to show work in progress at the studio, or to discuss a commission of your favourite place on the coast. Drop me a message — I usually reply the same day.</p>
         </div>
-        <button type="button" class="more-link" id="bio-toggle" aria-controls="bio" aria-expanded="false" hidden>Read full bio ›</button>
+        <button type="button" class="more-link" id="bio-toggle" aria-controls="bio" aria-expanded="false" hidden>Show full bio ›</button>
       </div>
 
 
@@ -518,6 +548,12 @@
   root.dataset.buttons = new URLSearchParams(location.search).get("buttons") || "regular";
   // Mockup only: ?sides=sea shows the busier sea photo; ?sides=none removes the side water.
   root.dataset.sides = new URLSearchParams(location.search).get("sides") || "wave";
+  // Mockup only: ?tiles=whole shows featured works uncropped on their mats.
+  root.dataset.tiles = new URLSearchParams(location.search).get("tiles") || "crop";
+  // Mockup only: ?gap=72 shows the old fixed gap between photo and text.
+  root.dataset.gap = new URLSearchParams(location.search).get("gap") || "grow";
+  // Mockup only: ?width=1200 | 1400 | 1600 | none sets where the page stops growing.
+  root.dataset.width = new URLSearchParams(location.search).get("width") || "1600";
   // Mockup only: ?hat=ripples uses the other water photo; ?hat=none removes the photo.
   root.dataset.hat = new URLSearchParams(location.search).get("hat") || "wave";
   // Mockup only: ?motto=upright shows the motto without italics.
@@ -540,7 +576,7 @@
   carousel.querySelector(".next").addEventListener("click", function () { showSlide(currentSlide + 1); });
   showSlide(0);
 
-  // Bio "Read more": clamp only if the text is longer than the allowed lines.
+  // Bio "Show full bio" / "Show less": clamp only if the text is longer than the allowed lines.
   const bio = document.getElementById("bio");
   const bioToggle = document.getElementById("bio-toggle");
   bio.classList.add("clamped");
@@ -549,7 +585,7 @@
     bioToggle.addEventListener("click", function () {
       const expanding = bio.classList.contains("clamped");
       bio.classList.toggle("clamped", !expanding);
-      bioToggle.textContent = expanding ? "Show less ‹" : "Read more ›";
+      bioToggle.textContent = expanding ? "Show less ‹" : "Show full bio ›";
       bioToggle.setAttribute("aria-expanded", expanding);
     });
   } else {
