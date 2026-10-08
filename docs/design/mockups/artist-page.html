@@ -109,14 +109,15 @@
     --frame-color: #ECECEC;
     --frame-pad: 14px;
     /* Width of the artist photo (its height follows from the 7:10 shape). */
-    --artist-photo-width: 309px;
-    /* Main content width: 80% of the screen, but never wider than 1600px. */
-    --content-width: min(80%, 1600px);
+    --artist-photo-width: 280px;   /* was 309px until 2026-10-07 */
+    /* Main content width: 80% of the screen on any screen above phone
+       width, with no upper limit (chosen 2026-10-08 as more spacious). */
+    --content-width: 80%;
   }
-  /* Mockup comparison: ?width=1200 | 1400 | none (none = always 80%, no limit). */
+  /* Mockup comparison: ?width=1200 | 1400 | 1600 caps the width there. */
   html[data-width="1200"] { --content-width: min(80%, 1200px); }
   html[data-width="1400"] { --content-width: min(80%, 1400px); }
-  html[data-width="none"] { --content-width: 80%; }
+  html[data-width="1600"] { --content-width: min(80%, 1600px); }
 
   /* ---------- Page styles: only use the names above ---------- */
   * { box-sizing: border-box; }
@@ -214,17 +215,19 @@
   .nav-right a { color: var(--color-base-content); text-decoration: none; font-weight: 400; font-size: 15px; }
   /* Starts exactly under the word "LocalPalette": screen edge + logo + gap. */
   nav.cats .wrap { max-width: none; display: flex; gap: 24px; padding: 8px var(--header-edge) 10px calc(var(--header-edge) + var(--logo-size) + var(--logo-gap)); overflow-x: auto; }
+  .scroll-btn { display: none; }   /* "«" / "»" buttons: shown on phones only */
   nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; font-size: 15px; }
   /* Nav links and categories: Switzer Regular at 15px, matching the search
      box and button; ?nav=serif shows the Sentient Regular 16px version. */
   .nav-right a, nav.cats a { font-family: var(--font-body); font-weight: 400; font-size: 15px; }
   html[data-nav="serif"] .nav-right a,
   html[data-nav="serif"] nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
-  /* Above phone width, the header lines up with the content: the logo
-     starts at the content's left edge, the links end at its right edge. */
+  /* The header spans the full screen width (logo near the left edge, links
+     near the right). ?header=aligned lines it up with the content instead:
+     the logo starts at the content's left edge, the links end at its right. */
   @media (min-width: 761px) {
-    header .wrap { width: var(--content-width); padding-left: 0; padding-right: 0; }
-    nav.cats .wrap { width: var(--content-width); padding-left: calc(var(--logo-size) + var(--logo-gap)); padding-right: 0; }
+    html[data-header="aligned"] header .wrap { width: var(--content-width); padding-left: 0; padding-right: 0; }
+    html[data-header="aligned"] nav.cats .wrap { width: var(--content-width); padding-left: calc(var(--logo-size) + var(--logo-gap)); padding-right: 0; }
   }
 
   /* Buttons */
@@ -277,7 +280,7 @@
   /* Trying Switzer Light for the bio (weight 300). */
   /* max-width keeps lines to about 100 characters (70 felt too narrow).
      Centred and justified versions were tried and dropped (2026-10-07). */
-  .bio { --bio-lines: 4; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; max-width: 100ch; }
+  .bio { --bio-lines: 3; --bio-line-height: 1.55em; line-height: var(--bio-line-height); font-weight: 300; max-width: 100ch; }
   /* Mockup comparison: ?bio=switzer | satoshi | general shows the bio in
      that font, Regular at 16px (default: Switzer Light 15px). */
   html[data-bio="switzer"] .bio { font-weight: 400; font-size: 16px; }
@@ -319,6 +322,15 @@
      ?tiles=whole shows the earlier version (whole artwork, not cropped). */
   .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .card .pic img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+  /* No mat: a faint outline in the divider colour around the image
+     (trying 2026-10-07). ?mat=gap leaves a small page-coloured gap between
+     line and image; ?mat=grey shows the earlier grey mat. */
+  html[data-mat="line"] .card .pic, html[data-mat="line"] .collection,
+  html[data-mat="gap"] .card .pic, html[data-mat="gap"] .collection {
+    background: transparent; border: 1.5px solid var(--color-base-300); overflow: hidden; }
+  html[data-mat="line"] .card .pic, html[data-mat="line"] .collection { --frame-pad: 0px; }
+  html[data-mat="line"] .card .pic img, html[data-mat="line"] .collection img { border-radius: 0; }
+  html[data-mat="gap"] .card .pic, html[data-mat="gap"] .collection { --frame-pad: 8px; }
   html[data-tiles="whole"] .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
   .card h3 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 700; margin-top: 10px; }
   .card .sub { color: var(--color-muted); font-size: 15px; }
@@ -339,14 +351,52 @@
 
   /* ---------- Phone width ---------- */
   @media (max-width: 760px) {
+    /* Full width with a 16px margin each side, and no side water
+       (there is no room for it; the header keeps its water). */
+    html, html[data-width] { --content-width: calc(100% - 32px); }
+    .page-sides { display: none; }
     header .wrap { flex-wrap: wrap; gap: 10px; }
     /* Search box and button share their own row under the logo. */
     .search { order: 3; flex: 1 1 60%; margin-left: 0; }
     .btn-search { order: 4; margin-left: 0; }
-    .nav-right { margin-left: auto; gap: 14px; }
-    .nav-right .hide-sm { display: none; }
-    .top { grid-template-columns: 1fr; gap: 24px; padding-top: 20px; }
+    /* Header links: their own row under the search box, spread across the
+       full width, "Log in" first. */
+    .nav-right { order: 5; flex: 1 1 100%; justify-content: space-between; padding: 4px 0 2px; }
+    .nav-right .login { order: -1; }
+    /* Small photo next to the name, tags beside it too; bio and buttons
+       below at full width. .details "dissolves" (display: contents) so its
+       parts can sit in the same grid as the photo. */
+    html { --artist-photo-width: 110px; }
+    .top { grid-template-columns: var(--artist-photo-width) 1fr; column-gap: 16px; row-gap: 0; padding-top: 20px; align-items: start; }
+    .top > div:first-child { grid-column: 1; grid-row: 1 / span 4; }
+    .details { display: contents; }
+    .details .block, .details .actions { grid-column: 1 / -1; }
+    .details h1, .details .motto, .details .area, .details .tags { grid-column: 2; }
+    .details .block { margin-top: 20px; }
+    .details .actions { margin-top: 24px; }
+    .details .tags { margin-top: 10px; }
     .details h1 { font-size: 26px; }
+    .details .motto { font-size: 17px; margin-top: 2px; }
+    .details .area { margin-top: 4px; }
+    .chip { font-size: 14px; padding: 2px 10px; }
+    /* Smaller carousel arrows to fit the small photo. */
+    .carousel-arrow { width: 28px; height: 28px; font-size: 20px; }
+    .carousel-arrow.prev { left: 4px; }
+    .carousel-arrow.next { right: 4px; }
+    .carousel-dots { bottom: 6px; gap: 5px; }
+    .carousel-dots span { width: 6px; height: 6px; }
+    /* Category bar: "»" at the right end shows there is more; "«" at the
+       left end appears once scrolled. Each hides when there is nothing
+       more in its direction. */
+    nav.cats { position: relative; }
+    nav.cats .wrap { scrollbar-width: none; padding-right: 48px; }
+    .scroll-btn { display: flex; position: absolute; top: 0; bottom: 0; width: 48px; align-items: center;
+                  border: 0; cursor: pointer; font: 400 22px/1 var(--font-body); color: var(--color-base-content); }
+    .scroll-more { right: 0; justify-content: flex-end; padding-right: 12px;
+                   background: linear-gradient(to right, transparent, var(--color-base-100) 40%); }
+    .scroll-less { left: 0; justify-content: flex-start; padding-left: 12px;
+                   background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
+    .scroll-btn[hidden] { display: none; }
     .actions .btn { flex: 1 1 100%; }
     .collections, .grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
     footer .cols { grid-template-columns: 1fr 1fr; }
@@ -396,11 +446,12 @@
       What are you looking for?
     </div>
     <a class="btn btn-outline btn-search" href="#">Search</a>
+    <!-- On phones the links get their own row under the search box. -->
     <div class="nav-right">
-      <a href="#" class="hide-sm">Artists</a>
-      <a href="#" class="hide-sm">Offer art</a>
-      <a href="#" class="hide-sm">Messages</a>
-      <a href="#">Log in</a>
+      <a href="#">Artists</a>
+      <a href="#">Offer art</a>
+      <a href="#">Messages</a>
+      <a href="#" class="login">Log in</a>
     </div>
   </div>
 </header>
@@ -408,6 +459,8 @@
   <div class="wrap">
     <a href="#">All categories</a><a href="#">Paintings</a><a href="#">Sculptures</a><a href="#">Jewelry</a><a href="#">Pottery</a><a href="#">Fiber Art</a><a href="#">Clothing</a><a href="#">Other Art</a>
   </div>
+  <button type="button" class="scroll-btn scroll-less" id="cats-less" aria-label="Previous categories">«</button>
+  <button type="button" class="scroll-btn scroll-more" id="cats-more" aria-label="More categories">»</button>
 </nav>
 </div>
 
@@ -432,7 +485,7 @@
       <div class="motto">Oils with a splash</div>
       <div class="area">Fernwood · Victoria</div>
 
-      <div class="block">
+      <div class="block tags">
         <div class="chips"><span class="chip">Oil painting</span><span class="chip">Silver leaf</span><span class="chip">Drawing</span></div>
       </div>
 
@@ -548,12 +601,17 @@
   root.dataset.buttons = new URLSearchParams(location.search).get("buttons") || "regular";
   // Mockup only: ?sides=sea shows the busier sea photo; ?sides=none removes the side water.
   root.dataset.sides = new URLSearchParams(location.search).get("sides") || "wave";
+  // Mockup only: ?header=aligned lines the header up with the content.
+  root.dataset.header = new URLSearchParams(location.search).get("header") || "full";
+  // Mockup only: ?mat=gap | grey — tile frame (default: thin outline, no mat).
+  root.dataset.mat = new URLSearchParams(location.search).get("mat") || "line";
   // Mockup only: ?tiles=whole shows featured works uncropped on their mats.
   root.dataset.tiles = new URLSearchParams(location.search).get("tiles") || "crop";
   // Mockup only: ?gap=72 shows the old fixed gap between photo and text.
   root.dataset.gap = new URLSearchParams(location.search).get("gap") || "grow";
-  // Mockup only: ?width=1200 | 1400 | 1600 | none sets where the page stops growing.
-  root.dataset.width = new URLSearchParams(location.search).get("width") || "1600";
+  // Mockup only: ?width=1200 | 1400 | 1600 sets where the page stops growing
+  // (default: no limit, always 80%).
+  root.dataset.width = new URLSearchParams(location.search).get("width") || "none";
   // Mockup only: ?hat=ripples uses the other water photo; ?hat=none removes the photo.
   root.dataset.hat = new URLSearchParams(location.search).get("hat") || "wave";
   // Mockup only: ?motto=upright shows the motto without italics.
@@ -591,6 +649,27 @@
   } else {
     bio.classList.remove("clamped");
   }
+
+  // Category bar "«" / "»" (phones): tapping scrolls the bar left or right.
+  // "»" hides at the right end, "«" hides at the left end (the start).
+  const catsBar = document.querySelector("nav.cats .wrap");
+  const catsMore = document.getElementById("cats-more");
+  const catsLess = document.getElementById("cats-less");
+  function updateCatsButtons() {
+    const atStart = catsBar.scrollLeft <= 2;
+    const atEnd = catsBar.scrollLeft + catsBar.clientWidth >= catsBar.scrollWidth - 2;
+    catsLess.hidden = atStart;
+    catsMore.hidden = atEnd;
+  }
+  catsMore.addEventListener("click", function () {
+    catsBar.scrollBy({ left: catsBar.clientWidth * 0.7, behavior: "smooth" });
+  });
+  catsLess.addEventListener("click", function () {
+    catsBar.scrollBy({ left: -catsBar.clientWidth * 0.7, behavior: "smooth" });
+  });
+  catsBar.addEventListener("scroll", updateCatsButtons);
+  window.addEventListener("resize", updateCatsButtons);
+  updateCatsButtons();
 
   const dividerButtons = document.querySelectorAll(".switcher button[data-divider]");
   function setDivider(name) {

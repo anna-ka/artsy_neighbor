@@ -231,6 +231,33 @@ equal-height rows) were discussed and put off as too many options for
 now; the product page must show the whole work. Upload checks and
 automatic resizing: `NOTES.md` #24. Idea for later: line the artist
 photo and text up with the works grid columns below.
+**No more grey mat (for now, may revisit):** featured-work and
+collection tiles have just a thin outline in the divider colour, with
+the image filling the tile. `?mat=gap` (8px page-coloured gap inside
+the line) and `?mat=grey` (old mat) compare.
+**Header back to full screen width** (logo near the left screen edge,
+links near the right), not lined up with the content;
+`?header=aligned` shows the aligned version.
+Artist photo 309px → **280px** wide, bio preview 4 → **3 lines**, to
+pull the featured works up a little. More room is expected once the
+logo is final and the header/nav bar can be made more compact.
+**Phone layout:** full width with 16px margins, no side water; small
+artist photo (110px) beside the name, motto, area and tags, with the
+bio and buttons full width below, so the "Featured works" heading shows
+in the first screen. The category bar gets "»" at its right end and
+"«" at its left once scrolled (tap scrolls the bar; each hides when
+there is nothing more that way). Header links (Log in first, then
+Artists, Offer art, Messages) get their own full-width row under the
+search box — tried a scrolling "»" strip beside the logo first, too
+cramped; a "Menu" button is the alternative if space gets tight.
+Revisit with the final logo/header.
+
+2026-10-08: **page width is now simply 80% of the screen, with no upper
+limit** (replaces the 1600px cap from 2026-10-05 — 80% feels more
+spacious on the developer's big monitor). `?width=1200 | 1400 | 1600`
+show capped versions. The bio stays capped at 100 characters per line.
+On very wide screens (ultrawide / 4K at 100% scaling) the works tiles
+get very large; revisit if testers on such screens find it odd.
 
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
