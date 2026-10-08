@@ -8,241 +8,19 @@
   Static design mockup — not part of the app.
   Layout follows the current ArtistLive.Show page (v2, 2026-09-28).
   Images point to priv/static (gitignored), so they only show on the
-  developer's own machine. Open this file directly in a browser.
+  developer's own machine. View it through the local server (see README.md).
 
-  Every colour, corner radius, line and font below is a named setting
-  (a CSS variable), grouped per direction. The page itself only uses the
-  names — the same way the real DaisyUI theme will work. Switching
-  direction just swaps the values.
+  Shared colours, fonts, header, buttons, tiles and footer are in
+  mockup.css and mockup.js; this file only adds what is specific to the
+  artist page.
 -->
+<link rel="stylesheet" href="mockup.css">
 <style>
-  /* ---------- Direction C: "Coastal" — seal slate (current favourite) ---------- */
-  html[data-direction="c"] {
-    --color-base-100: #FCFAF6;      /* page background: warm white */
-    --color-base-200: #EEEFF4;      /* panels, cards */
-    --color-base-300: #C5C8D6;      /* lines */
-    --color-base-content: #202230;  /* text */
-    --color-muted: #4E5166;         /* secondary text (still high contrast) */
-    --color-primary: #4C5075;       /* main button: seal slate */
-    --color-primary-content: #FFFFFF;
-    --color-secondary: #4C5075;     /* links, small accents */
-    --color-soft: #E3E5EE;          /* soft buttons, chips */
-    --radius-box: 16px;
-    --radius-field: 10px;
-    --border: 1px;
-  }
-  /* ---------- Direction A: "Gallery" — warm white, near-black ---------- */
-  html[data-direction="a"] {
-    --color-base-100: #FFFDF9;
-    --color-base-200: #F5F1EA;
-    --color-base-300: #D6CFC3;
-    --color-base-content: #1E1C19;
-    --color-muted: #55504A;
-    --color-primary: #1E1C19;
-    --color-primary-content: #FFFDF9;
-    --color-secondary: #5A5E80;
-    --color-soft: #EFE8DC;
-    --radius-box: 16px;
-    --radius-field: 10px;
-    --border: 1px;
-  }
-  /* ---------- Direction B: "Cream" — creamier ---------- */
-  html[data-direction="b"] {
-    --color-base-100: #FAF4E8;
-    --color-base-200: #F1E6D2;
-    --color-base-300: #CDBB9C;
-    --color-base-content: #2A241D;
-    --color-muted: #5C5246;
-    --color-primary: #2A241D;
-    --color-primary-content: #FAF4E8;
-    --color-secondary: #5A5E80;
-    --color-soft: #EADBC0;
-    --radius-box: 16px;
-    --radius-field: 10px;
-    --border: 1px;
-  }
-  /* Trial fonts (files in fonts/, gitignored — see .gitignore). */
-  /* Sentient as variable fonts: one file holds every weight (200–700). */
-  @font-face { font-family: "Sentient"; font-weight: 200 700; font-style: normal; font-display: swap;
-               src: url("fonts/Sentient_Complete/Fonts/WEB/fonts/Sentient-Variable.woff2") format("woff2"); }
-  @font-face { font-family: "Sentient"; font-weight: 200 700; font-style: italic; font-display: swap;
-               src: url("fonts/Sentient_Complete/Fonts/WEB/fonts/Sentient-VariableItalic.woff2") format("woff2"); }
-  @font-face { font-family: "Switzer"; font-weight: 400; font-style: normal; font-display: swap;
-               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Regular.woff2") format("woff2"); }
-  @font-face { font-family: "Switzer"; font-weight: 300; font-style: normal; font-display: swap;
-               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Light.woff2") format("woff2"); }
-  @font-face { font-family: "Switzer"; font-weight: 500; font-style: normal; font-display: swap;
-               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Medium.woff2") format("woff2"); }
-  @font-face { font-family: "Switzer"; font-weight: 600; font-style: normal; font-display: swap;
-               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Semibold.woff2") format("woff2"); }
-  @font-face { font-family: "Switzer"; font-weight: 700; font-style: normal; font-display: swap;
-               src: url("fonts/Switzer/Fonts/WEB/fonts/Switzer-Bold.woff2") format("woff2"); }
-  /* Candidates for more readable body text (Regular only, for the bio comparison). */
-  @font-face { font-family: "Satoshi"; font-weight: 400; font-style: normal; font-display: swap;
-               src: url("fonts/Satoshi/Fonts/WEB/fonts/Satoshi-Regular.woff2") format("woff2"); }
-  @font-face { font-family: "General Sans"; font-weight: 400; font-style: normal; font-display: swap;
-               src: url("fonts/General Sans/Fonts/WEB/fonts/GeneralSans-Regular.woff2") format("woff2"); }
-  @font-face { font-family: "Spline Sans Mono"; font-weight: 400; font-style: normal; font-display: swap;
-               src: url("fonts/Spline_Sans_Mono/static/SplineSansMono-Regular.ttf") format("truetype"); }
-
-  /* Fonts: one with character for titles, one calm font for everything else,
-     plus a small monospace for labels. ?fonts=plain shows the old system font. */
+  /* ---------- Artist page only (shared styles: mockup.css) ---------- */
   html {
-    --font-heading: "Sentient", Georgia, serif;
-    --heading-weight: 300;
-    --font-body: "Switzer", system-ui, sans-serif;
-    --font-label: "Spline Sans Mono", ui-monospace, monospace;
-    --text-base: 15px;   /* body text, buttons, artwork titles — matches the nav bar */
-  }
-  html[data-fonts="plain"] {
-    --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --heading-weight: 600;
-    --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --font-label: system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  html {
-    /* Soft shadow for the artist photo, tinted with the text colour. */
-    --shadow-photo: 0 12px 28px -10px color-mix(in srgb, var(--color-base-content) 40%, transparent),
-                    0 2px 6px color-mix(in srgb, var(--color-base-content) 10%, transparent);
-    /* Artwork frames ("mats"): a neutral grey, independent of the colour
-       scheme, so the mat never tints how an artwork looks. */
-    --frame-color: #ECECEC;
-    --frame-pad: 14px;
     /* Width of the artist photo (its height follows from the 7:10 shape). */
     --artist-photo-width: 280px;   /* was 309px until 2026-10-07 */
-    /* Space above and below every divider line between sections, and
-       above the footer (32px on phones). */
-    --section-gap: 48px;
-    /* Main content width: 80% of the screen on any screen above phone
-       width, with no upper limit (chosen 2026-10-08 as more spacious). */
-    --content-width: 80%;
   }
-  /* Mockup comparison: ?width=1200 | 1400 | 1600 caps the width there. */
-  html[data-width="1200"] { --content-width: min(80%, 1200px); }
-  html[data-width="1400"] { --content-width: min(80%, 1400px); }
-  html[data-width="1600"] { --content-width: min(80%, 1600px); }
-
-  /* ---------- Page styles: only use the names above ---------- */
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--color-base-100);
-    color: var(--color-base-content);
-    font-family: var(--font-body);
-    font-size: var(--text-base);
-    line-height: 1.55;
-  }
-  h1, h2, h3 { font-family: var(--font-heading); font-weight: var(--heading-weight); line-height: 1.2; margin: 0; }
-  a { color: var(--color-secondary); }
-  img { display: block; max-width: 100%; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
-  /* 80% of the screen width (at most 1200px), centred. */
-  .wrap.wide { max-width: none; width: var(--content-width); padding: 0; }
-  .line { border-bottom: var(--border) solid var(--color-base-300); }
-
-  /* Direction switcher (mockup only) */
-  .switcher { background: #222; color: #fff; font: 13px system-ui; padding: 6px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .switcher button { font: inherit; border: 1px solid #777; background: #333; color: #fff; padding: 3px 12px; border-radius: 999px; cursor: pointer; }
-  .switcher button[aria-pressed="true"] { background: #fff; color: #222; }
-  /* Hidden for now; delete this line to bring the switcher back. */
-  .switcher { display: none; }
-
-  /* Header */
-  /* The header spans the full screen: logo in the top-left corner. */
-  /* Header measurements, shared so the category row can line up with "LocalPalette". */
-  header, nav.cats { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
-  /* Site hat background: a faint water photo, tinted in a theme colour.
-     The photo is a luminance mask: its light ripples let the tint colour
-     show through, its dark parts hide it. So the photo's own blue never
-     shows — only --hat-tint, at --hat-opacity.
-     ?hat=ripples uses the other photo; ?hat=none removes it.
-     --hat-position: the second number moves the photo; higher % = the
-     water sits higher in the band. --hat-fade-start: where the fade into
-     the page colour begins (the bottom edge is always fully faded). */
-  /* Side margins: the same wave photo as the site hat (Matt Hardy on
-     Unsplash), tinted the same way, fixed behind the
-     page (it doesn't scroll). The fade covers the middle 80% with the page
-     colour, so only the margins show water, strongest at the screen edges.
-     --sides-position: higher % shows lower (more textured) water.
-     ?sides=none removes it. */
-  .page-sides { position: fixed; inset: 0; z-index: 0; pointer-events: none;
-                --sides-opacity: 0.22; --sides-position: center 85%;
-                --sides-image: url("../../../priv/static/images/hat-water-wave.jpg"); }
-  /* ?sides=sea: a busier alternative (sides-water-sea.jpg). */
-  html[data-sides="sea"] .page-sides { --sides-image: url("../../../priv/static/images/sides-water-sea.jpg"); --sides-position: center 30%; }
-  .sides-photo { position: absolute; inset: 0; background: var(--hat-tint, var(--color-secondary)); opacity: var(--sides-opacity);
-                 -webkit-mask-image: var(--sides-image); mask-image: var(--sides-image);
-                 -webkit-mask-size: cover; mask-size: cover;
-                 -webkit-mask-position: var(--sides-position); mask-position: var(--sides-position);
-                 -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; mask-mode: luminance; }
-  .sides-fade { position: absolute; inset: 0;
-                /* Solid page colour behind the content; water fades in from its edges. */
-                background: linear-gradient(to right, transparent 0%,
-                  var(--color-base-100) calc(50% - var(--content-width) / 2),
-                  var(--color-base-100) calc(50% + var(--content-width) / 2),
-                  transparent 100%); }
-  html[data-sides="none"] .page-sides { display: none; }
-  /* Everything else sits above the side layer. The site hat gets a solid
-     background so the side water doesn't show through behind it. */
-  body > *:not(.page-sides):not(script) { position: relative; z-index: 1; }
-  .site-hat { background: var(--color-base-100); }
-  .site-hat { position: relative; overflow: hidden;
-              --hat-tint: var(--color-secondary);   /* seal slate */
-              --hat-opacity: 0.22;
-              --hat-image: url("../../../priv/static/images/hat-water-wave.jpg");
-              --hat-position: center 58%;
-              --hat-size: cover;
-              --hat-fade-start: 45%; }
-  html[data-hat="ripples"] .site-hat { --hat-image: url("../../../priv/static/images/hat-water-ripples.jpg"); --hat-position: center; }
-  .site-hat > header, .site-hat > nav.cats { position: relative; z-index: 1; }
-  .hat-photo { position: absolute; inset: 0; z-index: 0; pointer-events: none;
-               background: var(--hat-tint); opacity: var(--hat-opacity);
-               -webkit-mask-image: var(--hat-image); mask-image: var(--hat-image);
-               -webkit-mask-size: var(--hat-size); mask-size: var(--hat-size);
-               -webkit-mask-position: var(--hat-position); mask-position: var(--hat-position);
-               -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-               mask-mode: luminance; }
-  /* Soft fade from the photo into the page colour towards the bottom. */
-  .hat-fade { position: absolute; inset: 0; z-index: 0; pointer-events: none;
-              background: linear-gradient(to bottom, transparent var(--hat-fade-start), var(--color-base-100)); }
-  html[data-hat="none"] .hat-photo, html[data-hat="none"] .hat-fade { display: none; }
-  header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
-  .brand { display: flex; align-items: center; gap: var(--logo-gap); text-decoration: none; color: inherit; flex: none; }
-  .brand .logo { width: var(--logo-size); height: var(--logo-size); border-radius: 50%; overflow: hidden; flex: none; }
-  .brand .logo img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); }
-  /* Site name: trying Sentient Medium (was Switzer Bold 19px). */
-  .brand span { font-family: var(--font-heading); font-weight: 500; font-size: 24px; }
-  /* About 30% of the content column, pushed to the right next to the links. */
-  .search { flex: 0 1 320px; height: 42px; margin-left: auto; font-size: 15px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); padding: 8px 16px; color: var(--color-muted); background: var(--color-base-100); min-width: 0; }
-  .nav-right { display: flex; gap: 18px; align-items: center; white-space: nowrap; }
-  .nav-right a { color: var(--color-base-content); text-decoration: none; font-weight: 400; font-size: 15px; }
-  /* Starts exactly under the word "LocalPalette": screen edge + logo + gap. */
-  nav.cats .wrap { max-width: none; display: flex; gap: 24px; padding: 8px var(--header-edge) 10px calc(var(--header-edge) + var(--logo-size) + var(--logo-gap)); overflow-x: auto; }
-  .scroll-btn { display: none; }   /* "«" / "»" buttons: shown on phones only */
-  nav.cats a { color: var(--color-base-content); text-decoration: none; white-space: nowrap; font-size: 15px; }
-  /* Nav links and categories: Switzer Regular at 15px, matching the search
-     box and button; ?nav=serif shows the Sentient Regular 16px version. */
-  .nav-right a, nav.cats a { font-family: var(--font-body); font-weight: 400; font-size: 15px; }
-  html[data-nav="serif"] .nav-right a,
-  html[data-nav="serif"] nav.cats a { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
-  /* The header spans the full screen width (logo near the left edge, links
-     near the right). ?header=aligned lines it up with the content instead:
-     the logo starts at the content's left edge, the links end at its right. */
-  @media (min-width: 761px) {
-    html[data-header="aligned"] header .wrap { width: var(--content-width); padding-left: 0; padding-right: 0; }
-    html[data-header="aligned"] nav.cats .wrap { width: var(--content-width); padding-left: calc(var(--logo-size) + var(--logo-gap)); padding-right: 0; }
-  }
-
-  /* Buttons */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px; border-radius: var(--radius-field); font: 400 var(--text-base) var(--font-body); text-decoration: none; cursor: pointer; border: var(--border) solid transparent; }
-  /* Mockup comparison: ?buttons=medium shows the earlier Switzer Medium buttons. */
-  html[data-buttons="medium"] .btn { font-weight: 500; }
-  /* ?buttons=serif tries Sentient Regular for button text, like the nav links. */
-  html[data-buttons="serif"] .btn { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
-  .btn-primary { background: var(--color-primary); color: var(--color-primary-content); }
-  .btn-outline { background: transparent; color: var(--color-base-content); border-color: var(--color-base-content); }
-  /* Same height as the search box next to it; the gap pulls it close. */
-  .btn-search { height: 42px; min-height: 0; padding: 0 18px; margin-left: -12px; font-size: 15px; }
 
   /* 1. Top: photos left, details right */
   /* Photo column is exactly as wide as the photo; the details take the rest. */
@@ -254,16 +32,6 @@
   .main-photo { width: var(--artist-photo-width); aspect-ratio: 7 / 10; border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); background: var(--color-base-200); }
   .main-photo img { width: 100%; height: 100%; object-fit: cover; }
   /* Same width as the main photo, thumbnails centred under it. */
-  .carousel { position: relative; }
-  .carousel img[hidden] { display: none; }
-  .carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%;
-                    border: 0; background: color-mix(in srgb, var(--color-base-100) 88%, transparent); color: var(--color-base-content);
-                    font: 400 26px/1 var(--font-body); padding-bottom: 3px; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); }
-  .carousel-arrow.prev { left: 10px; }
-  .carousel-arrow.next { right: 10px; }
-  .carousel-dots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; }
-  .carousel-dots span { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--color-base-100) 60%, transparent); box-shadow: 0 0 2px rgb(0 0 0 / 0.4); }
-  .carousel-dots span.current { background: var(--color-base-100); }
   .thumbs { width: var(--artist-photo-width); display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
   .thumbs img { width: 60px; aspect-ratio: 7 / 10; height: auto; object-fit: cover; border-radius: 10px; border: var(--border) solid var(--color-base-300); }
   .thumbs img.current { outline: 2px solid var(--color-primary); outline-offset: 2px; }
@@ -276,8 +44,6 @@
   .area { font-family: var(--font-label); color: var(--color-muted); margin-top: 10px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
   .block { margin-top: 32px; }
   .label { font-weight: 600; margin-bottom: 6px; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-  .chip { padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
   .details p { margin: 0; }
   /* Bio: show the first --bio-lines lines, fade out the last one. */
   /* Trying Switzer Light for the bio (weight 300). */
@@ -293,82 +59,9 @@
   .bio.clamped { max-height: calc(var(--bio-lines) * var(--bio-line-height)); overflow: hidden;
                  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent);
                  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent); }
-  .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
-  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
-  .report { display: inline-block; margin-top: 24px; font-size: 14px; color: var(--color-muted); }
-  .report-row { text-align: right; }
-
-  /* Wave divider: one soft curve, drawn in the line colour */
-  /* The line sits at the bottom of a 22px-tall strip (room for the spiral
-     crest), so 22px of the gap above the line is already inside it. */
-  .divider { color: var(--color-base-300); margin-top: calc(var(--section-gap) - 22px); margin-bottom: 0; }
-  .crest { display: flex; align-items: flex-end; }
-  /* --spiral-size is the spiral's width; its height is 30/44 of that.
-     The straight line next to it is drawn at the same height and scale. */
-  .crest { --spiral-size: 32px; }
-  .crest .rule-line { flex: 1; display: block; height: calc(var(--spiral-size) * 30 / 44); }
-  .crest .spiral { flex: none; display: block; width: var(--spiral-size); height: calc(var(--spiral-size) * 30 / 44); }
-  /* Mockup switch: straight lines just hide the spiral. */
-  html[data-divider="straight"] .crest .spiral { display: none; }
-
-  /* 2. Collections, 3. More works */
-  section { padding: var(--section-gap) 0 0; }
-  section h2 { font-size: 26px; margin-bottom: 18px; }
-  .collections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-  .collection { position: relative; display: block; border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; }
-  .collection img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
-  .collection span { position: absolute; left: calc(var(--frame-pad) + 10px); bottom: calc(var(--frame-pad) + 10px); background: var(--color-base-100); color: var(--color-base-content); padding: 4px 14px; border-radius: 999px; font-weight: 600; }
-
-  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-  .card { text-decoration: none; color: inherit; display: block; }
-  /* Same width and landscape 4:3 shape as the collection tiles. Like
-     collections, the image is cropped to fill the area inside the mat
-     (decided 2026-10-07); the product page shows the whole work.
-     ?tiles=whole shows the earlier version (whole artwork, not cropped). */
-  .card .pic { border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
-  .card .pic img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
-  /* No mat: a faint outline in the divider colour around the image
-     (trying 2026-10-07). ?mat=gap leaves a small page-coloured gap between
-     line and image; ?mat=grey shows the earlier grey mat. */
-  html[data-mat="line"] .card .pic, html[data-mat="line"] .collection,
-  html[data-mat="gap"] .card .pic, html[data-mat="gap"] .collection {
-    background: transparent; border: 1.5px solid var(--color-base-300); overflow: hidden; }
-  html[data-mat="line"] .card .pic, html[data-mat="line"] .collection { --frame-pad: 0px; }
-  html[data-mat="line"] .card .pic img, html[data-mat="line"] .collection img { border-radius: 0; }
-  html[data-mat="gap"] .card .pic, html[data-mat="gap"] .collection { --frame-pad: 8px; }
-  html[data-tiles="whole"] .card .pic img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 2px; }
-  .card h3 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 700; margin-top: 10px; }
-  .card .sub { color: var(--color-muted); font-size: 15px; }
-  .card .price { font-weight: 600; margin-top: 2px; }
-
-  /* 4. Footer */
-  footer { margin-top: var(--section-gap); background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300); padding: 32px 0; }
-  footer .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-  footer h3 { font-family: var(--font-body); font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; }
-  footer a { display: block; color: var(--color-base-content); text-decoration: none; padding: 2px 0; }
-  footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
-
-  /* ---------- Tablet width (iPads, small laptops) ---------- */
-  /* Works per row: 4 from 1280px up, 3 on tablets, 2 on phones. */
-  @media (max-width: 1279px) {
-    .collections, .grid { grid-template-columns: repeat(3, 1fr); }
-  }
 
   /* ---------- Phone width ---------- */
   @media (max-width: 760px) {
-    /* Full width with a 16px margin each side, and no side water
-       (there is no room for it; the header keeps its water). */
-    html, html[data-width] { --content-width: calc(100% - 32px); }
-    html { --section-gap: 32px; }
-    .page-sides { display: none; }
-    header .wrap { flex-wrap: wrap; gap: 10px; }
-    /* Search box and button share their own row under the logo. */
-    .search { order: 3; flex: 1 1 60%; margin-left: 0; }
-    .btn-search { order: 4; margin-left: 0; }
-    /* Header links: their own row under the search box, spread across the
-       full width, "Log in" first. */
-    .nav-right { order: 5; flex: 1 1 100%; justify-content: space-between; padding: 4px 0 2px; }
-    .nav-right .login { order: -1; }
     /* Small photo next to the name, tags beside it too; bio and buttons
        below at full width. .details "dissolves" (display: contents) so its
        parts can sit in the same grid as the photo. */
@@ -384,28 +77,6 @@
     .details h1 { font-size: 26px; }
     .details .motto { font-size: 17px; margin-top: 2px; }
     .details .area { margin-top: 4px; }
-    .chip { font-size: 14px; padding: 2px 10px; }
-    /* Smaller carousel arrows to fit the small photo. */
-    .carousel-arrow { width: 28px; height: 28px; font-size: 20px; }
-    .carousel-arrow.prev { left: 4px; }
-    .carousel-arrow.next { right: 4px; }
-    .carousel-dots { bottom: 6px; gap: 5px; }
-    .carousel-dots span { width: 6px; height: 6px; }
-    /* Category bar: "»" at the right end shows there is more; "«" at the
-       left end appears once scrolled. Each hides when there is nothing
-       more in its direction. */
-    nav.cats { position: relative; }
-    nav.cats .wrap { scrollbar-width: none; padding-right: 48px; }
-    .scroll-btn { display: flex; position: absolute; top: 0; bottom: 0; width: 48px; align-items: center;
-                  border: 0; cursor: pointer; font: 400 22px/1 var(--font-body); color: var(--color-base-content); }
-    .scroll-more { right: 0; justify-content: flex-end; padding-right: 12px;
-                   background: linear-gradient(to right, transparent, var(--color-base-100) 40%); }
-    .scroll-less { left: 0; justify-content: flex-start; padding-left: 12px;
-                   background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
-    .scroll-btn[hidden] { display: none; }
-    .actions .btn { flex: 1 1 100%; }
-    .collections, .grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    footer .cols { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
@@ -590,56 +261,15 @@
   </div>
 </footer>
 
+<script src="mockup.js"></script>
 <script>
-  // Mockup only: switch colours with the buttons or ?direction=a in the URL.
-  const root = document.documentElement;
-  const buttons = document.querySelectorAll(".switcher button[data-dir]");
-  function setDirection(dir) {
-    root.dataset.direction = dir;
-    buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.dir === dir); });
-  }
-  buttons.forEach(function (b) { b.addEventListener("click", function () { setDirection(b.dataset.dir); }); });
-  setDirection(new URLSearchParams(location.search).get("direction") || "a");
-  // Mockup only: ?nav=serif shows the nav links in Sentient instead of Switzer.
-  root.dataset.nav = new URLSearchParams(location.search).get("nav") || "sans";
+  // ---------- Artist page only (shared script: mockup.js) ----------
   // Mockup only: ?bio=switzer | satoshi | general compares bio fonts.
-  root.dataset.bio = new URLSearchParams(location.search).get("bio") || "switzer-light";
-  // Mockup only: ?buttons=medium shows button text in Medium instead of Regular.
-  root.dataset.buttons = new URLSearchParams(location.search).get("buttons") || "regular";
-  // Mockup only: ?sides=sea shows the busier sea photo; ?sides=none removes the side water.
-  root.dataset.sides = new URLSearchParams(location.search).get("sides") || "wave";
-  // Mockup only: ?header=aligned lines the header up with the content.
-  root.dataset.header = new URLSearchParams(location.search).get("header") || "full";
-  // Mockup only: ?mat=gap | grey — tile frame (default: thin outline, no mat).
-  root.dataset.mat = new URLSearchParams(location.search).get("mat") || "line";
-  // Mockup only: ?tiles=whole shows featured works uncropped on their mats.
-  root.dataset.tiles = new URLSearchParams(location.search).get("tiles") || "crop";
+  root.dataset.bio = params.get("bio") || "switzer-light";
   // Mockup only: ?gap=72 shows the old fixed gap between photo and text.
-  root.dataset.gap = new URLSearchParams(location.search).get("gap") || "grow";
-  // Mockup only: ?width=1200 | 1400 | 1600 sets where the page stops growing
-  // (default: no limit, always 80%).
-  root.dataset.width = new URLSearchParams(location.search).get("width") || "none";
-  // Mockup only: ?hat=ripples uses the other water photo; ?hat=none removes the photo.
-  root.dataset.hat = new URLSearchParams(location.search).get("hat") || "wave";
+  root.dataset.gap = params.get("gap") || "grow";
   // Mockup only: ?motto=upright shows the motto without italics.
-  root.dataset.motto = new URLSearchParams(location.search).get("motto") || "italic";
-  // Mockup only: ?fonts=plain shows the old system font for comparison.
-  root.dataset.fonts = new URLSearchParams(location.search).get("fonts") || "trial";
-
-  // Carousel: arrows step through the photos (wrapping around); dots show position.
-  const carousel = document.getElementById("carousel");
-  const slides = carousel.querySelectorAll("img");
-  const dots = carousel.querySelector(".carousel-dots");
-  let currentSlide = 0;
-  slides.forEach(function () { dots.appendChild(document.createElement("span")); });
-  function showSlide(index) {
-    currentSlide = (index + slides.length) % slides.length;
-    slides.forEach(function (img, i) { img.hidden = i !== currentSlide; });
-    dots.querySelectorAll("span").forEach(function (dot, i) { dot.classList.toggle("current", i === currentSlide); });
-  }
-  carousel.querySelector(".prev").addEventListener("click", function () { showSlide(currentSlide - 1); });
-  carousel.querySelector(".next").addEventListener("click", function () { showSlide(currentSlide + 1); });
-  showSlide(0);
+  root.dataset.motto = params.get("motto") || "italic";
 
   // Bio "Show full bio" / "Show less": clamp only if the text is longer than the allowed lines.
   const bio = document.getElementById("bio");
@@ -656,35 +286,6 @@
   } else {
     bio.classList.remove("clamped");
   }
-
-  // Category bar "«" / "»" (phones): tapping scrolls the bar left or right.
-  // "»" hides at the right end, "«" hides at the left end (the start).
-  const catsBar = document.querySelector("nav.cats .wrap");
-  const catsMore = document.getElementById("cats-more");
-  const catsLess = document.getElementById("cats-less");
-  function updateCatsButtons() {
-    const atStart = catsBar.scrollLeft <= 2;
-    const atEnd = catsBar.scrollLeft + catsBar.clientWidth >= catsBar.scrollWidth - 2;
-    catsLess.hidden = atStart;
-    catsMore.hidden = atEnd;
-  }
-  catsMore.addEventListener("click", function () {
-    catsBar.scrollBy({ left: catsBar.clientWidth * 0.7, behavior: "smooth" });
-  });
-  catsLess.addEventListener("click", function () {
-    catsBar.scrollBy({ left: -catsBar.clientWidth * 0.7, behavior: "smooth" });
-  });
-  catsBar.addEventListener("scroll", updateCatsButtons);
-  window.addEventListener("resize", updateCatsButtons);
-  updateCatsButtons();
-
-  const dividerButtons = document.querySelectorAll(".switcher button[data-divider]");
-  function setDivider(name) {
-    root.dataset.divider = name;
-    dividerButtons.forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.divider === name); });
-  }
-  dividerButtons.forEach(function (b) { b.addEventListener("click", function () { setDivider(b.dataset.divider); }); });
-  setDivider(new URLSearchParams(location.search).get("divider") || "straight");
 </script>
 </body>
 </html>

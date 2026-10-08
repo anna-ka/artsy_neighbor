@@ -265,6 +265,24 @@ width (80%), lining up with everything above. Space between the header
 and the artist section (32px) was left alone — revisit with the final
 logo and "hat".
 
+**Artist-page spacing pass done (2026-10-08, `bd1c009`). Next: the
+product page mockup** (agreed over the store page: it brings the most
+new decisions — the whole, uncropped artwork that the cropped tiles
+promise, several photos per work, price/size/medium/description,
+the main buy/contact buttons, text styles for longer descriptions).
+Then the store page (`/artists/:id/store`) as a quick follow-up, built
+mostly from existing pieces plus the delivery options. Then home, then
+the real daisyUI theme.
+
+**Shared mockup files (2026-10-08):** before starting the product page,
+everything the pages share (colours, fonts, header, buttons, tiles,
+footer, URL switches, carousel) moved out of `artist-page.html` into
+`docs/design/mockups/mockup.css` and `mockup.js`, a first draft of the
+real theme and shared components. The artist page looks exactly the
+same as before (checked element by element at computer and phone
+width). The header and footer markup is still copied into each page;
+that gets tidied up when the design moves into Phoenix.
+
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
 18px text; a smaller, fixed-width artist photo; drawn SVG wave lines as
