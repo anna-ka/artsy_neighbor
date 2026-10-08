@@ -258,6 +258,12 @@ spacious on the developer's big monitor). `?width=1200 | 1400 | 1600`
 show capped versions. The bio stays capped at 100 characters per line.
 On very wide screens (ultrawide / 4K at 100% scaling) the works tiles
 get very large; revisit if testers on such screens find it odd.
+**Vertical rhythm:** one `--section-gap` (48px; 32px on phones) above
+and below every divider line and above the footer; 24px between the
+last tiles and "Report a concern". The footer now uses the content
+width (80%), lining up with everything above. Space between the header
+and the artist section (32px) was left alone — revisit with the final
+logo and "hat".
 
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and

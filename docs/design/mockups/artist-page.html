@@ -110,6 +110,9 @@
     --frame-pad: 14px;
     /* Width of the artist photo (its height follows from the 7:10 shape). */
     --artist-photo-width: 280px;   /* was 309px until 2026-10-07 */
+    /* Space above and below every divider line between sections, and
+       above the footer (32px on phones). */
+    --section-gap: 48px;
     /* Main content width: 80% of the screen on any screen above phone
        width, with no upper limit (chosen 2026-10-08 as more spacious). */
     --content-width: 80%;
@@ -245,7 +248,7 @@
   /* Photo column is exactly as wide as the photo; the details take the rest. */
   /* Gap between photo and text grows with the screen: 6% of its width,
      but at least 72px and at most 160px. ?gap=72 shows the old fixed gap. */
-  .top { display: grid; grid-template-columns: var(--artist-photo-width) 1fr; gap: clamp(72px, 6vw, 160px); padding: 32px 0 40px; }
+  .top { display: grid; grid-template-columns: var(--artist-photo-width) 1fr; gap: clamp(72px, 6vw, 160px); padding: 32px 0 0; }
   html[data-gap="72"] .top { gap: 72px; }
   /* Tall 7:10 rectangle, fixed width (set by --artist-photo-width). */
   .main-photo { width: var(--artist-photo-width); aspect-ratio: 7 / 10; border-radius: var(--radius-box); overflow: hidden; box-shadow: var(--shadow-photo); background: var(--color-base-200); }
@@ -292,11 +295,13 @@
                  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent); }
   .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
   .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
-  .report { display: inline-block; margin-top: 8px; font-size: 14px; color: var(--color-muted); }
+  .report { display: inline-block; margin-top: 24px; font-size: 14px; color: var(--color-muted); }
   .report-row { text-align: right; }
 
   /* Wave divider: one soft curve, drawn in the line colour */
-  .divider { color: var(--color-base-300); margin-top: 8px; margin-bottom: 8px; }
+  /* The line sits at the bottom of a 22px-tall strip (room for the spiral
+     crest), so 22px of the gap above the line is already inside it. */
+  .divider { color: var(--color-base-300); margin-top: calc(var(--section-gap) - 22px); margin-bottom: 0; }
   .crest { display: flex; align-items: flex-end; }
   /* --spiral-size is the spiral's width; its height is 30/44 of that.
      The straight line next to it is drawn at the same height and scale. */
@@ -307,7 +312,7 @@
   html[data-divider="straight"] .crest .spiral { display: none; }
 
   /* 2. Collections, 3. More works */
-  section { padding: 28px 0; }
+  section { padding: var(--section-gap) 0 0; }
   section h2 { font-size: 26px; margin-bottom: 18px; }
   .collections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
   .collection { position: relative; display: block; border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; }
@@ -337,7 +342,7 @@
   .card .price { font-weight: 600; margin-top: 2px; }
 
   /* 4. Footer */
-  footer { margin-top: 32px; background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300); padding: 32px 0; }
+  footer { margin-top: var(--section-gap); background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300); padding: 32px 0; }
   footer .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
   footer h3 { font-family: var(--font-body); font-weight: 700; font-size: var(--text-base); margin-bottom: 8px; }
   footer a { display: block; color: var(--color-base-content); text-decoration: none; padding: 2px 0; }
@@ -354,6 +359,7 @@
     /* Full width with a 16px margin each side, and no side water
        (there is no room for it; the header keeps its water). */
     html, html[data-width] { --content-width: calc(100% - 32px); }
+    html { --section-gap: 32px; }
     .page-sides { display: none; }
     header .wrap { flex-wrap: wrap; gap: 10px; }
     /* Search box and button share their own row under the logo. */
@@ -573,7 +579,8 @@
 
 <!-- 4. Footer -->
 <footer>
-  <div class="wrap">
+  <!-- Same width as the content above. -->
+  <div class="wrap wide">
     <div class="cols">
       <div><h3>Company</h3><a href="#">About us</a><a href="#">Our mission</a><a href="#">Contact</a></div>
       <div><h3>Legal</h3><a href="#">User agreement</a><a href="#">Privacy policy</a><a href="#">Terms of service</a></div>
