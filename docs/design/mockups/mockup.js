@@ -31,6 +31,8 @@ root.dataset.tiles = params.get("tiles") || "crop";
 root.dataset.width = params.get("width") || "none";
 // ?hat=ripples uses the other water photo; ?hat=none removes the photo.
 root.dataset.hat = params.get("hat") || "wave";
+// ?arrows=light shows the slightly stronger carousel arrows.
+root.dataset.arrows = params.get("arrows") || "lighter";
 // ?fonts=plain shows the old system font for comparison.
 root.dataset.fonts = params.get("fonts") || "trial";
 
@@ -43,20 +45,32 @@ function setDivider(name) {
 dividerButtons.forEach(function (b) { b.addEventListener("click", function () { setDivider(b.dataset.divider); }); });
 setDivider(params.get("divider") || "straight");
 
-// Carousels: arrows step through the photos (wrapping around); dots show
-// position. Works for every element with class "carousel" on the page.
+// Carousels: arrows step through the photos (wrapping around); dots (if
+// the carousel has a .carousel-dots element) show position. Works for
+// every element with class "carousel" on the page.
+// Optional thumbnails: give a carousel data-thumbs="<id>" pointing at a
+// row of <img> thumbnails; clicking one shows that photo, and the current
+// one is marked with class "current".
 function setUpCarousel(carousel) {
   const slides = carousel.querySelectorAll("img");
   const dots = carousel.querySelector(".carousel-dots");
+  const thumbsRow = carousel.dataset.thumbs ? document.getElementById(carousel.dataset.thumbs) : null;
+  const thumbs = thumbsRow ? thumbsRow.querySelectorAll("img") : [];
   let currentSlide = 0;
-  slides.forEach(function () { dots.appendChild(document.createElement("span")); });
+  if (dots) {
+    slides.forEach(function () { dots.appendChild(document.createElement("span")); });
+  }
   function showSlide(index) {
     currentSlide = (index + slides.length) % slides.length;
     slides.forEach(function (img, i) { img.hidden = i !== currentSlide; });
-    dots.querySelectorAll("span").forEach(function (dot, i) { dot.classList.toggle("current", i === currentSlide); });
+    if (dots) {
+      dots.querySelectorAll("span").forEach(function (dot, i) { dot.classList.toggle("current", i === currentSlide); });
+    }
+    thumbs.forEach(function (thumb, i) { thumb.classList.toggle("current", i === currentSlide); });
   }
   carousel.querySelector(".prev").addEventListener("click", function () { showSlide(currentSlide - 1); });
   carousel.querySelector(".next").addEventListener("click", function () { showSlide(currentSlide + 1); });
+  thumbs.forEach(function (thumb, i) { thumb.addEventListener("click", function () { showSlide(i); }); });
   showSlide(0);
 }
 document.querySelectorAll(".carousel").forEach(setUpCarousel);

@@ -245,18 +245,46 @@ html[data-buttons="serif"] .btn { font-family: var(--font-heading); font-weight:
    no extra vertical space. The page sets the photo's size and shape. */
 .carousel { position: relative; }
 .carousel img[hidden] { display: none; }
-.carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%;
-                  border: 0; background: color-mix(in srgb, var(--color-base-100) 88%, transparent); color: var(--color-base-content);
-                  font: 400 26px/1 var(--font-body); padding-bottom: 3px; cursor: pointer; box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); }
+/* Arrows: a small, very see-through round button with a thin, soft
+   arrow (chosen 2026-10-09 over a larger white button with a shadow,
+   plain chevrons, and arrows in a row under the photo). The thumbnails
+   or dots also show that there are more photos, so the arrows can stay
+   quiet and cover as little of the art as possible. */
+.carousel-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%;
+                  border: 0; background: color-mix(in srgb, var(--color-base-100) 40%, transparent);
+                  color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
+                  font: 300 22px/1 var(--font-body); padding-bottom: 3px; cursor: pointer; }
 .carousel-arrow.prev { left: 10px; }
 .carousel-arrow.next { right: 10px; }
 .carousel-dots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; }
 .carousel-dots span { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--color-base-100) 60%, transparent); box-shadow: 0 0 2px rgb(0 0 0 / 0.4); }
 .carousel-dots span.current { background: var(--color-base-100); }
+/* Mockup comparison: ?arrows=light shows the slightly stronger version
+   (less see-through, darker arrow). */
+html[data-arrows="light"] .carousel-arrow { font-weight: 400; color: var(--color-base-content);
+  background: color-mix(in srgb, var(--color-base-100) 65%, transparent); }
 
 /* Chips: small rounded tags (mediums, techniques). */
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
+
+/* Star rating: a quiet row of 5 stars plus the number of reviews, e.g.
+   ★★★★☆ (25). Two layers of the same 5 stars: grey ones underneath,
+   coloured ones on top, cut off at --rating / 5 of the width — so 4.4
+   shows four full stars and 40% of the fifth. The page sets --rating
+   on .stars (e.g. style="--rating: 4.4"). Filled stars are in the muted
+   grey of secondary text, the same colour and size as an artwork's
+   details, so they don't draw the eye (decided 2026-10-09: gold and the
+   full text colour were both too strong). */
+.rating { display: flex; width: fit-content; align-items: center; gap: 6px; font-size: var(--text-base); color: var(--color-muted); text-decoration: none; }
+/* As a link to the reviews: the count is underlined, so it reads as clickable. */
+a.rating .rating-count { text-decoration: underline; text-underline-offset: 2px; }
+.stars { position: relative; display: inline-flex; flex: none; }
+.stars-empty, .stars-full { display: flex; }
+.stars-empty { color: var(--color-base-300); }
+.stars-full { position: absolute; top: 0; bottom: 0; left: 0; overflow: hidden;
+              width: calc(var(--rating) / 5 * 100%); color: var(--color-muted); }
+.stars svg { width: 15px; height: 15px; flex: none; }
 
 /* "Show more" style text button under clamped text. */
 .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }

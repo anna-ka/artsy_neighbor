@@ -3,8 +3,9 @@
 Static HTML mockups for the design-system step — see
 `docs/plans/2026-09-28-design-system.md`. They are not part of the app.
 
-**To view:** start a local server from the repo root
-(`python3 -m http.server 8765`) and open
+**To view:** start the local server (`python3 docs/design/mockups/serve.py`;
+it tells the browser not to cache, so changes to the shared files always
+show on a normal reload) and open
 http://127.0.0.1:8765/docs/design/mockups/artist-page.html. Opening the
 file directly almost works, but the browser then blocks the water
 backgrounds. Add `?direction=b` (or another switch) to the address to

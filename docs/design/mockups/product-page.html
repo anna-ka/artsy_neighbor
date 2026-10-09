@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en" data-direction="a">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: product page</title>
+<!--
+  Static design mockup — not part of the app.
+  Content follows the current ProductLive.Show page (2026-10-08).
+  Images point to priv/static (gitignored), so they only show on the
+  developer's own machine. View it through the local server (see README.md).
+
+  Shared colours, fonts, header, buttons, tiles and footer are in
+  mockup.css and mockup.js; this file only adds what is specific to the
+  product page.
+-->
+<link rel="stylesheet" href="mockup.css">
+<style>
+  /* ---------- Product page only (shared styles: mockup.css) ---------- */
+
+  /* Small "back to the artist" link above the work. */
+  .crumb { display: inline-block; padding: 24px 0 0; color: var(--color-muted); text-decoration: none; font-size: 15px; }
+  .crumb:hover { text-decoration: underline; }
+
+  /* 1. Top: the artwork left, details right, in two equal columns
+     (1.25 : 1 until 2026-10-08 left too much empty space beside tall
+     photos). The columns stay fixed when switching photos, so the text
+     never jumps sideways. */
+  .product-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); gap: clamp(48px, 5vw, 120px); padding-top: 16px; align-items: start; }
+
+  /* The whole artwork, never cropped: the photo keeps its own shape and
+     fits inside a fixed-height area. Faint outline around the photo
+     itself, like the tiles (no mat). */
+  .work-view { --work-height: min(72vh, 720px); height: var(--work-height); display: flex; align-items: center; justify-content: center; }
+  /* The frame is exactly as big as the photo, so the carousel arrows
+     (positioned inside it) always sit on the photo's own edges. */
+  .work-frame { max-width: 100%; }
+  .work-frame img { max-width: 100%; max-height: var(--work-height); width: auto; height: auto; border: 1.5px solid var(--color-base-300); border-radius: var(--radius-box); }
+  /* Thumbnails: small square crops under the artwork. */
+  .work-thumbs { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
+  .work-thumbs img { width: 64px; height: 64px; object-fit: cover; border: 1.5px solid var(--color-base-300); border-radius: 8px; cursor: pointer; }
+  .work-thumbs img.current { outline: 2px solid var(--color-base-content); outline-offset: 2px; }
+
+  /* Details column */
+  .product-info h1 { font-size: 36px; }
+  /* "by Maren Holt": the same style as the artist's motto. */
+  .by { font-family: var(--font-heading); font-weight: var(--heading-weight); font-style: italic; font-size: 20px; margin-top: 6px; }
+  .by a { color: inherit; }
+  /* Small label in the monospace font, in capitals (as on the artist page). */
+  .area { font-family: var(--font-label); color: var(--color-muted); margin-top: 10px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .facts { list-style: none; padding: 0; margin: 24px 0 0; color: var(--color-muted); }
+  .facts li + li { margin-top: 2px; }
+  .facts .unique { display: flex; align-items: center; gap: 6px; color: var(--color-base-content); }
+  .product-price { font-family: var(--font-heading); font-weight: 400; font-size: 30px; margin-top: 24px; }
+  /* The rating row sits just above the price, close to it. */
+  .product-info .rating { margin-top: 24px; }
+  .product-info .rating + .product-price { margin-top: 4px; }
+  /* Both buttons get the width of the wider one: two equal columns,
+     only as wide as the longer text needs (they stretched to half the
+     page column each until 2026-10-09, which was too wide). */
+  .product-info .actions { display: inline-grid; grid-template-columns: 1fr 1fr; margin-top: 20px; }
+
+  /* Information sections, separated by thin lines. Always open (no
+     click-to-expand), so nothing is hidden. */
+  .info { margin-top: 32px; }
+  .info > div { border-top: var(--border) solid var(--color-base-300); padding: 18px 0; }
+  .info h2 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; margin-bottom: 6px; }
+  .info p { margin: 0; font-weight: 300; max-width: 70ch; }
+  .info p + p { margin-top: 0.8em; }
+
+  /* Reviews section (inside .info): a summary line and a See/Hide button;
+     the list of reviews opens below it. */
+  .reviews-summary { color: var(--color-muted); }
+  .reviews-list { list-style: none; padding: 0; margin: 12px 0 0; }
+  .review { padding: 14px 0; }
+  .review + .review { border-top: var(--border) solid var(--color-base-200); }
+  .review-head { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-muted); }
+  .review-head .stars svg { width: 13px; height: 13px; }
+  .review p { margin-top: 4px; }
+  .report-review { display: inline-block; margin-top: 4px; font-size: 13px; color: var(--color-muted); }
+
+  /* "See all works" link under a grid. */
+  .see-all { display: inline-block; margin-top: 18px; }
+
+  /* ---------- Phone width ---------- */
+  @media (max-width: 760px) {
+    .crumb { padding-top: 16px; }
+    /* One column: the artwork on top, details below. */
+    .product-top { grid-template-columns: 1fr; gap: 24px; padding-top: 12px; }
+    .work-view { --work-height: 70vh; height: auto; }
+    .product-info h1 { font-size: 28px; }
+    .by { font-size: 17px; margin-top: 2px; }
+    .product-price { font-size: 26px; }
+    /* Buttons stacked at full width, as on the artist page. */
+    .product-info .actions { display: grid; grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- The spiral crest, defined once and reused wherever it appears.
+     It continues the straight line, turns up (never dipping below the
+     line), loops back over to the left and winds inward counter-clockwise.
+     Drawn in a 44 x 30 area; the line sits at y = 28. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="crest-spiral" viewBox="0 0 44 30">
+    <path d="M0 28 C 20 28, 38 28, 40 16 C 42 6, 30 3, 24 7 C 18 11, 20 20, 27 20 C 33 20, 35 13, 30 11 C 27 10, 25 13, 27 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </symbol>
+  <!-- A filled star (Heroicons "star", MIT licence), used by the rating row. -->
+  <symbol id="star" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z"/>
+  </symbol>
+</svg>
+
+<div class="switcher" role="group" aria-label="Mockup direction">
+  <strong>Mockup colours:</strong>
+  <button data-dir="c">C · Coastal</button>
+  <button data-dir="a">A · Gallery</button>
+  <button data-dir="b">B · Cream</button>
+  <strong style="margin-left:16px">Dividers:</strong>
+  <button data-divider="spiral">Spiral crest</button>
+  <button data-divider="straight">Straight lines</button>
+</div>
+
+<!-- The "site hat": header + category bar, with a faint water photo behind it. -->
+<!-- Faint water in the side margins: the same photo as the site hat,
+     fixed behind the page, faded out over the content area. -->
+<div class="page-sides" aria-hidden="true"><div class="sides-photo"></div><div class="sides-fade"></div></div>
+
+<div class="site-hat">
+  <!-- Background: a water photo used as a stencil over one theme colour,
+       so the ripples always come out in the site's own palette. -->
+  <div class="hat-photo" aria-hidden="true"></div>
+  <div class="hat-fade" aria-hidden="true"></div>
+<header class="line">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-seal-palette.png" alt=""></span>
+      <span>LocalPalette</span>
+    </a>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      What are you looking for?
+    </div>
+    <a class="btn btn-outline btn-search" href="#">Search</a>
+    <!-- On phones the links get their own row under the search box. -->
+    <div class="nav-right">
+      <a href="#">Artists</a>
+      <a href="#">Offer art</a>
+      <a href="#">Messages</a>
+      <a href="#" class="login">Log in</a>
+    </div>
+  </div>
+</header>
+<nav class="cats line">
+  <div class="wrap">
+    <a href="#">All categories</a><a href="#">Paintings</a><a href="#">Sculptures</a><a href="#">Jewelry</a><a href="#">Pottery</a><a href="#">Fiber Art</a><a href="#">Clothing</a><a href="#">Other Art</a>
+  </div>
+  <button type="button" class="scroll-btn scroll-less" id="cats-less" aria-label="Previous categories">«</button>
+  <button type="button" class="scroll-btn scroll-more" id="cats-more" aria-label="More categories">»</button>
+</nav>
+</div>
+
+
+<main class="wrap wide">
+  <a class="crumb" href="artist-page.html">‹ Maren Holt</a>
+
+  <!-- 1. Top: the artwork left, details right -->
+  <div class="product-top">
+    <div>
+      <!-- The whole artwork. Arrows step through the photos; the
+           thumbnails below show which one is shown. -->
+      <div class="work-view">
+        <div class="work-frame carousel" data-thumbs="work-thumbs" aria-roledescription="carousel" aria-label="Photos of the work">
+          <img src="../../../priv/static/images/crow-with-stones.jpg" alt="Crow with Stones, the whole painting">
+          <img src="../../../priv/static/images/crow-with-stones-head.jpg" alt="Crow with Stones, detail of the crow's head" hidden>
+          <button type="button" class="carousel-arrow prev" aria-label="Previous photo">‹</button>
+          <button type="button" class="carousel-arrow next" aria-label="Next photo">›</button>
+        </div>
+      </div>
+      <div class="work-thumbs" id="work-thumbs">
+        <img src="../../../priv/static/images/crow-with-stones.jpg" alt="Show photo 1">
+        <img src="../../../priv/static/images/crow-with-stones-head.jpg" alt="Show photo 2">
+      </div>
+    </div>
+
+    <div class="product-info">
+      <h1>Crow with Stones</h1>
+      <div class="by">by <a href="artist-page.html">Maren Holt</a></div>
+      <div class="area">Fernwood · Victoria</div>
+
+      <ul class="facts">
+        <li>Oil on round canvas</li>
+        <li>60 cm across, 3 cm deep</li>
+        <li class="unique">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3l2.2 6.3L21 12l-6.8 2.7L12 21l-2.2-6.3L3 12l6.8-2.7z"/></svg>
+          Unique work — one of a kind
+        </li>
+      </ul>
+
+      <!-- Average of this work's product reviews, and how many there are.
+           Only shown when the work has reviews (otherwise left out, or
+           "No reviews yet"). A unique work like this one would normally
+           never have it; it is here only to judge the look.
+           Links to this work's reviews. -->
+      <a class="rating" href="#reviews" aria-label="Rated 4.4 out of 5, from 25 reviews. See the reviews.">
+        <span class="stars" style="--rating: 4.4" aria-hidden="true">
+          <span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+          <span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+        </span>
+        <span class="rating-count" aria-hidden="true">(25)</span>
+      </a>
+      <div class="product-price">CA$640</div>
+
+      <div class="actions">
+        <a class="btn btn-primary" href="#">Request to buy</a>
+        <a class="btn btn-outline" href="#">Message the artist</a>
+      </div>
+
+      <div class="info">
+        <div>
+          <h2>About this work</h2>
+          <p>A crow I meet most mornings near Ross Bay, standing on the driftwood the way it always does — as if it owns the beach. The stones around the edge are from the same beach, painted one by one from ones I brought home.</p>
+          <p>The round canvas is meant to feel like looking through a porthole or into a tide pool.</p>
+        </div>
+        <div>
+          <h2>Details</h2>
+          <p>Painted in 2025. The sides are painted grey, so it can hang without a frame. Comes with a wire on the back, ready to hang.</p>
+        </div>
+        <div>
+          <h2>Pickup and delivery</h2>
+          <p>Pickup at the artist's studio in Fernwood. You arrange the time together in your messages after you request to buy.</p>
+        </div>
+        <div>
+          <h2>Returns</h2>
+          <p>Ask the artist before buying. Most artists here are happy to let you see a work in person first.</p>
+        </div>
+        <!-- Reviews: closed by default; "See reviews" opens the list,
+             "Hide reviews" closes it again. Clicking the stars near the
+             price also opens it. The mockup shows 3 of the 25 reviews. -->
+        <div id="reviews">
+          <h2>Reviews</h2>
+          <div class="reviews-summary">4.4 out of 5 · 25 reviews</div>
+          <button type="button" class="more-link" id="reviews-toggle" aria-controls="reviews-list" aria-expanded="false">See reviews ›</button>
+          <ul class="reviews-list" id="reviews-list" hidden>
+            <li class="review">
+              <div class="review-head" role="img" aria-label="5 out of 5 stars, by Linda, September 2026">
+                <span class="stars" style="--rating: 5" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+                <span aria-hidden="true">Linda · September 2026</span>
+              </div>
+              <p>Even more beautiful in person. Maren showed me the studio when I picked it up, and the stones really are from Ross Bay. It now hangs in our front hall.</p>
+              <a class="report-review" href="#">Report this review</a>
+            </li>
+            <li class="review">
+              <div class="review-head" role="img" aria-label="4 out of 5 stars, by Graham, August 2026">
+                <span class="stars" style="--rating: 4" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+                <span aria-hidden="true">Graham · August 2026</span>
+              </div>
+              <p>Lovely painting and very easy pickup. The colours are a little cooler than in the photo, which I actually prefer.</p>
+              <a class="report-review" href="#">Report this review</a>
+            </li>
+            <li class="review">
+              <div class="review-head" role="img" aria-label="5 out of 5 stars, by Teresa, July 2026">
+                <span class="stars" style="--rating: 5" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+                <span aria-hidden="true">Teresa · July 2026</span>
+              </div>
+              <p>My second painting from Maren. Wrapped carefully, and she answered all my questions about hanging it.</p>
+              <a class="report-review" href="#">Report this review</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <!-- Same height and y-scale as the spiral, so the two lines meet exactly. -->
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- 2. More by the same artist -->
+  <section>
+    <h2>More by Maren Holt</h2>
+    <div class="grid">
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/silver-crow.jpg" alt=""></div>
+        <h3>Silver Crow</h3>
+        <div class="sub">Oil and silver leaf, 30 cm</div>
+        <div class="price">CA$310</div>
+      </a>
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/mother-otter.jpg" alt=""></div>
+        <h3>Mother Otter</h3>
+        <div class="sub">Oil on round canvas, 50 cm</div>
+        <div class="price">CA$560</div>
+      </a>
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/wolf-protectress-faces.jpg" alt=""></div>
+        <h3>Protectress</h3>
+        <div class="sub">Oil on canvas, 60 × 60 cm</div>
+        <div class="price">CA$1,000</div>
+      </a>
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""></div>
+        <h3>Legend of the Wolf</h3>
+        <div class="sub">Oil on canvas, 90 × 60 cm</div>
+        <div class="price">CA$1,400</div>
+      </a>
+    </div>
+    <a class="see-all" href="artist-page.html">See all works by Maren Holt ›</a>
+  </section>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- 3. Similar works by other artists (same category) -->
+  <section>
+    <h2>You may also like</h2>
+    <div class="grid">
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/uploads/products/49958.jpg" alt=""></div>
+        <h3>The Garry Oak</h3>
+        <div class="sub">Jonas Reid · Acrylic, 40 × 30 cm</div>
+        <div class="price">CA$290</div>
+      </a>
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/painting.jpg" alt=""></div>
+        <h3>Garden in June</h3>
+        <div class="sub">Ruth Okafor · Oil, 50 × 40 cm</div>
+        <div class="price">CA$450</div>
+      </a>
+      <a class="card" href="#">
+        <div class="pic"><img src="../../../priv/static/images/urban-painting.jpg" alt=""></div>
+        <h3>Fort Street, Rain</h3>
+        <div class="sub">Dev Malhotra · Oil, 60 × 45 cm</div>
+        <div class="price">CA$520</div>
+      </a>
+    </div>
+  </section>
+
+  <div class="report-row"><a class="report" href="#">Report a concern about this listing</a></div>
+</main>
+
+<!-- 4. Footer -->
+<footer>
+  <!-- Same width as the content above. -->
+  <div class="wrap wide">
+    <div class="cols">
+      <div><h3>Company</h3><a href="#">About us</a><a href="#">Our mission</a><a href="#">Contact</a></div>
+      <div><h3>Legal</h3><a href="#">User agreement</a><a href="#">Privacy policy</a><a href="#">Terms of service</a></div>
+      <div><h3>Follow us</h3><a href="#">Facebook</a><a href="#">Instagram</a></div>
+    </div>
+    <div class="copy">© 2026 LocalPalette — art from your neighbours in Victoria, BC</div>
+  </div>
+</footer>
+
+<script src="mockup.js"></script>
+<script>
+  // ---------- Product page only (shared script: mockup.js) ----------
+  // Reviews: "See reviews" / "Hide reviews" opens and closes the list.
+  const reviewsList = document.getElementById("reviews-list");
+  const reviewsToggle = document.getElementById("reviews-toggle");
+  function setReviewsOpen(open) {
+    reviewsList.hidden = !open;
+    reviewsToggle.setAttribute("aria-expanded", open);
+    reviewsToggle.textContent = open ? "Hide reviews ‹" : "See reviews ›";
+  }
+  reviewsToggle.addEventListener("click", function () { setReviewsOpen(reviewsList.hidden); });
+  // The stars near the price open the reviews; the link then scrolls down to them.
+  document.querySelector("a.rating").addEventListener("click", function () { setReviewsOpen(true); });
+</script>
+</body>
+</html>

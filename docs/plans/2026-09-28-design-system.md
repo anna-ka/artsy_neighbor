@@ -283,6 +283,38 @@ same as before (checked element by element at computer and phone
 width). The header and footer markup is still copied into each page;
 that gets tidied up when the design moves into Phoenix.
 
+**Product page mockup, first version (2026-10-08/09):**
+`docs/design/mockups/product-page.html`, content from the current
+`ProductLive.Show`. Decided so far:
+- Two equal columns: the whole, uncropped artwork on the left (fixed
+  height, rounded corners, faint outline, no mat), details on the
+  right. Equal columns (not 1.25 : 1) leave less empty space beside
+  tall photos; the columns don't follow each photo's width, so the
+  text never jumps when switching photos.
+- Carousel arrows sit on the photo's own edges, small and very
+  see-through ("lighter"; shared with the artist page). Tried: larger
+  white buttons, plain chevrons, arrows in a row under the photo.
+  Thumbnails under the photo also show there are more photos.
+- Details: title, "by <artist>" (linked, italic like the motto),
+  neighbourhood, medium/size/unique work, then the rating row, price,
+  and two buttons of equal width (as wide as the longer text).
+- **Star rating** (shared in `mockup.css`): a quiet row just above the
+  price, stars in the muted grey of the details text, "(25)" linking
+  down to the reviews. Gold and the full text colour were too strong.
+  Only shown when a work has reviews (leave it out or say "No reviews
+  yet" — to decide); a unique work normally won't have any.
+- Information sections, always open: About this work, Details,
+  Pickup and delivery, Returns, then **Reviews**, closed by default
+  ("See reviews ›" / "Hide reviews ‹"); each review has its stars,
+  name, month, text and "Report this review". Still to decide: how
+  many to show at first in the real app.
+- **No wording that encourages paying the artist directly** (a "pay
+  cash or Interac at pickup" line was tried and removed).
+- Then "More by <artist>" with a "See all works" link, "You may also
+  like" (other artists, same category), and the report link.
+- Mockup server: `python3 docs/design/mockups/serve.py` (no caching,
+  so shared-file edits always show; this computer only).
+
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
 18px text; a smaller, fixed-width artist photo; drawn SVG wave lines as
