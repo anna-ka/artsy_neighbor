@@ -205,6 +205,11 @@ header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; p
 .brand { display: flex; align-items: center; gap: var(--logo-gap); text-decoration: none; color: inherit; flex: none; }
 .brand .logo { width: var(--logo-size); height: var(--logo-size); border-radius: 50%; overflow: hidden; flex: none; }
 .brand .logo img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); }
+/* New logo draft (2026-10-09, logo-on-back-web.png: the seal on its back
+   with three paint dabs, transparent background): shown whole, not
+   cropped into a circle. ?logo=palette shows the earlier round logo. */
+html[data-logo="back"] .brand .logo { border-radius: 0; overflow: visible; }
+html[data-logo="back"] .brand .logo img { object-fit: contain; transform: none; }
 /* Site name: trying Sentient Medium (was Switzer Bold 19px). */
 .brand span { font-family: var(--font-heading); font-weight: 500; font-size: 24px; }
 /* About 30% of the content column, pushed to the right next to the links. */
@@ -285,6 +290,19 @@ a.rating .rating-count { text-decoration: underline; text-underline-offset: 2px;
 .stars-full { position: absolute; top: 0; bottom: 0; left: 0; overflow: hidden;
               width: calc(var(--rating) / 5 * 100%); color: var(--color-muted); }
 .stars svg { width: 15px; height: 15px; flex: none; }
+
+/* Reviews (product page, artist page Shop tab): a summary line, then a
+   list of reviews, each with its stars, name, month, text and a
+   "Report this review" link. */
+.reviews-summary { color: var(--color-muted); }
+.reviews-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.review { padding: 14px 0; }
+.review + .review { border-top: var(--border) solid var(--color-base-200); }
+.review-head { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-muted); }
+.review-head .stars svg { width: 13px; height: 13px; }
+/* (.reviews-list in front so this wins over a page's own "p { margin: 0 }".) */
+.reviews-list .review p { margin: 4px 0 0; }
+.report-review { display: inline-block; margin-top: 4px; font-size: 13px; color: var(--color-muted); }
 
 /* "Show more" style text button under clamped text. */
 .more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
@@ -383,6 +401,13 @@ footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
   .scroll-less { left: 0; justify-content: flex-start; padding-left: 12px;
                  background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
   .scroll-btn[hidden] { display: none; }
+  /* Rows on a page that scroll the same way (see setUpScrollRow in
+     mockup.js): one line, scrolling sideways, no scrollbar. No extra room
+     at the end: "»" hides there, so it never covers the last item (and a
+     row that fits shows no "»" at all). */
+  .scroll-row { position: relative; }
+  .scroll-row .scroll-track { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .scroll-row .scroll-track > * { flex: none; }
   .actions .btn { flex: 1 1 100%; }
   .collections, .grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
   footer .cols { grid-template-columns: 1fr 1fr; }

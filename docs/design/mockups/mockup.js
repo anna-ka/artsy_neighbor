@@ -33,6 +33,11 @@ root.dataset.width = params.get("width") || "none";
 root.dataset.hat = params.get("hat") || "wave";
 // ?arrows=light shows the slightly stronger carousel arrows.
 root.dataset.arrows = params.get("arrows") || "lighter";
+// ?logo=palette shows the earlier round logo instead of the new draft.
+root.dataset.logo = params.get("logo") || "back";
+if (root.dataset.logo === "palette") {
+  document.querySelector(".brand .logo img").src = "../../../priv/static/images/screenshots/logo-seal-palette.png";
+}
 // ?fonts=plain shows the old system font for comparison.
 root.dataset.fonts = params.get("fonts") || "trial";
 
@@ -75,23 +80,40 @@ function setUpCarousel(carousel) {
 }
 document.querySelectorAll(".carousel").forEach(setUpCarousel);
 
-// Category bar "«" / "»" (phones): tapping scrolls the bar left or right.
-// "»" hides at the right end, "«" hides at the left end (the start).
-const catsBar = document.querySelector("nav.cats .wrap");
-const catsMore = document.getElementById("cats-more");
-const catsLess = document.getElementById("cats-less");
-function updateCatsButtons() {
-  const atStart = catsBar.scrollLeft <= 2;
-  const atEnd = catsBar.scrollLeft + catsBar.clientWidth >= catsBar.scrollWidth - 2;
-  catsLess.hidden = atStart;
-  catsMore.hidden = atEnd;
+// Rows that scroll sideways on phones (the category bar, and rows on the
+// pages such as filter chips), with "«" / "»" buttons: tapping scrolls
+// the row left or right. "»" hides at the right end, "«" hides at the
+// left end (the start), so each shows only when there is more that way.
+// track = the element that scrolls; lessButton / moreButton = "«" / "»".
+function setUpScrollRow(track, lessButton, moreButton) {
+  function updateButtons() {
+    const atStart = track.scrollLeft <= 2;
+    const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2;
+    lessButton.hidden = atStart;
+    moreButton.hidden = atEnd;
+  }
+  moreButton.addEventListener("click", function () {
+    track.scrollBy({ left: track.clientWidth * 0.7, behavior: "smooth" });
+  });
+  lessButton.addEventListener("click", function () {
+    track.scrollBy({ left: -track.clientWidth * 0.7, behavior: "smooth" });
+  });
+  track.addEventListener("scroll", updateButtons);
+  // Also re-check when the row changes size — including when it first
+  // becomes visible (e.g. its tab is opened).
+  new ResizeObserver(updateButtons).observe(track);
+  updateButtons();
 }
-catsMore.addEventListener("click", function () {
-  catsBar.scrollBy({ left: catsBar.clientWidth * 0.7, behavior: "smooth" });
+
+// The category bar in the header.
+setUpScrollRow(document.querySelector("nav.cats .wrap"),
+               document.getElementById("cats-less"),
+               document.getElementById("cats-more"));
+
+// Any other row on a page: <div class="scroll-row"> holding a
+// .scroll-track (the items) and the two buttons.
+document.querySelectorAll(".scroll-row").forEach(function (row) {
+  setUpScrollRow(row.querySelector(".scroll-track"),
+                 row.querySelector(".scroll-less"),
+                 row.querySelector(".scroll-more"));
 });
-catsLess.addEventListener("click", function () {
-  catsBar.scrollBy({ left: -catsBar.clientWidth * 0.7, behavior: "smooth" });
-});
-catsBar.addEventListener("scroll", updateCatsButtons);
-window.addEventListener("resize", updateCatsButtons);
-updateCatsButtons();

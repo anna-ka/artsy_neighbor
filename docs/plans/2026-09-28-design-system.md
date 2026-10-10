@@ -72,6 +72,14 @@ the developer's laptop only.)
 
 ## Logo and colours
 
+- 2026-10-09: new draft `logo-on-back.png` (the seal on its back,
+  curled into a circle, with blue, yellow and orange-red paint dabs;
+  transparent background) tried in the mockup header at 66px, shown
+  whole rather than cropped into a circle. Web copy:
+  `priv/static/images/screenshots/logo-on-back-web.png` (512×512,
+  cropped to the drawing, gitignored). `?logo=palette` shows the
+  earlier round logo.
+
 - Logo by the developer's daughter; drafts so far are concept only.
   Kept elements: circular, a local animal (a seal), a painter's
   palette. Draft 1 (separate paint dots) likely works better as a small
@@ -314,6 +322,65 @@ that gets tidied up when the design moves into Phoenix.
   like" (other artists, same category), and the report link.
 - Mockup server: `python3 docs/design/mockups/serve.py` (no caching,
   so shared-file edits always show; this computer only).
+
+**Store page merged into the artist page as tabs (2026-10-09):** no
+separate store page. Under the artist section, a tab row: **Featured**
+(default: featured works and collections), **Shop (24)** (all works with
+filters), **Commissions**, **Contact**. The "Contact artist" / "View
+shop" buttons are replaced by the tabs. On every tab except Featured the
+artist header is compact (photo 140px, bio 2 lines; on phones no bio),
+so the tab's content starts higher. In the app: one LiveView, each tab
+its own address (`/artists/:id`, `/artists/:id/store`, ...), switched by
+a LiveView patch so the header stays and Back works.
+- An "About" tab was tried and dropped: the bio is already in the header.
+- **Commissions tab is always shown**, so artists say plainly whether
+  they take commissions ("I am unable to take commissions at this
+  time" is a fine answer). Needs a new Artist setting and text — see the
+  commissions item in `NOTES.md`.
+- **Contact tab:** a "Send a message" button for logged-in visitors,
+  "Log in to message" for everyone else.
+- Mockup: `artist-page.html?view=shop | commissions | contact`;
+  `?tabs=serif` shows the tabs in the heading font.
+- **Shop tab (first version, 2026-10-09):** at the top, the artist's
+  announcement (quiet cream panel, only when turned on); under it,
+  right-aligned (ending above the search and sort), links down to
+  "Pickup and delivery", "Returns" and "Reviews ★★★★★ (31)", so they
+  are easy to find (tried with "↓" arrows, dropped). Each section at
+  the end has a "Back to top" link. These links use the ordinary text
+  colour and size, not the link colour — a deliberate exception to keep
+  the page calm. Then filters — **collection chips**
+  ("All works (24)", "Crows (9)", ... — the artist's existing
+  `ProductCollection`s, in their own order; no chips if the artist has
+  no collections), a search box, a **Category** dropdown (only the
+  categories this artist has works in, with counts; left out when all
+  their works are in one category — first dropped, then brought back
+  the same day) and "Sort by" (newest, price up/down). The "sort by
+  collection/category" options of the old store page are dropped.
+  **Two rows:** search, category and sort together on one row,
+  right-aligned under the links; the collection chips on the row below,
+  right above the works, wrapping onto more lines when an artist has
+  many collections (expected: more than 3–4). Chips and controls side
+  by side on one row was tried first; it wrapped untidily.
+  Works in the usual grid, then "Showing 10 of 24 works" and a "Show
+  more works" button (no endless scrolling). At the end, after a
+  divider: **Pickup and delivery** (each option with the artist's
+  note), **Returns** (the artist's own policy — needs a new Artist
+  field), **Reviews** (vendor reviews: summary, newest three, each
+  naming the work bought, "Show all 31 reviews").
+- Review styles moved into the shared `mockup.css`.
+- **Shop tab on phones (2026-10-09):** the filters had pushed the works
+  ~590px below the tabs. Now: the links are one line without stars;
+  search and a **"Filter and sort"** button share a row (the button
+  opens category and sort just below, in the page — no pop-up — and
+  reads "Filter and sort (1)" when one is changed); the collection
+  chips are **one line that scrolls sideways** with "«" / "»" buttons
+  (both directions, like the category bar). Works now start ~250px
+  higher; the first tiles show on the first screen. Every sideways row
+  uses one shared helper (`setUpScrollRow` in `mockup.js`, `.scroll-row`
+  in `mockup.css`). Later: a shorter site header on phones (with the
+  final logo) would help every page.
+- Open: the four tabs only just fit at 390px wide.
+- Next: Commissions and Contact tabs.
 
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and

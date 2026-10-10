@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-direction="a">
+<html lang="en" data-direction="a" data-view="featured">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -60,8 +60,115 @@
                  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent);
                  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--bio-line-height)), transparent); }
 
+  /* 2. Tabs: Featured / Shop / Commissions / Contact (agreed 2026-10-09 —
+     the store page becomes the Shop tab of the artist page). In the app
+     each tab has its own address (/artists/5, /artists/5/store, ...)
+     and switching is a LiveView patch: the header stays, only the part
+     below the tabs changes. The tab row's bottom line replaces the
+     first divider. */
+  .tabs { display: flex; gap: 32px; margin-top: var(--section-gap); border-bottom: var(--border) solid var(--color-base-300); overflow-x: auto; scrollbar-width: none; }
+  .tab { display: flex; align-items: center; min-height: 44px; padding: 8px 2px; margin-bottom: -1px; border-bottom: 2px solid transparent;
+         font: 400 16px var(--font-body); color: var(--color-muted); text-decoration: none; white-space: nowrap; }
+  .tab .count { margin-left: 6px; color: var(--color-muted); font-weight: 400; }
+  .tab[aria-current="page"] { color: var(--color-base-content); border-bottom-color: var(--color-base-content); font-weight: 600; }
+  /* Mockup comparison: ?tabs=serif shows the tabs in the heading font. */
+  html[data-tabs="serif"] .tab { font-family: var(--font-heading); font-weight: var(--heading-weight); font-size: 21px; }
+  html[data-tabs="serif"] .tab[aria-current="page"] { font-weight: 400; }
+  .tab-panel[hidden] { display: none; }
+  .placeholder { color: var(--color-muted); font-style: italic; }
+
+  /* 3. Shop tab */
+  .shop { padding-top: 32px; }
+  /* The artist's own announcement (optional, set by the artist): a quiet
+     cream panel, not a bright alert. */
+  .notice { background: var(--color-base-200); border-radius: var(--radius-field); padding: 12px 18px; margin-bottom: 24px; max-width: 100ch; }
+  .notice strong { font-weight: 600; }
+  /* Filters: collection chips on the left, search and sort on the right. */
+  /* Two rows: search / category / sort on the right, chips below. */
+  .shop-filters { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+  .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Large, clearly clickable chips; the chosen one is filled in. */
+  .filter-chip { min-height: 40px; padding: 6px 16px; border-radius: 999px; border: var(--border) solid var(--color-base-300); background: var(--color-base-100);
+                 font: 400 15px var(--font-body); color: var(--color-base-content); cursor: pointer; }
+  .filter-chip .count { margin-left: 4px; opacity: 0.75; }
+  .filter-chip[aria-pressed="true"] { background: var(--color-base-content); border-color: var(--color-base-content); color: var(--color-base-100); }
+  .shop-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .shop-search, .shop-sort { height: 42px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); background: var(--color-base-100);
+                             font: 400 15px var(--font-body); color: var(--color-base-content); padding: 0 14px; }
+  .shop-search { width: 240px; }
+  .shop-search::placeholder { color: var(--color-muted); }
+  .sort-label { display: flex; align-items: center; gap: 8px; color: var(--color-muted); }
+  /* "Filter and sort" button: phones only. On computers category and
+     sort sit in the row directly (display: contents makes their wrapper
+     invisible to the layout). */
+  .shop-tools .filter-toggle { display: none; }
+  .shop-options { display: contents; }
+  /* Tiles hidden by the filters (.card sets display, which would beat "hidden"). */
+  .card[hidden] { display: none; }
+  .no-results { color: var(--color-muted); }
+  /* "Showing 10 of 24 works" and the button that loads the rest. */
+  .show-more-row { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 32px; color: var(--color-muted); }
+  /* Pickup and delivery: one row per option the artist offers, with their note. */
+  .delivery-list { list-style: none; padding: 0; margin: 0; max-width: 70ch; }
+  .delivery-list li + li { margin-top: 14px; }
+  .delivery-list strong { display: block; font-weight: 600; }
+  .delivery-list span { color: var(--color-muted); }
+  /* Links down to Pickup and delivery / Returns / Reviews: under the
+     announcement, right-aligned so they end at the content's right edge,
+     in line with the search box and sort below. */
+  .shop-links { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 28px; margin-bottom: 20px; }
+  /* These links (and "Back to top") use the ordinary text colour and
+     size, not the link colour: a deliberate exception to keep this part
+     calm (2026-10-09). Still underlined, so they read as links. */
+  .shop-links a { color: var(--color-base-content); font-size: var(--text-base); text-underline-offset: 3px; }
+  .shop-links a.rating { text-decoration: underline; }
+  /* The sections at the end of the tab sit closer together than the
+     big page sections; the h2 headings separate them. */
+  #returns, #artist-reviews { padding-top: 40px; }
+  .policy { margin: 0; max-width: 70ch; }
+  .artist-reviews { max-width: 80ch; }
+  .review-head a { color: inherit; }
+  /* Read out by screen readers, not shown (e.g. "5 out of 5 stars."). */
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .more-reviews { margin-top: 12px; }
+  /* "Back to top" at the end of each of the sections above. "#top"
+     scrolls to the very top of the page. */
+  .back-to-top { display: block; width: fit-content; margin-top: 16px; font-size: var(--text-base); color: var(--color-base-content); text-underline-offset: 3px; }
+
+  /* Compact header: on every tab except Featured, the artist photo and bio
+     shrink so the tab's own content starts higher. */
+  html:not([data-view="featured"]) { --artist-photo-width: 140px; }
+  html:not([data-view="featured"]) .top { gap: 40px; }
+  html:not([data-view="featured"]) .details h1 { font-size: 30px; }
+  html:not([data-view="featured"]) .details .block { margin-top: 16px; }
+  html:not([data-view="featured"]) .bio { --bio-lines: 2; }
+  /* Too small for arrows and dots: just the current photo. */
+  html:not([data-view="featured"]) .main-photo .carousel-arrow,
+  html:not([data-view="featured"]) .main-photo .carousel-dots { display: none; }
+
   /* ---------- Phone width ---------- */
   @media (max-width: 760px) {
+    .tabs { gap: 20px; }
+    .tab { font-size: 15px; }
+    /* Compact header on phones: the photo is already small; drop the bio. */
+    html:not([data-view="featured"]) { --artist-photo-width: 110px; }
+    html:not([data-view="featured"]) .top { gap: 0 16px; }
+    html:not([data-view="featured"]) .details h1 { font-size: 26px; }
+    html:not([data-view="featured"]) .bio-block { display: none; }
+    .shop { padding-top: 24px; }
+    /* Links: one line, scrolling sideways if needed; no stars. */
+    .shop-links { justify-content: flex-start; gap: 20px; margin-bottom: 16px; }
+    .shop-links .stars { display: none; }
+    /* Search and the "Filter and sort" button share one row; the button
+       opens category and sort on their own rows below it. */
+    .shop-filters { gap: 12px; margin-bottom: 20px; }
+    .shop-tools { flex-wrap: wrap; justify-content: flex-start; }
+    .shop-search { flex: 1 1 auto; width: auto; min-width: 0; }
+    .shop-tools .filter-toggle { display: inline-flex; flex: none; height: 42px; min-height: 0; padding: 0 16px; }
+    .shop-options { display: none; flex: 1 1 100%; flex-direction: column; gap: 10px; }
+    .shop-options.open { display: flex; }
+    .shop-options .sort-label { justify-content: space-between; }
+    .shop-options .shop-sort { flex: 0 1 70%; }
     /* Small photo next to the name, tags beside it too; bio and buttons
        below at full width. .details "dissolves" (display: contents) so its
        parts can sit in the same grid as the photo. */
@@ -69,10 +176,9 @@
     .top { grid-template-columns: var(--artist-photo-width) 1fr; column-gap: 16px; row-gap: 0; padding-top: 20px; align-items: start; }
     .top > div:first-child { grid-column: 1; grid-row: 1 / span 4; }
     .details { display: contents; }
-    .details .block, .details .actions { grid-column: 1 / -1; }
+    .details .block { grid-column: 1 / -1; }
     .details h1, .details .motto, .details .area, .details .tags { grid-column: 2; }
     .details .block { margin-top: 20px; }
-    .details .actions { margin-top: 24px; }
     .details .tags { margin-top: 10px; }
     .details h1 { font-size: 26px; }
     .details .motto { font-size: 17px; margin-top: 2px; }
@@ -89,6 +195,10 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="crest-spiral" viewBox="0 0 44 30">
     <path d="M0 28 C 20 28, 38 28, 40 16 C 42 6, 30 3, 24 7 C 18 11, 20 20, 27 20 C 33 20, 35 13, 30 11 C 27 10, 25 13, 27 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </symbol>
+  <!-- A filled star (Heroicons "star", MIT licence), used by the rating rows. -->
+  <symbol id="star" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z"/>
   </symbol>
 </svg>
 
@@ -115,7 +225,7 @@
 <header class="line">
   <div class="wrap">
     <a class="brand" href="#">
-      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-seal-palette.png" alt=""></span>
+      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-on-back-web.png" alt=""></span>
       <span>LocalPalette</span>
     </a>
     <div class="search">
@@ -166,7 +276,7 @@
         <div class="chips"><span class="chip">Oil painting</span><span class="chip">Silver leaf</span><span class="chip">Drawing</span></div>
       </div>
 
-      <div class="block">
+      <div class="block bio-block">
         <div class="label">About the artist</div>
         <!-- Shows the first --bio-lines lines; "Show full bio" reveals the rest. -->
         <div class="bio" id="bio">
@@ -175,26 +285,25 @@
         </div>
         <button type="button" class="more-link" id="bio-toggle" aria-controls="bio" aria-expanded="false" hidden>Show full bio ›</button>
       </div>
-
-
-      <div class="actions">
-        <a class="btn btn-primary" href="#">Contact artist</a>
-        <a class="btn btn-outline" href="#">View shop</a>
-      </div>
+      <!-- The "Contact artist" / "View shop" buttons were replaced by the
+           Contact and Shop tabs below (2026-10-09). -->
     </div>
   </div>
+
+  <!-- 2. Tabs. In the app these are links with their own addresses
+       (/artists/5, /artists/5/store, ...); ?view=shop opens a tab here. -->
+  <nav class="tabs" aria-label="Artist page sections">
+    <a class="tab" href="?view=featured" data-view="featured">Featured</a>
+    <a class="tab" href="?view=shop" data-view="shop">Shop<span class="count">(24)</span></a>
+    <a class="tab" href="?view=commissions" data-view="commissions">Commissions</a>
+    <a class="tab" href="?view=contact" data-view="contact">Contact</a>
+  </nav>
 </main>
 
-<div class="wrap wide divider" aria-hidden="true">
-  <div class="crest">
-    <!-- Same height and y-scale as the spiral, so the two lines meet exactly. -->
-    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
-    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
-  </div>
-</div>
-
+<!-- Featured tab (the default): featured works and collections. -->
+<div class="tab-panel" data-panel="featured">
 <main class="wrap wide">
-  <!-- 2. Featured works: chosen by the artist, shown near the top. -->
+  <!-- Featured works: chosen by the artist, shown near the top. -->
   <section>
     <h2>Featured works</h2>
     <div class="grid">
@@ -235,7 +344,7 @@
 </div>
 
 <main class="wrap wide">
-  <!-- 3. Collections -->
+  <!-- Collections -->
   <section>
     <h2>Collections by Maren Holt</h2>
     <div class="collections">
@@ -244,7 +353,227 @@
       <a class="collection" href="#"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""><span>Legends</span></a>
     </div>
   </section>
+</main>
+</div>
 
+<!-- Shop tab: all of the artist's works, with filters (replaces the old
+     store page, /artists/:id/store). -->
+<div class="tab-panel" data-panel="shop" hidden>
+<main class="wrap wide">
+  <section class="shop">
+    <!-- The artist's announcement, only when they have turned one on. -->
+    <div class="notice"><strong>Note from Maren:</strong> the studio is closed October 20–27. Works ordered that week will be ready for pickup from the 28th.</div>
+
+    <!-- Links down to the sections at the end of the tab, so pickup,
+         returns and reviews are easy to find without scrolling past
+         every work. Right-aligned, ending above the search and sort.
+         On phones: one line that scrolls sideways if it doesn't fit. -->
+    <div class="scroll-row">
+    <nav class="shop-links scroll-track" aria-label="Buying from Maren">
+      <a href="#pickup-delivery">Pickup and delivery</a>
+      <a href="#returns">Returns</a>
+      <a href="#artist-reviews" class="rating" aria-label="Reviews: rated 4.8 out of 5, from 31 reviews">
+        <span aria-hidden="true">Reviews</span>
+        <span class="stars" style="--rating: 4.8" aria-hidden="true">
+          <span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+          <span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+        </span>
+        <span aria-hidden="true">(31)</span>
+      </a>
+    </nav>
+    <button type="button" class="scroll-btn scroll-less" aria-label="Scroll links left">«</button>
+    <button type="button" class="scroll-btn scroll-more" aria-label="Scroll links right">»</button>
+    </div>
+
+    <!-- Filters. Collections are chips (one tap, all visible). Category
+         is a dropdown listing only the categories this artist has works
+         in, and is left out when they are all in one category. In the
+         app the choices go into the address, as now.
+         Search, category and sort share one row (right-aligned, under the
+         links above); the chips go below, right above the works, and wrap
+         onto more lines when an artist has many collections.
+         On phones: search and a "Filter and sort" button share a row (the
+         button opens category and sort just below, in the page); the
+         chips become one line that scrolls sideways. -->
+    <div class="shop-filters">
+      <div class="shop-tools">
+        <input type="search" class="shop-search" id="shop-search" placeholder="Search Maren's works" aria-label="Search Maren's works">
+        <button type="button" class="btn btn-outline filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="shop-options">Filter and sort</button>
+        <div class="shop-options" id="shop-options">
+        <label class="sort-label">Category
+          <select class="shop-sort" id="shop-category">
+            <option value="all">All categories</option>
+            <option value="paintings">Paintings (21)</option>
+            <option value="other">Other Art (3)</option>
+          </select>
+        </label>
+        <label class="sort-label">Sort by
+          <select class="shop-sort" id="shop-sort">
+            <option value="newest">Newest first</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+          </select>
+        </label>
+        </div>
+      </div>
+      <div class="scroll-row">
+      <div class="filter-chips scroll-track" role="group" aria-label="Show works from">
+        <button type="button" class="filter-chip" data-collection="all" aria-pressed="true">All works<span class="count">(24)</span></button>
+        <button type="button" class="filter-chip" data-collection="crows" aria-pressed="false">Crows<span class="count">(7)</span></button>
+        <button type="button" class="filter-chip" data-collection="shore" aria-pressed="false">Shore animals<span class="count">(4)</span></button>
+        <button type="button" class="filter-chip" data-collection="legends" aria-pressed="false">Legends<span class="count">(5)</span></button>
+        <button type="button" class="filter-chip" data-collection="studies" aria-pressed="false">Small studies<span class="count">(3)</span></button>
+        <button type="button" class="filter-chip" data-collection="rossbay" aria-pressed="false">Ross Bay<span class="count">(3)</span></button>
+      </div>
+      <button type="button" class="scroll-btn scroll-less" aria-label="Previous collections">«</button>
+      <button type="button" class="scroll-btn scroll-more" aria-label="More collections">»</button>
+      </div>
+    </div>
+
+    <!-- The mockup shows 10 of the 24 works; chip counts are for all 24. -->
+    <div class="grid" id="shop-grid">
+      <a class="card" href="product-page.html" data-collection="crows" data-category="paintings" data-price="310">
+        <div class="pic"><img src="../../../priv/static/images/silver-crow.jpg" alt=""></div>
+        <h3>Silver Crow</h3><div class="sub">Oil and silver leaf, 30 cm</div><div class="price">CA$310</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="crows" data-category="paintings" data-price="640">
+        <div class="pic"><img src="../../../priv/static/images/crow-with-stones.jpg" alt=""></div>
+        <h3>Crow with Stones</h3><div class="sub">Oil on round canvas, 60 cm</div><div class="price">CA$640</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="legends" data-category="paintings" data-price="880">
+        <div class="pic"><img src="../../../priv/static/images/crow-woman.jpg" alt=""></div>
+        <h3>Crow Woman</h3><div class="sub">Oil on canvas, 70 × 50 cm</div><div class="price">CA$880</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="shore" data-category="paintings" data-price="560">
+        <div class="pic"><img src="../../../priv/static/images/mother-otter.jpg" alt=""></div>
+        <h3>Mother Otter</h3><div class="sub">Oil on round canvas, 50 cm</div><div class="price">CA$560</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="studies" data-category="paintings" data-price="180">
+        <div class="pic"><img src="../../../priv/static/images/crow-with-stones-head.jpg" alt=""></div>
+        <h3>Crow Study</h3><div class="sub">Oil on panel, 20 × 20 cm</div><div class="price">CA$180</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="legends" data-category="paintings" data-price="1000">
+        <div class="pic"><img src="../../../priv/static/images/wolf-protectress-faces.jpg" alt=""></div>
+        <h3>Protectress</h3><div class="sub">Oil on canvas, 60 × 60 cm</div><div class="price">CA$1,000</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="rossbay" data-category="paintings" data-price="420">
+        <div class="pic"><img src="../../../priv/static/images/ocean-painting.jpg" alt=""></div>
+        <h3>Low Tide, Ross Bay</h3><div class="sub">Oil on canvas, 40 × 50 cm</div><div class="price">CA$420</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="legends" data-category="other" data-price="220">
+        <div class="pic"><img src="../../../priv/static/images/crow-woman-head.jpg" alt=""></div>
+        <h3>Crow Woman, study</h3><div class="sub">Charcoal on paper, 30 × 25 cm</div><div class="price">CA$220</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="none" data-category="paintings" data-price="390">
+        <div class="pic"><img src="../../../priv/static/images/painting.jpg" alt=""></div>
+        <h3>Garden Window</h3><div class="sub">Oil on canvas, 50 × 40 cm</div><div class="price">CA$390</div>
+      </a>
+      <a class="card" href="product-page.html" data-collection="legends" data-category="paintings" data-price="1400">
+        <div class="pic"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""></div>
+        <h3>Legend of the Wolf</h3><div class="sub">Oil on canvas, 90 × 60 cm</div><div class="price">CA$1,400</div>
+      </a>
+    </div>
+    <p class="no-results" id="shop-no-results" hidden>No works match your search. Try another word, or choose "All works".</p>
+
+    <!-- A plain button rather than endless scrolling, so the footer stays
+         reachable and people know how much there is. -->
+    <div class="show-more-row">
+      <span>Showing 10 of 24 works</span>
+      <button type="button" class="btn btn-outline">Show more works</button>
+    </div>
+  </section>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+    <svg class="spiral" viewBox="0 0 44 30"><use href="#crest-spiral"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- The artist's delivery options (Artist.delivery_options) with their
+       own notes (Artist.delivery_info). -->
+  <section id="pickup-delivery">
+    <h2>Pickup and delivery</h2>
+    <ul class="delivery-list">
+      <li><strong>Pickup at the artist's studio</strong><span>In Fernwood. Weekday afternoons or Saturday mornings; we arrange the time in messages after you order.</span></li>
+      <li><strong>Artist delivers</strong><span>Free within Victoria for works over CA$300. I can help hang larger pieces.</span></li>
+    </ul>
+    <a class="back-to-top" href="#top">Back to top</a>
+  </section>
+
+  <!-- The artist's own return policy, in their words. Needs a new Artist
+       field (none exists yet). -->
+  <section id="returns">
+    <h2>Returns</h2>
+    <p class="policy">If a work doesn't feel right once it's on your wall, bring it back within 14 days in the same condition for a full refund. Commissions can't be returned. You're always welcome to see a work at the studio before buying.</p>
+    <a class="back-to-top" href="#top">Back to top</a>
+  </section>
+
+  <!-- Reviews of the artist by buyers (vendor reviews), newest first.
+       The first three are shown; the button shows the rest. Each review
+       names the work that was bought. -->
+  <section id="artist-reviews">
+    <h2>Reviews</h2>
+    <div class="rating">
+      <span class="stars" style="--rating: 4.8" aria-hidden="true">
+        <span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+        <span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span>
+      </span>
+      <span class="reviews-summary">4.8 out of 5 · 31 reviews</span>
+    </div>
+    <ul class="reviews-list artist-reviews">
+      <li class="review">
+        <div class="review-head">
+          <span class="stars" style="--rating: 5" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+          <span class="visually-hidden">5 out of 5 stars.</span>
+          <span>Linda · September 2026 · bought <a href="product-page.html">Crow with Stones</a></span>
+        </div>
+        <p>Maren showed me around the studio when I picked up the painting and told me the story behind it. Lovely to buy from someone just down the road.</p>
+        <a class="report-review" href="#">Report this review</a>
+      </li>
+      <li class="review">
+        <div class="review-head">
+          <span class="stars" style="--rating: 5" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+          <span class="visually-hidden">5 out of 5 stars.</span>
+          <span>Peter · August 2026 · bought <a href="product-page.html">Mother Otter</a></span>
+        </div>
+        <p>Quick replies, and she delivered it herself on a Saturday and helped us find the right spot for it.</p>
+        <a class="report-review" href="#">Report this review</a>
+      </li>
+      <li class="review">
+        <div class="review-head">
+          <span class="stars" style="--rating: 4" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+          <span class="visually-hidden">4 out of 5 stars.</span>
+          <span>Graham · July 2026 · bought <a href="product-page.html">Crow Study</a></span>
+        </div>
+        <p>A small painting but full of life. Pickup took a couple of messages to arrange, but it was easy in the end.</p>
+        <a class="report-review" href="#">Report this review</a>
+      </li>
+    </ul>
+    <button type="button" class="btn btn-outline more-reviews">Show all 31 reviews</button>
+    <a class="back-to-top" href="#top">Back to top</a>
+  </section>
+</main>
+</div>
+
+<!-- Commissions tab (next steps). -->
+<div class="tab-panel" data-panel="commissions" hidden>
+<main class="wrap wide">
+  <section><p class="placeholder">What Maren takes commissions for, and a button to ask about one — to come.</p></section>
+</main>
+</div>
+
+<!-- Contact tab (next steps). -->
+<div class="tab-panel" data-panel="contact" hidden>
+<main class="wrap wide">
+  <section><p class="placeholder">A message box to Maren, plus her website and social links — to come.</p></section>
+</main>
+</div>
+
+<!-- Shown under every tab. -->
+<main class="wrap wide">
   <div class="report-row"><a class="report" href="#">Report a concern about this artist</a></div>
 </main>
 
@@ -271,21 +600,121 @@
   // Mockup only: ?motto=upright shows the motto without italics.
   root.dataset.motto = params.get("motto") || "italic";
 
-  // Bio "Show full bio" / "Show less": clamp only if the text is longer than the allowed lines.
+  // Mockup only: ?tabs=serif shows the tabs in the heading font.
+  root.dataset.tabs = params.get("tabs") || "sans";
+
+  // Bio "Show full bio" / "Show less": clamp only if the text is longer than
+  // the allowed lines. Re-checked on every tab switch, because the compact
+  // header allows fewer lines.
   const bio = document.getElementById("bio");
   const bioToggle = document.getElementById("bio-toggle");
-  bio.classList.add("clamped");
-  if (bio.scrollHeight > bio.clientHeight + 1) {
-    bioToggle.hidden = false;
-    bioToggle.addEventListener("click", function () {
-      const expanding = bio.classList.contains("clamped");
-      bio.classList.toggle("clamped", !expanding);
-      bioToggle.textContent = expanding ? "Show less ‹" : "Show full bio ›";
-      bioToggle.setAttribute("aria-expanded", expanding);
-    });
-  } else {
-    bio.classList.remove("clamped");
+  function resetBio() {
+    bio.classList.add("clamped");
+    bioToggle.textContent = "Show full bio ›";
+    bioToggle.setAttribute("aria-expanded", false);
+    const isLonger = bio.scrollHeight > bio.clientHeight + 1;
+    bioToggle.hidden = !isLonger;
+    if (!isLonger) { bio.classList.remove("clamped"); }
   }
+  bioToggle.addEventListener("click", function () {
+    const expanding = bio.classList.contains("clamped");
+    bio.classList.toggle("clamped", !expanding);
+    bioToggle.textContent = expanding ? "Show less ‹" : "Show full bio ›";
+    bioToggle.setAttribute("aria-expanded", expanding);
+  });
+
+  // Tabs: show one panel, mark its tab, and put ?view=... in the address
+  // (as the app's own addresses would change), so Back works.
+  const tabs = document.querySelectorAll(".tab");
+  const panels = document.querySelectorAll(".tab-panel");
+  function showView(view) {
+    root.dataset.view = view;
+    tabs.forEach(function (tab) {
+      if (tab.dataset.view === view) { tab.setAttribute("aria-current", "page"); }
+      else { tab.removeAttribute("aria-current"); }
+    });
+    panels.forEach(function (panel) { panel.hidden = panel.dataset.panel !== view; });
+    resetBio();
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function (event) {
+      event.preventDefault();
+      const url = new URL(location.href);
+      url.searchParams.set("view", tab.dataset.view);
+      history.pushState(null, "", url);
+      showView(tab.dataset.view);
+    });
+  });
+  window.addEventListener("popstate", function () {
+    showView(new URLSearchParams(location.search).get("view") || "featured");
+  });
+  showView(params.get("view") || "featured");
+
+  // Shop tab filters (mockup only — in the app the server does this).
+  // A tile shows if it is in the chosen collection AND its title contains
+  // the search words; then the shown tiles are put in the chosen order.
+  const shopGrid = document.getElementById("shop-grid");
+  const shopCards = Array.from(shopGrid.querySelectorAll(".card"));
+  const shopChips = document.querySelectorAll(".filter-chip");
+  const shopSearch = document.getElementById("shop-search");
+  const shopSort = document.getElementById("shop-sort");
+  const shopCategory = document.getElementById("shop-category");
+  const shopNoResults = document.getElementById("shop-no-results");
+  let chosenCollection = "all";
+
+  function updateShop() {
+    const words = shopSearch.value.trim().toLowerCase();
+    let shownCount = 0;
+    shopCards.forEach(function (card) {
+      const inCollection = chosenCollection === "all" || card.dataset.collection === chosenCollection;
+      const chosenCategory = shopCategory.value;
+      const inCategory = chosenCategory === "all" || card.dataset.category === chosenCategory;
+      const title = card.querySelector("h3").textContent.toLowerCase();
+      const matchesSearch = words === "" || title.includes(words);
+      card.hidden = !(inCollection && inCategory && matchesSearch);
+      if (!card.hidden) { shownCount = shownCount + 1; }
+    });
+    shopNoResults.hidden = shownCount > 0;
+
+    // "Newest first" is the order the tiles are written in.
+    const ordered = shopCards.slice();
+    if (shopSort.value === "price-asc") {
+      ordered.sort(function (a, b) { return Number(a.dataset.price) - Number(b.dataset.price); });
+    } else if (shopSort.value === "price-desc") {
+      ordered.sort(function (a, b) { return Number(b.dataset.price) - Number(a.dataset.price); });
+    }
+    ordered.forEach(function (card) { shopGrid.appendChild(card); });
+  }
+
+  shopChips.forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      chosenCollection = chip.dataset.collection;
+      shopChips.forEach(function (other) { other.setAttribute("aria-pressed", other === chip); });
+      updateShop();
+    });
+  });
+  shopSearch.addEventListener("input", updateShop);
+  shopSort.addEventListener("change", updateShop);
+  shopCategory.addEventListener("change", updateShop);
+
+  // Phones: "Filter and sort" opens and closes category and sort. The
+  // button shows how many of the two are changed from the default, e.g.
+  // "Filter and sort (1)", so nothing is hidden without a hint.
+  const filterToggle = document.getElementById("filter-toggle");
+  const shopOptions = document.getElementById("shop-options");
+  function updateFilterToggleLabel() {
+    let changedCount = 0;
+    if (shopCategory.value !== "all") { changedCount = changedCount + 1; }
+    if (shopSort.value !== "newest") { changedCount = changedCount + 1; }
+    filterToggle.textContent = changedCount > 0 ? "Filter and sort (" + changedCount + ")" : "Filter and sort";
+  }
+  filterToggle.addEventListener("click", function () {
+    const opening = !shopOptions.classList.contains("open");
+    shopOptions.classList.toggle("open", opening);
+    filterToggle.setAttribute("aria-expanded", opening);
+  });
+  shopCategory.addEventListener("change", updateFilterToggleLabel);
+  shopSort.addEventListener("change", updateFilterToggleLabel);
 </script>
 </body>
 </html>
