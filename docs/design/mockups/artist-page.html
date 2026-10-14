@@ -75,7 +75,29 @@
   html[data-tabs="serif"] .tab { font-family: var(--font-heading); font-weight: var(--heading-weight); font-size: 21px; }
   html[data-tabs="serif"] .tab[aria-current="page"] { font-weight: 400; }
   .tab-panel[hidden] { display: none; }
-  .placeholder { color: var(--color-muted); font-style: italic; }
+  /* "See all works ›" under the featured works: small, right-aligned,
+     in the ordinary text colour like the Shop tab's links. */
+  .see-all-row { text-align: right; margin-top: 16px; }
+  .see-all { color: var(--color-base-content); text-underline-offset: 3px; }
+  /* 4. Commissions and Contact tabs: one readable column. */
+  .tab-body { padding-top: 32px; max-width: 72ch; }
+  /* The cream panel at the top, with the main button. */
+  .panel { background: var(--color-base-200); border-radius: var(--radius-box); padding: 20px 24px 24px; }
+  .panel p { margin: 6px 0 0; }
+  .panel .panel-title { margin: 0; font-family: var(--font-heading); font-weight: var(--heading-weight); font-size: 22px; }
+  .panel .btn { margin-top: 16px; }
+  .small-note { font-size: 14px; color: var(--color-muted); }
+  .small-note a { color: var(--color-base-content); }
+  /* Small headings, as in the product page's information sections. */
+  .text-block h2 { font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; margin: 28px 0 6px; }
+  .text-block p { margin: 0; }
+  .plain-list { list-style: none; padding: 0; margin: 0; }
+  .plain-list li + li { margin-top: 4px; }
+  .plain-list a { color: var(--color-base-content); text-underline-offset: 3px; }
+  /* Mockup switches: ?login=out (shared, mockup.js) and
+     ?commissions=closed show the other versions. */
+  html[data-login="in"] .when-logged-out, html[data-login="out"] .when-logged-in { display: none; }
+  html[data-commissions="open"] .when-closed, html[data-commissions="closed"] .when-open { display: none; }
 
   /* 3. Shop tab */
   .shop { padding-top: 32px; }
@@ -293,7 +315,7 @@
   <!-- 2. Tabs. In the app these are links with their own addresses
        (/artists/5, /artists/5/store, ...); ?view=shop opens a tab here. -->
   <nav class="tabs" aria-label="Artist page sections">
-    <a class="tab" href="?view=featured" data-view="featured">Featured</a>
+    <a class="tab" href="?view=featured" data-view="featured">Works</a>
     <a class="tab" href="?view=shop" data-view="shop">Shop<span class="count">(24)</span></a>
     <a class="tab" href="?view=commissions" data-view="commissions">Commissions</a>
     <a class="tab" href="?view=contact" data-view="contact">Contact</a>
@@ -332,6 +354,8 @@
         <div class="price">CA$1,000</div>
       </a>
     </div>
+    <!-- Opens the Shop tab (in the app: a patch to /artists/:id/store). -->
+    <div class="see-all-row"><a class="see-all" href="?view=shop" data-open-view="shop">See all works ›</a></div>
   </section>
 </main>
 
@@ -558,17 +582,64 @@
 </main>
 </div>
 
-<!-- Commissions tab (next steps). -->
+<!-- Commissions tab: always shown, so every artist says plainly whether
+     they take commissions. Kept minimal for now (2026-10-14): a generic
+     paragraph, chosen by a single yes/no setting on the artist, and a
+     button to message them. Details (prices, how it works, past
+     commissions) can come later, once vendors have a way to describe
+     their commissions policy.
+     ?commissions=closed shows the "not taking commissions" version;
+     ?login=out shows the button a logged-out visitor sees. -->
 <div class="tab-panel" data-panel="commissions" hidden>
 <main class="wrap wide">
-  <section><p class="placeholder">What Maren takes commissions for, and a button to ask about one — to come.</p></section>
+  <section class="tab-body">
+    <!-- Open for commissions -->
+    <div class="panel when-open">
+      <p class="panel-title">Maren takes commissions</p>
+      <p>Would you like a work made especially for you? Send Maren a message to tell her what you have in mind. She will let you know what is possible, how long it would take and what it would cost.</p>
+      <!-- Opens a conversation with Maren. -->
+      <a class="btn btn-primary when-logged-in" href="#">Send message</a>
+      <a class="btn btn-primary when-logged-out" href="#">Log in to message</a>
+    </div>
+    <!-- Not taking commissions -->
+    <div class="panel when-closed">
+      <p class="panel-title">Maren isn't taking commissions right now</p>
+      <p>You are welcome to browse the works in her shop, or to send her a message with any questions.</p>
+    </div>
+  </section>
 </main>
 </div>
 
-<!-- Contact tab (next steps). -->
+<!-- Contact tab. Messages go through LocalPalette's own conversations;
+     the artist's address, email and phone are never shown. -->
 <div class="tab-panel" data-panel="contact" hidden>
 <main class="wrap wide">
-  <section><p class="placeholder">A message box to Maren, plus her website and social links — to come.</p></section>
+  <section class="tab-body">
+    <div class="panel">
+      <p class="panel-title">Get in touch with Maren</p>
+      <p>Questions about a work, a commission or a studio visit? Send Maren a message. You'll find her reply under Messages.</p>
+      <!-- Opens (or continues) the conversation with Maren. -->
+      <a class="btn btn-primary when-logged-in" href="#">Send message</a>
+      <div class="when-logged-out">
+        <a class="btn btn-primary" href="#">Log in to message</a>
+        <p class="small-note">New here? <a href="#">Create an account</a> — it only takes a minute.</p>
+      </div>
+    </div>
+
+    <div class="text-block">
+      <h2>Studio</h2>
+      <p>Fernwood, Victoria. Studio visits by appointment — ask in a message.</p>
+
+      <!-- Artist.homepage / instagram / facebook; only the ones filled in.
+           They open in a new tab. -->
+      <h2>Elsewhere online</h2>
+      <ul class="plain-list">
+        <li><a href="#" target="_blank" rel="noopener">Website: marenholt.ca</a></li>
+        <li><a href="#" target="_blank" rel="noopener">Instagram: @marenholtpaints</a></li>
+        <li><a href="#" target="_blank" rel="noopener">Facebook: Maren Holt Art</a></li>
+      </ul>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -600,6 +671,8 @@
   // Mockup only: ?motto=upright shows the motto without italics.
   root.dataset.motto = params.get("motto") || "italic";
 
+  // Mockup only: ?commissions=closed shows the "not taking commissions" version.
+  root.dataset.commissions = params.get("commissions") || "open";
   // Mockup only: ?tabs=serif shows the tabs in the heading font.
   root.dataset.tabs = params.get("tabs") || "sans";
 
@@ -636,13 +709,26 @@
     panels.forEach(function (panel) { panel.hidden = panel.dataset.panel !== view; });
     resetBio();
   }
+  // Switch to a tab and put it in the address (a new history entry).
+  function openView(view) {
+    const url = new URL(location.href);
+    url.searchParams.set("view", view);
+    history.pushState(null, "", url);
+    showView(view);
+  }
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function (event) {
       event.preventDefault();
-      const url = new URL(location.href);
-      url.searchParams.set("view", tab.dataset.view);
-      history.pushState(null, "", url);
-      showView(tab.dataset.view);
+      openView(tab.dataset.view);
+    });
+  });
+  // Links elsewhere on the page that open a tab ("See all works ›"):
+  // switch tabs, then scroll up so the tab row is in view.
+  document.querySelectorAll("[data-open-view]").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      openView(link.dataset.openView);
+      document.querySelector(".tabs").scrollIntoView({ behavior: "smooth" });
     });
   });
   window.addEventListener("popstate", function () {

@@ -38,6 +38,52 @@ root.dataset.logo = params.get("logo") || "back";
 if (root.dataset.logo === "palette") {
   document.querySelector(".brand .logo img").src = "../../../priv/static/images/screenshots/logo-seal-palette.png";
 }
+// Site name ("wordmark") next to the logo. Default (chosen 2026-10-14):
+// I = lowercase Fraunces Light, soft, 20px, leaning 5°, letters 2px up
+// and down on one wave, not tilted. Switches:
+//   ?wordmark=g    Sentient Light instead of Fraunces
+//   ?wordmark=old  "LocalPalette" in Sentient Medium, no wave
+//   ?wave=3        how far letters move up and down, in px (default 2; 0 = flat)
+//   ?waves=1.5     how many waves across the word (default 1)
+//   ?tilt=on       letters also tilt to follow the wave's slope
+//   ?size=24       font size in px (default 20 for I, 27 for G)
+//   ?slant=8       lean every letter to the right by this many degrees
+//                  (default 5) — a slant, not the font's real italic
+root.dataset.wordmark = params.get("wordmark") || "i";
+function setUpWordmark() {
+  if (root.dataset.wordmark === "old") { return; }
+  const wordmark = document.querySelector(".brand span:not(.logo)");
+  const text = "localpalette";
+  const amplitude = Number(params.get("wave") || 2);
+  const waveCount = Number(params.get("waves") || 1);
+  const tilts = params.get("tilt") === "on";
+  const slant = Number(params.get("slant") || 5);
+  wordmark.classList.add("wm-" + root.dataset.wordmark);
+  if (params.get("size")) { wordmark.style.fontSize = params.get("size") + "px"; }
+  wordmark.textContent = "";
+  wordmark.setAttribute("aria-label", text);
+  // Each letter is moved up or down along a sine wave, like letters
+  // floating on water; with ?tilt=on it also tilts to follow the wave's
+  // slope. ?slant leans every letter the same amount (skewX). Screen
+  // readers read the whole word once (aria-label).
+  const letters = Array.from(text);
+  letters.forEach(function (letter, index) {
+    const angle = (index / (letters.length - 1)) * waveCount * 2 * Math.PI;
+    const shiftY = -amplitude * Math.sin(angle);
+    const tilt = tilts ? -amplitude * 1.6 * Math.cos(angle) : 0;
+    const span = document.createElement("span");
+    span.className = "wave-letter";
+    span.setAttribute("aria-hidden", "true");
+    span.textContent = letter;
+    span.style.transform = "translateY(" + shiftY + "px) rotate(" + tilt + "deg) skewX(" + -slant + "deg)";
+    wordmark.appendChild(span);
+  });
+}
+setUpWordmark();
+// ?login=out shows what a logged-out visitor sees (e.g. "Log in to
+// message" instead of "Send a message"). Pages mark the two versions
+// with the classes when-logged-in / when-logged-out.
+root.dataset.login = params.get("login") || "in";
 // ?fonts=plain shows the old system font for comparison.
 root.dataset.fonts = params.get("fonts") || "trial";
 

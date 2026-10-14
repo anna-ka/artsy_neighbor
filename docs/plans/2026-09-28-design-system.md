@@ -79,6 +79,26 @@ the developer's laptop only.)
   `priv/static/images/screenshots/logo-on-back-web.png` (512×512,
   cropped to the drawing, gitignored). `?logo=palette` shows the
   earlier round logo.
+- 2026-10-14: **wordmark.** Direction: lighter than Sentient Medium, in
+  the site's text colour. `docs/design/mockups/wordmark.html` compares
+  11 versions (weights, lowercase, italic, spacing, waves, Fraunces,
+  Switzer) beside the logo with sample text. Favourites: **G**
+  (lowercase "localpalette", Sentient Light 27px, letters on a gentle
+  wave) and **I** (the same in Fraunces Light, soft). **Chosen for now
+  (to refine later): I at 20px, leaning 5°, letters 2px up and down on
+  one wave, not tilted** — the mockup header's default. Small on
+  purpose: the seal is the main mark, the name sits beside it like a
+  signature. The lean is a slant of the normal letters, not Fraunces'
+  real italic (whose letter shapes differ). The wave was 3px at larger
+  sizes; at 20px, 2px keeps the same feel (3px looked bouncy). Don't go
+  below 20px: light + slanted + wavy already costs some readability.
+  Switches: `?wordmark=g | old`, `?wave=<px>` (default 2; 0 = flat),
+  `?waves=<count>` (default 1), `?tilt=on`, `?size=<px>` (default 20),
+  `?slant=<degrees>` (default 5). A stronger wave (3.5px, 1.5 waves,
+  with tilt) looked jumbled. Fraunces is loaded from Google Fonts (free
+  licence) at the top of `mockup.css`.
+  For the real app: a wave this fine may be better drawn once (hand
+  lettering or an SVG) than built letter by letter.
 
 - Logo by the developer's daughter; drafts so far are concept only.
   Kept elements: circular, a local animal (a seal), a painter's
@@ -333,6 +353,9 @@ so the tab's content starts higher. In the app: one LiveView, each tab
 its own address (`/artists/:id`, `/artists/:id/store`, ...), switched by
 a LiveView patch so the header stays and Back works.
 - An "About" tab was tried and dropped: the bio is already in the header.
+- 2026-10-14: the first tab is labelled **Works** (was "Featured"; the
+  "Featured works" heading stays). A small right-aligned "See all works
+  ›" link under the featured tiles opens the Shop tab.
 - **Commissions tab is always shown**, so artists say plainly whether
   they take commissions ("I am unable to take commissions at this
   time" is a fine answer). Needs a new Artist setting and text — see the
@@ -379,8 +402,27 @@ a LiveView patch so the header stays and Back works.
   uses one shared helper (`setUpScrollRow` in `mockup.js`, `.scroll-row`
   in `mockup.css`). Later: a shorter site header on phones (with the
   final logo) would help every page.
-- Open: the four tabs only just fit at 390px wide.
-- Next: Commissions and Contact tabs.
+- The four tabs fit at 390px since "Featured" became "Works".
+- **Commissions tab (2026-10-14), kept minimal for now:** one cream
+  panel with a generic paragraph. Open: "Maren takes commissions" —
+  send a message to say what you have in mind; she'll say what is
+  possible, how long and what it would cost — and a "Send message"
+  button (opens a conversation; logged out: "Log in to message").
+  Buttons in both tabs say just "Send message", nothing longer. Closed: "Maren isn't taking commissions right now",
+  browse the shop or send a message. Needs only one yes/no Artist
+  setting. A fuller version was mocked up and set aside (artist's own
+  texts on what they paint, prices, "How it works" steps incl. an offer
+  billed through the site, "Past commissions" tiles) — for later, once
+  vendors have a way to describe their commissions policy (`NOTES.md`
+  commissions item).
+- **Contact tab (2026-10-14):** a panel with a "Send message" button
+  (opens or continues the conversation); logged out: "Log in to
+  message" and "New here? Create an account". Then **Studio** (only the
+  neighbourhood, "visits by appointment") and **Elsewhere online**
+  (website, Instagram, Facebook — existing Artist fields, only those
+  filled in). The artist's address, email and phone are never shown.
+- Mockup switches: `?login=out` (logged-out buttons, shared in
+  `mockup.js`), `?commissions=closed`.
 
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and

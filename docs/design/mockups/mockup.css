@@ -1,3 +1,7 @@
+/* Fraunces (Google Fonts, free licence), for the ?wordmark=i version of
+   the site name. (@import has to come first in the file.) */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,100..900,0..100,0..1&display=swap");
+
 /*
   Shared styles for all design mockups (artist page, product page, ...).
   Static design mockups — not part of the app. Each page links this file
@@ -210,8 +214,19 @@ header .wrap { max-width: none; display: flex; align-items: center; gap: 20px; p
    cropped into a circle. ?logo=palette shows the earlier round logo. */
 html[data-logo="back"] .brand .logo { border-radius: 0; overflow: visible; }
 html[data-logo="back"] .brand .logo img { object-fit: contain; transform: none; }
-/* Site name: trying Sentient Medium (was Switzer Bold 19px). */
+/* Site name: trying Sentient Medium (was Switzer Bold 19px).
+   ?wordmark=old shows this version. */
 .brand span { font-family: var(--font-heading); font-weight: 500; font-size: 24px; }
+/* Site name, 2026-10-14 (picked from wordmark.html): lowercase
+   "localpalette", light, with the letters on a gentle wave and leaning a
+   little (built by setUpWordmark in mockup.js). I = Fraunces Light,
+   soft, with its quirky letter shapes, 20px — small, so the seal is the
+   main mark and the name sits beside it like a signature (default);
+   ?wordmark=g = Sentient Light. */
+.brand span.wm-g { font-weight: 300; font-size: 27px; }
+.brand span.wm-i { font-family: "Fraunces", Georgia, serif; font-weight: 300; font-size: 20px; font-variation-settings: "SOFT" 100, "WONK" 1; }
+/* Each wave letter copies the name's font settings. */
+.brand .wave-letter { display: inline-block; font: inherit; letter-spacing: inherit; font-variation-settings: inherit; }
 /* About 30% of the content column, pushed to the right next to the links. */
 .search { flex: 0 1 320px; height: 42px; margin-left: auto; font-size: 15px; white-space: nowrap; overflow: hidden; display: flex; align-items: center; gap: 8px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); padding: 8px 16px; color: var(--color-muted); background: var(--color-base-100); min-width: 0; }
 .nav-right { display: flex; gap: 18px; align-items: center; white-space: nowrap; }

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en" data-direction="a" data-logo="back">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: wordmark</title>
+<!--
+  Static design mockup — not part of the app.
+  Comparison sheet for the "LocalPalette" text next to the seal logo
+  (2026-10-14). Direction: lighter than the current Sentient Medium, in
+  the site's text colour. Each card shows the real header strip (water
+  background, logo, wordmark), then a sample heading (Sentient) and
+  paragraph (Switzer) as used across the site.
+  Shared colours, fonts and header styles come from mockup.css.
+  mockup.js is not loaded: this page has no category bar or carousels.
+-->
+<link rel="stylesheet" href="mockup.css">
+<!-- Fraunces (Google Fonts, free licence): a warm, soft serif with a
+     "softness" setting (SOFT) and optional quirky letter shapes (WONK). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,100..900,0..100,0..1&display=swap">
+<style>
+  .sheet { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+  .sheet > h1 { font-size: 32px; }
+  .sheet > p { max-width: 70ch; color: var(--color-muted); }
+  .variants { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 28px; margin-top: 28px; }
+  @media (max-width: 760px) { .variants { grid-template-columns: 1fr; } }
+
+  /* One card per version: label, header strip, sample text. */
+  .variant { border: var(--border) solid var(--color-base-300); border-radius: var(--radius-box); overflow: hidden; background: var(--color-base-100); }
+  .variant-label { padding: 10px 18px; font-size: 14px; color: var(--color-muted); border-bottom: var(--border) solid var(--color-base-300); }
+  .variant-label strong { color: var(--color-base-content); margin-right: 6px; }
+  .variant .site-hat header .wrap { padding: 14px 18px; }
+  .sample { padding: 18px 18px 22px; }
+  .sample h2 { font-size: 26px; margin-bottom: 8px; }
+  .sample p { margin: 0; }
+
+  /* ---------- The wordmark versions ----------
+     All in the site's text colour (inherited from .brand). ".brand span"
+     in mockup.css sets the current look (Sentient 500, 24px); each class
+     below replaces it. Inner parts and wave letters copy their parent's
+     font ("font: inherit") so the version's settings reach them. */
+  .brand .wm-part, .brand .wave-letter { font: inherit; letter-spacing: inherit; font-variation-settings: inherit; }
+
+  /* A: current, for comparison */
+  .brand span.wm-a { font-weight: 500; font-size: 24px; }
+  /* B: Sentient Regular */
+  .brand span.wm-b { font-weight: 400; font-size: 24px; }
+  /* C: Sentient Light, a touch larger so it doesn't look smaller */
+  .brand span.wm-c { font-weight: 300; font-size: 26px; }
+  /* D: Sentient Light, all lowercase */
+  .brand span.wm-d { font-weight: 300; font-size: 27px; }
+  /* E: Sentient Light lowercase, "palette" in italic */
+  .brand span.wm-e { font-weight: 300; font-size: 27px; }
+  .brand .wm-e .wm-part.italic { font-style: italic; }
+  /* F: Sentient Light lowercase, more space between letters */
+  .brand span.wm-f { font-weight: 300; font-size: 25px; letter-spacing: 0.06em; }
+  /* G: Sentient Light lowercase, gentle wave */
+  .brand span.wm-g { font-weight: 300; font-size: 27px; }
+  /* H: Fraunces Light, soft */
+  .brand span.wm-h { font-family: "Fraunces", Georgia, serif; font-weight: 300; font-size: 25px; font-variation-settings: "SOFT" 100, "WONK" 0; }
+  /* I: Fraunces Light lowercase, soft, with its quirky letters, gentle wave */
+  .brand span.wm-i { font-family: "Fraunces", Georgia, serif; font-weight: 300; font-size: 27px; font-variation-settings: "SOFT" 100, "WONK" 1; }
+  /* J: Switzer Light lowercase (the sans-serif used for body text) */
+  .brand span.wm-j { font-family: var(--font-body); font-weight: 300; font-size: 26px; letter-spacing: 0.01em; }
+  /* K: Sentient Light lowercase, stronger wave */
+  .brand span.wm-k { font-weight: 300; font-size: 27px; }
+</style>
+</head>
+<body>
+
+<main class="sheet">
+  <h1>LocalPalette wordmark</h1>
+  <p>Versions of the site name next to the seal logo, all in the site's text colour. A is today's version, for comparison; the others are lighter. Each card shows the header strip and some text in the site's own fonts below it.</p>
+
+  <div class="variants" id="variants"></div>
+</main>
+
+<!-- One card, copied for each version by the script below. -->
+<template id="variant-card">
+  <div class="variant">
+    <div class="variant-label"><strong></strong><span></span></div>
+    <div class="site-hat">
+      <div class="hat-photo" aria-hidden="true"></div>
+      <div class="hat-fade" aria-hidden="true"></div>
+      <header class="line">
+        <div class="wrap">
+          <a class="brand" href="#">
+            <span class="logo"><img src="../../../priv/static/images/screenshots/logo-on-back-web.png" alt=""></span>
+            <span class="wordmark"></span>
+          </a>
+        </div>
+      </header>
+    </div>
+    <div class="sample">
+      <h2>Featured works</h2>
+      <p>I have painted in Victoria for over thirty years. Most mornings I walk the shoreline from Clover Point to Ross Bay, and the crows, otters and seals I meet there end up on my canvases.</p>
+    </div>
+  </div>
+</template>
+
+<script>
+  // The versions: letter, description, CSS class, the text, and how it is
+  // built ("plain", "italic-palette" = "local" + italic "palette", or
+  // "wave" with an amplitude in px and a number of waves across the word).
+  const versions = [
+    { id: "A", label: "Today: Sentient Medium, 24px", cls: "wm-a", text: "LocalPalette", kind: "plain" },
+    { id: "B", label: "Sentient Regular, 24px", cls: "wm-b", text: "LocalPalette", kind: "plain" },
+    { id: "C", label: "Sentient Light, 26px", cls: "wm-c", text: "LocalPalette", kind: "plain" },
+    { id: "D", label: "Sentient Light, lowercase", cls: "wm-d", text: "localpalette", kind: "plain" },
+    { id: "E", label: "Sentient Light, lowercase, “palette” in italic", cls: "wm-e", text: "localpalette", kind: "italic-palette" },
+    { id: "F", label: "Sentient Light, lowercase, more letter spacing", cls: "wm-f", text: "localpalette", kind: "plain" },
+    { id: "G", label: "Sentient Light, lowercase, gentle wave", cls: "wm-g", text: "localpalette", kind: "wave", amplitude: 2, waves: 1 },
+    { id: "K", label: "Sentient Light, lowercase, stronger wave", cls: "wm-k", text: "localpalette", kind: "wave", amplitude: 3.5, waves: 1.5 },
+    { id: "H", label: "Fraunces Light, soft", cls: "wm-h", text: "LocalPalette", kind: "plain" },
+    { id: "I", label: "Fraunces Light, soft, lowercase, gentle wave", cls: "wm-i", text: "localpalette", kind: "wave", amplitude: 2, waves: 1 },
+    { id: "J", label: "Switzer Light, lowercase (sans-serif)", cls: "wm-j", text: "localpalette", kind: "plain" }
+  ];
+
+  // Wavy text: each letter is moved up or down along a sine wave and
+  // tilted to follow the wave's slope, like letters floating on water.
+  // The whole word is still read out once by screen readers (aria-label).
+  function makeWavy(element, text, amplitude, waves) {
+    element.setAttribute("aria-label", text);
+    const letters = Array.from(text);
+    letters.forEach(function (letter, index) {
+      const angle = (index / (letters.length - 1)) * waves * 2 * Math.PI;
+      const shiftY = -amplitude * Math.sin(angle);
+      const tilt = -amplitude * 1.6 * Math.cos(angle);
+      const span = document.createElement("span");
+      span.className = "wave-letter";
+      span.setAttribute("aria-hidden", "true");
+      span.textContent = letter;
+      span.style.display = "inline-block";
+      span.style.transform = "translateY(" + shiftY + "px) rotate(" + tilt + "deg)";
+      element.appendChild(span);
+    });
+  }
+
+  const template = document.getElementById("variant-card");
+  const list = document.getElementById("variants");
+  versions.forEach(function (version) {
+    const card = template.content.cloneNode(true);
+    card.querySelector(".variant-label strong").textContent = version.id;
+    card.querySelector(".variant-label span").textContent = version.label;
+    const wordmark = card.querySelector(".wordmark");
+    wordmark.classList.add(version.cls);
+    if (version.kind === "wave") {
+      makeWavy(wordmark, version.text, version.amplitude, version.waves);
+    } else if (version.kind === "italic-palette") {
+      wordmark.innerHTML = '<span class="wm-part">local</span><span class="wm-part italic">palette</span>';
+    } else {
+      wordmark.textContent = version.text;
+    }
+    list.appendChild(card);
+  });
+</script>
+</body>
+</html>
