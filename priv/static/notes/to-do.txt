@@ -90,3 +90,10 @@ Payments — no payment_method field yet, charge/refund are Logger stubs.
 The UI/styling overhaul — you already decided this deserves its own dedicated session with the design skill, not mixed into feature work.
 Multi-item cart, delivery-as-fulfillment, mobile nav polish — all explicitly not needed for launch.
 Given where the app is, I'd lean toward the admin moderation pass next — it's the direct continuation of what's now shipped, and until it exists, the flag-reporting feature has no downstream (reports go in, nobody can act on them). But it's your call.
+
+October 5
+
+When you're back after the reboot:
+
+Restart the local web server. The reboot will stop it, and the water background won't show without it. In the repo root, run python3 -m http.server 8765, then open http://127.0.0.1:8765/docs/design/mockups/artist-page.html. Or just ask me to start it.
+Push when you're ready. I haven't pushed.

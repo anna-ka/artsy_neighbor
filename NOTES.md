@@ -174,6 +174,8 @@ working on the code should keep in mind.
 - **No admin-LiveView test coverage exists anywhere** (no `log_in_admin`/
   admin fixture helper) — noted since Phase 0, never addressed.
 
+- **UI to request commissions** . It basically comes down to a fancy looking entry-point (button) which opens the chat between artist and buyer. But we do need to include a way for the artist to bill buyers through the system, thus collecting our share
+
 ## Features / next chunks of work
 
 1. **Admin moderation pass** . The admin UI right now is a rough draft. It is incomplete and inconvenient for any even a small volume of users. Need to add good comfortable UI to moderate vendors, users and buyers, reviews, products and to resolve flags. Not sure if UI for moderating converstions is needed. Also not sure what it may look like.
@@ -272,6 +274,8 @@ working on the code should keep in mind.
       to a landscape 4:3 shape (decided 2026-10-07), so the product page
       must always show the whole, uncropped work; a later option is to
       let artists choose which part a tile shows.
+
+    25. Add ability for buyers to Follow artists. This means a button to opt in and also a clear interface for vendors to send updates tp subscribers.
 
 
 
