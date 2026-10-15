@@ -138,6 +138,23 @@ defmodule ArtsyNeighborWeb.Router do
       live_dashboard "/dashboard", metrics: ArtsyNeighborWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+
+    # The style guide page (docs/plans/2026-10-15-theme-and-components.md,
+    # Phase B). Same on_mount hooks as the public pages, so it renders
+    # inside the real page frame.
+    scope "/dev", ArtsyNeighborWeb do
+      pipe_through :browser
+
+      live_session :dev_styleguide,
+        on_mount: [
+          {ArtsyNeighborWeb.UserAuth, :mount_current_scope},
+          {ArtsyNeighborWeb.UserAuth, :load_unread_badge},
+          {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
+          {ArtsyNeighborWeb.UserAuth, :load_categories}
+        ] do
+        live "/styleguide", DevLive.Styleguide
+      end
+    end
   end
 
   ## Authenticated user routes

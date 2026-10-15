@@ -105,6 +105,11 @@
   --font-wordmark: "Fraunces", Georgia, serif;             /* the site name in the header */
 }
 
+/* Body text size: 16px (decided 2026-10-15; the mockups use 15px). That
+   is the browser's own default, so it is deliberately not set here:
+   setting it would override visitors who have made their browser's text
+   larger. */
+
 /* Settings that aren't colours or fonts. Used as var(--section-gap) etc. */
 :root {
   /* Space above and below every divider line between sections. */

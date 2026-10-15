@@ -1,7 +1,8 @@
 # From mockups to the real theme and components
 
 Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
-Phase A done 2026-10-15 (notes at its end); next: Phase B.
+Phase A done 2026-10-15 (notes at its end); Phase B's page built
+2026-10-15 (notes at its end); next: Phase C.
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
 decided in static mockups. This step moves those decisions into the
@@ -259,6 +260,23 @@ colour, text size, font, and component on one page. A theme change is
 judged here at a glance before looking at real pages. Grows with each
 component in Phase C. Includes buttons that trigger real flash
 messages, for deciding their placement (see Phase 0, item 3).
+
+### Phase B so far (2026-10-15)
+
+- The page is `lib/artsy_neighbor_web/live/dev_live/styleguide.ex`,
+  routed in the router's `:dev_routes` block with the public pages'
+  `on_mount` hooks, so it shows inside the real page frame.
+- **Body text: 16px**, the browser's own default. Not set in
+  `app.css` on purpose: setting it would override visitors who have
+  made their browser's text larger. 17px and 18px were compared; 18px
+  looked too large-print for the site, 15px (the mockups) too small for
+  our audience.
+- Message buttons (information, error, two at once, after moving to
+  the home page) sit at the top and bottom of the page. First finding,
+  with today's messages: **two messages at once lie on top of each
+  other**, so only the second is seen. The new `<.flash_group>` in
+  Phase C must stack them. Placement is confirmed here once the new
+  message style exists (Phase C), then in two or three real flows.
 
 ## Phase C: shared components
 
