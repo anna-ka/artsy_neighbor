@@ -1,6 +1,7 @@
 # From mockups to the real theme and components
 
-Status: plan, agreed in outline 2026-10-15; not started.
+Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
+next: Phase A.
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
 decided in static mockups. This step moves those decisions into the
@@ -90,6 +91,96 @@ Should be short.
 4. **Form fields** (also not mocked up yet, and on every vendor page):
    text box, dropdown, checkbox, the field label, help text, and how
    an error under a field looks.
+
+### Phase 0 decisions
+
+Sheet: `docs/design/mockups/elements.html`.
+
+- **Links (2026-10-15): version 3**, the calmest. The ordinary text
+  colour (`base-content`) with a thin 1px seal-slate (`secondary`)
+  underline set 4px below the text (clear of g and y); on mouse-over
+  the text turns slate and the line becomes 2px. Links are recognised
+  by the underline, not the colour. Visited links look the same as
+  unvisited ones. Quiet links ("Report a concern", "Back to top"):
+  muted grey, underlined, 14px, ordinary text colour on mouse-over.
+  Keyboard focus: a 2px slate ring with a little space around the
+  text. Quiet buttons and "Show more" links follow the same style.
+  Applied to `mockup.css`. Not chosen: the browser's standard
+  underline (1), slate links with a soft underline (2, briefly chosen
+  by mistake), no underline until hover (4, colour alone and
+  hover-dependent), a different colour for visited links (5).
+- **Buttons (2026-10-15): family 1, "Dark".** Four kinds:
+  - **main** (one per area): near-black fill (`primary`), slightly
+    lighter on mouse-over;
+  - **ordinary**: outlined in the text colour, soft cream fill on
+    mouse-over;
+  - **quiet**: looks like a link (same style as links);
+  - **danger** ("Delete this work"): outlined in a calm brick red
+    (`--color-error`, `#A63A2E`, about 6:1 contrast), faint red fill
+    on mouse-over. Never solid red, except the final "Yes, delete".
+
+  All: 44px tall, 10px corners, 1.5px outlines, Switzer Regular.
+  Keyboard focus uses the same slate ring as links. "Not available"
+  is a readable grey (not see-through). "Working" shows a small
+  turning circle and changes the words ("Saving…", "Deleting…").
+  Applied to `mockup.css` (`.btn-primary`, `.btn-outline`,
+  `.btn-quiet`, `.btn-danger`, `.btn-danger-final`). Not chosen: slate
+  buttons (2), softly filled buttons without outlines (3, less
+  obviously buttons).
+- **Confirming a delete (2026-10-15): A, a box in the middle of the
+  screen over a dimmed page.** A heading naming the thing ("Delete
+  “Crow at Ross Bay”?"), one or two sentences on what happens (and
+  that it can be restored, when it can), then "No, keep it"
+  (ordinary) and "Yes, delete" (solid red). Replaces the browser's own
+  "localhost says / OK / Cancel" pop-up. One shared component for
+  every delete and remove action. Not chosen: B, the question
+  appearing in place of the button (pushes lists around).
+- **Messages (2026-10-15): look 1, "Tinted".** A pale wash of the
+  kind's colour (9%) with a thin outline in it (1.5px), 12px corners,
+  16px text. Four kinds, each with its own colour and icon (colour is
+  never the only clue): success (moss green `#3D6B4F`, tick),
+  information (seal slate `#4C5075`, "i"), warning (ochre `#8A5A0F`,
+  triangle), error (brick red `#A63A2E`, "!"). These become the
+  theme's `success` / `info` / `warning` / `error` colours. Every
+  message starts with a few bold words saying what happened, then
+  what to do, and has "Close" in words. **Nothing fades by itself**
+  (a message that disappears while being read frustrates older
+  users); messages also go when moving to another page. Note: Phoenix
+  only has `:info` and `:error` messages by default; success and
+  warning are added as two more kinds.
+  **Placement, first impression: stays on screen at the top** (fixed
+  to the top of the window, so it is seen even when scrolled down).
+  In the mockup, the other two places (under the header; next to the
+  button) were easy to miss: it took the developer a while to find
+  the message, which is the problem we're solving. To be confirmed
+  in the real app (Phase B). Not chosen: side bar (2, easiest to
+  overlook), solid (3, shouts).
+- **Form fields (2026-10-15): version 1, "Outlined".** White boxes with
+  a clear grey edge (`--field-edge`, `#8C857B`, about 3.6:1 against the
+  page; the divider line colour is too faint for fields), 1.5px, 10px
+  corners, 44px tall. While typing: slate edge and a soft slate glow.
+  A mistake: red edge and a sentence under the field, with an icon,
+  saying how to fix it. Not available: readable grey. Also, in every
+  version:
+  - the label always above the field (never only grey text inside it);
+  - help text between the label and the field, read before typing
+    (the app's `<.input>` has no help text today; to be added);
+  - "(optional)" in words, instead of * on required fields;
+  - 16px text inside fields (smaller makes iPhones zoom in);
+  - checkboxes 22px (today's are small), near-black when ticked,
+    the whole line clickable;
+  - dropdowns with a simple, larger arrow.
+
+  - example text inside an empty field ("For example
+    instagram.com/marenholt") in a fainter grey (`--field-edge`,
+    `#8C857B`): in the muted text grey it looked already filled in.
+    Use it only for examples, never for anything people must read.
+
+  Not chosen: filled
+  cream boxes (2, blend in), underline only (3, not recognised as a
+  place to type).
+
+**Phase 0 done (2026-10-15).**
 
 ## Phase A: theme and fonts
 

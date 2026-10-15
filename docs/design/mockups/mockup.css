@@ -43,6 +43,13 @@ html[data-direction="a"] {
   --color-primary-content: #FFFDF9;
   --color-secondary: #5A5E80;
   --color-soft: #EFE8DC;
+  --color-error: #A63A2E;         /* danger and error messages: a calm brick red (about 6:1 on the page) */
+  --color-error-content: #FFFFFF;
+  /* Message colours (all about 6:1 on the page, so they work as text too). */
+  --color-success: #3D6B4F;       /* moss green */
+  --color-info: #4C5075;          /* seal slate */
+  --color-warning: #8A5A0F;       /* ochre */
+  --field-edge: #8C857B;          /* form field edges: about 3.6:1, darker than the line colour */
   --radius-box: 16px;
   --radius-field: 10px;
   --border: 1px;
@@ -132,7 +139,16 @@ body {
   line-height: 1.55;
 }
 h1, h2, h3 { font-family: var(--font-heading); font-weight: var(--heading-weight); line-height: 1.2; margin: 0; }
-a { color: var(--color-secondary); }
+/* Links (chosen 2026-10-15, version 3 in elements.html): the ordinary
+   text colour with a thin seal-slate underline set a little lower
+   (clear of g and y); on mouse-over the text turns slate and the line
+   gets thicker. A visible ring for keyboard focus. Visited links look
+   the same as unvisited ones. Links that shouldn't be underlined
+   (header, footer, tiles) switch it off in their own rules. */
+a { color: var(--color-base-content); text-decoration-color: var(--color-secondary);
+    text-decoration-thickness: 1px; text-underline-offset: 4px; }
+a:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+a:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
 img { display: block; max-width: 100%; }
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
 /* The content width (--content-width), centred. */
@@ -254,8 +270,31 @@ html[data-nav="serif"] nav.cats a { font-family: var(--font-heading); font-weigh
 html[data-buttons="medium"] .btn { font-weight: 500; }
 /* ?buttons=serif tries Sentient Regular for button text, like the nav links. */
 html[data-buttons="serif"] .btn { font-family: var(--font-heading); font-weight: 400; font-size: 16px; }
+/* Button kinds (chosen 2026-10-15, family 1 "Dark" in elements.html):
+   main (.btn-primary, near-black), ordinary (.btn-outline, outlined in
+   the text colour), quiet (.btn-quiet, looks like a link), danger
+   (.btn-danger, outlined in brick red). Solid red only for the final
+   "Yes, delete" (.btn-danger-final). Outlines are 1.5px. */
+.btn { border-width: 1.5px; }
 .btn-primary { background: var(--color-primary); color: var(--color-primary-content); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-primary) 85%, white); }
 .btn-outline { background: transparent; color: var(--color-base-content); border-color: var(--color-base-content); }
+.btn-outline:hover { background: var(--color-soft); }
+.btn-quiet { padding: 0 8px; background: none; color: var(--color-base-content); text-decoration: underline;
+             text-decoration-color: var(--color-secondary); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.btn-quiet:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+.btn-danger { background: transparent; color: var(--color-error); border-color: var(--color-error); }
+.btn-danger:hover { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+.btn-danger-final { background: var(--color-error); color: var(--color-error-content); }
+.btn-danger-final:hover { background: color-mix(in srgb, var(--color-error) 85%, black); }
+/* Keyboard focus: the same ring as links. */
+.btn:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; }
+/* Not available right now: readable grey, not see-through. */
+.btn:disabled, .btn:disabled:hover { background: var(--color-base-200); color: var(--color-muted); border-color: var(--color-base-300); cursor: not-allowed; text-decoration: none; }
+.btn-quiet:disabled { background: none; border-color: transparent; }
+/* Working ("Saving…"): a small turning circle before the words. */
+.spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 /* Same height as the search box next to it; the gap pulls it close. */
 .btn-search { height: 42px; min-height: 0; padding: 0 18px; margin-left: -12px; font-size: 15px; }
 /* A row of buttons. */
@@ -320,7 +359,10 @@ a.rating .rating-count { text-decoration: underline; text-underline-offset: 2px;
 .report-review { display: inline-block; margin-top: 4px; font-size: 13px; color: var(--color-muted); }
 
 /* "Show more" style text button under clamped text. */
-.more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-secondary); text-decoration: underline; cursor: pointer; }
+.more-link { margin-top: 6px; padding: 4px 0; background: none; border: 0; font: 400 15px var(--font-body); color: var(--color-base-content); text-decoration: underline;
+             text-decoration-color: var(--color-secondary); text-decoration-thickness: 1px; text-underline-offset: 4px; cursor: pointer; }
+/* Like links: slate text and a thicker line on mouse-over. */
+.more-link:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
 
 /* "Report a concern" link, right-aligned at the end of the page content. */
 .report { display: inline-block; margin-top: 24px; font-size: 14px; color: var(--color-muted); }

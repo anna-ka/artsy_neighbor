@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en" data-direction="a" data-fonts="trial">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: everyday elements</title>
+<!--
+  Static design mockup — not part of the app.
+  Comparison sheet for the everyday elements the page mockups haven't
+  decided yet (Phase 0 of docs/plans/2026-10-15-theme-and-components.md):
+  links, buttons, messages and form fields. Built one section at a
+  time, starting with links (2026-10-15).
+  Shared colours and fonts come from mockup.css (Gallery colours).
+  mockup.js is not loaded: this page has no header, category bar or
+  carousels.
+-->
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .sheet { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+  .sheet > h1 { font-size: 32px; }
+  .sheet > p { max-width: 70ch; color: var(--color-muted); }
+  .sheet > h2 { font-size: 26px; margin-top: 48px; }
+  .variants { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 28px; margin-top: 20px; }
+  @media (max-width: 760px) { .variants { grid-template-columns: 1fr; } }
+
+  /* One card per version: a label, then samples. */
+  .variant { border: var(--border) solid var(--color-base-300); border-radius: var(--radius-box); overflow: hidden; background: var(--color-base-100); }
+  .variant-label { padding: 10px 18px; font-size: 14px; color: var(--color-muted); border-bottom: var(--border) solid var(--color-base-300); }
+  .variant-label strong { color: var(--color-base-content); margin-right: 6px; }
+  .sample { padding: 18px 18px 22px; }
+  .sample p { margin: 0 0 14px; }
+  .sample-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+  .sample-row h3 { font-size: 22px; }
+  /* The four states, side by side, forced on with classes so they can be
+     compared without hovering. (The real links above also react to the
+     mouse and keyboard.) */
+  .states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 18px; padding-top: 14px; border-top: var(--border) solid var(--color-base-200); }
+  .states div { font-size: 13px; color: var(--color-muted); }
+  .states div a { display: inline-block; margin-top: 4px; font-size: var(--text-base); }
+
+  /* ---------- Links ----------
+     Each version is a class on the card (.links-1 ...). Inside it:
+     a        = an ordinary link (in text, or standalone)
+     a.quiet  = a deliberately quieter link ("Report a concern", "Back to top")
+     .is-hover / .is-focus / .is-visited force a state for the comparison row. */
+
+  /* Keyboard focus, the same in every version: a clear ring in the link
+     colour with a little space around the text, so people using the Tab
+     key always see where they are. Only shown for the keyboard, not on
+     mouse clicks (:focus-visible). */
+  .variant a:focus-visible, .variant a.is-focus {
+    outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+
+  /* Quiet links, the same in every version: muted grey, underlined,
+     slightly smaller; darker on hover. */
+  .variant a.quiet { color: var(--color-muted); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  .variant a.quiet:hover, .variant a.quiet.is-hover { color: var(--color-base-content); }
+
+  /* 1. Today in the mockups: seal slate, the browser's standard underline. */
+  .links-1 a { color: var(--color-secondary); }
+  .links-1 a:hover, .links-1 a.is-hover { color: var(--color-base-content); }
+
+  /* 2. Soft underline: seal slate, a thin underline set a little lower
+     (clear of letters like g and y); on hover the line gets thicker. */
+  .links-2 a { color: var(--color-secondary); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .links-2 a:hover, .links-2 a.is-hover { text-decoration-thickness: 2px; }
+
+  /* 3. Text colour: links in the ordinary text colour, recognised by the
+     soft underline alone; seal slate on hover. Calmest, most "gallery". */
+  .links-3 a { color: var(--color-base-content); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px;
+               text-decoration-color: var(--color-secondary); }
+  .links-3 a:hover, .links-3 a.is-hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+
+  /* 4. No underline until hover: seal slate only. Common on shops; shown
+     for comparison. Links in a paragraph are then recognised by colour
+     alone, which is harder for people who see colours less well. */
+  .links-4 a { color: var(--color-secondary); text-decoration: none; }
+  .links-4 a:hover, .links-4 a.is-hover { text-decoration: underline; text-underline-offset: 4px; }
+
+  /* 5. Like 2, but visited links turn a greyer, faded violet, so people
+     can see which artists and works they have already looked at. */
+  .links-5 a { color: var(--color-secondary); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .links-5 a:hover, .links-5 a.is-hover { text-decoration-thickness: 2px; }
+  .links-5 a:visited, .links-5 a.is-visited { color: #7A6F86; }
+
+  /* In versions 1–4 a visited link looks the same as an unvisited one.
+     (Browsers only allow colour changes for :visited, so the forced
+     .is-visited example needs no rule there.) */
+
+  /* ---------- Buttons ----------
+     Four kinds of button, the same in every family:
+     .b-main     the one most important action ("Save changes", "Request to buy")
+     .b-ordinary other actions ("Cancel", "Send message")
+     .b-quiet    small, low-key actions that look like a link ("Clear filters")
+     .b-danger   actions that remove something ("Delete this work")
+     Each family (.btns-1 ...) gives them different colours.
+     .is-hover / .is-focus / .is-working force a state for the table. */
+
+  /* The danger colour (--color-error, a calm brick red) is in mockup.css. */
+
+  .b { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 22px;
+       border-radius: var(--radius-field); border: 1.5px solid transparent; background: none;
+       font: 400 var(--text-base) var(--font-body); color: var(--color-base-content); cursor: pointer; white-space: nowrap; }
+  /* Quiet buttons: like a link (text colour, thin slate underline; slate
+     and thicker on mouse-over), with a little padding so they are still
+     easy to tap. */
+  .b-quiet { padding: 0 8px; color: var(--color-base-content); text-decoration: underline; text-decoration-color: var(--color-secondary);
+             text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .b-quiet:hover, .b-quiet.is-hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+  /* Keyboard focus: the same ring as links. */
+  .b:focus-visible, .b.is-focus { outline: 2px solid var(--color-secondary); outline-offset: 3px; }
+  /* Not available right now: a readable grey (not see-through, which is
+     hard to read), so the words can still be read. */
+  /* (".variant" in front so this wins over each family's colours.) */
+  .variant .b:disabled { background: var(--color-base-200); color: var(--color-muted); border-color: var(--color-base-300); cursor: not-allowed; text-decoration: none; }
+  .variant .b-quiet:disabled { background: none; border-color: transparent; }
+  /* Working: a small turning circle before the words ("Saving…"). */
+  .spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 1. Dark: main button near-black, ordinary buttons outlined in the
+     text colour, danger outlined in red. Matches the page mockups today. */
+  .btns-1 .b-main { background: var(--color-base-content); color: var(--color-base-100); }
+  .btns-1 .b-main:hover:not(:disabled), .btns-1 .b-main.is-hover { background: #3D3933; }
+  .btns-1 .b-ordinary { border-color: var(--color-base-content); }
+  .btns-1 .b-ordinary:hover:not(:disabled), .btns-1 .b-ordinary.is-hover { background: var(--color-soft); }
+  .btns-1 .b-danger { color: var(--color-error); border-color: var(--color-error); }
+  .btns-1 .b-danger:hover:not(:disabled), .btns-1 .b-danger.is-hover { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+
+  /* 2. Slate: the main button in seal slate (the site's second colour),
+     ordinary buttons outlined in slate, danger outlined in red. */
+  .btns-2 .b-main { background: #4C5075; color: #FFFFFF; }
+  .btns-2 .b-main:hover:not(:disabled), .btns-2 .b-main.is-hover { background: #3C3F5E; }
+  .btns-2 .b-ordinary { color: #4C5075; border-color: #4C5075; }
+  .btns-2 .b-ordinary:hover:not(:disabled), .btns-2 .b-ordinary.is-hover { background: #ECEDF3; }
+  .btns-2 .b-danger { color: var(--color-error); border-color: var(--color-error); }
+  .btns-2 .b-danger:hover:not(:disabled), .btns-2 .b-danger.is-hover { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+
+  /* 3. Soft: main button near-black, ordinary buttons filled with a soft
+     cream instead of outlined, danger a soft pink-red fill with red text.
+     No outlines at all. */
+  .btns-3 .b-main { background: var(--color-base-content); color: var(--color-base-100); }
+  .btns-3 .b-main:hover:not(:disabled), .btns-3 .b-main.is-hover { background: #3D3933; }
+  .btns-3 .b-ordinary { background: var(--color-soft); }
+  .btns-3 .b-ordinary:hover:not(:disabled), .btns-3 .b-ordinary.is-hover { background: #E3D9C7; }
+  .btns-3 .b-danger { color: var(--color-error); background: color-mix(in srgb, var(--color-error) 10%, var(--color-base-100)); }
+  .btns-3 .b-danger:hover:not(:disabled), .btns-3 .b-danger.is-hover { background: color-mix(in srgb, var(--color-error) 17%, var(--color-base-100)); }
+
+  /* The final "Yes, delete" in a confirmation: solid red, the only place
+     a solid red button appears. */
+  .b-danger-final { background: var(--color-error); color: var(--color-error-content); }
+  .b-danger-final:hover { background: #8C2F25; }
+
+  /* Layout of the button samples. */
+  .button-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .button-row .push-right { margin-left: auto; }
+  .button-row[hidden] { display: none; }
+  .sample-caption { font-size: 13px; color: var(--color-muted); margin: 0 0 8px; }
+  .sample-block + .sample-block { margin-top: 22px; }
+  .state-table { width: 100%; border-collapse: collapse; margin-top: 22px; border-top: var(--border) solid var(--color-base-200); }
+  .state-table th { font-weight: 400; font-size: 13px; color: var(--color-muted); text-align: left; padding: 14px 6px 6px; }
+  .state-table td { padding: 6px; }
+  .state-table td:first-child { font-size: 13px; color: var(--color-muted); width: 70px; }
+  .state-table .b { padding: 0 12px; font-size: 14px; min-height: 40px; }
+  .state-table .b-quiet { padding: 0 6px; }
+
+  /* ---------- Confirming a delete ---------- */
+  .confirm-demo { position: relative; min-height: 290px; padding: 18px; }
+  /* Version A: a dialog box over a dimmed page. */
+  .dimmed { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-base-content) 35%, transparent); }
+  .dialog { position: relative; max-width: 420px; margin: 18px auto 0; background: var(--color-base-100); border-radius: var(--radius-box);
+            padding: 24px; box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); }
+  .dialog h3 { font-size: 22px; margin-bottom: 10px; }
+  .dialog p { margin: 0 0 20px; }
+  .dialog .button-row { justify-content: flex-end; }
+  .page-behind { color: var(--color-muted); }
+  /* Version B: the question appears in place of the button. */
+  .confirm-inline { border: 1.5px solid var(--color-error); border-radius: var(--radius-box); padding: 16px 18px; }
+  .confirm-inline p { margin: 0 0 14px; }
+  .confirm-inline strong { font-weight: 600; }
+
+  /* ---------- Messages ("flash") ----------
+     Four kinds, each with its own calm colour (all about 6:1 on the
+     page, so they also work as text): success (moss green), information
+     (seal slate), warning (ochre), error (the brick red of the danger
+     buttons). Always an icon and words, never colour alone.
+     Each look (.look-1 ...) styles the same .msg markup differently.
+     The four colours are in mockup.css (--color-success, -info,
+     -warning, -error).
+     Chosen 2026-10-15: look 1 (tinted), nothing fades by itself; first
+     impression of placement: stays on screen at the top. */
+  .msg { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 12px; font-size: 16px; line-height: 1.5; text-align: left; }
+  .msg-success { --kind: var(--color-success); }
+  .msg-info    { --kind: var(--color-info); }
+  .msg-warning { --kind: var(--color-warning); }
+  .msg-error   { --kind: var(--color-error); }
+  .msg svg { width: 22px; height: 22px; flex: none; margin-top: 1px; color: var(--kind); }
+  .msg-text { flex: 1; }
+  .msg-text b { font-weight: 600; }
+  /* "Close" in words (not just ×), like a quiet button. */
+  .msg-close { flex: none; padding: 2px 4px; background: none; border: 0; cursor: pointer; font: 400 14px var(--font-body); color: inherit;
+               text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .msg-close:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; border-radius: 4px; }
+  .msg-stack { display: grid; gap: 12px; }
+
+  /* 1. Tinted: a pale wash of the kind's colour, with a thin outline in it. */
+  .look-1 .msg { background: color-mix(in srgb, var(--kind) 9%, var(--color-base-100));
+                 border: 1.5px solid color-mix(in srgb, var(--kind) 45%, var(--color-base-100)); }
+  /* 2. Side bar: page-coloured card with a soft shadow and a thick bar
+     of the kind's colour on the left. */
+  .look-2 .msg { background: var(--color-base-100); border: var(--border) solid var(--color-base-300); border-left: 6px solid var(--kind);
+                 box-shadow: 0 6px 18px -8px rgb(0 0 0 / 0.18); }
+  /* 3. Solid: filled with the kind's colour, white text. Most visible, loudest. */
+  .look-3 .msg { background: var(--kind); color: #FFFFFF; }
+  .look-3 .msg svg { color: #FFFFFF; }
+
+  /* ---------- Try it: a small page that scrolls inside its frame ---------- */
+  .demo-controls { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 20px 0 12px; font-size: 14px; }
+  .demo-controls fieldset { border: 0; padding: 0; margin: 0; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .demo-controls legend { float: left; margin-right: 6px; color: var(--color-muted); }
+  .demo-controls label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .demo-frame { position: relative; height: 440px; overflow-y: auto; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-box); background: var(--color-base-100); }
+  .demo-header { padding: 14px 20px; border-bottom: var(--border) solid var(--color-base-300); font-family: var(--font-heading); font-size: 20px; }
+  .demo-body { padding: 20px; }
+  .demo-body h3 { font-size: 22px; margin-bottom: 14px; }
+  .demo-field { margin-bottom: 16px; }
+  .demo-field span { display: block; font-size: 14px; color: var(--color-muted); margin-bottom: 4px; }
+  .demo-field div { height: 42px; border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field); }
+  .demo-field.tall div { height: 120px; }
+  /* Where a message goes, for each placement. Empty slots take no room. */
+  .slot-top { padding: 0 20px; }
+  .slot-top:not(:empty) { padding-top: 16px; }
+  /* "Stays on screen": sticks to the top of the frame while scrolling. */
+  .slot-fixed { position: sticky; top: 10px; z-index: 2; height: 0; overflow: visible; padding: 0 20px; }
+  .slot-inline:not(:empty) { margin-top: 14px; }
+  /* Fading away (only for success, when that option is on). */
+  .msg.fading { transition: opacity 0.8s; opacity: 0; }
+
+  /* ---------- Form fields ----------
+     The same in every version:
+     - The label is above the field, always visible (never only grey
+       text inside the field, which disappears when typing).
+     - Help text sits between the label and the field, so it is read
+       before typing.
+     - Optional fields say "(optional)" in words, instead of marking
+       required ones with *.
+     - Text in fields is 16px: smaller makes iPhones zoom in on tap.
+     - Field edges are dark enough to see (#8C857B, about 3.6:1 against
+       the page; the light line colour used for dividers is too faint
+       for something you have to find and click).
+     - A mistake: red edge, and the message in words under the field,
+       with an icon.
+     - Checkboxes are larger than today (22px) in the main button's
+       colour.
+     Each version (.fields-1 ...) changes only the field boxes.
+     Chosen 2026-10-15: version 1 (outlined). --field-edge is in
+     mockup.css. */
+  .field { margin-bottom: 18px; }
+  .field > .lbl { display: block; font-weight: 500; margin-bottom: 4px; }
+  .field .optional { font-weight: 400; color: var(--color-muted); }
+  .field .help { font-size: 14px; color: var(--color-muted); margin: 0 0 6px; }
+  .inp { display: block; width: 100%; min-height: 44px; padding: 9px 12px; font: 400 16px/1.4 var(--font-body); color: var(--color-base-content);
+         border-radius: var(--radius-field); }
+  textarea.inp { min-height: 104px; resize: vertical; }
+  /* Example text in an empty field: fainter than real text, so it
+     doesn't look filled in (2026-10-15; muted grey looked prefilled). */
+  .inp::placeholder { color: var(--field-edge); opacity: 1; }
+  /* Dropdowns: the browser's arrow replaced by a simple, larger one. */
+  select.inp { appearance: none; padding-right: 40px; cursor: pointer;
+               background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1C19' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+               background-repeat: no-repeat; background-position: right 12px center; background-size: 18px; }
+  /* Keyboard focus / typing: slate edge and a soft slate glow. */
+  .inp:focus, .inp.is-focus { outline: none; border-color: var(--color-secondary);
+                              box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-secondary) 25%, transparent); }
+  /* A mistake: red edge (a little thicker) and a message under the field. */
+  .has-error .inp { border-color: var(--color-error); box-shadow: 0 0 0 1px var(--color-error); }
+  .has-error .inp:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 25%, transparent); }
+  .err { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; font-size: 14px; color: var(--color-error); }
+  .err svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+  /* Not available: grey, readable. */
+  .inp:disabled { background: var(--color-base-200); color: var(--color-muted); border-color: var(--color-base-300); cursor: not-allowed; }
+  /* Checkboxes: 22px, in the main button's colour, label beside them;
+     the whole line can be clicked. */
+  .check { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; cursor: pointer; }
+  .check input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--color-primary); cursor: pointer; }
+  .check-group { border: 0; padding: 0; margin: 0 0 18px; }
+  .check-group legend { font-weight: 500; padding: 0; margin-bottom: 4px; }
+
+  /* 1. Outlined: a white box with a clear grey edge. The most familiar. */
+  .fields-1 .inp { background-color: #FFFFFF; border: 1.5px solid var(--field-edge); }
+  /* 2. Filled: a soft cream box with a faint edge; white while typing. */
+  .fields-2 .inp { background-color: var(--color-base-200); border: 1.5px solid var(--color-base-300); }
+  .fields-2 .inp:focus, .fields-2 .inp.is-focus { background-color: #FFFFFF; }
+  .fields-2 .has-error .inp { background-color: color-mix(in srgb, var(--color-error) 5%, var(--color-base-100)); }
+  /* 3. Underline only: no box, just a line under the text. Elegant but
+     harder to recognise as a place to type. */
+  .fields-3 .inp { background-color: transparent; border: 0; border-bottom: 1.5px solid var(--field-edge); border-radius: 0; padding-left: 2px; }
+  .fields-3 textarea.inp { border: 1.5px solid var(--field-edge); border-radius: var(--radius-field); padding-left: 12px; }
+  .fields-3 .inp:focus, .fields-3 .inp.is-focus { box-shadow: 0 2px 0 0 var(--color-secondary); }
+  .fields-3 .has-error .inp { box-shadow: 0 2px 0 0 var(--color-error); }
+  /* (The "Not available" grey also needs ".variant" to win over each version.) */
+  .variant .inp:disabled { background-color: var(--color-base-200); border-color: var(--color-base-300); }
+
+  .field-states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 22px; padding-top: 14px; border-top: var(--border) solid var(--color-base-200); }
+  .field-states > div > span { display: block; font-size: 13px; color: var(--color-muted); margin-bottom: 6px; }
+  .field-states .inp { padding: 8px 10px; font-size: 15px; }
+  .field-states .field { margin: 0; }
+</style>
+</head>
+<body>
+
+<main class="sheet">
+  <h1>Everyday elements</h1>
+  <p>Links, buttons, messages and form fields: the small things every page needs that the page mockups haven't decided yet. Each section shows a few versions side by side.</p>
+
+  <h2>Links</h2>
+  <p>Each card shows an ordinary link inside text, a standalone link, and the quieter kind ("Report a concern", "Back to top"; the same in every version). Underneath, the four states side by side. The keyboard-focus ring is the same in every version: it shows where you are when moving with the Tab key.</p>
+
+  <div class="variants" id="links"></div>
+
+  <h2>Buttons</h2>
+  <p>Four kinds of button: the <strong>main</strong> one (one per area, the most important action), <strong>ordinary</strong> ones, <strong>quiet</strong> ones that look like links, and <strong>danger</strong> for removing things. Each card is one family of colours, shown first in real situations, then every kind in every state. "Not available" stays readable grey rather than see-through. Danger buttons are outlined or softly filled, so they are clear without shouting; solid red is kept for the final "Yes, delete" (see the next section).</p>
+
+  <div class="variants" id="buttons"></div>
+
+  <h2>Confirming a delete</h2>
+  <p>Before something is removed, the site asks once more. Today the app uses the browser's own pop-up: small grey text, a heading like "localhost says", and buttons labelled only "OK" and "Cancel". Two alternatives, in the Dark family. Press "Delete this work" in B to see it work.</p>
+
+  <div class="variants btns-1">
+    <div class="variant">
+      <div class="variant-label"><strong>A</strong><span>A box in the middle of the screen, over a dimmed page</span></div>
+      <div class="confirm-demo">
+        <p class="page-behind">Crow at Ross Bay · Oil on canvas · $480</p>
+        <div class="dimmed" aria-hidden="true"></div>
+        <div class="dialog" role="dialog" aria-labelledby="dialog-title">
+          <h3 id="dialog-title">Delete “Crow at Ross Bay”?</h3>
+          <p>It will no longer show in your shop. Past orders and reviews keep it. You can restore it later from your dashboard.</p>
+          <div class="button-row">
+            <button class="b b-ordinary" type="button">No, keep it</button>
+            <button class="b b-danger-final" type="button">Yes, delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="variant">
+      <div class="variant-label"><strong>B</strong><span>The question appears in place of the button</span></div>
+      <div class="confirm-demo">
+        <p class="sample-caption">Editing a work, at the bottom of the form</p>
+        <div id="inline-ask" class="button-row">
+          <button class="b b-main" type="button">Save changes</button>
+          <button class="b b-ordinary" type="button">Cancel</button>
+          <button id="inline-delete" class="b b-danger push-right" type="button">Delete this work</button>
+        </div>
+        <div id="inline-confirm" class="confirm-inline" hidden>
+          <p><strong>Delete “Crow at Ross Bay”?</strong> It will no longer show in your shop. Past orders and reviews keep it. You can restore it later from your dashboard.</p>
+          <div class="button-row">
+            <button id="inline-yes" class="b b-danger-final" type="button">Yes, delete</button>
+            <button id="inline-no" class="b b-ordinary" type="button">No, keep it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Messages</h2>
+  <p>The short messages the site shows after something happens. Four kinds, each with its own calm colour and icon: <strong>success</strong>, <strong>information</strong>, <strong>warning</strong> and <strong>error</strong>. Every message starts with a few words in bold that say what happened, and has a "Close" in words. Today they float small in the top-right corner of the screen. Here we decide only how they <em>look</em>; where they appear is decided later in the real app.</p>
+
+  <div class="variants" id="messages"></div>
+
+  <h3 style="margin-top: 36px; font-size: 22px;">Try it</h3>
+  <p style="color: var(--color-muted); max-width: 70ch;">A small page that scrolls inside its frame. It starts scrolled down to the bottom of a form, as if you had just filled it in. Press a button to see a message, with the look and place chosen above the frame. Only a first impression: the real decision on placement is made in the app.</p>
+
+  <div class="demo-controls">
+    <fieldset id="demo-look"><legend>Look:</legend>
+      <label><input type="radio" name="look" value="1" checked> 1 Tinted</label>
+      <label><input type="radio" name="look" value="2"> 2 Side bar</label>
+      <label><input type="radio" name="look" value="3"> 3 Solid</label>
+    </fieldset>
+    <fieldset id="demo-place"><legend>Place:</legend>
+      <label><input type="radio" name="place" value="top" checked> Under the header</label>
+      <label><input type="radio" name="place" value="fixed"> Stays on screen at the top</label>
+      <label><input type="radio" name="place" value="inline"> Next to the button</label>
+    </fieldset>
+    <label><input type="checkbox" id="demo-fade"> Success messages fade after 6 seconds</label>
+  </div>
+
+  <div class="demo-frame" id="demo-frame">
+    <div class="slot-fixed" id="slot-fixed"></div>
+    <div class="demo-header">localpalette</div>
+    <div class="slot-top" id="slot-top"></div>
+    <div class="demo-body">
+      <h3>Edit “Crow at Ross Bay”</h3>
+      <div class="demo-field"><span>Title</span><div></div></div>
+      <div class="demo-field"><span>Medium</span><div></div></div>
+      <div class="demo-field"><span>Size</span><div></div></div>
+      <div class="demo-field tall"><span>About this work</span><div></div></div>
+      <div class="demo-field"><span>Price</span><div></div></div>
+      <div class="demo-field tall"><span>Pickup notes</span><div></div></div>
+      <div class="button-row btns-1">
+        <button class="b b-main" type="button" data-show="success">Save changes</button>
+        <button class="b b-ordinary" type="button" data-show="error">Save (with a mistake)</button>
+        <button class="b b-ordinary" type="button" data-show="warning">Save (no photo)</button>
+      </div>
+      <div class="slot-inline" id="slot-inline"></div>
+    </div>
+  </div>
+
+  <h2>Form fields</h2>
+  <p>Text boxes, dropdowns and checkboxes, as on the vendor pages. The same in every version: the label always above the field; help text between the label and the field, so it is read before typing; "(optional)" in words rather than a *; 16px text inside fields; edges dark enough to find; a mistake shown with a red edge and words under the field; larger checkboxes than today. The versions differ only in the shape of the field box. You can type in them and press Tab to move between them.</p>
+
+  <div class="variants" id="fields"></div>
+</main>
+
+<!-- One card, copied for each field version by the script below. -->
+<template id="fields-card">
+  <div class="variant">
+    <div class="variant-label"><strong></strong><span></span></div>
+    <form class="sample" onsubmit="return false">
+      <div class="field">
+        <label class="lbl">Title</label>
+        <input class="inp" type="text" value="Crow at Ross Bay">
+      </div>
+      <div class="field">
+        <label class="lbl">Medium</label>
+        <select class="inp">
+          <option>Oil on canvas</option>
+          <option>Acrylic on canvas</option>
+          <option>Watercolour on paper</option>
+        </select>
+      </div>
+      <div class="field has-error">
+        <label class="lbl">Price in Canadian dollars</label>
+        <input class="inp" type="text" value="four hundred">
+        <p class="err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.4v.1"/></svg>Please enter the price in numbers, for example 480.</p>
+      </div>
+      <div class="field">
+        <label class="lbl">About this work</label>
+        <p class="help">A few sentences in your own words. Buyers read this before they get in touch.</p>
+        <textarea class="inp">A crow I meet most mornings near Ross Bay, standing on the driftwood the way it always does.</textarea>
+      </div>
+      <div class="field">
+        <label class="lbl">Instagram <span class="optional">(optional)</span></label>
+        <input class="inp" type="text" placeholder="For example instagram.com/marenholt">
+      </div>
+      <label class="check"><input type="checkbox" checked> Unique work (one of a kind)</label>
+      <fieldset class="check-group" style="margin-top: 14px;">
+        <legend>How buyers can get it</legend>
+        <label class="check"><input type="checkbox" checked> Pickup from my studio</label>
+        <label class="check"><input type="checkbox"> I deliver within Greater Victoria</label>
+      </fieldset>
+      <div class="button-row btns-1">
+        <button class="b b-main" type="button">Save changes</button>
+        <button class="b b-ordinary" type="button">Cancel</button>
+      </div>
+      <div class="field-states">
+        <div><span>Normal</span><input class="inp" type="text" value="Crow" tabindex="-1"></div>
+        <div><span>Typing</span><input class="inp is-focus" type="text" value="Crow" tabindex="-1"></div>
+        <div class="field has-error"><span>Mistake</span><input class="inp" type="text" value="Crow" tabindex="-1"></div>
+        <div><span>Not available</span><input class="inp" type="text" value="Crow" disabled></div>
+      </div>
+    </form>
+  </div>
+</template>
+
+<!-- One card, copied for each button family by the script below. -->
+<template id="buttons-card">
+  <div class="variant">
+    <div class="variant-label"><strong></strong><span></span></div>
+    <div class="sample">
+      <div class="sample-block">
+        <p class="sample-caption">A work's page</p>
+        <div class="button-row">
+          <button class="b b-main" type="button">Request to buy</button>
+          <button class="b b-ordinary" type="button">Send message</button>
+        </div>
+      </div>
+      <div class="sample-block">
+        <p class="sample-caption">Editing a work, at the bottom of the form</p>
+        <div class="button-row">
+          <button class="b b-main" type="button">Save changes</button>
+          <button class="b b-ordinary" type="button">Cancel</button>
+          <button class="b b-danger push-right" type="button">Delete this work</button>
+        </div>
+      </div>
+      <div class="sample-block">
+        <p class="sample-caption">Shop filters</p>
+        <div class="button-row">
+          <button class="b b-ordinary" type="button">Show more works</button>
+          <button class="b b-quiet" type="button">Clear filters</button>
+        </div>
+      </div>
+      <table class="state-table">
+        <tr><th></th><th>Normal</th><th>Mouse over</th><th>Keyboard focus</th><th>Not available</th><th>Working</th></tr>
+        <tr><td>Main</td>
+          <td><button class="b b-main" type="button">Save</button></td>
+          <td><button class="b b-main is-hover" type="button">Save</button></td>
+          <td><button class="b b-main is-focus" type="button">Save</button></td>
+          <td><button class="b b-main" type="button" disabled>Save</button></td>
+          <td><button class="b b-main" type="button"><span class="spinner" aria-hidden="true"></span>Saving…</button></td></tr>
+        <tr><td>Ordinary</td>
+          <td><button class="b b-ordinary" type="button">Cancel</button></td>
+          <td><button class="b b-ordinary is-hover" type="button">Cancel</button></td>
+          <td><button class="b b-ordinary is-focus" type="button">Cancel</button></td>
+          <td><button class="b b-ordinary" type="button" disabled>Cancel</button></td>
+          <td></td></tr>
+        <tr><td>Quiet</td>
+          <td><button class="b b-quiet" type="button">Clear</button></td>
+          <td><button class="b b-quiet is-hover" type="button">Clear</button></td>
+          <td><button class="b b-quiet is-focus" type="button">Clear</button></td>
+          <td><button class="b b-quiet" type="button" disabled>Clear</button></td>
+          <td></td></tr>
+        <tr><td>Danger</td>
+          <td><button class="b b-danger" type="button">Delete</button></td>
+          <td><button class="b b-danger is-hover" type="button">Delete</button></td>
+          <td><button class="b b-danger is-focus" type="button">Delete</button></td>
+          <td><button class="b b-danger" type="button" disabled>Delete</button></td>
+          <td><button class="b b-danger" type="button"><span class="spinner" aria-hidden="true"></span>Deleting…</button></td></tr>
+      </table>
+    </div>
+  </div>
+</template>
+
+<!-- One card, copied for each link version by the script below. -->
+<template id="links-card">
+  <div class="variant">
+    <div class="variant-label"><strong></strong><span></span></div>
+    <div class="sample">
+      <div class="sample-row">
+        <h3>More by Maren Holt</h3>
+        <a href="#">See all works ›</a>
+      </div>
+      <p>I paint the crows, otters and seals I meet on my morning walks from Clover Point to Ross Bay. You can <a href="#">read more about my studio</a> or <a href="#">send me a message</a> about a commission.</p>
+      <p><a class="quiet" href="#">Report a concern about this artist</a> &nbsp; <a class="quiet" href="#">Back to top</a></p>
+      <div class="states">
+        <div>Normal<br><a href="#">Maren Holt</a></div>
+        <div>Mouse over<br><a class="is-hover" href="#">Maren Holt</a></div>
+        <div>Keyboard focus<br><a class="is-focus" href="#">Maren Holt</a></div>
+        <div>Visited<br><a class="is-visited" href="#">Maren Holt</a></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  // The link versions: number, description, and the card's CSS class.
+  const linkVersions = [
+    { id: "1", label: "Today in the mockups: seal slate, standard underline; text colour on hover", cls: "links-1" },
+    { id: "2", label: "Seal slate, thin underline set a little lower; thicker on hover", cls: "links-2" },
+    { id: "3", label: "Text colour, thin slate underline; slate on hover (calmest)", cls: "links-3" },
+    { id: "4", label: "Seal slate, no underline until hover (common on shops)", cls: "links-4" },
+    { id: "5", label: "Like 2, but visited links turn a faded violet", cls: "links-5" }
+  ];
+
+  const linksTemplate = document.getElementById("links-card");
+  const linksList = document.getElementById("links");
+  linkVersions.forEach(function (version) {
+    const card = linksTemplate.content.cloneNode(true);
+    card.querySelector(".variant").classList.add(version.cls);
+    card.querySelector(".variant-label strong").textContent = version.id;
+    card.querySelector(".variant-label span").textContent = version.label;
+    linksList.appendChild(card);
+  });
+
+  // The button families: number, description, and the card's CSS class.
+  const buttonFamilies = [
+    { id: "1", label: "Dark: main near-black, others outlined, danger outlined in red", cls: "btns-1" },
+    { id: "2", label: "Slate: main in seal slate, others outlined in slate, danger outlined in red", cls: "btns-2" },
+    { id: "3", label: "Soft: main near-black, others softly filled, danger softly filled in red", cls: "btns-3" }
+  ];
+
+  const buttonsTemplate = document.getElementById("buttons-card");
+  const buttonsList = document.getElementById("buttons");
+  buttonFamilies.forEach(function (family) {
+    const card = buttonsTemplate.content.cloneNode(true);
+    card.querySelector(".variant").classList.add(family.cls);
+    card.querySelector(".variant-label strong").textContent = family.id;
+    card.querySelector(".variant-label span").textContent = family.label;
+    buttonsList.appendChild(card);
+  });
+
+  // Confirmation B: "Delete this work" swaps the buttons for the question;
+  // either answer swaps them back.
+  const inlineAsk = document.getElementById("inline-ask");
+  const inlineConfirm = document.getElementById("inline-confirm");
+  function showQuestion(show) {
+    inlineAsk.hidden = show;
+    inlineConfirm.hidden = !show;
+  }
+  document.getElementById("inline-delete").addEventListener("click", function () { showQuestion(true); });
+  document.getElementById("inline-yes").addEventListener("click", function () { showQuestion(false); });
+  document.getElementById("inline-no").addEventListener("click", function () { showQuestion(false); });
+
+  // ---------- Messages ----------
+  // Icons (outlines in the style of the app's Heroicons): a tick, an "i",
+  // a warning triangle, an exclamation mark, each in a circle or triangle.
+  const svgStart = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  const icons = {
+    success: svgStart + '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg>',
+    info:    svgStart + '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg>',
+    warning: svgStart + '<path d="M12 3.5l9 16H3z"/><path d="M12 10v4"/><path d="M12 17v.1"/></svg>',
+    error:   svgStart + '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.4v.1"/></svg>'
+  };
+  // Sample wording: a few bold words saying what happened, then what to do.
+  const messageTexts = {
+    success: "<b>Your changes are saved.</b> The work shows in your shop as before.",
+    info:    "<b>Your shop is hidden for now.</b> It will show once your profile is complete.",
+    warning: "<b>This work has no photo yet.</b> Buyers won't see it until you add one.",
+    error:   "<b>We couldn't save your changes.</b> Please check the fields marked in red."
+  };
+
+  // Builds one message element; "Close" removes it.
+  function makeMessage(kind) {
+    const msg = document.createElement("div");
+    msg.className = "msg msg-" + kind;
+    msg.setAttribute("role", kind === "error" ? "alert" : "status");
+    msg.innerHTML = icons[kind] + '<div class="msg-text">' + messageTexts[kind] + '</div>' +
+                    '<button class="msg-close" type="button">Close</button>';
+    msg.querySelector(".msg-close").addEventListener("click", function () { msg.remove(); });
+    return msg;
+  }
+
+  // The look cards: each shows all four kinds.
+  const looks = [
+    { id: "1", label: "Tinted: a pale wash of the colour, thin outline", cls: "look-1" },
+    { id: "2", label: "Side bar: page-coloured card, coloured bar on the left", cls: "look-2" },
+    { id: "3", label: "Solid: filled with the colour, white text (loudest)", cls: "look-3" }
+  ];
+  const messagesList = document.getElementById("messages");
+  looks.forEach(function (look) {
+    const card = document.createElement("div");
+    card.className = "variant " + look.cls;
+    card.innerHTML = '<div class="variant-label"><strong>' + look.id + '</strong><span>' + look.label + '</span></div>' +
+                     '<div class="sample"><div class="msg-stack"></div></div>';
+    const stack = card.querySelector(".msg-stack");
+    ["success", "info", "warning", "error"].forEach(function (kind) {
+      stack.appendChild(makeMessage(kind));
+    });
+    messagesList.appendChild(card);
+  });
+
+  // Try it: pressing a button in the frame shows that kind of message in
+  // the chosen place (replacing any message already shown), with the
+  // chosen look. Success messages can fade away after 6 seconds.
+  const demoFrame = document.getElementById("demo-frame");
+  const slots = {
+    top: document.getElementById("slot-top"),
+    fixed: document.getElementById("slot-fixed"),
+    inline: document.getElementById("slot-inline")
+  };
+  function chosen(name) {
+    return document.querySelector('input[name="' + name + '"]:checked').value;
+  }
+  function clearSlots() {
+    Object.values(slots).forEach(function (slot) { slot.innerHTML = ""; });
+  }
+  let fadeTimer = null;
+  demoFrame.querySelectorAll("button[data-show]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      clearSlots();
+      clearTimeout(fadeTimer);
+      const kind = button.dataset.show;
+      const msg = makeMessage(kind);
+      const holder = document.createElement("div");
+      holder.className = "look-" + chosen("look");
+      holder.appendChild(msg);
+      slots[chosen("place")].appendChild(holder);
+      if (kind === "success" && document.getElementById("demo-fade").checked) {
+        fadeTimer = setTimeout(function () {
+          msg.classList.add("fading");
+          setTimeout(function () { holder.remove(); }, 800);
+        }, 6000);
+      }
+    });
+  });
+  // Changing the look or place clears the frame, ready for the next try.
+  document.querySelectorAll('input[name="look"], input[name="place"]').forEach(function (input) {
+    input.addEventListener("change", clearSlots);
+  });
+  // Start scrolled to the bottom of the form, as if just filled in.
+  demoFrame.scrollTop = demoFrame.scrollHeight;
+
+  // ---------- Form fields ----------
+  const fieldVersions = [
+    { id: "1", label: "Outlined: white box, clear grey edge (most familiar)", cls: "fields-1" },
+    { id: "2", label: "Filled: soft cream box, faint edge; white while typing", cls: "fields-2" },
+    { id: "3", label: "Underline only: a line under the text, no box", cls: "fields-3" }
+  ];
+  const fieldsTemplate = document.getElementById("fields-card");
+  const fieldsList = document.getElementById("fields");
+  fieldVersions.forEach(function (version) {
+    const card = fieldsTemplate.content.cloneNode(true);
+    card.querySelector(".variant").classList.add(version.cls);
+    card.querySelector(".variant-label strong").textContent = version.id;
+    card.querySelector(".variant-label span").textContent = version.label;
+    fieldsList.appendChild(card);
+  });
+
+  // Links on this sheet go nowhere.
+  document.addEventListener("click", function (event) {
+    if (event.target.closest("a")) { event.preventDefault(); }
+  });
+</script>
+</body>
+</html>
