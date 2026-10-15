@@ -345,7 +345,10 @@ section h2 { font-size: 26px; margin-bottom: 18px; }
 .collections { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 .collection { position: relative; display: block; border-radius: var(--radius-box); background: var(--frame-color); padding: var(--frame-pad); aspect-ratio: 4 / 3; }
 .collection img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
-.collection span { position: absolute; left: calc(var(--frame-pad) + 10px); bottom: calc(var(--frame-pad) + 10px); background: var(--color-base-100); color: var(--color-base-content); padding: 4px 14px; border-radius: 999px; font-weight: 600; }
+/* Name label on collection and category tiles: centred at the bottom,
+   Switzer Regular (was left-aligned and Semibold 600 until 2026-10-15,
+   which looked heavy). */
+.collection span { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--frame-pad) + 10px); white-space: nowrap; background: var(--color-base-100); color: var(--color-base-content); padding: 4px 14px; border-radius: 999px; font-weight: 400; }
 
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 .card { text-decoration: none; color: inherit; display: block; }
@@ -395,8 +398,12 @@ footer .copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
   .btn-search { order: 4; margin-left: 0; }
   /* Header links: their own row under the search box, spread across the
      full width, "Log in" first. */
-  .nav-right { order: 5; flex: 1 1 100%; justify-content: space-between; padding: 4px 0 2px; }
-  .nav-right .login { order: -1; }
+  /* Wraps onto a second line when the links don't fit (since "About us"
+     and "Register" were added, 2026-10-15). In the app a visitor sees
+     either "Log in / Register" or "Messages", so it's usually one line. */
+  .nav-right { order: 5; flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px 20px; padding: 4px 0 2px; }
+  /* "Log in" and "Register" come first (in that order), then the rest. */
+  .nav-right .login, .nav-right .register { order: -1; }
   .chip { font-size: 14px; padding: 2px 10px; }
   /* Smaller carousel arrows, to fit small photos. */
   .carousel-arrow { width: 28px; height: 28px; font-size: 20px; }

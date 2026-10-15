@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en" data-direction="a" data-hero="split">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup: home page</title>
+<!--
+  Static design mockup — not part of the app.
+  Home page, first version (2026-10-14). Aim: closer to a gallery than a
+  busy online market — calm, one thing at a time, no sales pressure.
+  Two versions of the top, switched in the address:
+    (default)    split hero: a close-up of one artwork on the left,
+                 a short welcome and "How it works" on the right
+    ?hero=none   no hero: a short, quiet welcome band
+  Everything below the top is the same in both.
+  Images point to priv/static (gitignored), so they only show on the
+  developer's own machine. View it through the local server (see README.md).
+  Shared colours, fonts, header, buttons, tiles and footer are in
+  mockup.css and mockup.js; this file only adds the home page's own.
+-->
+<link rel="stylesheet" href="mockup.css">
+<style>
+  /* ---------- Home page only (shared styles: mockup.css) ---------- */
+
+  /* 1a. Split hero: artwork left, words right, inside the content width
+     (80% of the screen, like every other section), so the water shows
+     at the sides. (A full-screen-width version, as on Artsy, was tried
+     first, 2026-10-14.) */
+  /* Picture smaller than the first version (2026-10-15): 2/5 of the
+     width instead of half. The frame takes the picture's own shape, so
+     the developer's crop is shown whole, never cut by the frame. */
+  .hero { display: grid; grid-template-columns: 2fr 3fr; align-items: center; margin-top: 32px; }
+  /* Rounded corners and a faint outline, like the artwork tiles. */
+  .hero-art { display: block; position: relative; overflow: hidden; border-radius: var(--radius-box); border: 1.5px solid var(--color-base-300); }
+  .hero-art img { width: 100%; height: auto; }
+  /* The work is always credited, and the credit links to it. No
+     background, so it doesn't cover the painting: light, small, thin
+     letters with a soft shadow to stay readable on any colour. */
+  .hero-credit { position: absolute; left: 14px; bottom: 10px; color: #fff; font-size: 13px; font-weight: 300; letter-spacing: 0.01em;
+                 text-decoration: none; text-shadow: 0 0 3px rgb(0 0 0 / 0.7), 0 0 8px rgb(0 0 0 / 0.4); }
+  .hero-credit em { font-style: italic; }
+  .hero-words { display: flex; flex-direction: column; justify-content: center; padding: 24px 0 24px clamp(40px, 6vw, 112px); overflow-y: auto; }
+  .hero-words h1 { font-size: clamp(32px, 3.2vw, 46px); }
+  .hero-words p { font-size: 18px; margin: 18px 0 0; max-width: 34ch; }
+  .hero-words .actions { margin-top: 28px; }
+
+  /* "How it works": a button that opens three short steps in place. */
+  .how-steps { list-style: none; counter-reset: step; padding: 0; margin: 20px 0 0; max-width: 40ch; }
+  .how-steps[hidden] { display: none; }
+  .how-steps li { counter-increment: step; position: relative; padding-left: 40px; }
+  .how-steps li + li { margin-top: 14px; }
+  .how-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%;
+                          border: var(--border) solid var(--color-base-content); font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .how-steps strong { display: block; font-weight: 600; }
+  .how-steps span { color: var(--color-muted); }
+
+  /* 1b. No hero: a short, quiet welcome band at the content width. */
+  .welcome { padding: 40px 0 0; }
+  .welcome h1 { font-size: 36px; }
+  .welcome p { font-size: 17px; margin: 10px 0 0; max-width: 60ch; }
+  .welcome .actions { margin-top: 22px; }
+  .welcome .how-steps { max-width: 60ch; }
+  html[data-hero="split"] .welcome, html[data-hero="none"] .hero { display: none; }
+
+  /* No prices on the home page: it should feel like a gallery, not a
+     shop window (decided 2026-10-14). Prices stay on the shop and
+     product pages. In the app the tile component would get an option
+     to leave the price out. */
+  .card .price { display: none; }
+
+  /* Small "See all ›" link next to a section heading. */
+  .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 18px; }
+  .section-head h2 { margin: 0; }
+  .section-head a { color: var(--color-base-content); text-underline-offset: 3px; white-space: nowrap; }
+  .section-note { color: var(--color-muted); margin: -10px 0 18px; }
+
+  /* 3. Popular artists: one card per artist, three in a row. */
+  .artist-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .artist-card { border: 1.5px solid var(--color-base-300); border-radius: var(--radius-box); overflow: hidden; background: var(--color-base-100); display: flex; flex-direction: column; }
+  /* Banner: one of the artist's works, cropped to a wide strip. */
+  /* (The picture is placed absolutely so it can't stretch the strip.) */
+  .artist-banner { display: block; position: relative; overflow: hidden; aspect-ratio: 16 / 7; }
+  .artist-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .artist-card-body { padding: 0 20px 20px; display: flex; flex-direction: column; flex: 1; }
+  /* Only the round photo overlaps the banner's lower edge; the name and
+     motto sit beside it, below the banner. */
+  .artist-card-head { display: flex; align-items: flex-start; gap: 14px; }
+  .artist-card-head > div { padding-top: 10px; }
+  /* position + z-index: drawn on top of the banner picture. */
+  .artist-avatar { position: relative; z-index: 1; width: 76px; height: 76px; flex: none; margin-top: -38px; border-radius: 50%; object-fit: cover; border: 3px solid var(--color-base-100); box-shadow: var(--shadow-photo); }
+  .artist-card h3 { font-size: 22px; }
+  .artist-card h3 a { color: inherit; text-decoration: none; }
+  .artist-card .motto { font-family: var(--font-heading); font-weight: var(--heading-weight); font-style: italic; font-size: 16px; }
+  .artist-card .area { font-family: var(--font-label); color: var(--color-muted); margin-top: 12px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .artist-card .rating { margin-top: 6px; font-size: 14px; }
+  .artist-thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+  .artist-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--color-base-300); }
+  .artist-card .visit { margin-top: auto; padding-top: 14px; align-self: flex-end; color: var(--color-base-content); text-underline-offset: 3px; }
+
+  /* 2. Popular categories: collection-style tiles; the extra ones are
+     hidden until "Show more categories" (.collection sets display,
+     which would beat "hidden"). */
+  .category-tiles .collection[hidden] { display: none; }
+  /* Same look as the "See all ›" links in the other section headings. */
+  .categories-toggle { margin: 0; padding: 0; color: var(--color-base-content); text-underline-offset: 3px; white-space: nowrap; }
+
+  /* 6. Invitation to artists: a quiet cream panel, not a banner. */
+  .invite { background: var(--color-base-200); border-radius: var(--radius-box); padding: 32px clamp(24px, 4vw, 56px); display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }
+  .invite h2 { font-size: 26px; margin: 0; }
+  .invite p { margin: 6px 0 0; max-width: 60ch; }
+
+  /* ---------- Phone width ---------- */
+  @media (max-width: 760px) {
+    /* Hero: the artwork on top, the words below. */
+    .hero { grid-template-columns: 1fr; margin-top: 20px; }
+    .hero-words { padding: 24px 0 8px; }
+    .hero-words h1 { font-size: 30px; }
+    .hero-words p { font-size: 17px; }
+    .welcome { padding-top: 24px; }
+    .welcome h1 { font-size: 28px; }
+    /* Artist cards: one line that scrolls sideways (shared .scroll-row),
+       each card most of the screen wide. */
+    .artist-cards { display: flex; gap: 14px; }
+    .artist-card { width: 82%; }
+  }
+  /* Tablets: two cards per row. */
+  @media (min-width: 761px) and (max-width: 1100px) {
+    .artist-cards { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- A filled star (Heroicons "star", MIT licence), used by the rating rows. -->
+  <symbol id="star" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z"/>
+  </symbol>
+</svg>
+
+<div class="switcher" role="group" aria-label="Mockup direction">
+  <strong>Mockup colours:</strong>
+  <button data-dir="c">C · Coastal</button>
+  <button data-dir="a">A · Gallery</button>
+  <button data-dir="b">B · Cream</button>
+  <strong style="margin-left:16px">Dividers:</strong>
+  <button data-divider="spiral">Spiral crest</button>
+  <button data-divider="straight">Straight lines</button>
+</div>
+
+<!-- Faint water in the side margins (see mockup.css). -->
+<div class="page-sides" aria-hidden="true"><div class="sides-photo"></div><div class="sides-fade"></div></div>
+
+<!-- The "site hat": header + category bar, with a faint water photo behind it. -->
+<div class="site-hat">
+  <div class="hat-photo" aria-hidden="true"></div>
+  <div class="hat-fade" aria-hidden="true"></div>
+<header class="line">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="logo"><img src="../../../priv/static/images/screenshots/logo-on-back-web.png" alt=""></span>
+      <span>LocalPalette</span>
+    </a>
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      What are you looking for?
+    </div>
+    <a class="btn btn-outline btn-search" href="#">Search</a>
+    <div class="nav-right">
+      <a href="#">About us</a>
+      <a href="#">Artists</a>
+      <a href="#">Offer art</a>
+      <a href="#">Messages</a>
+      <a href="#" class="login">Log in</a>
+      <a href="#" class="register">Register</a>
+    </div>
+  </div>
+</header>
+<nav class="cats line">
+  <div class="wrap">
+    <a href="#">All categories</a><a href="#">Paintings</a><a href="#">Sculptures</a><a href="#">Jewelry</a><a href="#">Pottery</a><a href="#">Fiber Art</a><a href="#">Clothing</a><a href="#">Other Art</a>
+  </div>
+  <button type="button" class="scroll-btn scroll-less" id="cats-less" aria-label="Previous categories">«</button>
+  <button type="button" class="scroll-btn scroll-more" id="cats-more" aria-label="More categories">»</button>
+</nav>
+</div>
+
+<!-- 1a. Split hero (default). The work could change every week or two
+     ("featured artist") — picked by the site, later perhaps a paid
+     placement, then labelled as such. The close-up should come from the
+     artist, or at least be approved by them. -->
+<section class="hero wrap wide" aria-label="Welcome">
+  <!-- The whole picture links to the work's product page; the credit
+       (title, artist, neighbourhood) is part of that link. -->
+  <a class="hero-art" href="product-page.html">
+    <!-- wolf-protectress-faces-crop.jpg: the developer's own crop
+         (2026-10-15), shown whole. -->
+    <img src="../../../priv/static/images/wolf-protectress-faces-crop.jpg" alt="Detail of the painting Protectress by Maren Holt: a wolf's face beside a sleeping woman">
+    <span class="hero-credit"><em>Protectress</em> (detail) · Maren Holt · Fernwood</span>
+  </a>
+  <div class="hero-words">
+    <h1>Greater Victoria is brimming with art.</h1>
+    <p>Explore the local art scene, support the artistic life of our community, or offer your own work to your neighbours.</p>
+    <div class="actions">
+      <button type="button" class="btn btn-outline how-toggle" aria-expanded="false" aria-controls="how-steps-hero">How it works</button>
+    </div>
+    <ol class="how-steps" id="how-steps-hero" hidden>
+      <li><strong>Find a work you love</strong><span>Browse by category, or visit an artist's page.</span></li>
+      <li><strong>Request to buy</strong><span>The artist confirms, and you arrange the details together in messages.</span></li>
+      <li><strong>Pick it up from the artist</strong><span>Or have it delivered, if the artist offers delivery.</span></li>
+    </ol>
+  </div>
+</section>
+
+<main class="wrap wide">
+  <!-- 1b. No hero (?hero=none): a short, quiet welcome. -->
+  <section class="welcome" aria-label="Welcome">
+    <h1>Art from your neighbours in Greater Victoria</h1>
+    <p>Original works by local artists — painting, pottery, jewelry and more. Meet the people who make them, and buy directly from them.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#">Browse all works</a>
+      <a class="btn btn-outline" href="#">Meet the artists</a>
+      <button type="button" class="btn btn-outline how-toggle" aria-expanded="false" aria-controls="how-steps-welcome">How it works</button>
+    </div>
+    <ol class="how-steps" id="how-steps-welcome" hidden>
+      <li><strong>Find a work you love</strong><span>Browse by category, or visit an artist's page.</span></li>
+      <li><strong>Request to buy</strong><span>The artist confirms, and you arrange the details together in messages.</span></li>
+      <li><strong>Pick it up from the artist</strong><span>Or have it delivered, if the artist offers delivery.</span></li>
+    </ol>
+  </section>
+
+  <!-- 2. Popular categories, right under the hero (as on the current home
+       page): 4 tiles, the rest behind "Show more categories". Tiles look
+       like the artist page's collection tiles. In the app: ordered by
+       how many works each has (or set by the admin). -->
+  <section>
+    <!-- "Show more categories" sits top right, like "See all artists ›". -->
+    <div class="section-head">
+      <h2>Popular categories</h2>
+      <button type="button" class="more-link categories-toggle" id="categories-toggle" aria-expanded="false">Show more categories ›</button>
+    </div>
+    <div class="collections category-tiles">
+      <a class="collection" href="#"><img src="../../../priv/static/images/cat-painting.jpg" alt=""><span>Paintings</span></a>
+      <a class="collection" href="#"><img src="../../../priv/static/images/pottery-cat.jpg" alt=""><span>Pottery</span></a>
+      <a class="collection" href="#"><img src="../../../priv/static/images/cat-jewelry.jpg" alt=""><span>Jewelry</span></a>
+      <a class="collection" href="#"><img src="../../../priv/static/images/cat-sculpture.jpg" alt=""><span>Sculptures</span></a>
+      <a class="collection more-category" href="#" hidden><img src="../../../priv/static/images/cat-sewing.jpg" alt=""><span>Fiber Art</span></a>
+      <a class="collection more-category" href="#" hidden><img src="../../../priv/static/images/sweater.jpg" alt=""><span>Clothing</span></a>
+      <a class="collection more-category" href="#" hidden><img src="../../../priv/static/images/placeholder-category.jpg" alt=""><span>Other Art</span></a>
+    </div>
+  </section>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- 3. Popular artists (after handmade.com's "Makers to Watch"): the
+       best-rated artists, one card each — banner picture, round photo,
+       name, motto, area, rating, three works, link to their page. Needs
+       no curation; until there are enough reviews, it could show
+       artists with the newest works. A "Follow" button can go here once
+       following artists exists (NOTES.md #25). Replaces "Popular with
+       buyers" (works) and "Meet a neighbour" (one artist) from the
+       first version. -->
+  <section>
+    <div class="section-head">
+      <h2>Popular artists</h2>
+      <a href="#">See all artists ›</a>
+    </div>
+    <div class="scroll-row">
+    <div class="artist-cards scroll-track">
+      <article class="artist-card">
+        <a class="artist-banner" href="artist-page.html" tabindex="-1" aria-hidden="true"><img src="../../../priv/static/images/mother-otter.jpg" alt=""></a>
+        <div class="artist-card-body">
+          <div class="artist-card-head">
+            <img class="artist-avatar" src="../../../priv/static/images/screenshots/artist-hand.jpg" alt="">
+            <div>
+              <h3><a href="artist-page.html">Maren Holt</a></h3>
+              <div class="motto">Oils with a splash</div>
+            </div>
+          </div>
+          <div class="area">Fernwood · Victoria</div>
+          <div class="rating" aria-label="Rated 4.8 out of 5, from 31 reviews">
+            <span class="stars" style="--rating: 4.8" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+            <span aria-hidden="true">4.8 · 31 reviews</span>
+          </div>
+          <div class="artist-thumbs">
+          <a href="product-page.html"><img src="../../../priv/static/images/silver-crow.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/images/crow-with-stones.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/images/wolf-protectress.jpg" alt=""></a>
+          </div>
+          <a class="visit" href="artist-page.html">Visit Maren's page ›</a>
+        </div>
+      </article>
+      <article class="artist-card">
+        <a class="artist-banner" href="artist-page.html" tabindex="-1" aria-hidden="true"><img src="../../../priv/static/images/pottery-cat.jpg" alt=""></a>
+        <div class="artist-card-body">
+          <div class="artist-card-head">
+            <img class="artist-avatar" src="../../../priv/static/images/mug.jpg" alt="">
+            <div>
+              <h3><a href="artist-page.html">Tom Becker</a></h3>
+              <div class="motto">Pots for everyday tables</div>
+            </div>
+          </div>
+          <div class="area">James Bay · Victoria</div>
+          <div class="rating" aria-label="Rated 4.9 out of 5, from 18 reviews">
+            <span class="stars" style="--rating: 4.9" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+            <span aria-hidden="true">4.9 · 18 reviews</span>
+          </div>
+          <div class="artist-thumbs">
+          <a href="product-page.html"><img src="../../../priv/static/images/mug.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/images/pottery-cat.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/images/cat-sculpture.jpg" alt=""></a>
+          </div>
+          <a class="visit" href="artist-page.html">Visit Tom's page ›</a>
+        </div>
+      </article>
+      <article class="artist-card">
+        <a class="artist-banner" href="artist-page.html" tabindex="-1" aria-hidden="true"><img src="../../../priv/static/images/painting.jpg" alt=""></a>
+        <div class="artist-card-body">
+          <div class="artist-card-head">
+            <img class="artist-avatar" src="../../../priv/static/images/cat-painting.jpg" alt="">
+            <div>
+              <h3><a href="artist-page.html">Ruth Okafor</a></h3>
+              <div class="motto">Gardens, streets and weather</div>
+            </div>
+          </div>
+          <div class="area">Oak Bay</div>
+          <div class="rating" aria-label="Rated 4.7 out of 5, from 24 reviews">
+            <span class="stars" style="--rating: 4.7" aria-hidden="true"><span class="stars-empty"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span><span class="stars-full"><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg><svg><use href="#star"/></svg></span></span>
+            <span aria-hidden="true">4.7 · 24 reviews</span>
+          </div>
+          <div class="artist-thumbs">
+          <a href="product-page.html"><img src="../../../priv/static/images/painting.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/images/urban-painting.jpg" alt=""></a>
+          <a href="product-page.html"><img src="../../../priv/static/uploads/products/49958.jpg" alt=""></a>
+          </div>
+          <a class="visit" href="artist-page.html">Visit Ruth's page ›</a>
+        </div>
+      </article>
+    </div>
+    <button type="button" class="scroll-btn scroll-less" aria-label="Previous artists">«</button>
+    <button type="button" class="scroll-btn scroll-more" aria-label="More artists">»</button>
+    </div>
+  </section>
+</main>
+
+<div class="wrap wide divider" aria-hidden="true">
+  <div class="crest">
+    <svg class="rule-line" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="28" x2="100" y2="28" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+  </div>
+</div>
+
+<main class="wrap wide">
+  <!-- 4. New works: the latest works, newest first. No curation needed. -->
+  <section>
+    <div class="section-head">
+      <h2>New works</h2>
+      <a href="#">See all new works ›</a>
+    </div>
+    <div class="grid">
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/urban-painting.jpg" alt=""></div>
+        <h3>Fort Street, Rain</h3><div class="sub">Dev Malhotra · Oil, 60 × 45 cm</div><div class="price">CA$520</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/uploads/products/49958.jpg" alt=""></div>
+        <h3>The Garry Oak</h3><div class="sub">Jonas Reid · Acrylic, 40 × 30 cm</div><div class="price">CA$290</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/mug.jpg" alt=""></div>
+        <h3>Morning Mug</h3><div class="sub">Tom Becker · Stoneware</div><div class="price">CA$38</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/sweater.jpg" alt=""></div>
+        <h3>Hand-knit Cardigan</h3><div class="sub">Elsie Moore · Local wool</div><div class="price">CA$210</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/crow-woman.jpg" alt=""></div>
+        <h3>Crow Woman</h3><div class="sub">Maren Holt · Oil on canvas, 70 × 50 cm</div><div class="price">CA$880</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/ocean-painting.jpg" alt=""></div>
+        <h3>Low Tide, Ross Bay</h3><div class="sub">Maren Holt · Oil on canvas, 40 × 50 cm</div><div class="price">CA$420</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/cat-jewelry.jpg" alt=""></div>
+        <h3>Silver Leaf Earrings</h3><div class="sub">Ana Ruiz · Sterling silver</div><div class="price">CA$85</div>
+      </a>
+      <a class="card" href="product-page.html">
+        <div class="pic"><img src="../../../priv/static/images/cat-sculpture.jpg" alt=""></div>
+        <h3>Heron</h3><div class="sub">Jonas Reid · Driftwood, 60 cm</div><div class="price">CA$340</div>
+      </a>
+    </div>
+  </section>
+</main>
+
+<main class="wrap wide">
+  <!-- A quiet invitation to artists. -->
+  <section>
+    <div class="invite">
+      <div>
+        <h2>Are you an artist in Greater Victoria?</h2>
+        <p>Offer your work to your neighbours. Setting up your page is free and takes a few minutes.</p>
+      </div>
+      <a class="btn btn-outline" href="#">Offer your art</a>
+    </div>
+  </section>
+</main>
+
+<!-- Footer -->
+<footer>
+  <div class="wrap wide">
+    <div class="cols">
+      <div><h3>Company</h3><a href="#">About us</a><a href="#">Our mission</a><a href="#">Contact</a></div>
+      <div><h3>Legal</h3><a href="#">User agreement</a><a href="#">Privacy policy</a><a href="#">Terms of service</a></div>
+      <div><h3>Follow us</h3><a href="#">Facebook</a><a href="#">Instagram</a></div>
+    </div>
+    <div class="copy">© 2026 LocalPalette — art from your neighbours in Victoria, BC</div>
+  </div>
+</footer>
+
+<script src="mockup.js"></script>
+<script>
+  // ---------- Home page only (shared script: mockup.js) ----------
+  // Mockup only: ?hero=none shows the version without a hero.
+  root.dataset.hero = params.get("hero") || "split";
+
+  // "Show more categories" / "Show fewer categories".
+  const categoriesToggle = document.getElementById("categories-toggle");
+  const moreCategories = document.querySelectorAll(".more-category");
+  categoriesToggle.addEventListener("click", function () {
+    const showing = categoriesToggle.getAttribute("aria-expanded") === "true";
+    moreCategories.forEach(function (tile) { tile.hidden = showing; });
+    categoriesToggle.setAttribute("aria-expanded", !showing);
+    categoriesToggle.textContent = showing ? "Show more categories ›" : "Show fewer categories ‹";
+  });
+
+  // "How it works" buttons open and close the three steps below them.
+  document.querySelectorAll(".how-toggle").forEach(function (button) {
+    const steps = document.getElementById(button.getAttribute("aria-controls"));
+    button.addEventListener("click", function () {
+      const opening = steps.hidden;
+      steps.hidden = !opening;
+      button.setAttribute("aria-expanded", opening);
+    });
+  });
+</script>
+</body>
+</html>

@@ -424,6 +424,90 @@ a LiveView patch so the header stays and Back works.
 - Mockup switches: `?login=out` (logged-out buttons, shared in
   `mockup.js`), `?commissions=closed`.
 
+**Home page mockup, first version (2026-10-14):**
+`docs/design/mockups/home-page.html`. Aim (the developer's): **closer
+to a gallery than a busy online market** — calm, no pushing to buy from
+the first moment. Two versions of the top to compare:
+- **Split hero (default, the developer's idea, after Artsy):** full
+  screen width, a close-up of one artwork on the left (always credited
+  and linked: "*Protectress* (detail) · Maren Holt"), on the right
+  "Greater Victoria is bursting with art." and one sentence (explore,
+  support the artistic life of our community, offer your own work),
+  then a "How it works" button that opens three steps in place (find a
+  work, request to buy, pick it up from the artist). The hero work
+  could change every week or two ("featured artist") — a small, doable
+  form of curation, and possibly a paid placement later (then labelled
+  as such). The artist should supply or approve the close-up.
+- **No hero (`?hero=none`, Claude's idea):** a short welcome band —
+  "Art from your neighbours in Greater Victoria", one sentence, and
+  "Browse all works" / "Meet the artists" / "How it works".
+- Then, in both: **Popular with buyers** (works by the best-rated
+  artists; needs no curation; falls back to newest works until there
+  are enough reviews) → **Meet a neighbour** (one artist: round photo,
+  name, motto, area, a quote, three works, "Visit Maren's page"; could
+  rotate by itself) → **New works** (8, newest first) → **Browse by
+  category** (round pictures, all categories; one sideways-scrolling
+  line on phones) → a quiet **"Are you an artist in Greater
+  Victoria?"** panel with "Offer your art".
+- The old "Featured Products" / "Our favorites" (really just the first
+  and last 4 products) are dropped; a hand-curated section was judged
+  too time-consuming for now.
+- **Chosen: the split hero** (over "no hero"). Then fitted into our own
+  look: the hero sits in the content width (80% of the screen, like
+  every section) so the water shows at the sides, and the image has
+  rounded corners and the tiles' faint outline. A full-screen-width
+  version, as on Artsy, was tried first.
+- **No prices on the home page** — a gallery, not a shop window.
+  Prices stay on the shop and product pages (in the app: an option on
+  the tile component to leave the price out).
+- **Second round (2026-10-14), new order:** hero → **Popular
+  categories** (4 tiles in the collection-tile style, "Show more
+  categories ›" / "Show fewer categories ‹" for the rest, as on the
+  current home page; replaces the round category pictures) →
+  **Popular artists** (after handmade.com's "Makers to Watch": three
+  cards, each a banner picture from the artist's work, a round photo
+  overlapping it, name, motto, area, star rating with review count,
+  three small works, "Visit Maren's page ›"; on phones one
+  sideways-scrolling line; replaces "Popular with buyers" and "Meet a
+  neighbour") → **New works** → the "Are you an artist?" panel. A
+  "Follow" button on the cards waits for following artists (`NOTES.md`
+  #25). Popular artists need ratings; until there are enough, show
+  artists with the newest works.
+- Hero picture: a new crop of the full *Protectress* painting,
+  `priv/static/images/wolf-protectress-hero.jpg` (1600×1430,
+  gitignored), with the wolf's whole head, chin and paw — the earlier
+  `-faces.jpg` crop cut off the chin.
+- **2026-10-15: hero picture smaller** — on laptops the hero took too
+  much space. Now 2/5 of the content width (was half); the text column
+  gets the rest, and the first category tiles show on the first
+  screen. The picture is the **developer's own crop**,
+  `wolf-protectress-faces-crop.jpg` (1665×1232: the wolf's face and the
+  sleeping woman's face, no chest — the hero is the first thing every
+  visitor sees). The frame takes the picture's own shape, so it is
+  shown whole; if it ever has to be cropped, crop at the top. (Tried
+  first: a fixed 3/8-width frame with Claude's crop
+  `wolf-protectress-hero-small.jpg`.)
+- **Credit label on the picture:** no background, so it doesn't cover
+  the painting; white, 13px, Switzer Light, with a soft shadow for
+  readability on any colour. Reads "*Protectress* (detail) · Maren
+  Holt · Fernwood" (the artist's neighbourhood added 2026-10-15).
+- **The whole hero picture links to the work's product page** (the
+  label is part of that link).
+- **Header links (all pages, 2026-10-15):** About us · Artists · Offer
+  art · Messages · Log in · Register ("About us" first, "Register" next
+  to "Log in"). On phones "Log in" and "Register" come first and the
+  row wraps onto a second line if needed; in the app a visitor sees
+  either "Log in / Register" or "Messages", so usually one line.
+- **Mottos are never cut off** (no "…"): a long motto wraps onto a
+  second line, even if the artist cards then don't line up exactly.
+  Better visually uneven than cutting the artist's own words.
+- "Show more categories ›" moved to the top right of its section
+  heading, like "See all artists ›" and "See all new works ›".
+- **Tile name labels** (category tiles here, collection tiles on the
+  artist page — one shared style): centred at the bottom of the tile,
+  Switzer Regular 400 (were left-aligned, Semibold 600 — too heavy).
+- The no-hero version stays available as `?hero=none` for now.
+
 Tried and dropped: full-width wavy dividers; a wave between every
 section; the fonts in the first round (Inter / Lora / Nunito Sans) and
 18px text; a smaller, fixed-width artist photo; drawn SVG wave lines as
