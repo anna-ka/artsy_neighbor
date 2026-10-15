@@ -24,4 +24,9 @@ at the top of `mockup.css`, one block per direction. The page only uses the
 names, the same way the real DaisyUI theme will — so trying a different
 cream is a one-line change in that block.
 
+**The mockups stay after the real theme exists**: looks are tried here
+first, then copied into the app (`assets/css/app.css` and the
+components). How the two correspond: `docs/design/how-styling-works.md`,
+section 7.
+
 The artist ("Maren Holt") and her texts are invented for the mockup.

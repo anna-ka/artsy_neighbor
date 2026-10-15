@@ -566,3 +566,5 @@ a header background (looked like wallpaper).
    maybe make them neutral too.
 6. Then the **product page** mockup, then **home**, then turn the
    result into the real DaisyUI theme and shared components.
+   **2026-10-15: mockups done; that next step has its own plan,
+   `docs/plans/2026-10-15-theme-and-components.md`.**
