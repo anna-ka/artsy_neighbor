@@ -30,7 +30,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
     ~H"""
     <.link navigate={~p"/products/#{@product}"} id={@dom_id}>
-      <div class="bg-artsy-bg rounded-lg shadow-md p-3 pb-2">
+      <div class="bg-base-200 rounded-lg shadow-md p-3 pb-2">
         <div class="h-60 rounded mb-2 overflow-hidden bg-gray-100 flex items-center justify-center">
           <img
             src={@image_path}
@@ -139,7 +139,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       :if={@show}
       class={[
         "w-full py-3 px-4 text-center text-sm font-bold",
-        @variant == "info" && "bg-artsy-teal text-white",
+        @variant == "info" && "bg-info text-info-content",
         @variant == "test" && "bg-black text-white",
         @variant == "warning" && "bg-amber-500 text-white",
         @variant == "success" && "bg-green-600 text-white",
@@ -181,7 +181,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     # Define your custom variants here
     variants = %{
       "primary" => "btn btn-primary",
-      "secondary" => "btn bg-artsy-teal text-white hover:bg-teal-600",
+      "secondary" => "btn btn-secondary",
       "outline" => "btn btn-outline",
       "ghost" => "btn btn-ghost",
       "danger" => "btn bg-red-600 text-white hover:bg-red-700",

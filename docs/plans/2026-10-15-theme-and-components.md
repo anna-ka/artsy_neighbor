@@ -1,7 +1,7 @@
 # From mockups to the real theme and components
 
 Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
-next: Phase A.
+Phase A done 2026-10-15 (notes at its end); next: Phase B.
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
 decided in static mockups. This step moves those decisions into the
@@ -222,6 +222,35 @@ In `assets/css/app.css`:
 
 Pages will look different after this step (new colours and fonts) even
 before anything else changes. Some pages may look odd until restyled.
+
+### Phase A done (2026-10-15)
+
+- `localpalette` uses the mockup's hex values directly (not daisyUI's
+  usual `oklch(...)`), so copying from `mockup.css` stays one line.
+  `accent` (unused by our design) is the same slate as `secondary`;
+  `neutral` is the text colour. Flat look (`--depth: 0`).
+- Extra colours `muted`, `soft`, `field-edge` and fonts `heading`,
+  `label`, `wordmark` are in `@theme static`, so Tailwind classes such
+  as `text-muted` and `font-heading` exist; "static" keeps them in the
+  built CSS before any page uses them. Section gap, content width and
+  heading weight are plain settings in `:root`, with the mockup's phone
+  values below 760px.
+- Switzer is the default font for everything (`--font-sans`); `h1`–`h3`
+  get Sentient Light, unless a class on the title says otherwise.
+- **Text size not changed** (still the browser's 16px; the mockups use
+  15px). To be decided on the style guide page (Phase B), with our
+  audience in mind.
+- Fontshare link in `root.html.heex`: Sentient 300/400 (with italics),
+  500, 700; Switzer 400–700. Fontshare quietly swaps in a different font
+  for some weight lists; the comment there says to check the result.
+- Fraunces (variable, with the SOFT and WONK settings the wordmark needs;
+  official file from Google's font repository) and Spline Sans Mono
+  Regular are in `priv/static/fonts/`, each with its `OFL.txt`.
+- Removed: the four stock themes, the theme switcher script, the
+  sun/moon `theme_toggle` component (only on Phoenix's leftover pages),
+  the custom `dark:` setting (no page used `dark:` classes), and
+  `artsy-teal` / `artsy-bg` (their three uses now point at theme colours;
+  those components are replaced in Phase C anyway).
 
 ## Phase B: style guide page
 
