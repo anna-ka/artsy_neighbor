@@ -34,7 +34,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Form do
         </div>
         <.input field={@form[:slug]} type="text" label="Slug" />
         <footer>
-          <.button phx-disable-with="Saving..." variant="primary">Save Category</.button>
+          <.button phx-disable-with="Saving..." variant="main">Save Category</.button>
           <.button navigate={return_path(@return_to, @category)}>Cancel</.button>
         </footer>
       </.form>

@@ -22,7 +22,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Show do
           <.button navigate={~p"/admin/categories"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/admin/categories/#{@category}/edit?return_to=show"}>
+          <.button variant="main" navigate={~p"/admin/categories/#{@category}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> Edit category
           </.button>
         </:actions>

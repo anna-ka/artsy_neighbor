@@ -2,7 +2,8 @@
 
 Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
 Phase A done 2026-10-15 (notes at its end); Phase B's page built
-2026-10-15 (notes at its end); next: Phase C.
+2026-10-15 (notes at its end); Phase C under way (button, input and
+messages done 2026-10-15; notes at its end).
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
 decided in static mockups. This step moves those decisions into the
@@ -293,6 +294,47 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   link, and `<.placeholder>` (see Principles).
 - The existing `button_artsy`, `product_card`, `category_card` are
   replaced by these and removed once unused.
+
+### Phase C so far (2026-10-15)
+
+- **Our own class names, not daisyUI's** (decided 2026-10-15): the new
+  rules in `app.css` (`@layer components`) are `btn-base` + `btn-main` /
+  `btn-ordinary` / `btn-quiet` / `btn-danger` / `btn-danger-final`;
+  `field`, `field-label`, `field-help`, `field-input`, `field-error`,
+  `field-check`; `msg` + `msg-success` / `-info` / `-warning` /
+  `-error`. Only pages using `<.button>`, `<.input>` and messages
+  changed; old `button_artsy` buttons and hand-written `btn btn-...`
+  classes keep daisyUI's look until each page is restyled (Phase E).
+  Not chosen: rewriting daisyUI's own `btn` / `input` rules (every
+  button at once, but half old, half new looks and unclear which rule
+  wins). The mockup's `.btn-primary` / `.btn-outline` are our
+  `btn-main` / `btn-ordinary` (noted in `app.css`).
+- **`<.button variant="...">`**: `main`, `ordinary` (default), `quiet`,
+  `danger`, `danger_final`. `class` now adds to the kind's classes
+  (before, it replaced them). Working: LiveView's
+  `phx-click-loading` / `phx-submit-loading` show the turning circle,
+  `phx-disable-with` changes the words; a working button keeps its
+  colours (not the "Not available" grey), as in the mockup.
+- **`<.input>`**: new `help` (between label and box) and `optional`
+  ("(optional)" after the label). `class` adds to the box's classes;
+  `error_class` removed (unused). Forms that still put a red `*` in
+  their labels (product, profile, admin forms) switch to `optional`
+  when restyled in Phase E.
+- **Messages**: `:success` and `:warning` added. "Close" in words; only
+  that button closes a message (before, a click anywhere on it did).
+  `flash_group` (in `layouts.ex`) is fixed to the top of the window,
+  centred, up to 36rem wide, messages stacked: **two at once no longer
+  lie on top of each other.** The lost-connection messages were
+  reworded ("We can't find the internet. Trying to reconnect…").
+  Existing `put_flash(:info, ...)` calls that are really successes
+  ("Saved") are switched to `:success`, with a few bold words first,
+  page by page in Phase E.
+- Style guide shows all of the above, with a "working" demo (the server
+  waits two seconds).
+- **Placement still to confirm** in two or three real flows (save a
+  product, send a message), now that the new look exists.
+- Next: the confirm-delete dialog (Phase 0, item 3), then the
+  `custom_components.ex` list.
 
 ## Phase D: the page frame
 

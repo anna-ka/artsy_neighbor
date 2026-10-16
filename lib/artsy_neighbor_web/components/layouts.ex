@@ -394,7 +394,15 @@ defmodule ArtsyNeighborWeb.Layouts do
   end
 
   @doc """
-  Shows the flash group with standard titles and content.
+  Shows the page's messages ("flash"), plus the two built-in ones for a
+  lost connection.
+
+  The messages stay on screen at the top of the window, even when the page
+  is scrolled down (decided in Phase 0 of
+  `docs/plans/2026-10-15-theme-and-components.md`), centred, one under the
+  other when there are several. The empty space around them lets clicks
+  through to the page (`pointer-events-none`); the messages themselves
+  take clicks again (`pointer-events-auto` in `<.flash>`).
 
   ## Examples
 
@@ -405,34 +413,59 @@ defmodule ArtsyNeighborWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div
+      id={@id}
+      aria-live="polite"
+      class="fixed inset-x-0 top-4 z-50 mx-auto flex w-[min(36rem,calc(100%-32px))] flex-col gap-3 pointer-events-none"
+    >
+      <.flash kind={:success} flash={@flash} />
       <.flash kind={:info} flash={@flash} />
+      <.flash kind={:warning} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
 
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("We can't find the internet")}
-        phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
+        title={gettext("We can't find the internet.")}
+        phx-disconnected={
+          show_message(".phx-client-error #client-error") |> JS.remove_attribute("hidden")
+        }
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        {gettext("Trying to reconnect…")}
+        <.icon name="hero-arrow-path" class="ml-1 size-4 align-[-3px] motion-safe:animate-spin" />
       </.flash>
 
       <.flash
         id="server-error"
         kind={:error}
-        title={gettext("Something went wrong!")}
-        phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
+        title={gettext("Something went wrong on our side.")}
+        phx-disconnected={
+          show_message(".phx-server-error #server-error") |> JS.remove_attribute("hidden")
+        }
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        {gettext("Trying to reconnect…")}
+        <.icon name="hero-arrow-path" class="ml-1 size-4 align-[-3px] motion-safe:animate-spin" />
       </.flash>
     </div>
     """
+  end
+
+  # Shows a hidden message, like CoreComponents.show/2 but as a row
+  # (display: flex). JS.show on its own sets display: block, which would
+  # stack the message's icon, words and "Close" on top of each other.
+  defp show_message(selector) do
+    JS.show(
+      to: selector,
+      display: "flex",
+      time: 300,
+      transition:
+        {"transition-all ease-out duration-300",
+         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
+         "opacity-100 translate-y-0 sm:scale-100"}
+    )
   end
 end

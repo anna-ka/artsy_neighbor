@@ -79,7 +79,6 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
           field={@form[:q_medium]}
           placeholder="Search by medium..."
           autocomplete="off"
-          class="w-full input"
           phx-debounce="500"
         />
 
@@ -87,7 +86,6 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
           field={@form[:q_name]}
           placeholder="Search by name ..."
           autocomplete="off"
-          class="w-full input"
           phx-debounce="500"
         />
 

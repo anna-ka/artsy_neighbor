@@ -36,7 +36,14 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   ]
 
   def mount(_params, _session, socket) do
-    form = to_form(%{"title" => "", "category" => "", "pickup" => "true"})
+    form =
+      to_form(%{
+        "title" => "",
+        "category" => "",
+        "homepage" => "",
+        "pickup" => "true",
+        "delivery" => "false"
+      })
 
     socket =
       assign(socket,
@@ -51,6 +58,10 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
 
   # Buttons in the "Messages" section. Each shows real flash messages,
   # exactly as the rest of the app does.
+  def handle_event("flash", %{"kind" => "success"}, socket) do
+    {:noreply, put_flash(socket, :success, "Saved. Your changes are on your page now.")}
+  end
+
   def handle_event("flash", %{"kind" => "info"}, socket) do
     {:noreply, put_flash(socket, :info, "Your changes were saved.")}
   end
@@ -58,6 +69,11 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   def handle_event("flash", %{"kind" => "error"}, socket) do
     message = "We couldn't save your changes. Please check the form and try again."
     {:noreply, put_flash(socket, :error, message)}
+  end
+
+  def handle_event("flash", %{"kind" => "warning"}, socket) do
+    message = "Your shop is paused. Buyers can't see your works until you turn it back on."
+    {:noreply, put_flash(socket, :warning, message)}
   end
 
   def handle_event("flash", %{"kind" => "both"}, socket) do
@@ -77,6 +93,13 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
       |> put_flash(:info, "Product saved. (This message came from the style guide.)")
       |> push_navigate(to: ~p"/")
 
+    {:noreply, socket}
+  end
+
+  # The "Working" buttons: wait two seconds, so the turning circle and the
+  # changed words ("Saving…") can be seen. Development only.
+  def handle_event("slow", _params, socket) do
+    Process.sleep(2000)
     {:noreply, socket}
   end
 
@@ -176,30 +199,73 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
         <section>
           <h2 class="text-2xl mb-2">Buttons</h2>
           <p class="mb-6 text-muted">
-            Today's <code>&lt;.button&gt;</code>, not restyled yet (Phase C gives it the
-            main / ordinary / quiet / danger kinds from the mockups).
+            <code>&lt;.button variant="..."&gt;</code>. One main button per area; danger
+            for removing things; the solid red one only for the final "Yes, delete".
           </p>
-          <div class="flex flex-wrap gap-4">
-            <.button variant="primary">Main</.button>
-            <.button>Default</.button>
-            <.button variant="primary" disabled>Not available</.button>
+          <div class="space-y-6">
+            <div class="flex flex-wrap items-center gap-4">
+              <.button variant="main">Save changes</.button>
+              <.button>Send message</.button>
+              <.button variant="quiet">Clear filters</.button>
+              <.button variant="danger">Delete this work</.button>
+              <.button variant="danger_final">Yes, delete</.button>
+            </div>
+            <div class="flex flex-wrap items-center gap-4">
+              <.button variant="main" disabled>Not available</.button>
+              <.button disabled>Not available</.button>
+              <.button variant="quiet" disabled>Not available</.button>
+              <.button variant="danger" disabled>Not available</.button>
+            </div>
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                Working: press one; the server waits two seconds before answering.
+              </p>
+              <div class="flex flex-wrap items-center gap-4">
+                <.button
+                  id="slow-main"
+                  variant="main"
+                  phx-click="slow"
+                  phx-disable-with="Saving…"
+                >
+                  Save changes
+                </.button>
+                <.button
+                  id="slow-danger"
+                  variant="danger"
+                  phx-click="slow"
+                  phx-disable-with="Deleting…"
+                >
+                  Delete this work
+                </.button>
+              </div>
+            </div>
+            <div>
+              <p class="mb-3 text-sm text-muted">A link that looks like a button:</p>
+              <.button navigate={~p"/"}>Go to the home page</.button>
+            </div>
           </div>
         </section>
 
         <section>
           <h2 class="text-2xl mb-2">Form fields</h2>
           <p class="mb-6 text-muted">
-            Today's <code>&lt;.input&gt;</code>, not restyled yet (Phase C).
-            The price field shows an error.
+            <code>&lt;.input&gt;</code>: label above, help text before the box,
+            "(optional)" in words. The price field shows a mistake.
           </p>
           <.form for={@form} id="styleguide-form" class="max-w-md">
-            <.input field={@form[:title]} label="Title" placeholder="For example: Crow at Ross Bay" />
+            <.input
+              field={@form[:title]}
+              label="Title"
+              help="The name buyers will see. You can change it later."
+              placeholder="For example: Crow at Ross Bay"
+            />
             <%!-- Given by name rather than field={...}: with a field, <.input> uses the
                  form's own errors and would ignore this example one. --%>
             <.input
               name="price"
               value="abc"
               label="Price"
+              help="In dollars, without the $ sign."
               errors={["Please enter a number, like 120"]}
             />
             <.input
@@ -209,19 +275,53 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
               prompt="Choose a category"
               options={["Ceramics", "Painting", "Jewellery"]}
             />
+            <.input
+              field={@form[:homepage]}
+              type="url"
+              label="Website"
+              optional
+              placeholder="For example: marenholt.ca"
+            />
             <.input field={@form[:description]} type="textarea" label="Description" />
+            <.input
+              name="studio"
+              value="Fernwood"
+              label="Studio area"
+              help="Not available: set by the site."
+              disabled
+            />
             <.input field={@form[:pickup]} type="checkbox" label="Pickup in person" />
+            <.input
+              field={@form[:delivery]}
+              type="checkbox"
+              label="Delivery"
+              help="You bring the work to the buyer's door."
+            />
           </.form>
         </section>
 
         <section>
           <h2 class="text-2xl mb-2">Messages</h2>
           <p class="mb-4 text-muted">
-            The same message buttons as at the top of the page, to see whether a message is
-            noticed when the page is scrolled down. Success and warning messages don't exist
-            yet (Phase C adds them). To see "We can't find the internet", stop the server
-            for a few seconds.
+            <code>&lt;.flash&gt;</code>, four kinds. Samples of each below; the buttons
+            show real messages, which stay at the top of the window. Start a message
+            with a few bold words saying what happened. To see "We can't find the
+            internet", stop the server for a few seconds.
           </p>
+          <div class="max-w-xl space-y-3 mb-8">
+            <.flash id="sample-success" kind={:success} title="Saved.">
+              Your changes are on your page now.
+            </.flash>
+            <.flash id="sample-info" kind={:info} title="Pickup is arranged in messages.">
+              You and the artist agree on a time there.
+            </.flash>
+            <.flash id="sample-warning" kind={:warning} title="Your shop is paused.">
+              Buyers can't see your works until you turn it back on.
+            </.flash>
+            <.flash id="sample-error" kind={:error} title="We couldn't save your changes.">
+              Please check the form and try again.
+            </.flash>
+          </div>
           <.flash_buttons id="flash-buttons-bottom" />
         </section>
       </div>
@@ -251,7 +351,9 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   defp flash_buttons(assigns) do
     ~H"""
     <div id={@id} class="flex flex-wrap gap-3">
+      <.button phx-click="flash" phx-value-kind="success">Show a success message</.button>
       <.button phx-click="flash" phx-value-kind="info">Show an information message</.button>
+      <.button phx-click="flash" phx-value-kind="warning">Show a warning</.button>
       <.button phx-click="flash" phx-value-kind="error">Show an error message</.button>
       <.button phx-click="flash" phx-value-kind="both">Show two at once</.button>
       <.button phx-click="flash" phx-value-kind="after_move">

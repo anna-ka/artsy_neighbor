@@ -40,7 +40,7 @@ defmodule ArtsyNeighborWeb.UserLive.Registration do
             required
           />
 
-          <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
+          <.button phx-disable-with="Creating account..." variant="main" class="w-full">
             Create an account
           </.button>
         </.form>

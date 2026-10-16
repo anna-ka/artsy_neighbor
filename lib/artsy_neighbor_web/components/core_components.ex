@@ -32,74 +32,113 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   @doc """
-  Renders flash notices.
+  Renders a message ("flash").
+
+  Four kinds, each with its own colour and icon (colour is never the only
+  clue): `:success`, `:info`, `:warning`, `:error`. Phoenix itself only
+  has `:info` and `:error`; the other two are ours, used the same way
+  (`put_flash(socket, :success, "...")`).
+
+  The look ("Tinted", chosen in Phase 0 of
+  `docs/plans/2026-10-15-theme-and-components.md`) lives in
+  `assets/css/app.css` (`msg`, `msg-success`, ...). A message never fades
+  by itself: it stays until "Close" is pressed or the page changes.
+  Messages are placed (and stacked) by `Layouts.flash_group/1`.
 
   ## Examples
 
       <.flash kind={:info} flash={@flash} />
-      <.flash kind={:info} phx-mounted={show("#flash")}>Welcome Back!</.flash>
+      <.flash kind={:success} title="Saved.">Your changes are on your page now.</.flash>
   """
   attr :id, :string, doc: "the optional id of flash container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
-  attr :title, :string, default: nil
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
+  attr :title, :string, default: nil, doc: "a few bold words before the message"
+
+  attr :kind, :atom,
+    values: [:success, :info, :warning, :error],
+    doc: "used for styling and flash lookup"
+
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
   slot :inner_block, doc: "the optional inner block that renders the flash message"
 
   def flash(assigns) do
-    assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
+    icons = %{
+      success: "hero-check-circle",
+      info: "hero-information-circle",
+      warning: "hero-exclamation-triangle",
+      error: "hero-exclamation-circle"
+    }
+
+    assigns =
+      assigns
+      |> assign_new(:id, fn -> "flash-#{assigns.kind}" end)
+      |> assign(:icon_name, Map.fetch!(icons, assigns.kind))
 
     ~H"""
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
-      phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      class={["msg pointer-events-auto", "msg-#{@kind}"]}
       {@rest}
     >
-      <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
-      ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
-        </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
-        </button>
+      <.icon name={@icon_name} class="msg-icon" />
+      <div class="msg-text">
+        <span :if={@title} class="msg-title">{@title}</span>
+        {msg}
       </div>
+      <button
+        type="button"
+        class="msg-close"
+        phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      >
+        {gettext("Close")}
+      </button>
     </div>
     """
   end
 
   @doc """
-  Renders a button with navigation support.
+  Renders a button, or a link that looks like one when given `href`,
+  `navigate` or `patch`.
+
+  Five kinds (`variant`), chosen in Phase 0 of
+  `docs/plans/2026-10-15-theme-and-components.md`:
+
+    * `"main"` - the one most important action in an area ("Save changes")
+    * `"ordinary"` (the default) - any other action ("Cancel", "Send message")
+    * `"quiet"` - a low-key action that looks like a link ("Clear filters")
+    * `"danger"` - an action that removes something ("Delete this work")
+    * `"danger_final"` - only the final "Yes, delete" in a confirmation
+
+  While LiveView waits for the server after a click or a form submit, the
+  button shows a small turning circle; `phx-disable-with` changes its words
+  ("Saving…"). The look lives in `assets/css/app.css` (`btn-base`, ...).
+  `class` adds classes (for example `w-full`) on top of the kind's own.
 
   ## Examples
 
-      <.button>Send!</.button>
-      <.button phx-click="go" variant="primary">Send!</.button>
-      <.button navigate={~p"/"}>Home</.button>
+      <.button>Cancel</.button>
+      <.button variant="main" phx-disable-with="Saving…">Save changes</.button>
+      <.button variant="quiet" navigate={~p"/"}>Back to the home page</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :class, :any, default: nil, doc: "extra classes, added to the kind's own"
+  attr :variant, :string, default: "ordinary", values: ~w(main ordinary quiet danger danger_final)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "main" => "btn-main",
+      "ordinary" => "btn-ordinary",
+      "quiet" => "btn-quiet",
+      "danger" => "btn-danger",
+      "danger_final" => "btn-danger-final"
+    }
 
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns, :class, ["btn-base", Map.fetch!(variants, assigns.variant), assigns.class])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
@@ -117,11 +156,25 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   end
 
   @doc """
-  Renders an input with label and error messages.
+  Renders a form field: its label, optional help text, the box itself,
+  and any error messages.
 
   A `Phoenix.HTML.FormField` may be passed as argument,
   which is used to retrieve the input name, id, and values.
   Otherwise all attributes may be passed explicitly.
+
+  The look was chosen in Phase 0 of
+  `docs/plans/2026-10-15-theme-and-components.md` and lives in
+  `assets/css/app.css` (`field`, `field-input`, ...):
+
+    * the label is always above the box;
+    * `help` text sits between the label and the box, so it is read
+      before typing;
+    * `optional` adds "(optional)" after the label, in words (instead of
+      marking required fields with *);
+    * a mistake gives the box a red edge and a sentence under it.
+
+  `class` adds classes to the box, on top of its own.
 
   ## Types
 
@@ -140,7 +193,9 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   ## Examples
 
   ```heex
-  <.input field={@form[:email]} type="email" />
+  <.input field={@form[:email]} type="email" label="Email" />
+  <.input field={@form[:homepage]} label="Website" optional
+          help="Your own site, if you have one." />
   <.input name="my-input" errors={["oh no!"]} />
   ```
 
@@ -159,6 +214,8 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
+  attr :help, :string, default: nil, doc: "a sentence shown between the label and the box"
+  attr :optional, :boolean, default: false, doc: "adds \"(optional)\" after the label"
   attr :value, :any
 
   attr :type, :string,
@@ -174,8 +231,7 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
   attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
   attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
-  attr :class, :any, default: nil, doc: "the input class to use over defaults"
-  attr :error_class, :any, default: nil, doc: "the input error class to use over defaults"
+  attr :class, :any, default: nil, doc: "extra classes for the box, added to its own"
 
   attr :rest, :global,
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
@@ -186,7 +242,7 @@ defmodule ArtsyNeighborWeb.CoreComponents do
 
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
-    |> assign(:errors, Enum.map(errors, &translate_error(&1)))
+    |> assign(:errors, Enum.map(errors, fn error -> translate_error(error) end))
     |> assign_new(:name, fn -> if assigns.multiple, do: field.name <> "[]", else: field.name end)
     |> assign_new(:value, fn -> field.value end)
     |> input()
@@ -205,8 +261,8 @@ defmodule ArtsyNeighborWeb.CoreComponents do
       end)
 
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
+    <div class={["field", @errors != [] && "field-has-error"]}>
+      <label class="field-check">
         <input
           type="hidden"
           name={@name}
@@ -214,16 +270,18 @@ defmodule ArtsyNeighborWeb.CoreComponents do
           disabled={@rest[:disabled]}
           form={@rest[:form]}
         />
-        <span class="label">
-          <input
-            type="checkbox"
-            id={@id}
-            name={@name}
-            value="true"
-            checked={@checked}
-            class={@class || "checkbox checkbox-sm"}
-            {@rest}
-          />{@label}
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@checked}
+          class={@class}
+          {@rest}
+        />
+        <span>
+          {@label}<.optional_mark :if={@optional} />
+          <span :if={@help} class="field-help block">{@help}</span>
         </span>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
@@ -233,14 +291,15 @@ defmodule ArtsyNeighborWeb.CoreComponents do
 
   def input(%{type: "select"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class={["field", @errors != [] && "field-has-error"]}>
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <.field_label label={@label} optional={@optional} help={@help} />
         <select
           id={@id}
           name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
+          class={["field-input", @class]}
           multiple={@multiple}
+          aria-invalid={@errors != [] && "true"}
           {@rest}
         >
           <option :if={@prompt} value="">{@prompt}</option>
@@ -254,16 +313,14 @@ defmodule ArtsyNeighborWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class={["field", @errors != [] && "field-has-error"]}>
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <.field_label label={@label} optional={@optional} help={@help} />
         <textarea
           id={@id}
           name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
+          class={["field-input", @class]}
+          aria-invalid={@errors != [] && "true"}
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
@@ -275,18 +332,16 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
     ~H"""
-    <div class="fieldset mb-2">
+    <div class={["field", @errors != [] && "field-has-error"]}>
       <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <.field_label label={@label} optional={@optional} help={@help} />
         <input
           type={@type}
           name={@name}
           id={@id}
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
+          class={["field-input", @class]}
+          aria-invalid={@errors != [] && "true"}
           {@rest}
         />
       </label>
@@ -295,11 +350,30 @@ defmodule ArtsyNeighborWeb.CoreComponents do
     """
   end
 
+  # The words above a box: the label, "(optional)" if asked for, and the
+  # help text. Shared by the text, select and textarea fields.
+  attr :label, :any, required: true
+  attr :optional, :boolean, required: true
+  attr :help, :string, required: true
+
+  defp field_label(assigns) do
+    ~H"""
+    <span :if={@label} class="field-label">{@label}<.optional_mark :if={@optional} /></span>
+    <span :if={@help} class="field-help block">{@help}</span>
+    """
+  end
+
+  defp optional_mark(assigns) do
+    ~H"""
+    <span class="field-optional"> (optional)</span>
+    """
+  end
+
   # Helper used by inputs to generate form errors
   defp error(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
+    <p class="field-error">
+      <.icon name="hero-exclamation-circle" class="size-[18px] shrink-0 mt-px" />
       {render_slot(@inner_block)}
     </p>
     """

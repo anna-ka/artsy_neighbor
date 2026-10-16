@@ -210,8 +210,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
         })
         |> render_change()
 
-      # The input should gain the error class and the error message should be visible.
-      assert html =~ "input-error"
+      # The field should gain the error class and the error message should be visible.
+      assert html =~ "field-has-error"
       assert html =~ "blank"
     end
 

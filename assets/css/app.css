@@ -136,6 +136,215 @@
   }
 }
 
+/* Buttons, form fields and messages, chosen in Phase 0
+   (docs/design/mockups/elements.html; decisions in
+   docs/plans/2026-10-15-theme-and-components.md). Pages don't use these
+   classes directly: <.button>, <.input> and <.flash> in
+   core_components.ex do. The names are our own, not daisyUI's (btn,
+   input, alert...), so the two never fight over the same element.
+   "@layer components" lets a Tailwind class on the same element (such
+   as w-full) still win. */
+@layer components {
+  /* ---------- Buttons ----------
+     btn-base is what every button shares; one kind class is added:
+       btn-main          the one most important action in an area (near-black)
+       btn-ordinary      other actions (outlined in the text colour)
+       btn-quiet         low-key actions that look like a link
+       btn-danger        actions that remove something (outlined in red)
+       btn-danger-final  the final "Yes, delete" only (solid red)
+     In mockup.css these are .btn-primary, .btn-outline, .btn-quiet,
+     .btn-danger, .btn-danger-final. */
+  .btn-base {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 22px;
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-field);
+    background: none;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--color-base-content);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn-main { background: var(--color-primary); color: var(--color-primary-content); }
+  .btn-main:hover { background: color-mix(in srgb, var(--color-primary) 85%, white); }
+  .btn-ordinary { border-color: var(--color-base-content); }
+  .btn-ordinary:hover { background: var(--color-soft); }
+  .btn-quiet {
+    padding: 0 8px;
+    text-decoration: underline;
+    text-decoration-color: var(--color-secondary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  .btn-quiet:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+  .btn-danger { color: var(--color-error); border-color: var(--color-error); }
+  .btn-danger:hover { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+  .btn-danger-final { background: var(--color-error); color: var(--color-error-content); }
+  .btn-danger-final:hover { background: color-mix(in srgb, var(--color-error) 85%, black); }
+  /* Keyboard focus: the same slate ring as links. */
+  .btn-base:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; }
+  /* Not available right now: a readable grey, not see-through. LiveView
+     also switches a button off while it is working (below); that one
+     keeps its own colours, as in the mockup. */
+  .btn-base:disabled:not(.phx-click-loading, .phx-submit-loading),
+  .btn-base:disabled:not(.phx-click-loading, .phx-submit-loading):hover {
+    background: var(--color-base-200);
+    color: var(--color-muted);
+    border-color: var(--color-base-300);
+    text-decoration: none;
+    cursor: not-allowed;
+  }
+  /* (Same :not(...) as above, so this rule is specific enough to win.) */
+  .btn-quiet:disabled:not(.phx-click-loading, .phx-submit-loading),
+  .btn-quiet:disabled:not(.phx-click-loading, .phx-submit-loading):hover {
+    background: none;
+    border-color: transparent;
+  }
+  /* Working ("Saving…"): a small turning circle before the words.
+     LiveView adds phx-click-loading / phx-submit-loading to a button
+     while the server is busy with its click or form; the new words come
+     from phx-disable-with on the button. */
+  .btn-base.phx-click-loading,
+  .btn-base.phx-submit-loading { cursor: progress; }
+  .btn-base.phx-click-loading::before,
+  .btn-base.phx-submit-loading::before {
+    content: "";
+    width: 15px;
+    height: 15px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* ---------- Form fields ----------
+     field          the whole thing: label, help, box, error message
+     field-label    always above the box; field-optional is "(optional)"
+     field-help     read before typing, so it sits between label and box
+     field-input    the box itself (input, select, textarea)
+     field-error    the message under a box with a mistake
+     field-check    a checkbox with its words; the whole line is clickable
+     A field with a mistake gets field-has-error. */
+  .field { margin-bottom: 18px; }
+  .field-label { display: block; margin-bottom: 4px; font-weight: 500; }
+  .field-optional { font-weight: 400; color: var(--color-muted); }
+  .field-help { margin: 0 0 6px; font-size: 14px; color: var(--color-muted); }
+  .field-input {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 12px;
+    border: 1.5px solid var(--color-field-edge);
+    border-radius: var(--radius-field);
+    background-color: #FFFFFF;
+    font-family: var(--font-sans);
+    /* 16px: smaller text in a field makes iPhones zoom in. */
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--color-base-content);
+  }
+  textarea.field-input { min-height: 104px; resize: vertical; }
+  /* Example text in an empty field: fainter than real text, so it doesn't
+     look filled in. Only for examples, never for anything people must read. */
+  .field-input::placeholder { color: var(--color-field-edge); opacity: 1; }
+  /* Dropdowns: the browser's arrow replaced by a simple, larger one. */
+  select.field-input {
+    appearance: none;
+    padding-right: 40px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231E1C19' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 18px;
+  }
+  /* A dropdown that allows several choices shows a list, not an arrow. */
+  select.field-input[multiple] { padding-right: 12px; background-image: none; }
+  /* Typing: slate edge and a soft slate glow. */
+  .field-input:focus {
+    outline: none;
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-secondary) 25%, transparent);
+  }
+  /* A mistake: red edge (a little thicker) and a message under the box. */
+  .field-has-error .field-input { border-color: var(--color-error); box-shadow: 0 0 0 1px var(--color-error); }
+  .field-has-error .field-input:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 25%, transparent);
+  }
+  .field-error {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--color-error);
+  }
+  /* Not available: grey, readable. */
+  .field-input:disabled {
+    background-color: var(--color-base-200);
+    color: var(--color-muted);
+    border-color: var(--color-base-300);
+    cursor: not-allowed;
+  }
+  /* Checkboxes: 22px, near-black when ticked, words beside them. */
+  .field-check { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; cursor: pointer; }
+  .field-check input {
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    flex: none;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+  }
+  .field-check input:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+
+  /* ---------- Messages ("flash") ----------
+     "Tinted": a pale wash of the kind's colour with a thin outline in it.
+     Four kinds, each with its own colour and icon (colour is never the
+     only clue). --kind holds the kind's colour for the shared rules. */
+  .msg {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border: 1.5px solid color-mix(in srgb, var(--kind) 45%, var(--color-base-100));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--kind) 9%, var(--color-base-100));
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--color-base-content);
+  }
+  .msg-success { --kind: var(--color-success); }
+  .msg-info { --kind: var(--color-info); }
+  .msg-warning { --kind: var(--color-warning); }
+  .msg-error { --kind: var(--color-error); }
+  .msg-icon { width: 22px; height: 22px; flex: none; margin-top: 1px; color: var(--kind); }
+  .msg-text { flex: 1; }
+  .msg-title { font-weight: 600; }
+  /* "Close" in words (not just ×), like a quiet button. */
+  .msg-close {
+    flex: none;
+    padding: 2px 4px;
+    background: none;
+    border: 0;
+    font-size: 14px;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+    cursor: pointer;
+  }
+  .msg-close:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; border-radius: 4px; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* This file is for your main application CSS */
 
 /* Custom layout classes */
