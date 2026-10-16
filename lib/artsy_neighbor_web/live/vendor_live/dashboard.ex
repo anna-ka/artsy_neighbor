@@ -312,7 +312,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                           <.link
                             phx-click="archive_product"
                             phx-value-id={product.id}
-                            data-confirm="Archive this listing? It will be hidden from the public site. This can be undone, but not by you yet — contact an admin to restore it."
+                            data-confirm="Archive this listing?"
+                            data-confirm-detail="It will be hidden from the public site. This can be undone, but not by you yet — contact an admin to restore it."
+                            data-confirm-yes="Yes, archive"
                             class="btn btn-ghost btn-xs text-warning"
                           >
                             Archive

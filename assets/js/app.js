@@ -42,6 +42,74 @@ const CategoryScroll = {
   }
 }
 
+// Asking before a dangerous action, in our own box instead of the
+// browser's plain "OK / Cancel" pop-up. Any clickable element with
+// data-confirm gets it:
+//
+//   data-confirm         the question, shown as the heading (required)
+//                        e.g. "Delete “Crow at Ross Bay”?"
+//   data-confirm-detail  a sentence or two on what will happen (optional)
+//   data-confirm-yes     words on the "yes" button (default "Yes, delete")
+//   data-confirm-kind    "ordinary" for actions that are not dangerous,
+//                        such as restoring: the "yes" button is then
+//                        the main dark button instead of solid red
+//
+// How it works: phoenix_html (imported above) sends a
+// "phoenix.link.click" event to the clicked element before anything else
+// happens, and cancelling that event cancels the click. We listen first
+// (the `true` below), stop the click, and open the box. If "yes" is
+// chosen, we mark the element and click it again; the second time we let
+// the click through. Stopping the event also keeps phoenix_html's own
+// pop-up from appearing.
+const confirmDialog = document.getElementById("confirm-dialog")
+
+window.addEventListener("phoenix.link.click", event => {
+  const element = event.target
+  const question = element.getAttribute("data-confirm")
+  if (!question || !confirmDialog) return
+
+  event.stopPropagation()
+
+  if (element.dataset.confirmed === "yes") {
+    delete element.dataset.confirmed
+    return
+  }
+
+  event.preventDefault()
+  askToConfirm(element, question)
+}, true)
+
+function askToConfirm(element, question) {
+  const detail = element.getAttribute("data-confirm-detail") || ""
+  const yesWords = element.getAttribute("data-confirm-yes") || "Yes, delete"
+  const ordinary = element.getAttribute("data-confirm-kind") === "ordinary"
+
+  // textContent, not innerHTML: the words may contain a title typed by a
+  // user, and must show as plain text.
+  document.getElementById("confirm-title").textContent = question
+  const detailEl = document.getElementById("confirm-detail")
+  detailEl.textContent = detail
+  detailEl.hidden = detail === ""
+
+  const yesButton = document.getElementById("confirm-yes")
+  yesButton.textContent = yesWords
+  yesButton.classList.toggle("btn-danger-final", !ordinary)
+  yesButton.classList.toggle("btn-main", ordinary)
+
+  // The buttons sit in a <form method="dialog">, so pressing one closes
+  // the box and leaves its value ("yes" / "no") in returnValue. Esc
+  // closes it without a value.
+  confirmDialog.returnValue = ""
+  confirmDialog.addEventListener("close", () => {
+    if (confirmDialog.returnValue === "yes") {
+      element.dataset.confirmed = "yes"
+      element.click()
+    }
+  }, {once: true})
+
+  confirmDialog.showModal()
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,

@@ -349,6 +349,30 @@
   .msg-column { padding: 16px; }
   .msg-group { display: flex; flex-direction: column; gap: 12px; width: min(36rem, 100%); }
 
+  /* ---------- Confirming (a delete, usually) ----------
+     One box for the whole app, in root.html.heex, opened by the script
+     in assets/js/app.js for any click on something with data-confirm.
+     It is the browser's own <dialog>, which dims the page behind it
+     (::backdrop), keeps keyboard focus inside and closes on Esc. */
+  .confirm-dialog {
+    width: min(26rem, calc(100% - 32px));
+    /* Centred in the window: the browser does this itself, but Tailwind's
+       reset (margin: 0 on everything) undoes it. */
+    margin: auto;
+    padding: 24px;
+    border: 0;
+    border-radius: var(--radius-box);
+    background: var(--color-base-100);
+    color: var(--color-base-content);
+    box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35);
+  }
+  .confirm-dialog::backdrop { background: color-mix(in srgb, var(--color-base-content) 35%, transparent); }
+  /* The question: in the site's own font (Switzer), not the title font,
+     a little larger than the text, normal weight. */
+  .confirm-title { font-family: var(--font-sans); font-size: 17px; font-weight: 400; margin-bottom: 10px; }
+  .confirm-detail { margin: 0 0 10px; }
+  .confirm-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+
   /* ---------- Trial until Phase D ----------
      The switches on /dev/styleguide (development only) set
      data-msg-look and data-msg-place on the page; these rules apply

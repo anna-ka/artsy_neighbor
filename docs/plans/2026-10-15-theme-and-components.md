@@ -3,7 +3,8 @@
 Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
 Phase A done 2026-10-15 (notes at its end); Phase B's page built
 2026-10-15 (notes at its end); Phase C under way (button, input and
-messages done 2026-10-15; notes at its end).
+messages done 2026-10-15, confirm dialog 2026-10-16; notes at its
+end).
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
 decided in static mockups. This step moves those decisions into the
@@ -349,8 +350,28 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   top, which is temporary. **Decided in Phase D**; then the chosen
   look and place become the only ones, and the switches, the script and
   the unused rules are removed.
-- Next: the confirm-delete dialog (Phase 0, item 3), then the
-  `custom_components.ex` list.
+- **Confirm dialog (2026-10-16).** One box for the whole app
+  (`<dialog id="confirm-dialog">` in `root.html.heex`, outside the
+  LiveView), opened by a short script in `assets/js/app.js` for any click
+  on something with `data-confirm`. So every existing `data-confirm`
+  (10 places) got the new box at once, and the browser's "OK / Cancel"
+  pop-up is gone. The script takes over phoenix_html's own
+  `phoenix.link.click` step, which Phoenix documents as the way to
+  replace that pop-up. Attributes: `data-confirm` (the question, shown as
+  the heading), `data-confirm-detail` (optional sentences),
+  `data-confirm-yes` (default "Yes, delete"), `data-confirm-kind="ordinary"`
+  (the yes button is then the main dark one, e.g. for restoring). "No,
+  keep it" comes first and has the keyboard; Esc closes. The question
+  is in Switzer, 17px, normal weight (the title font at 22px looked far too
+  big next to the admin pages). The browser's
+  own `<dialog>` gives the dimmed page, keeps focus inside and is
+  announced by screen readers. Not chosen: a server-side dialog per
+  button (much more markup, a round trip just to open a box).
+  Wording fixed now only where "Yes, delete" would be wrong (archive a
+  listing, cancel an order, the admin restore / archive / mark removed
+  buttons); the other questions get a heading + detail split when their
+  page is restyled in Phase E. Style guide: "Confirming" section.
+- Next: the `custom_components.ex` list.
 
 ## Phase D: the page frame
 

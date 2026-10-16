@@ -96,6 +96,11 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
     {:noreply, socket}
   end
 
+  # The "Confirming" section: only reached after "Yes" in the box.
+  def handle_event("confirmed", %{"what" => what}, socket) do
+    {:noreply, put_flash(socket, :success, "You said yes: #{what}. (Nothing really changed.)")}
+  end
+
   # The "Working" buttons: wait two seconds, so the turning circle and the
   # changed words ("Saving…") can be seen. Development only.
   def handle_event("slow", _params, socket) do
@@ -246,6 +251,49 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
               <p class="mb-3 text-sm text-muted">A link that looks like a button:</p>
               <.button navigate={~p"/"}>Go to the home page</.button>
             </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="text-2xl mb-2">Confirming</h2>
+          <p class="mb-6 text-muted">
+            Any button or link with <code>data-confirm</code>
+            asks first, in one shared box
+            (<code>root.html.heex</code>; the script and its other <code>data-confirm-...</code>
+            attributes are in <code>assets/js/app.js</code>).
+            Esc or "No, keep it" closes it and nothing happens.
+          </p>
+          <div class="flex flex-wrap items-center gap-4">
+            <.button
+              id="confirm-demo-delete"
+              variant="danger"
+              phx-click="confirmed"
+              phx-value-what="delete"
+              data-confirm="Delete “Crow at Ross Bay”?"
+              data-confirm-detail="It will no longer show in your shop. Past orders and reviews keep it. You can restore it later from your dashboard."
+            >
+              Delete this work
+            </.button>
+            <.button
+              id="confirm-demo-restore"
+              phx-click="confirmed"
+              phx-value-what="restore"
+              data-confirm="Restore “Crow at Ross Bay”?"
+              data-confirm-detail="It will show in your shop again."
+              data-confirm-yes="Yes, restore"
+              data-confirm-kind="ordinary"
+            >
+              Restore
+            </.button>
+            <.button
+              id="confirm-demo-short"
+              variant="danger"
+              phx-click="confirmed"
+              phx-value-what="delete message"
+              data-confirm="Delete this message?"
+            >
+              Question only
+            </.button>
           </div>
         </section>
 

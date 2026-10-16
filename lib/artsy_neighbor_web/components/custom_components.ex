@@ -366,6 +366,8 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         phx-click="restore"
         phx-value-id={@id}
         data-confirm={@restore_confirm}
+        data-confirm-yes="Yes, restore"
+        data-confirm-kind="ordinary"
       >
         <button class="btn btn-ghost btn-xs text-success">restore</button>
       </.link>
@@ -374,6 +376,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         phx-click={@soft_delete_event}
         phx-value-id={@id}
         data-confirm={@soft_delete_confirm}
+        data-confirm-yes={"Yes, #{@soft_delete_label}"}
       >
         <button class="btn btn-ghost btn-xs text-warning">{@soft_delete_label}</button>
       </.link>

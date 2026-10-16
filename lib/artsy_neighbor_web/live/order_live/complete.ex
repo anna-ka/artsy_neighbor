@@ -132,7 +132,8 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
           <div class="border-t border-base-content/10 pt-4">
             <button
               phx-click="cancel_order"
-              data-confirm="Are you sure you want to cancel this order?"
+              data-confirm="Cancel this order?"
+              data-confirm-yes="Yes, cancel it"
               class="btn btn-ghost btn-sm w-full text-error"
             >
               Cancel order

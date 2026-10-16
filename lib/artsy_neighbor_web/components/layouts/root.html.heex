@@ -96,5 +96,23 @@
       <% end %>
     </ul>
     {@inner_content}
+    <%!-- The one confirmation box for the whole app (styles: .confirm-dialog
+         in assets/css/app.css). Filled and opened by the script in
+         assets/js/app.js whenever something with data-confirm is clicked;
+         see that script for the data-confirm-... attributes. It sits
+         outside the LiveView on purpose, so LiveView never redraws it. --%>
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <h2 id="confirm-title" class="confirm-title"></h2>
+        <p id="confirm-detail" class="confirm-detail"></p>
+        <div class="confirm-buttons">
+          <%!-- "No" comes first, so the keyboard starts on the safe choice. --%>
+          <button value="no" class="btn-base btn-ordinary">No, keep it</button>
+          <button id="confirm-yes" value="yes" class="btn-base btn-danger-final">
+            Yes, delete
+          </button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>
