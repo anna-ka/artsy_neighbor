@@ -276,8 +276,8 @@ messages, for deciding their placement (see Phase 0, item 3).
   the home page) sit at the top and bottom of the page. First finding,
   with today's messages: **two messages at once lie on top of each
   other**, so only the second is seen. The new `<.flash_group>` in
-  Phase C must stack them. Placement is confirmed here once the new
-  message style exists (Phase C), then in two or three real flows.
+  Phase C must stack them (done). Placement and look are decided in
+  Phase D, with the trial switches added in Phase C (see there).
 
 ## Phase C: shared components
 
@@ -331,8 +331,24 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   page by page in Phase E.
 - Style guide shows all of the above, with a "working" demo (the server
   waits two seconds).
-- **Placement still to confirm** in two or three real flows (save a
-  product, send a message), now that the new look exists.
+- **Message trial (2026-10-16).** Trying the new messages in the app,
+  the developer found solid messages far more noticeable, though
+  jarring. Current leaning, after trying the switches below: **success
+  and information tinted; warnings and errors solid; all messages
+  "higher up", a quarter of the way down the window.** All messages
+  form one column (`msg-column` in `flash_group`), so they never cover
+  each other: warnings and errors first (seen first), then success and
+  information. More than one message at once (especially a success and
+  an error) is itself a sign of a confusing page, so it should be rare;
+  it only has to stay readable, not look polished.
+  The style guide has dev-only switches: look of warnings and errors
+  (tinted / solid) and place of all messages (top / higher up /
+  centre). The choice is remembered in the browser and applies on every
+  page of the app (script in `root.html.heex`, rules in `app.css`);
+  without it, and always in production, everything is tinted at the
+  top, which is temporary. **Decided in Phase D**; then the chosen
+  look and place become the only ones, and the switches, the script and
+  the unused rules are removed.
 - Next: the confirm-delete dialog (Phase 0, item 3), then the
   `custom_components.ex` list.
 
@@ -340,7 +356,8 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
 
 In `layouts.ex` / `root.html.heex`: header (logo, wordmark, search,
 links), category bar, water background (header and sides), footer, and
-where messages appear. The logo waits for the final version from the
+where messages appear (and how warnings and errors look: see the
+message trial in Phase C's notes; remove the trial afterwards). The logo waits for the final version from the
 developer's daughter; the current draft is used until then.
 
 ## Phase E: pages, one at a time

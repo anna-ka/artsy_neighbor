@@ -341,6 +341,33 @@
     cursor: pointer;
   }
   .msg-close:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; border-radius: 4px; }
+  /* All messages form one column (msg-column, see Layouts.flash_group/1),
+     made of two groups, one under the other: warnings and errors
+     (msg-alerts) first, then success and information. */
+  /* The column's padding is here, not a Tailwind class (p-4) on it: a
+     Tailwind class would win over the "higher up" rule below. */
+  .msg-column { padding: 16px; }
+  .msg-group { display: flex; flex-direction: column; gap: 12px; width: min(36rem, 100%); }
+
+  /* ---------- Trial until Phase D ----------
+     The switches on /dev/styleguide (development only) set
+     data-msg-look and data-msg-place on the page; these rules apply
+     them. Without the switches, every message is tinted, at the top. */
+  /* Look "solid", for warnings and errors only: filled with the kind's
+     colour, white words. */
+  html[data-msg-look="solid"] .msg-alerts .msg {
+    background: var(--kind);
+    border-color: var(--kind);
+    color: #FFFFFF;
+  }
+  html[data-msg-look="solid"] .msg-alerts .msg-icon { color: #FFFFFF; }
+  /* Place, for the whole column: "higher up" starts it a quarter of the
+     way down the window, "centre" puts it in the middle. Away from the
+     edge the messages float over the page, so they get a soft shadow. */
+  html[data-msg-place="higher"] .msg-column { padding-top: 25vh; }
+  html[data-msg-place="centre"] .msg-column { justify-content: center; }
+  html[data-msg-place="higher"] .msg-column .msg,
+  html[data-msg-place="centre"] .msg-column .msg { box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -122,7 +122,10 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
           </p>
         </header>
 
-        <.flash_buttons id="flash-buttons-top" />
+        <section>
+          <.message_trial />
+          <.flash_buttons id="flash-buttons-top" />
+        </section>
 
         <section>
           <h2 class="text-2xl mb-4">Colours</h2>
@@ -303,10 +306,10 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
         <section>
           <h2 class="text-2xl mb-2">Messages</h2>
           <p class="mb-4 text-muted">
-            <code>&lt;.flash&gt;</code>, four kinds. Samples of each below; the buttons
-            show real messages, which stay at the top of the window. Start a message
-            with a few bold words saying what happened. To see "We can't find the
-            internet", stop the server for a few seconds.
+            <code>&lt;.flash&gt;</code>, four kinds. Samples of each below (always tinted);
+            the buttons show real messages, placed as chosen with the switches at the top
+            of this page. Start a message with a few bold words saying what happened. To
+            see "We can't find the internet", stop the server for a few seconds.
           </p>
           <div class="max-w-xl space-y-3 mb-8">
             <.flash id="sample-success" kind={:success} title="Saved.">
@@ -341,6 +344,48 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
       <p class="mt-2 text-sm font-semibold">{@name}</p>
       <p class="text-sm text-muted">{render_slot(@inner_block)}</p>
     </div>
+    """
+  end
+
+  # Trial until Phase D: switches for the look of warnings and errors and
+  # the place of all messages. Plain radio buttons; the script in root.html.heex remembers the
+  # choice in this browser and applies it on every page of the app.
+  # phx-update="ignore" stops LiveView from redrawing them (and so un-ticking
+  # them) when this page changes.
+  defp message_trial(assigns) do
+    ~H"""
+    <div id="message-trial" phx-update="ignore" class="mb-6 rounded-box bg-base-200 p-5">
+      <h2 class="text-xl mb-1">Trying out messages</h2>
+      <p class="mb-4 text-sm text-muted">
+        Until Phase D. The look is for warnings and errors only (success and
+        information stay tinted); the place is for all messages. The choice
+        applies to every page of the app, in this browser only.
+      </p>
+      <fieldset class="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+        <legend class="float-left mr-4 font-medium">Look of warnings and errors:</legend>
+        <.trial_choice name="msg-look" value="tinted" label="Tinted" />
+        <.trial_choice name="msg-look" value="solid" label="Solid" />
+      </fieldset>
+      <fieldset class="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <legend class="float-left mr-4 font-medium">Place of all messages:</legend>
+        <.trial_choice name="msg-place" value="top" label="Top" />
+        <.trial_choice name="msg-place" value="higher" label="Higher up" />
+        <.trial_choice name="msg-place" value="centre" label="Centre" />
+      </fieldset>
+    </div>
+    """
+  end
+
+  attr :name, :string, required: true
+  attr :value, :string, required: true
+  attr :label, :string, required: true
+
+  defp trial_choice(assigns) do
+    ~H"""
+    <label class="field-check">
+      <input type="radio" name={@name} value={@value} />
+      <span>{@label}</span>
+    </label>
     """
   end
 
