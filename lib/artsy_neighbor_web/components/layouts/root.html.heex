@@ -114,5 +114,12 @@
         </div>
       </form>
     </dialog>
+
+    <%!-- The "Not built yet" note for placeholders (<.placeholder> in
+         custom_components.ex; styles: .placeholder-note in app.css).
+         Filled, placed and shown by the script in assets/js/app.js. Outside
+         the LiveView for the same reason as the box above. role="status"
+         makes screen readers read it out when it appears. --%>
+    <div id="placeholder-note" class="placeholder-note" role="status" hidden></div>
   </body>
 </html>

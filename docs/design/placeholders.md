@@ -5,8 +5,9 @@ While pages are restyled to match the mockups
 exist yet are shown as **placeholders**: they look like the real thing,
 but pressing them only shows a "Not built yet" message.
 
-- In the code, each one is wrapped in the `<.placeholder>` component.
-  Searching for `<.placeholder` finds them all.
+- In the code, each one is wrapped in the `<.placeholder>` component
+  (`custom_components.ex`; examples on `/dev/styleguide`). Searching
+  for `<.placeholder` finds them all.
 - Each one is listed below, by page, with what it needs to become real.
 - When a feature is built, its placeholder is replaced and its entry
   here is deleted.

@@ -373,6 +373,29 @@
   .confirm-detail { margin: 0 0 10px; }
   .confirm-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 20px; }
 
+  /* ---------- Placeholders (features not built yet) ----------
+     <.placeholder> in custom_components.ex. The wrapper takes no space of
+     its own (display: contents), so what's inside looks as it would for
+     real. Pressing it shows the note below, placed under the pressed
+     element by the script in assets/js/app.js: an information message
+     in miniature (same tint), floating over the page. */
+  .placeholder { display: contents; }
+  .placeholder-note {
+    --kind: var(--color-info);
+    position: absolute;
+    z-index: 60;
+    max-width: min(20rem, calc(100% - 32px));
+    padding: 6px 12px;
+    border: 1.5px solid color-mix(in srgb, var(--kind) 45%, var(--color-base-100));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--kind) 9%, var(--color-base-100));
+    box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.3);
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--color-base-content);
+  }
+  .placeholder-note[hidden] { display: none; }
+
   /* ---------- Cards: artworks and collections ----------
      <.artwork_card> and <.collection_card> in custom_components.ex.
      Both are landscape 4:3 pictures in a thin outline (the divider

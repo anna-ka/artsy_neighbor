@@ -110,7 +110,55 @@ function askToConfirm(element, question) {
   confirmDialog.showModal()
 }
 
-const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+// Placeholders: features shown but not built yet (<.placeholder> in
+// custom_components.ex). Pressing anything inside one shows a small note,
+// "Not built yet: <what>", just below it, and does nothing else.
+//
+// How it works: we listen for clicks on the whole window, in the
+// "capture" phase (the `true` below), which runs before LiveView and the
+// browser itself handle the click. For a click inside a placeholder we
+// cancel it (so a link goes nowhere, a button submits nothing) and show
+// the note. The next click anywhere else, or Esc, hides it again.
+const placeholderNote = document.getElementById("placeholder-note")
+
+window.addEventListener("click", event => {
+  if (!placeholderNote) return
+  const placeholder = event.target.closest("[data-placeholder]")
+
+  if (!placeholder) {
+    placeholderNote.hidden = true
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  showPlaceholderNote(event.target, placeholder.getAttribute("data-placeholder"))
+}, true)
+
+window.addEventListener("keydown", event => {
+  if (event.key === "Escape" && placeholderNote) placeholderNote.hidden = true
+})
+
+function showPlaceholderNote(pressed, what) {
+  // The wrapper itself takes no space on the page, so we place the note
+  // under the element that was actually pressed (its button or link, if
+  // the click landed on, say, an icon inside one).
+  const element = pressed.closest("button, a") || pressed
+  const box = element.getBoundingClientRect()
+
+  // textContent: shown as plain text, never as markup.
+  placeholderNote.textContent = `Not built yet: ${what}`
+  placeholderNote.hidden = false
+
+  // Page coordinates (window position + how far the page is scrolled),
+  // kept inside the window on the right.
+  const noteWidth = placeholderNote.offsetWidth
+  const rightmost = window.scrollX + document.documentElement.clientWidth - noteWidth - 16
+  placeholderNote.style.left = `${Math.max(16, Math.min(window.scrollX + box.left, rightmost))}px`
+  placeholderNote.style.top = `${window.scrollY + box.bottom + 6}px`
+}
+
+const csrfToken =document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},

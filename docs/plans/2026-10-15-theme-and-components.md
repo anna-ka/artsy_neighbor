@@ -436,7 +436,24 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   `.stars`. Not in this step: the clickable stars for choosing a rating
   in the review forms (Phase E, with those forms), and showing reviews
   on public pages (the flags bundle).
-- Next: step 4, `<.placeholder>` and `docs/design/placeholders.md`.
+- **Placeholders (2026-10-16).** `<.placeholder what="Following
+  artists">` wraps the markup the real feature would have (button, link,
+  tab, a line of text). The wrapper is `display: contents`, so the
+  layout doesn't change. Pressing anything inside shows a small note,
+  "Not built yet: Following artists", just below the pressed element
+  (an information message in miniature, floating over the page); the
+  next click anywhere, or Esc, closes it. Same pattern as the confirm
+  dialog: one note in `root.html.heex` outside the LiveView, a short
+  script in `assets/js/app.js` that catches the click before LiveView
+  and the browser do (so a link goes nowhere and a button submits
+  nothing). No server code, and pages handle no event. `role="status"`
+  so screen readers read the note out. Not chosen: a normal message at
+  the top (it doesn't show *what* was pressed, and the message column
+  belongs to LiveView). `docs/design/placeholders.md` stays empty until
+  Phase E puts the first ones on pages. Style guide: "Placeholders".
+- **Phase C done** (the old `button_artsy`, `product_card` and
+  `category_card` go as their pages are restyled in Phase E). Next:
+  Phase D, the page frame.
 
 ## Phase D: the page frame
 

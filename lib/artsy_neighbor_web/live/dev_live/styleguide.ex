@@ -24,7 +24,8 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
       chip: 1,
       filter_chip: 1,
       star_rating: 1,
-      review: 1
+      review: 1,
+      placeholder: 1
     ]
 
   alias ArtsyNeighbor.Categories
@@ -631,6 +632,42 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
                   </:report>
                 </.review>
               </ul>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="text-2xl mb-2">Placeholders</h2>
+          <p class="mb-6 text-muted">
+            <code>&lt;.placeholder what="..."&gt;</code>
+            around a feature that is shown but not built yet. It looks like the real thing;
+            pressing it shows "Not built yet" just below. Each one is listed in <code>docs/design/placeholders.md</code>.
+          </p>
+
+          <div class="space-y-8 max-w-3xl">
+            <div>
+              <p class="mb-3 text-sm text-muted">A button.</p>
+              <.placeholder what="Following artists">
+                <.button id="placeholder-demo-follow">Follow</.button>
+              </.placeholder>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">A link (it goes nowhere).</p>
+              <.placeholder what="Commissions">
+                <.link id="placeholder-demo-link" navigate="/" class="text-link">
+                  Ask about a commission
+                </.link>
+              </.placeholder>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">A line of text, such as an artist's motto.</p>
+              <.placeholder what="Artist's motto">
+                <p id="placeholder-demo-motto" class="italic">
+                  “Painting the coast one tide at a time.”
+                </p>
+              </.placeholder>
             </div>
           </div>
         </section>

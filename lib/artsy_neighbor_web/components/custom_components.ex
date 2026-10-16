@@ -574,6 +574,36 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Marks a feature that is shown but not built yet. Wrap the markup the
+  real feature would have (a button, a tab, a line of text); it looks
+  exactly the same, but pressing it only shows a small note, "Not built
+  yet: <what>", just below it, instead of doing anything.
+
+  Every placeholder is listed in `docs/design/placeholders.md`, and must
+  be built or removed before testers see the site.
+
+  How it works: the wrapper has `display: contents`, so it doesn't change
+  the layout. A script in `assets/js/app.js` catches any click inside a
+  `data-placeholder` before anything else sees it (so a link goes
+  nowhere and a button submits nothing) and shows the note, which lives
+  in `root.html.heex`.
+
+  ## Example
+
+      <.placeholder what="Following artists">
+        <.button variant="ordinary">Follow</.button>
+      </.placeholder>
+  """
+  attr :what, :string, required: true, doc: "The feature's name, shown in the note"
+  slot :inner_block, required: true
+
+  def placeholder(assigns) do
+    ~H"""
+    <span class="placeholder" data-placeholder={@what}>{render_slot(@inner_block)}</span>
+    """
+  end
+
+  @doc """
   Renders a banner with an optional tagline.
   """
 
