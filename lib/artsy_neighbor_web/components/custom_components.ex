@@ -84,6 +84,176 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Renders one artwork as a card: its first photo (cropped to a landscape
+  4:3 shape), its title, a line of details and, unless turned off, its
+  price. The whole card links to the product page.
+
+  The details line is "Artist · location · materials, size", leaving out
+  whatever the product doesn't have or the page turns off. Put cards in a `<div class="card-grid">`.
+
+  Replaces `product_card/1`, which stays until every page has switched
+  (Phase E of `docs/plans/2026-10-15-theme-and-components.md`).
+
+  ## Examples
+
+      <.artwork_card product={product} />
+      <.artwork_card product={product} show_price={false} />
+      <.artwork_card product={product} show_artist={false} />
+      <.artwork_card product={product} location="Fernwood" show_size={false} />
+  """
+  attr :product, :map,
+    required: true,
+    doc: "An ArtsyNeighbor.Products.Product, with :product_images and :artist preloaded"
+
+  attr :show_price, :boolean,
+    default: true,
+    doc: "false leaves the price out (the home page is a gallery, not a shop window)"
+
+  attr :show_artist, :boolean,
+    default: true,
+    doc: "false leaves the artist's name out (on the artist's own page)"
+
+  attr :show_size, :boolean, default: true, doc: "false leaves the size out"
+
+  # Text, not an on/off switch: artists have no neighbourhood field yet.
+  # When they do, a page passes it in, e.g. location={product.artist.neighbourhood}.
+  attr :location, :string,
+    default: nil,
+    doc: "The artist's neighbourhood, e.g. \"Fernwood\"; nil (the default) shows none"
+
+  attr :rest, :global, doc: "e.g. id, needed when the card is in a stream"
+
+  def artwork_card(assigns) do
+    assigns =
+      assign(assigns,
+        image_path: first_image_path(assigns.product),
+        details: artwork_details(assigns)
+      )
+
+    # alt="" because the title right under the photo already names the
+    # work; a screen reader would otherwise read it twice.
+    ~H"""
+    <.link navigate={~p"/products/#{@product}"} class="artwork-card" {@rest}>
+      <div class="artwork-card-pic"><img src={@image_path} alt="" /></div>
+      <h3 class="artwork-card-title">{@product.title}</h3>
+      <p :if={@details != ""} class="artwork-card-sub">{@details}</p>
+      <p :if={@show_price} class="artwork-card-price">{format_price(@product.price)}</p>
+    </.link>
+    """
+  end
+
+  # The path of the product's first photo (lowest position), or the
+  # placeholder picture when it has none.
+  defp first_image_path(product) do
+    images = Enum.sort_by(product.product_images, fn image -> image.position end)
+
+    case images do
+      [] -> "/images/placeholder-product.jpg"
+      [first | _rest] -> first.path
+    end
+  end
+
+  # "Maren Holt · Fernwood · Oil on canvas, 70 × 50 cm", from the card's
+  # assigns: each part only when there is something to show and the page
+  # hasn't turned it off. "" when there is nothing at all.
+  defp artwork_details(assigns) do
+    product = assigns.product
+
+    artist_name =
+      case product.artist do
+        %{nickname: nickname} when assigns.show_artist -> nickname
+        _no_artist_or_hidden -> nil
+      end
+
+    size =
+      if assigns.show_size do
+        artwork_size(product)
+      else
+        nil
+      end
+
+    materials_and_size =
+      [product.materials, size]
+      |> Enum.reject(fn part -> part in [nil, ""] end)
+      |> Enum.join(", ")
+
+    [artist_name, assigns.location, materials_and_size]
+    |> Enum.reject(fn part -> part in [nil, ""] end)
+    |> Enum.join(" · ")
+  end
+
+  # "70 × 50 cm" from whichever of width, length and height are filled in;
+  # nil when none are.
+  defp artwork_size(product) do
+    numbers =
+      [product.width, product.length, product.height]
+      |> Enum.reject(fn number -> is_nil(number) end)
+      |> Enum.map(fn number -> number |> Decimal.normalize() |> Decimal.to_string(:normal) end)
+
+    case numbers do
+      [] -> nil
+      # Non-breaking spaces (\u00A0), so a size never breaks across lines.
+      _some -> Enum.join(numbers, "\u00A0×\u00A0") <> "\u00A0" <> product.units
+    end
+  end
+
+  # "CA$350": whole dollars only, rounded to the nearest dollar (349.99
+  # shows as 350, 349.49 as 349). The product page and orders keep the
+  # exact price. A price under 50 cents would round to "CA$0" and look
+  # free, so it keeps its cents instead ("CA$0.45").
+  defp format_price(price) do
+    dollars = price |> Decimal.round(0, :half_up) |> Decimal.to_integer()
+
+    if dollars == 0 do
+      "CA$" <> Decimal.to_string(Decimal.round(price, 2), :normal)
+    else
+      "CA$" <> Integer.to_string(dollars)
+    end
+  end
+
+  @doc ~S"""
+  Renders a group of works as a card: one photo (cropped to a landscape
+  4:3 shape) with the group's name in a white label at the bottom. The
+  whole card is a link.
+
+  For site categories on the home page and for an artist's own
+  collections, which is why it takes plain values rather than a
+  category. Put cards in a `<div class="card-grid">`.
+
+  Replaces `category_card/1`, which stays until every page has switched.
+
+  ## Example
+
+      <.collection_card
+        name={category.name}
+        image={category.main_img}
+        navigate={~p"/products?#{[category_id: category.id]}"}
+      />
+  """
+  attr :name, :string, required: true
+  attr :image, :string, default: nil, doc: "Path of the photo; nil shows the placeholder"
+  attr :navigate, :string, required: true
+  attr :rest, :global, doc: "e.g. id"
+
+  def collection_card(assigns) do
+    image_path =
+      case assigns.image do
+        nil -> "/images/placeholder-category.jpg"
+        "" -> "/images/placeholder-category.jpg"
+        path -> path
+      end
+
+    assigns = assign(assigns, :image_path, image_path)
+
+    ~H"""
+    <.link navigate={@navigate} class="collection-card" {@rest}>
+      <img src={@image_path} alt="" />
+      <span class="collection-card-name">{@name}</span>
+    </.link>
+    """
+  end
+
+  @doc """
   Renders a banner with an optional tagline.
   """
 

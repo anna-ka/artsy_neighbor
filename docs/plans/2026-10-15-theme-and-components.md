@@ -371,7 +371,33 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   listing, cancel an order, the admin restore / archive / mark removed
   buttons); the other questions get a heading + detail split when their
   page is restyled in Phase E. Style guide: "Confirming" section.
-- Next: the `custom_components.ex` list.
+- **The `custom_components.ex` list, in four steps** (agreed
+  2026-10-16), each with its own style-guide section and commit: (1)
+  cards; (2) small text pieces: chip, section heading with "See all ›",
+  "Show more", quiet link, report link; (3) star rating and review; (4)
+  `<.placeholder>` and `docs/design/placeholders.md`.
+- **Cards (2026-10-16).** Named "cards" by the developer (the plan said
+  "tiles"). `<.artwork_card product={...}>`: first photo cropped to 4:3
+  in a thin outline, title in bold Switzer, a details line ("Artist ·
+  materials, size", leaving out what's missing; sizes never break across
+  lines), the price. `show_price={false}` for the home page,
+  `show_artist={false}` for the artist's own page, `show_size={false}`
+  to leave the size out, and `location="..."` to add the artist's
+  neighbourhood (text, not an on/off switch: artists have no
+  neighbourhood field yet). Prices: whole dollars only, rounded to the
+  nearest dollar ("CA$350" for 349.99), except that a price under 50
+  cents keeps its cents ("CA$0.45") rather than look free; the product page and orders keep
+  the exact price. `<.collection_card name image navigate>` takes plain
+  values (not a category), so it serves both site categories and an
+  artist's own collections; name in a see-through white pill (70%, with
+  a slight blur behind it) at the bottom, lighter on the photo than
+  solid white. Both go in a `card-grid` (4 across from 1280px, 3 on
+  tablets, 2 on phones). Photos have `alt=""` because the name next to
+  them already says what they are. The old `product_card` /
+  `category_card` stay until their pages are restyled (Phase E). Found
+  on the way: at phone width today's header makes the whole page scroll
+  sideways (Phase D rebuilds it).
+- Next: step 2, the small text pieces.
 
 ## Phase D: the page frame
 

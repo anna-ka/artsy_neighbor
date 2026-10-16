@@ -13,6 +13,11 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   """
   use ArtsyNeighborWeb, :live_view
 
+  import ArtsyNeighborWeb.CustomComponents, only: [artwork_card: 1, collection_card: 1]
+
+  alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.Products
+
   # Every colour in the theme, in the order shown on the page:
   # {CSS name, Tailwind background class, what it is for}.
   # The hex values live only in assets/css/app.css, so they can't drift apart.
@@ -50,10 +55,20 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
         page_title: "Style guide",
         theme_colours: @theme_colours,
         extra_colours: @extra_colours,
-        form: form
+        form: form,
+        sample_products: sample_products(),
+        sample_categories: Enum.take(Categories.list_categories(), 4)
       )
 
     {:ok, socket}
+  end
+
+  # Four real products for the "Cards" section, those with materials or a
+  # size first, so the details line under the title has something to show.
+  defp sample_products do
+    Products.list_products_with_associations()
+    |> Enum.sort_by(fn product -> is_nil(product.materials) and is_nil(product.width) end)
+    |> Enum.take(4)
   end
 
   # Buttons in the "Messages" section. Each shows real flash messages,
@@ -349,6 +364,60 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
               help="You bring the work to the buyer's door."
             />
           </.form>
+        </section>
+
+        <section>
+          <h2 class="text-2xl mb-2">Cards</h2>
+          <p class="mb-6 text-muted">
+            <code>&lt;.artwork_card&gt;</code>
+            and <code>&lt;.collection_card&gt;</code>, in a <code>card-grid</code>
+            (4 across on a wide window, 3 on a tablet, 2 on a phone). Real works and
+            categories from the database. The photo is cropped to fill the card; the
+            product page shows the whole work.
+          </p>
+          <p class="mb-3 text-sm text-muted">
+            Artworks as on the home page: no price (<code>show_price={"{false}"}</code>).
+          </p>
+          <div class="card-grid mb-10">
+            <.artwork_card
+              :for={product <- @sample_products}
+              product={product}
+              show_price={false}
+            />
+          </div>
+          <p class="mb-3 text-sm text-muted">
+            Artworks as in an artist's shop: no artist name (<code>show_artist={"{false}"}</code>), with the price.
+          </p>
+          <div class="card-grid mb-10">
+            <.artwork_card
+              :for={product <- @sample_products}
+              product={product}
+              show_artist={false}
+            />
+          </div>
+          <p class="mb-3 text-sm text-muted">
+            With a neighbourhood (<code>location="Fernwood"</code>; artists have no
+            such field yet) and no size (<code>show_size={"{false}"}</code>).
+          </p>
+          <div class="card-grid mb-10">
+            <.artwork_card
+              :for={product <- @sample_products}
+              product={product}
+              location="Fernwood"
+              show_size={false}
+            />
+          </div>
+          <p class="mb-3 text-sm text-muted">
+            Collections: site categories here, an artist's own collections on their page.
+          </p>
+          <div class="card-grid">
+            <.collection_card
+              :for={category <- @sample_categories}
+              name={category.name}
+              image={category.main_img}
+              navigate={~p"/products?#{[category_id: category.id]}"}
+            />
+          </div>
         </section>
 
         <section>

@@ -373,6 +373,49 @@
   .confirm-detail { margin: 0 0 10px; }
   .confirm-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin-top: 20px; }
 
+  /* ---------- Cards: artworks and collections ----------
+     <.artwork_card> and <.collection_card> in custom_components.ex.
+     Both are landscape 4:3 pictures in a thin outline (the divider
+     colour), cropped to fill it; the product page shows the whole work.
+     Not daisyUI's "card" class, which is something else. */
+  /* A row of cards: 4 across from 1280px up, 3 on tablets, 2 on phones. */
+  .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (min-width: 761px) { .card-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; } }
+  @media (min-width: 1280px) { .card-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .artwork-card, .collection-card { display: block; color: inherit; text-decoration: none; border-radius: var(--radius-box); }
+  .artwork-card:focus-visible, .collection-card:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 4px; }
+  .artwork-card-pic, .collection-card {
+    aspect-ratio: 4 / 3;
+    border: 1.5px solid var(--color-base-300);
+    border-radius: var(--radius-box);
+    overflow: hidden;
+  }
+  .artwork-card-pic img, .collection-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* In the site's own font, bold, like the mockup (not the title font). */
+  .artwork-card-title { font-family: var(--font-sans); font-size: 16px; font-weight: 700; margin-top: 10px; }
+  .artwork-card-sub { font-size: 15px; color: var(--color-muted); }
+  .artwork-card-price { font-weight: 600; margin-top: 2px; }
+  /* The collection's name: in a see-through white pill, centred at the
+     bottom, so it sits lightly on the photo. The slight blur keeps the
+     name readable over a busy photo. */
+  .collection-card { position: relative; }
+  .collection-card-name {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-base-100) 70%, transparent);
+    backdrop-filter: blur(4px);
+    color: var(--color-base-content);
+  }
+
   /* ---------- Trial until Phase D ----------
      The switches on /dev/styleguide (development only) set
      data-msg-look and data-msg-place on the page; these rules apply
