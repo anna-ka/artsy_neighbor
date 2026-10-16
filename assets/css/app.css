@@ -416,6 +416,78 @@
     color: var(--color-base-content);
   }
 
+  /* ---------- Links and small text pieces ----------
+     <.section_heading>, <.show_more>, <.quiet_link>, <.report_link>,
+     <.chip> and <.filter_chip> in custom_components.ex. */
+  /* The ordinary link look (chosen 2026-10-15): the text colour with a
+     thin slate underline a little below the text (clear of g and y); on
+     mouse-over the text turns slate and the line gets thicker. For now a
+     class (text-link) that pages add; it becomes the look of every link
+     in Phase D, when the header (whose links aren't underlined) is
+     rebuilt. "Show more" looks the same, but is a button. */
+  .text-link, .show-more {
+    color: var(--color-base-content);
+    text-decoration: underline;
+    text-decoration-color: var(--color-secondary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  .text-link:hover, .show-more:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+  .show-more { padding: 4px 0; background: none; border: 0; font: inherit; cursor: pointer; }
+  /* Quieter links ("Report a concern", "Back to top"): grey, smaller,
+     the ordinary text colour on mouse-over. */
+  .quiet-link {
+    font-size: 14px;
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .quiet-link:hover { color: var(--color-base-content); }
+  /* Keyboard focus: the same slate ring as buttons. */
+  .text-link:focus-visible, .show-more:focus-visible, .quiet-link:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* A section's title, with an optional link on the right ("See all
+     artists ›"). The link stays on one line; on a narrow screen the
+     title wraps instead. */
+  .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 18px; }
+  .section-heading h2 { font-size: 1.5rem; }
+  .section-heading-link { white-space: nowrap; }
+
+  /* A row of chips, wrapping onto more lines when needed. */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  /* Chips: small rounded tags (mediums, techniques). Just words, not
+     clickable. */
+  .chip { display: inline-block; padding: 3px 12px; border-radius: 999px; background: var(--color-soft); font-size: 15px; }
+  /* Filter chips: larger and clearly clickable (at least 40px tall); the
+     chosen one is filled in dark. */
+  .filter-chip {
+    min-height: 40px;
+    padding: 6px 16px;
+    border: 1.5px solid var(--color-base-300);
+    border-radius: 999px;
+    background: var(--color-base-100);
+    color: var(--color-base-content);
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .filter-chip:hover { background: var(--color-soft); }
+  .filter-chip[aria-pressed="true"] {
+    background: var(--color-base-content);
+    border-color: var(--color-base-content);
+    color: var(--color-base-100);
+  }
+  .filter-chip:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; }
+  .filter-chip-count { margin-left: 4px; opacity: 0.75; }
+  @media (max-width: 760px) {
+    .chip { padding: 2px 10px; font-size: 14px; }
+  }
+
   /* ---------- Trial until Phase D ----------
      The switches on /dev/styleguide (development only) set
      data-msg-look and data-msg-place on the page; these rules apply

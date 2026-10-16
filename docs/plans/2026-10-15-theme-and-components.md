@@ -397,14 +397,34 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   `category_card` stay until their pages are restyled (Phase E). Found
   on the way: at phone width today's header makes the whole page scroll
   sideways (Phase D rebuilds it).
-- Next: step 2, the small text pieces.
+- **Small text pieces (2026-10-16).** `<.section_heading>` (title, with
+  an optional `:link` slot on the right that stays on one line, for "See
+  all artists ›" or a "Show more categories ›" button); `<.show_more>` (a
+  button that looks like a link; the page changes its words and passes
+  `aria-expanded`); `<.quiet_link>` (grey, 14px, underlined);
+  `<.report_link subject id return_to return_label>` (a quiet link that
+  builds the `/flag/...` address itself, so the five pages that write it
+  by hand today get shorter in Phase E; still shown to logged-in users
+  only, by the page); `<.chip>` (small cream tag, not clickable) and
+  `<.filter_chip pressed count>` (large, at least 40px tall, the chosen
+  one filled in dark, `aria-pressed`), both in a `chip-row`. Filter
+  chips built now rather than with the Shop tab, so the style guide
+  shows the whole family (developer's choice). **The ordinary link look
+  is a class for now, `text-link`**: making it the look of every `<a>`
+  waits for Phase D, when the header (whose links aren't underlined) is
+  rebuilt anyway. Not chosen now: a global link rule, which would
+  underline the header, footer and old cards at once.
+- Next: step 3, star rating and review.
 
 ## Phase D: the page frame
 
 In `layouts.ex` / `root.html.heex`: header (logo, wordmark, search,
 links), category bar, water background (header and sides), footer, and
 where messages appear (and how warnings and errors look: see the
-message trial in Phase C's notes; remove the trial afterwards). The logo waits for the final version from the
+message trial in Phase C's notes; remove the trial afterwards). Also
+make the `text-link` look the look of every link (see "Small text
+pieces" in Phase C's notes), with header, footer and cards switching it
+off. The logo waits for the final version from the
 developer's daughter; the current draft is used until then.
 
 ## Phase E: pages, one at a time

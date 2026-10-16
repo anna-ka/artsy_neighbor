@@ -13,7 +13,17 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   """
   use ArtsyNeighborWeb, :live_view
 
-  import ArtsyNeighborWeb.CustomComponents, only: [artwork_card: 1, collection_card: 1]
+  import ArtsyNeighborWeb.CustomComponents,
+    only: [
+      artwork_card: 1,
+      collection_card: 1,
+      section_heading: 1,
+      show_more: 1,
+      quiet_link: 1,
+      report_link: 1,
+      chip: 1,
+      filter_chip: 1
+    ]
 
   alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.Products
@@ -57,7 +67,9 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
         extra_colours: @extra_colours,
         form: form,
         sample_products: sample_products(),
-        sample_categories: Enum.take(Categories.list_categories(), 4)
+        sample_categories: Enum.take(Categories.list_categories(), 4),
+        bio_open: false,
+        chosen_chip: "all"
       )
 
     {:ok, socket}
@@ -114,6 +126,16 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
   # The "Confirming" section: only reached after "Yes" in the box.
   def handle_event("confirmed", %{"what" => what}, socket) do
     {:noreply, put_flash(socket, :success, "You said yes: #{what}. (Nothing really changed.)")}
+  end
+
+  # The "Links and small pieces" section: "Show more" opens and closes a
+  # sample text; the filter chips change which one is chosen.
+  def handle_event("toggle_bio", _params, socket) do
+    {:noreply, assign(socket, :bio_open, not socket.assigns.bio_open)}
+  end
+
+  def handle_event("choose_chip", %{"chip" => chip}, socket) do
+    {:noreply, assign(socket, :chosen_chip, chip)}
   end
 
   # The "Working" buttons: wait two seconds, so the turning circle and the
@@ -421,6 +443,114 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
         </section>
 
         <section>
+          <h2 class="text-2xl mb-2">Links and small pieces</h2>
+          <p class="mb-6 text-muted">
+            <code>&lt;.section_heading&gt;</code>, <code>&lt;.show_more&gt;</code>, <code>&lt;.quiet_link&gt;</code>, <code>&lt;.report_link&gt;</code>,
+            <code>&lt;.chip&gt;</code>
+            and <code>&lt;.filter_chip&gt;</code>. Ordinary links get the <code>text-link</code>
+            class for now; in Phase D it becomes the look of every link.
+          </p>
+
+          <div class="space-y-10 max-w-3xl">
+            <div>
+              <p class="mb-3 text-sm text-muted">A link in text and a link on its own:</p>
+              <p>
+                Pickup is arranged with the artist; see <.link href="#" class="text-link">how pickup works</.link>.
+              </p>
+              <p class="mt-2">
+                <.link href="#" class="text-link">See all works by this artist ›</.link>
+              </p>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                Section headings, with and without a link (the link stays on one line):
+              </p>
+              <.section_heading>
+                Popular artists
+                <:link>
+                  <.link href="#" class="text-link">See all artists ›</.link>
+                </:link>
+              </.section_heading>
+              <.section_heading>
+                Popular categories
+                <:link>
+                  <.show_more>Show more categories ›</.show_more>
+                </:link>
+              </.section_heading>
+              <.section_heading>New works</.section_heading>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                "Show more", under a shortened text (try it):
+              </p>
+              <p id="sample-bio">
+                Maren paints the crows of Ross Bay and the animals of the shore, in oil
+                and silver leaf, from a small studio in Fernwood.<span :if={@bio_open}>
+                  She started painting at sixty, after thirty years of teaching, and
+                  still walks the sea wall every morning to sketch.
+                </span>
+              </p>
+              <.show_more
+                phx-click="toggle_bio"
+                aria-controls="sample-bio"
+                aria-expanded={to_string(@bio_open)}
+              >
+                {if @bio_open, do: "Show less ‹", else: "Show full bio ›"}
+              </.show_more>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                Quiet links, and a report link (here to the report form for one of the
+                sample works; logged-in users only):
+              </p>
+              <p class="flex flex-wrap gap-x-6 gap-y-2">
+                <.quiet_link href="#">Back to top</.quiet_link>
+                <%!-- A plain "/dev/styleguide", not ~p: the dev pages don't
+                     exist in the test build, so ~p would warn there. --%>
+                <.report_link
+                  :if={@sample_products != []}
+                  subject="product"
+                  id={hd(@sample_products).id}
+                  return_to="/dev/styleguide"
+                  return_label="Style guide"
+                >
+                  Report this listing
+                </.report_link>
+              </p>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">Chips: mediums and techniques, not clickable.</p>
+              <div class="chip-row">
+                <.chip>Oil painting</.chip>
+                <.chip>Silver leaf</.chip>
+                <.chip>Drawing</.chip>
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                Filter chips: large and clickable, the chosen one filled in (try them).
+              </p>
+              <div class="chip-row" role="group" aria-label="Show works from">
+                <.filter_chip
+                  :for={{key, name, count} <- sample_chips()}
+                  pressed={key == @chosen_chip}
+                  count={count}
+                  phx-click="choose_chip"
+                  phx-value-chip={key}
+                >
+                  {name}
+                </.filter_chip>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
           <h2 class="text-2xl mb-2">Messages</h2>
           <p class="mb-4 text-muted">
             <code>&lt;.flash&gt;</code>, four kinds. Samples of each below (always tinted);
@@ -447,6 +577,16 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
       </div>
     </Layouts.artsy_main>
     """
+  end
+
+  # The filter chips' sample collections: {key, name, number of works}.
+  defp sample_chips do
+    [
+      {"all", "All works", 24},
+      {"crows", "Crows", 7},
+      {"shore", "Shore animals", 4},
+      {"legends", "Legends", 5}
+    ]
   end
 
   # One colour sample: a filled box, its CSS name and what it is for.

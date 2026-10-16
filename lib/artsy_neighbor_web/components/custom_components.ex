@@ -254,6 +254,176 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Renders a section's title, with an optional link (or "Show more"
+  button) on the right of it.
+
+  For a link, give it the ordinary link look with `class="text-link"`.
+
+  ## Examples
+
+      <.section_heading>New works</.section_heading>
+
+      <.section_heading>
+        Popular artists
+        <:link>
+          <.link navigate={~p"/artists"} class="text-link">See all artists ›</.link>
+        </:link>
+      </.section_heading>
+  """
+  attr :rest, :global, doc: "e.g. id, or class for extra space"
+  slot :inner_block, required: true, doc: "The title"
+  slot :link, doc: "A link or button shown on the right, e.g. \"See all ›\""
+
+  def section_heading(assigns) do
+    ~H"""
+    <div class="section-heading" {@rest}>
+      <h2>{render_slot(@inner_block)}</h2>
+      <div :if={@link != []} class="section-heading-link">{render_slot(@link)}</div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a button that looks like a link, for showing more of something
+  on the same page: the rest of a long text, more categories, the
+  reviews. The page decides what it shows and changes the words
+  ("Show full bio ›" / "Show less ‹").
+
+  Pass `aria-expanded` so screen readers know whether the extra part is
+  showing.
+
+  ## Example
+
+      <.show_more phx-click="toggle_bio" aria-expanded={to_string(@bio_open)}>
+        {if @bio_open, do: "Show less ‹", else: "Show full bio ›"}
+      </.show_more>
+  """
+  attr :rest, :global, doc: "e.g. phx-click, aria-expanded, aria-controls"
+  slot :inner_block, required: true
+
+  def show_more(assigns) do
+    ~H"""
+    <button type="button" class="show-more" {@rest}>{render_slot(@inner_block)}</button>
+    """
+  end
+
+  @doc """
+  Renders a quieter link: grey, a little smaller. For links that should
+  be there but not draw the eye, such as "Back to top".
+
+  ## Example
+
+      <.quiet_link href="#top">Back to top</.quiet_link>
+  """
+  attr :rest, :global, include: ~w(href navigate patch method)
+  slot :inner_block, required: true
+
+  def quiet_link(assigns) do
+    ~H"""
+    <.link class="quiet-link" {@rest}>{render_slot(@inner_block)}</.link>
+    """
+  end
+
+  @doc """
+  Renders a "Report a concern" link: a quiet link to the report form for
+  one artist, buyer, product or review. It builds the form's address,
+  including the way back (`return_to` and `return_label`, shown as
+  "Back to ..." on the form).
+
+  The report form needs a logged-in user, so pages show this link only
+  to them.
+
+  ## Example
+
+      <.report_link
+        :if={@current_scope && @current_scope.user}
+        subject="product"
+        id={@product.id}
+        return_to={~p"/products/\#{@product.id}"}
+        return_label="Product page"
+      >
+        Report this listing
+      </.report_link>
+  """
+  attr :subject, :string,
+    required: true,
+    values: ~w(vendor buyer product vendor_review_of buyer_review_of product_review_of),
+    doc: "What is being reported (see Reviews.resolve_subject/2)"
+
+  attr :id, :any,
+    required: true,
+    doc: "The id of the artist, user, product or review (the review's own id, not its order's)"
+
+  attr :return_to, :string, required: true, doc: "The page to go back to after reporting"
+  attr :return_label, :string, required: true, doc: "That page's name, e.g. \"Product page\""
+  slot :inner_block, required: true
+
+  def report_link(assigns) do
+    query = [return_to: assigns.return_to, return_label: assigns.return_label]
+    assigns = assign(assigns, :path, ~p"/flag/#{assigns.subject}/#{assigns.id}?#{query}")
+
+    ~H"""
+    <.quiet_link navigate={@path}>{render_slot(@inner_block)}</.quiet_link>
+    """
+  end
+
+  @doc """
+  Renders a chip: a small rounded tag, such as a medium or a technique.
+  Just words, not clickable (for that, see `filter_chip/1`). Put chips in
+  a `<div class="chip-row">`.
+
+  ## Example
+
+      <div class="chip-row">
+        <.chip :for={medium <- @mediums}>{medium}</.chip>
+      </div>
+  """
+  slot :inner_block, required: true
+
+  def chip(assigns) do
+    ~H"""
+    <span class="chip">{render_slot(@inner_block)}</span>
+    """
+  end
+
+  @doc """
+  Renders a filter chip: a large, rounded button that shows only some of
+  the works ("Crows (7)"). The chosen one is filled in dark. The page
+  handles the click and says which one is chosen.
+
+  Put them in a `<div class="chip-row" role="group" aria-label="...">`,
+  the label saying what they filter ("Show works from").
+
+  ## Example
+
+      <div class="chip-row" role="group" aria-label="Show works from">
+        <.filter_chip
+          :for={collection <- @collections}
+          pressed={collection.id == @chosen_id}
+          count={collection.count}
+          phx-click="choose_collection"
+          phx-value-id={collection.id}
+        >
+          {collection.name}
+        </.filter_chip>
+      </div>
+  """
+  attr :pressed, :boolean, default: false, doc: "true for the chosen chip"
+  attr :count, :integer, default: nil, doc: "How many works it shows, e.g. 7 for \"(7)\""
+  attr :rest, :global, doc: "e.g. phx-click, phx-value-id"
+  slot :inner_block, required: true
+
+  # aria-pressed tells screen readers which chip is chosen; the CSS uses
+  # it too, to fill that chip in.
+  def filter_chip(assigns) do
+    ~H"""
+    <button type="button" class="filter-chip" aria-pressed={to_string(@pressed)} {@rest}>
+      {render_slot(@inner_block)}<span :if={@count} class="filter-chip-count">({@count})</span>
+    </button>
+    """
+  end
+
+  @doc """
   Renders a banner with an optional tagline.
   """
 
