@@ -424,6 +424,156 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Renders a star rating: five stars filled up to the average rating (4.4
+  fills four stars and 40% of the fifth), then the number of reviews, in
+  one of three looks:
+
+  - `"short"` (default): ★★★★☆ (25). On a product page or an artist's
+    header, usually as a link to the reviews.
+  - `"home"`: ★★★★☆ 4.4 · 25 reviews. On the home page's artist cards.
+  - `"full"`: ★★★★☆ 4.4 out of 5 · 25 reviews. Above a list of reviews.
+
+  Give it `href`, `navigate` or `patch` and it becomes a link, with the
+  words underlined. Screen readers hear one sentence ("Rated 4.4 out of
+  5, from 25 reviews") instead of the stars.
+
+  Pages show it only when there is at least one review.
+
+  ## Examples
+
+      <.star_rating rating={@rating} count={@review_count} href="#reviews" />
+
+      <.star_rating rating={@rating} count={@review_count} look="full" />
+  """
+  attr :rating, :any, required: true, doc: "The average, from 0 to 5, e.g. 4.4"
+  attr :count, :integer, required: true, doc: "How many reviews"
+  attr :look, :string, default: "short", values: ~w(short home full)
+  attr :rest, :global, include: ~w(href navigate patch)
+
+  def star_rating(assigns) do
+    is_link =
+      Map.has_key?(assigns.rest, :href) or Map.has_key?(assigns.rest, :navigate) or
+        Map.has_key?(assigns.rest, :patch)
+
+    assigns =
+      assigns
+      |> assign(:is_link, is_link)
+      |> assign(:words, rating_words(assigns.look, assigns.rating, assigns.count))
+      |> assign(:spoken, rating_spoken(assigns.rating, assigns.count, is_link))
+
+    ~H"""
+    <.link :if={@is_link} class="star-rating" aria-label={@spoken} {@rest}>
+      <.stars rating={@rating} />
+      <span class="star-rating-words" aria-hidden="true">{@words}</span>
+    </.link>
+    <span :if={not @is_link} class="star-rating" role="img" aria-label={@spoken} {@rest}>
+      <.stars rating={@rating} />
+      <span class="star-rating-words" aria-hidden="true">{@words}</span>
+    </span>
+    """
+  end
+
+  defp rating_words("short", _rating, count), do: "(#{count})"
+  defp rating_words("home", rating, count), do: "#{one_decimal(rating)} · #{reviews_word(count)}"
+
+  defp rating_words("full", rating, count) do
+    "#{one_decimal(rating)} out of 5 · #{reviews_word(count)}"
+  end
+
+  defp rating_spoken(rating, count, is_link) do
+    sentence = "Rated #{one_decimal(rating)} out of 5, from #{reviews_word(count)}."
+    if is_link, do: sentence <> " See the reviews.", else: sentence
+  end
+
+  defp reviews_word(1), do: "1 review"
+  defp reviews_word(count), do: "#{count} reviews"
+
+  # Always one decimal, so 5 shows as "5.0" next to a "4.8".
+  defp one_decimal(rating) do
+    :erlang.float_to_binary(rating / 1, decimals: 1)
+  end
+
+  # The five stars, in two layers: grey ones underneath, filled ones on
+  # top, cut off at rating / 5 of the width (the CSS reads --rating).
+  # Hidden from screen readers; the component around them says the
+  # rating in words. Each star is 1em wide, so app.css sets their size
+  # with the font size of .stars (the icon's own size rule would win
+  # over a width set there).
+  attr :rating, :any, required: true
+
+  defp stars(assigns) do
+    assigns = assign(assigns, :rating, assigns.rating |> max(0) |> min(5))
+
+    ~H"""
+    <span class="stars" style={"--rating: #{@rating}"} aria-hidden="true">
+      <span class="stars-empty">
+        <.icon :for={_ <- 1..5} name="hero-star-solid" class="size-[1em]" />
+      </span>
+      <span class="stars-full">
+        <.icon :for={_ <- 1..5} name="hero-star-solid" class="size-[1em]" />
+      </span>
+    </span>
+    """
+  end
+
+  @doc """
+  Renders one review: its stars, the reviewer's name and the month it was
+  written, the text, and room for a "Report this review" link.
+
+  Takes plain values rather than a review, because there are three kinds
+  of review (of an artist, of a buyer, of a work) and each finds the
+  reviewer's name in its own way. Put reviews in a
+  `<ul class="review-list">`, newest first.
+
+  The `:bought` slot adds "· bought ..." after the month, for the
+  artist's page, where each review names the work that was bought. The
+  `:report` slot is for a `<.report_link>`; the page shows it only to
+  logged-in users.
+
+  ## Example
+
+      <ul class="review-list">
+        <.review
+          :for={review <- @reviews}
+          stars={review.stars}
+          name={review.reviewer.username}
+          date={review.submitted_at}
+          text={review.body}
+        >
+          <:report :if={@current_scope && @current_scope.user}>
+            <.report_link subject="product_review_of" id={review.id} ...>
+              Report this review
+            </.report_link>
+          </:report>
+        </.review>
+      </ul>
+  """
+  attr :stars, :integer, required: true, doc: "From 1 to 5"
+  attr :name, :string, required: true, doc: "The reviewer's name"
+  attr :date, :any, required: true, doc: "When it was written; shown as month and year"
+  attr :text, :string, default: nil, doc: "What the reviewer wrote (may be empty)"
+  attr :rest, :global, doc: "e.g. id"
+  slot :bought, doc: "The work that was bought, usually a link"
+  slot :report, doc: "A \"Report this review\" link"
+
+  def review(assigns) do
+    ~H"""
+    <li class="review" {@rest}>
+      <div class="review-head">
+        <.stars rating={@stars} />
+        <span class="sr-only">{@stars} out of 5 stars.</span>
+        <span>
+          {@name} · {Calendar.strftime(@date, "%B %Y")}<span :if={@bought != []}>
+            · bought {render_slot(@bought)}</span>
+        </span>
+      </div>
+      <p :if={@text not in [nil, ""]} class="review-text">{@text}</p>
+      <div :if={@report != []} class="review-report">{render_slot(@report)}</div>
+    </li>
+    """
+  end
+
+  @doc """
   Renders a banner with an optional tagline.
   """
 

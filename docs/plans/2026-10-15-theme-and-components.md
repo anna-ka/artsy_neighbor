@@ -3,7 +3,8 @@
 Status: plan agreed 2026-10-15. Phase 0 done (decisions below);
 Phase A done 2026-10-15 (notes at its end); Phase B's page built
 2026-10-15 (notes at its end); Phase C under way (button, input and
-messages done 2026-10-15, confirm dialog 2026-10-16; notes at its
+messages done 2026-10-15, confirm dialog, cards, small text pieces,
+star rating and review 2026-10-16; notes at its
 end).
 
 Follows `docs/plans/2026-09-28-design-system.md`, where the look was
@@ -414,7 +415,28 @@ Built once, in `core_components.ex` (Phoenix's basics, adapted) and
   waits for Phase D, when the header (whose links aren't underlined) is
   rebuilt anyway. Not chosen now: a global link rule, which would
   underline the header, footer and old cards at once.
-- Next: step 3, star rating and review.
+- **Star rating and review (2026-10-16).** `<.star_rating rating count
+  look>`: five stars filled up to the average (4.4 = four stars and 40%
+  of the fifth), in the muted grey, then the words in one of three looks
+  from the mockups: `short` "(25)" (product page, artist header),
+  `home` "4.8 · 31 reviews" (home page artist cards), `full` "4.8 out
+  of 5 · 31 reviews" (above a list of reviews). Always one decimal
+  ("5.0"). With `href` / `navigate` / `patch` it is a link, words
+  underlined. Screen readers hear one sentence ("Rated 4.4 out of 5,
+  from 25 reviews."). `<.review stars name date text>` takes plain
+  values, not a review (three review kinds, each finding the reviewer's
+  name its own way), shows "Linda · September 2026", the text (left out
+  when empty), an optional `:bought` slot ("· bought *Crow Study*", for
+  the artist's page) and a `:report` slot for the page's own
+  `<.report_link>`. Reviews go in a `<ul class="review-list">`. The
+  star is the app's `hero-star-solid` icon (the same drawing the
+  mockups used). Gotchas: daisyUI has its own `.rating`, so our class is
+  `star-rating`; and a Tailwind v4 icon's own size beats a width set in
+  our CSS, so stars are `1em` wide and sized by the font size of
+  `.stars`. Not in this step: the clickable stars for choosing a rating
+  in the review forms (Phase E, with those forms), and showing reviews
+  on public pages (the flags bundle).
+- Next: step 4, `<.placeholder>` and `docs/design/placeholders.md`.
 
 ## Phase D: the page frame
 

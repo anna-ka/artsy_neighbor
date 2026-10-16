@@ -22,7 +22,9 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
       quiet_link: 1,
       report_link: 1,
       chip: 1,
-      filter_chip: 1
+      filter_chip: 1,
+      star_rating: 1,
+      review: 1
     ]
 
   alias ArtsyNeighbor.Categories
@@ -81,6 +83,33 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
     Products.list_products_with_associations()
     |> Enum.sort_by(fn product -> is_nil(product.materials) and is_nil(product.width) end)
     |> Enum.take(4)
+  end
+
+  # Made-up reviews for the "Ratings and reviews" section, so it always
+  # has something to show (the database may have no reviews that are
+  # visible yet). The second is long, to check that the text wraps well.
+  defp sample_reviews do
+    [
+      %{
+        stars: 5,
+        name: "Linda",
+        date: ~D[2026-09-12],
+        work: "Crow with Stones",
+        text: "Even more beautiful in person. Maren showed me the studio when I picked it up."
+      },
+      %{
+        stars: 4,
+        name: "Graham",
+        date: ~D[2026-08-03],
+        work: "Crow Study",
+        text:
+          "Lovely painting and very easy pickup. The colours are a little cooler than " <>
+            "in the photo, which I actually prefer. It took a couple of messages to " <>
+            "find a time that suited us both, but Maren was patient and kind about it, " <>
+            "and it now hangs above our piano."
+      },
+      %{stars: 3, name: "Teresa", date: ~D[2026-07-21], work: "Mother Otter", text: nil}
+    ]
   end
 
   # Buttons in the "Messages" section. Each shows real flash messages,
@@ -546,6 +575,62 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
                   {name}
                 </.filter_chip>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="text-2xl mb-2">Ratings and reviews</h2>
+          <p class="mb-6 text-muted">
+            <code>&lt;.star_rating&gt;</code>
+            and <code>&lt;.review&gt;</code>. Made-up reviews, so this section always has
+            something to show.
+          </p>
+
+          <div class="space-y-10 max-w-3xl">
+            <div>
+              <p class="mb-3 text-sm text-muted">
+                The three looks: <code>short</code>
+                (as a link to the reviews), <code>home</code>, <code>full</code>.
+              </p>
+              <div class="flex flex-col items-start gap-3">
+                <.star_rating rating={4.4} count={25} href="#sample-reviews" />
+                <.star_rating rating={4.8} count={31} look="home" />
+                <.star_rating rating={4.8} count={31} look="full" />
+              </div>
+            </div>
+
+            <div>
+              <p class="mb-3 text-sm text-muted">Other ratings: 5, 3.5, 2 and one review.</p>
+              <div class="flex flex-col items-start gap-3">
+                <.star_rating rating={5} count={12} look="full" />
+                <.star_rating rating={3.5} count={4} look="full" />
+                <.star_rating rating={2} count={1} look="full" />
+              </div>
+            </div>
+
+            <div id="sample-reviews">
+              <p class="mb-3 text-sm text-muted">
+                Reviews of an artist, each naming the work that was bought (the <code>:bought</code>
+                slot). The third has no text. Report links lead nowhere here.
+              </p>
+              <.star_rating rating={4.0} count={3} look="full" />
+              <ul class="review-list mt-2">
+                <.review
+                  :for={sample <- sample_reviews()}
+                  stars={sample.stars}
+                  name={sample.name}
+                  date={sample.date}
+                  text={sample.text}
+                >
+                  <:bought>
+                    <.link href="#" class="text-link">{sample.work}</.link>
+                  </:bought>
+                  <:report>
+                    <.quiet_link href="#">Report this review</.quiet_link>
+                  </:report>
+                </.review>
+              </ul>
             </div>
           </div>
         </section>
