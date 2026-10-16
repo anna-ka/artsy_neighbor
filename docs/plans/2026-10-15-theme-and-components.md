@@ -466,6 +466,42 @@ pieces" in Phase C's notes), with header, footer and cards switching it
 off. The logo waits for the final version from the
 developer's daughter; the current draft is used until then.
 
+### Phase D steps and decisions (2026-10-16)
+
+Six steps, each its own commit, with screenshots at computer and phone
+width:
+
+1. **Messages: final look and place.** Decided as leaned in the trial:
+   **success and information tinted; warnings and errors solid** (filled
+   with the kind's colour, white words); **all messages "higher up"**, the
+   column starting a quarter of the way down the window, with a soft
+   shadow. These are now the only rules (`.msg-warning`, `.msg-error`,
+   `.msg-column` in `app.css`); the switches, the script in
+   `root.html.heex`, `Layouts.dev_routes?/0` and the trial rules are gone.
+2. **Header.** One header instead of today's two rows (the small account
+   row in `root.html.heex` and the big header in `navlayout`): logo draft,
+   "localpalette" wordmark with its wave (letters built by the server, no
+   script), search box (a `<.placeholder>`: search isn't built), links,
+   phone layout from the mockup. The test "Holiday sale" banner goes. Also
+   fixes `artsy_wide` (admin tables), which doesn't pass `current_scope`,
+   so its header acts as if nobody is logged in.
+   - **Links for visitors:** About us · Artists · Offer art · Log in ·
+     Register (as in the mockup).
+   - **Links when logged in** (decided): plain links, no drop-down menus
+     (fiddly for older users): About us · Artists · Messages · Orders ·
+     Your shop (artists only, in place of "Offer art") · Admin (admins
+     only) · Account. "Account" leads to the settings page, which gets
+     "Log out". The unread and pending-review dots stay.
+   - **Admin and vendor pages** (decided): the same header everywhere (no
+     more grey admin and blue vendor headers); admin pages get a slim
+     strip under it saying "Admin". Vendor pages need no mark.
+3. **Category bar**, starting under the wordmark, with "«" / "»" on phones.
+4. **Water background** behind the header and in the side margins.
+5. **Footer** as in the mockup; links to pages that don't exist yet are
+   placeholders.
+6. **The ordinary link look for every link**; header, footer and cards
+   switch it off; the `text-link` class is no longer needed.
+
 ## Phase E: pages, one at a time
 
 Artist page → product page → home, then the remaining public pages,

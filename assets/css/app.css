@@ -305,9 +305,12 @@
   .field-check input:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
 
   /* ---------- Messages ("flash") ----------
-     "Tinted": a pale wash of the kind's colour with a thin outline in it.
      Four kinds, each with its own colour and icon (colour is never the
-     only clue). --kind holds the kind's colour for the shared rules. */
+     only clue). --kind holds the kind's colour for the shared rules.
+     Success and information are "tinted": a pale wash of the kind's
+     colour with a thin outline in it. Warnings and errors are "solid"
+     (filled, white words), so they are hard to miss (decided in Phase D
+     of docs/plans/2026-10-15-theme-and-components.md). */
   .msg {
     display: flex;
     gap: 12px;
@@ -325,6 +328,8 @@
   .msg-warning { --kind: var(--color-warning); }
   .msg-error { --kind: var(--color-error); }
   .msg-icon { width: 22px; height: 22px; flex: none; margin-top: 1px; color: var(--kind); }
+  .msg-warning, .msg-error { background: var(--kind); border-color: var(--kind); color: #FFFFFF; }
+  .msg-warning .msg-icon, .msg-error .msg-icon { color: #FFFFFF; }
   .msg-text { flex: 1; }
   .msg-title { font-weight: 600; }
   /* "Close" in words (not just ×), like a quiet button. */
@@ -344,9 +349,12 @@
   /* All messages form one column (msg-column, see Layouts.flash_group/1),
      made of two groups, one under the other: warnings and errors
      (msg-alerts) first, then success and information. */
-  /* The column's padding is here, not a Tailwind class (p-4) on it: a
-     Tailwind class would win over the "higher up" rule below. */
-  .msg-column { padding: 16px; }
+  /* The column starts a quarter of the way down the window ("higher up"
+     rather than at the very top, where messages were easy to miss). Away
+     from the edge the messages float over the page, so they get a soft
+     shadow. */
+  .msg-column { padding: 25vh 16px 16px; }
+  .msg-column .msg { box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); }
   .msg-group { display: flex; flex-direction: column; gap: 12px; width: min(36rem, 100%); }
 
   /* ---------- Confirming (a delete, usually) ----------
@@ -547,26 +555,6 @@
   .review-head .stars { font-size: 13px; }
   .review-text { margin-top: 4px; }
   .review-report { margin-top: 4px; }
-
-  /* ---------- Trial until Phase D ----------
-     The switches on /dev/styleguide (development only) set
-     data-msg-look and data-msg-place on the page; these rules apply
-     them. Without the switches, every message is tinted, at the top. */
-  /* Look "solid", for warnings and errors only: filled with the kind's
-     colour, white words. */
-  html[data-msg-look="solid"] .msg-alerts .msg {
-    background: var(--kind);
-    border-color: var(--kind);
-    color: #FFFFFF;
-  }
-  html[data-msg-look="solid"] .msg-alerts .msg-icon { color: #FFFFFF; }
-  /* Place, for the whole column: "higher up" starts it a quarter of the
-     way down the window, "centre" puts it in the middle. Away from the
-     edge the messages float over the page, so they get a soft shadow. */
-  html[data-msg-place="higher"] .msg-column { padding-top: 25vh; }
-  html[data-msg-place="centre"] .msg-column { justify-content: center; }
-  html[data-msg-place="higher"] .msg-column .msg,
-  html[data-msg-place="centre"] .msg-column .msg { box-shadow: 0 16px 40px -12px rgb(0 0 0 / 0.35); }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

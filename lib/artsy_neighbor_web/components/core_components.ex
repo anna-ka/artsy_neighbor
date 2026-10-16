@@ -39,8 +39,9 @@ defmodule ArtsyNeighborWeb.CoreComponents do
   has `:info` and `:error`; the other two are ours, used the same way
   (`put_flash(socket, :success, "...")`).
 
-  The look ("Tinted", chosen in Phase 0 of
-  `docs/plans/2026-10-15-theme-and-components.md`) lives in
+  The look (success and information tinted, warnings and errors solid,
+  decided in Phase D of `docs/plans/2026-10-15-theme-and-components.md`)
+  lives in
   `assets/css/app.css` (`msg`, `msg-success`, ...). A message never fades
   by itself: it stays until "Close" is pressed or the page changes.
   Messages are placed (and stacked) by `Layouts.flash_group/1`.

@@ -13,11 +13,6 @@ defmodule ArtsyNeighborWeb.Layouts do
   # and other static content.
   embed_templates "layouts/*"
 
-  # True only in development (config/dev.exs), like the router's /dev pages.
-  # root.html.heex uses it for the message trial switches (see flash_group/1).
-  @dev_routes Application.compile_env(:artsy_neighbor, :dev_routes, false)
-  def dev_routes?, do: @dev_routes
-
   @doc """
   Base layout with navigation and footer.
   This is used as a wrapper by artsy_main and artsy_wide layouts.
@@ -406,16 +401,9 @@ defmodule ArtsyNeighborWeb.Layouts do
   column centred across the window (`msg-column`), one under the other
   when there are several. The column has two groups: warnings and errors
   (`msg-alerts`) first, so they are seen first, then success and
-  information.
-
-  **Trial, until Phase D** of `docs/plans/2026-10-15-theme-and-components.md`:
-  in development, switches on `/dev/styleguide` change the look of
-  warnings and errors (tinted or solid) and the place of the whole column
-  (top, higher up, centre), across the whole app. They set
-  `data-msg-look` and `data-msg-place` on the page (script in
-  `root.html.heex`); the rules for each choice are in
-  `assets/css/app.css`. Without the switches (and always in production),
-  every message is tinted, at the top.
+  information. The column starts a quarter of the way down the window;
+  warnings and errors are solid, success and information tinted (rules
+  under "Messages" in `assets/css/app.css`).
 
   The empty space around the messages lets clicks through to the page
   (`pointer-events-none`); the messages themselves take clicks again

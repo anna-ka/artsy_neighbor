@@ -20,49 +20,6 @@
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
-    <%!-- Development only, until Phase D: the message trial (see
-         Layouts.flash_group/1). Remembers the look (of warnings and errors)
-         and place (of all messages) chosen with the switches on
-         /dev/styleguide, and puts them on the page as data-msg-look /
-         data-msg-place, which assets/css/app.css acts on. The choice lives in this browser only. --%>
-    <script :if={dev_routes?()}>
-      (function () {
-        var defaults = { "msg-look": "tinted", "msg-place": "top" };
-
-        function chosen(key) {
-          try {
-            return localStorage.getItem(key) || defaults[key];
-          } catch (error) {
-            return defaults[key];
-          }
-        }
-
-        // Puts the choices on the page, and ticks the matching switches.
-        function apply() {
-          Object.keys(defaults).forEach(function (key) {
-            var value = chosen(key);
-            document.documentElement.setAttribute("data-" + key, value);
-            document.querySelectorAll('input[name="' + key + '"]').forEach(function (input) {
-              input.checked = input.value === value;
-            });
-          });
-        }
-
-        // A switch was changed: remember it, then apply.
-        document.addEventListener("change", function (event) {
-          var key = event.target.name;
-          if (!defaults.hasOwnProperty(key)) return;
-          try {
-            localStorage.setItem(key, event.target.value);
-          } catch (error) {}
-          apply();
-        });
-
-        apply();
-        // Again once LiveView has drawn a page, so the switches show the choice.
-        window.addEventListener("phx:page-loading-stop", apply);
-      })();
-    </script>
   </head>
   <body>
     <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
