@@ -495,6 +495,20 @@ width:
    - **Admin and vendor pages** (decided): the same header everywhere (no
      more grey admin and blue vendor headers); admin pages get a slim
      strip under it saying "Admin". Vendor pages need no mark.
+   - **Done (2026-10-16).** Header in `Layouts.navlayout/1` with
+     `header_links/1` and `wordmark/1`; styles under "Header" in
+     `app.css`. Logo draft at `priv/static/images/site/logo-draft.png`.
+     **`priv/static/images/site/` is in git** (an exception in
+     `.gitignore`, which otherwise ignores `priv/static/images/`): images
+     that are part of the site's look go there, so a deploy has them.
+     **New Account page, `/account`** (`UserLive.Account`): name, email,
+     "Change your email or password" (to settings) and "Log out". Needed
+     because the settings page asks people to log in again unless they
+     did in the last 10 minutes (Phoenix's sudo mode, kept), which would
+     have meant logging in again just to log out. Also: the contact page
+     now passes `current_scope`, and the dots have words for screen
+     readers. Not changed: `Layouts.app` (Phoenix's own header, only on
+     the email-confirmation page); it goes when that page is restyled.
 3. **Category bar**, starting under the wordmark, with "«" / "»" on phones.
 4. **Water background** behind the header and in the side margins.
 5. **Footer** as in the mockup; links to pages that don't exist yet are

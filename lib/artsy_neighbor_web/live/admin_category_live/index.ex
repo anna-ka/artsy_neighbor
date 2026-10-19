@@ -121,7 +121,15 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.artsy_wide flash={@flash} variant="admin" nav_categories={@nav_categories}>
+    <Layouts.artsy_wide
+      flash={@flash}
+      variant="admin"
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread_messages}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <div class="admin-index">
         <div>
           <.back navigate={~p"/admin"}>

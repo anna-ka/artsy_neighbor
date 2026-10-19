@@ -555,6 +555,67 @@
   .review-head .stars { font-size: 13px; }
   .review-text { margin-top: 4px; }
   .review-report { margin-top: 4px; }
+
+  /* ---------- Header (Layouts.navlayout/1) ----------
+     From the mockups (mockup.css, "Header"). Spans the full window: logo
+     and site name near the left edge, search box and links near the
+     right. Shared measurements, so the category bar and the admin strip
+     can line up with the site name. */
+  .site-header, .admin-strip { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
+  .site-header { border-bottom: var(--border) solid var(--color-base-300); }
+  .site-header-row { display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
+  .brand { display: flex; align-items: center; gap: var(--logo-gap); flex: none; color: inherit; text-decoration: none; }
+  .brand:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+  .brand-logo { width: var(--logo-size); height: var(--logo-size); object-fit: contain; }
+  /* The site name ("wordmark"): lowercase Fraunces Light, soft, small
+     beside the seal like a signature. Each letter is moved up or down
+     along one gentle wave and leans a little (Layouts.wordmark/1). */
+  .wordmark { font-family: var(--font-wordmark); font-weight: 300; font-size: 20px; font-variation-settings: "SOFT" 100, "WONK" 1; }
+  .wave-letter { display: inline-block; }
+  /* Search box, about 30% of the row, pushed to the right next to the links. */
+  .header-search-box {
+    flex: 0 1 320px; min-width: 0; height: 42px; margin-left: auto;
+    display: flex; align-items: center; gap: 8px; padding: 0 16px;
+    border: var(--border) solid var(--color-base-300); border-radius: var(--radius-field);
+    background: var(--color-base-100); color: var(--color-muted);
+    cursor: pointer;
+  }
+  .header-search-box input {
+    flex: 1; min-width: 0; padding: 0; border: 0; outline: none; background: transparent;
+    font-size: 15px; color: var(--color-base-content); cursor: pointer;
+  }
+  .header-search-box input::placeholder { color: var(--color-muted); opacity: 1; }
+  .header-search-box:has(input:focus-visible) { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+  /* Same height as the box next to it; the negative gap pulls it close. */
+  .header-search-button { min-height: 42px; height: 42px; padding: 0 18px; margin-left: -12px; font-size: 15px; }
+  .header-links { display: flex; align-items: center; gap: 18px; white-space: nowrap; }
+  .header-links a { position: relative; font-size: 15px; color: var(--color-base-content); text-decoration: none; }
+  .header-links a:hover { color: var(--color-secondary); }
+  .header-links a:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+  /* Small dot after "Messages" (unread) or "Orders" / "Your shop"
+     (a review to write). The words for screen readers are next to it. */
+  .header-dot { position: absolute; top: -2px; right: -9px; width: 8px; height: 8px; border-radius: 50%; }
+  .header-dot-unread { background: var(--color-error); }
+  .header-dot-review { background: var(--color-warning); }
+  /* Admin pages: a slim strip under the header, so it's clear where you are. */
+  .admin-strip {
+    padding: 4px var(--header-edge);
+    border-bottom: var(--border) solid var(--color-base-300);
+    background: var(--color-base-200);
+    font-size: 14px; font-weight: 600; color: var(--color-muted);
+  }
+
+  /* Phone width: logo and name on the first row, search box and button on
+     their own row, then the links on a row (or two) of their own, "Log in"
+     and "Register" first. */
+  @media (max-width: 760px) {
+    .site-header, .admin-strip { --header-edge: 16px; }
+    .site-header-row { flex-wrap: wrap; gap: 10px; }
+    .header-search-box { order: 3; flex: 1 1 60%; margin-left: 0; }
+    .header-search-button { order: 4; margin-left: 0; }
+    .header-links { order: 5; flex: 1 1 100%; flex-wrap: wrap; gap: 6px 20px; padding: 4px 0 2px; }
+    .header-links .header-first { order: -1; }
+  }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }

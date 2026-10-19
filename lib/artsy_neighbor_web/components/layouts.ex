@@ -5,7 +5,8 @@ defmodule ArtsyNeighborWeb.Layouts do
   """
   use ArtsyNeighborWeb, :html
 
-  # alias ArtsyNeighborWeb.CustomComponents
+  # <.placeholder> for header and footer links to things not built yet.
+  import ArtsyNeighborWeb.CustomComponents, only: [placeholder: 1]
 
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
@@ -34,169 +35,78 @@ defmodule ArtsyNeighborWeb.Layouts do
 
   def navlayout(assigns) do
     ~H"""
-    <!-- Site-wide announcement banner -->
-    <ArtsyNeighborWeb.CustomComponents.site_wide_banner show={true} variant="test">
-      Special Holiday Sale! Get 20% off all artwork until December 25th.
-    </ArtsyNeighborWeb.CustomComponents.site_wide_banner>
+    <header class="site-header">
+      <div class="site-header-row">
+        <.link navigate={~p"/"} class="brand" aria-label="localpalette, home page">
+          <%!-- The logo is still a draft (the final one is being made). --%>
+          <img src={~p"/images/site/logo-draft.png"} alt="" class="brand-logo" />
+          <.wordmark />
+        </.link>
 
-    <header class={[
-      "px-4 sm:px-6 lg:px-8",
-      @variant == "admin" && "bg-neutral text-neutral-content",
-      @variant == "vendor" && "bg-info text-info-content "
-    ]}>
-      <!-- First row: Logo + Search + Actions -->
-      <div class="navbar">
-        <div class="flex-1 flex items-center gap-2">
-          <a href="/" class="flex w-fit items-center gap-2">
-            <%!-- <img src={~p"/images/bird_logos2.png"} width="88" /> --%>
-            <%!-- <img src={~p"/images/coral-colors-logo.png"} width="128" /> --%>
-            <img src={~p"/images/fish-logo-removebg-preview.png"} width="128" />
-            <span class="text-sm font-semibold">Artsy Neighbor</span>
-          </a>
+        <%!-- Search isn't built yet. The box can't be typed into
+             (readonly), so nobody types a search that goes nowhere. --%>
+        <.placeholder what="Search">
+          <label class="header-search-box">
+            <.icon name="hero-magnifying-glass" class="size-[18px] flex-none" />
+            <input
+              type="search"
+              name="q"
+              placeholder="What are you looking for?"
+              aria-label="Search"
+              readonly
+            />
+          </label>
+          <button type="button" class="btn-base btn-ordinary header-search-button">Search</button>
+        </.placeholder>
 
-          <.button navigate={~p"/products"}>
-            <.icon name="hero-bars-4" class="size-4 mr-1" /> Explore
-          </.button>
-
-          <input
-            type="search"
-            placeholder="What are you looking for?"
-            class="input input-sm input-bordered w-48 md:w-64 lg:w-96"
-            name="q"
-          />
-        </div>
-        <nav aria-label="Site navigation" class="flex-none flex items-center gap-2">
-          <!-- Scrollable: nav links + theme toggle -->
-
-          <!-- Scrollable: nav links + theme toggle -->
-          <div
-            class="relative flex items-center"
-            id="site-nav-scroll"
-            phx-hook="CategoryScroll"
-          >
-            <button
-              class="btn btn-ghost btn-sm px-1 flex-none"
-              data-scroll-dir="-1"
-              aria-label="Scroll left"
-            >
-              <.icon name="hero-chevron-left" class="size-4" />
-            </button>
-
-            <ul
-              data-scroll-inner
-              class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 max-w-xs md:max-w-sm lg:max-w-lg [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-            >
-              <li class="flex-none">
-                <a href="/artists" class="btn btn-ghost btn-sm whitespace-nowrap">Artist Directory</a>
-              </li>
-              <li class="flex-none">
-                <a href={~p"/offer-art"} class="btn btn-ghost btn-sm whitespace-nowrap">Offer art</a>
-              </li>
-              <li class="flex-none">
-                <a href={~p"/products"} class="btn btn-ghost btn-sm whitespace-nowrap">
-                  Purchase art
-                </a>
-              </li>
-              <li :if={@current_scope && @current_scope.user} class="flex-none">
-                <.link
-                  navigate={~p"/messages"}
-                  class="btn btn-ghost btn-sm whitespace-nowrap relative"
-                >
-                  Messages
-                  <span
-                    :if={@has_unread}
-                    class="badge badge-error badge-xs absolute -top-0.5 -right-0.5"
-                  >
-                  </span>
-                </.link>
-              </li>
-              <li :if={@current_scope && @current_scope.user} class="flex-none">
-                <.link navigate={~p"/orders"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
-                  Orders
-                  <span
-                    :if={@pending_reviews_as_buyer > 0}
-                    class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"
-                  >
-                  </span>
-                </.link>
-              </li>
-              <li :if={@current_scope && @current_scope.artist} class="flex-none">
-                <.link navigate={~p"/vendor"} class="btn btn-ghost btn-sm whitespace-nowrap relative">
-                  Dashboard
-                  <span
-                    :if={@pending_reviews_as_vendor > 0}
-                    class="badge badge-warning badge-xs absolute -top-0.5 -right-0.5"
-                  >
-                  </span>
-                </.link>
-              </li>
-              <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
-                <a href={~p"/users/log-in"} class="btn btn-ghost btn-sm whitespace-nowrap">Log in</a>
-              </li>
-              <li :if={!(@current_scope && @current_scope.user)} class="flex-none">
-                <a href={~p"/users/register"} class="btn btn-ghost btn-sm whitespace-nowrap">
-                  Sign up
-                </a>
-              </li>
-              <li class="flex-none">
-                <a
-                  href="https://github.com/phoenixframework/phoenix"
-                  class="btn btn-ghost btn-sm whitespace-nowrap"
-                >
-                  Our mission
-                </a>
-              </li>
-            </ul>
-
-            <button
-              class="btn btn-ghost btn-sm px-1 flex-none"
-              data-scroll-dir="1"
-              aria-label="Scroll right"
-            >
-              <.icon name="hero-chevron-right" class="size-4" />
-            </button>
-          </div>
-        </nav>
+        <.header_links
+          current_scope={@current_scope}
+          has_unread={@has_unread}
+          pending_reviews_as_buyer={@pending_reviews_as_buyer}
+          pending_reviews_as_vendor={@pending_reviews_as_vendor}
+        />
       </div>
-      
-    <!-- Second row: Category links (scrollable) -->
-      <nav
-        aria-label="Category navigation"
-        class="relative flex items-center w-full py-1"
-        id="category-nav"
-        phx-hook="CategoryScroll"
-      >
-        <button
-          class="btn btn-ghost btn-sm px-1 flex-none"
-          data-scroll-dir="-1"
-          aria-label="Scroll categories left"
-        >
-          <.icon name="hero-chevron-left" class="size-4" />
-        </button>
-
-        <ul
-          data-scroll-inner
-          class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-        >
-          <li class="flex-none">
-            <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
-          </li>
-          <li :for={category <- @nav_categories} class="flex-none">
-            <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
-              {category.name}
-            </.link>
-          </li>
-        </ul>
-
-        <button
-          class="btn btn-ghost btn-sm px-1 flex-none"
-          data-scroll-dir="1"
-          aria-label="Scroll categories right"
-        >
-          <.icon name="hero-chevron-right" class="size-4" />
-        </button>
-      </nav>
     </header>
+
+    <div :if={@variant == "admin"} class="admin-strip">Admin</div>
+
+    <!-- Second row: Category links (scrollable) -->
+    <nav
+      aria-label="Category navigation"
+      class="relative flex items-center w-full py-1"
+      id="category-nav"
+      phx-hook="CategoryScroll"
+    >
+      <button
+        class="btn btn-ghost btn-sm px-1 flex-none"
+        data-scroll-dir="-1"
+        aria-label="Scroll categories left"
+      >
+        <.icon name="hero-chevron-left" class="size-4" />
+      </button>
+
+      <ul
+        data-scroll-inner
+        class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+      >
+        <li class="flex-none">
+          <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
+        </li>
+        <li :for={category <- @nav_categories} class="flex-none">
+          <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
+            {category.name}
+          </.link>
+        </li>
+      </ul>
+
+      <button
+        class="btn btn-ghost btn-sm px-1 flex-none"
+        data-scroll-dir="1"
+        aria-label="Scroll categories right"
+      >
+        <.icon name="hero-chevron-right" class="size-4" />
+      </button>
+    </nav>
 
     <!-- Main content area (customized by child layouts) -->
     {render_slot(@inner_block)}
@@ -256,6 +166,107 @@ defmodule ArtsyNeighborWeb.Layouts do
 
     <.flash_group flash={@flash} />
     """
+  end
+
+  # The header's links. Visitors: About us · Artists · Offer art · Log in ·
+  # Register. Logged in: About us · Artists · Offer art (or "Your shop" for
+  # artists) · Messages · Orders · Admin (admins only) · Account. Plain
+  # links, no drop-down menus (decided in Phase D of
+  # docs/plans/2026-10-15-theme-and-components.md). On phones "Log in"
+  # and "Register" move to the front (header-first).
+  attr :current_scope, :map, default: nil
+  attr :has_unread, :boolean, default: false
+  attr :pending_reviews_as_buyer, :integer, default: 0
+  attr :pending_reviews_as_vendor, :integer, default: 0
+
+  defp header_links(assigns) do
+    user = assigns.current_scope && assigns.current_scope.user
+    artist = assigns.current_scope && assigns.current_scope.artist
+    admin = assigns.current_scope && assigns.current_scope.admin
+
+    assigns =
+      assign(assigns, logged_in: user != nil, artist?: artist != nil, admin?: admin == true)
+
+    ~H"""
+    <nav aria-label="Site" class="header-links">
+      <.placeholder what="About us page">
+        <a href="#">About us</a>
+      </.placeholder>
+      <.link navigate={~p"/artists"}>Artists</.link>
+      <.link :if={!@artist?} navigate={~p"/offer-art"}>Offer art</.link>
+
+      <%= if @logged_in do %>
+        <.link navigate={~p"/messages"}>
+          Messages
+          <span :if={@has_unread} class="header-dot header-dot-unread" aria-hidden="true"></span>
+          <span :if={@has_unread} class="sr-only">(new messages)</span>
+        </.link>
+        <.link navigate={~p"/orders"}>
+          Orders
+          <span
+            :if={@pending_reviews_as_buyer > 0}
+            class="header-dot header-dot-review"
+            aria-hidden="true"
+          >
+          </span>
+          <span :if={@pending_reviews_as_buyer > 0} class="sr-only">(a review to write)</span>
+        </.link>
+        <.link :if={@artist?} navigate={~p"/vendor"}>
+          Your shop
+          <span
+            :if={@pending_reviews_as_vendor > 0}
+            class="header-dot header-dot-review"
+            aria-hidden="true"
+          >
+          </span>
+          <span :if={@pending_reviews_as_vendor > 0} class="sr-only">(a review to write)</span>
+        </.link>
+        <.link :if={@admin?} navigate={~p"/admin"}>Admin</.link>
+        <.link navigate={~p"/account"}>Account</.link>
+      <% else %>
+        <.link navigate={~p"/users/log-in"} class="header-first">Log in</.link>
+        <.link navigate={~p"/users/register"} class="header-first">Register</.link>
+      <% end %>
+    </nav>
+    """
+  end
+
+  # The site name, "localpalette", with each letter moved up or down along
+  # one gentle wave (2px each way) and leaning 5° to the right, like letters
+  # floating on water. Chosen in docs/design/mockups/wordmark.html; the
+  # mockups do the same with a script (setUpWordmark in mockup.js), here
+  # the server works out each letter's place. Screen readers get the
+  # name from the link around it (aria-label), not letter by letter.
+  defp wordmark(assigns) do
+    letters = String.graphemes("localpalette")
+    last_index = length(letters) - 1
+
+    styled_letters =
+      letters
+      |> Enum.with_index()
+      |> Enum.map(fn {letter, index} -> {letter, wave_letter_style(index, last_index)} end)
+
+    assigns = assign(assigns, :letters, styled_letters)
+
+    ~H"""
+    <span class="wordmark" aria-hidden="true">
+      <span
+        :for={{letter, style} <- @letters}
+        class="wave-letter"
+        style={style}
+      >
+        {letter}
+      </span>
+    </span>
+    """
+  end
+
+  # One letter's place on the wave: the word spans one full wave, from the
+  # first letter (index 0) to the last.
+  defp wave_letter_style(index, last_index) do
+    angle = index / last_index * 2 * :math.pi()
+    shift_up = Float.round(-2 * :math.sin(angle), 2)
+    "transform: translateY(#{shift_up}px) skewX(-5deg)"
   end
 
   @doc """
@@ -320,12 +331,23 @@ defmodule ArtsyNeighborWeb.Layouts do
       "the layout variant to render, which can be used to conditionally show/hide elements based on user role. This is passed down to navlayout to allow for styling adjustments based on user role."
 
   attr :nav_categories, :list, default: []
+  attr :has_unread, :boolean, default: false
+  attr :pending_reviews_as_buyer, :integer, default: 0
+  attr :pending_reviews_as_vendor, :integer, default: 0
 
   slot :inner_block, required: true
 
   def artsy_wide(assigns) do
     ~H"""
-    <.navlayout flash={@flash} variant={@variant} nav_categories={@nav_categories}>
+    <.navlayout
+      flash={@flash}
+      variant={@variant}
+      nav_categories={@nav_categories}
+      current_scope={@current_scope}
+      has_unread={@has_unread}
+      pending_reviews_as_buyer={@pending_reviews_as_buyer}
+      pending_reviews_as_vendor={@pending_reviews_as_vendor}
+    >
       <main class="w-full">
         <div class="w-full py-20 bg-base-100">
           {render_slot(@inner_block)}

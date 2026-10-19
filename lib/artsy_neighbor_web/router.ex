@@ -170,6 +170,7 @@ defmodule ArtsyNeighborWeb.Router do
         {ArtsyNeighborWeb.UserAuth, :load_pending_reviews},
         {ArtsyNeighborWeb.UserAuth, :load_categories}
       ] do
+      live "/account", UserLive.Account
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
 

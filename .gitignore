@@ -43,8 +43,11 @@ npm-debug.log
 /priv/static/uploads/products/*
 !/priv/static/uploads/products/.gitkeep
 
-# Static images checked in during development (not for production)
-/priv/static/images/
+# Static images checked in during development (not for production).
+# Exception: images/site/ holds images that are part of the site's look
+# (logo, water photos), so it is in git.
+/priv/static/images/*
+!/priv/static/images/site/
 
 # Personal notes
 /priv/static/notes/

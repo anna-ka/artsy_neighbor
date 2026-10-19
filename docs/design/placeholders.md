@@ -23,7 +23,11 @@ Entry format:
 
 ## Site frame (header, footer)
 
-(none yet)
+- **Search box and "Search" button** (header). Needs: a site-wide search
+  page (works, artists, categories) and the box sending people there.
+  The contexts already have search filters (`with_search_term/2`).
+- **"About us"** (header). Needs: an About us page (text from the
+  developer).
 
 ## Home page
 

@@ -22,36 +22,6 @@
     </script>
   </head>
   <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li>
-          {@current_scope.user.username}
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-        <%= if @current_scope.artist do %>
-          <li>
-            <.link navigate={~p"/vendor"}>Vendor Dashboard</.link>
-          </li>
-        <% end %>
-        <%= if @current_scope.admin do %>
-          <li>
-            <.link navigate={~p"/admin"}>Admin Dashboard</.link>
-          </li>
-        <% end %>
-      <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
     {@inner_content}
     <%!-- The one confirmation box for the whole app (styles: .confirm-dialog
          in assets/css/app.css). Filled and opened by the script in
