@@ -277,6 +277,18 @@ working on the code should keep in mind.
 
     25. Add ability for buyers to Follow artists. This means a button to opt in and also a clear interface for vendors to send updates tp subscribers.
 
+  26. **New Artist fields shown in the artist-page mockup** (added
+      2026-10-19). Left out of the restyled artist page until they
+      exist; each needs a field, a place in the vendor profile form, and
+      its spot on the page:
+      - **Motto**: one optional short line under the name ("Oils with a
+        splash"), separate from the temporary `announcement`.
+      - **Returns policy**: the artist's own text, shown in a "Returns"
+        section at the end of the Shop tab.
+      - **Takes commissions (yes/no)**: brings back the Commissions tab
+        (hidden until then); see the commissions item above and the plan
+        doc's "Artist page" section.
+
 
 
 

@@ -311,10 +311,8 @@ defmodule ArtsyNeighborWeb.Layouts do
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
-      <main class="flex justify-center">
-        <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-          {render_slot(@inner_block)}
-        </div>
+      <main class="main-column py-20">
+        {render_slot(@inner_block)}
       </main>
     </.navlayout>
     """

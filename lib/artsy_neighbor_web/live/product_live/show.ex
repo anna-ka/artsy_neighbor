@@ -121,7 +121,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         </.back>
       </div>
 
-      <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
+      <div class="py-8 bg-base-100">
         <%!-- Main Section: Two Columns --%>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12 items-start">
           <%!-- Left Column: Image Gallery --%>

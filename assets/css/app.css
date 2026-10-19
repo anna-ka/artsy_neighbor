@@ -578,18 +578,20 @@
   .review-text { margin-top: 4px; }
   .review-report { margin-top: 4px; }
 
+  /* ---------- Page column (Layouts.artsy_main/1) ----------
+     The page's content: --content-width wide (80% of the window, almost
+     all of it on phones), centred. The footer lines up with it. */
+  .main-column { width: var(--content-width); margin: 0 auto; }
+
   /* ---------- Water (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Site hat" and "Side margins"). One
      photo of a wave (Matt Hardy on Unsplash), used as a mask: its light
      ripples let a slate tint show through, its dark parts hide it, so the
      photo's own blue never shows, only the tint, faintly.
-     --main-column-width is the real width of artsy_main's column today
-     (max-w-7xl): the whole window, at most 80rem. The side water fades
-     out towards it, so it only shows in windows wider than the column,
-     and never behind the page's content. When Phase E gives the column
-     the planned --content-width (80%, set at the top of this file), the
-     fade should use that instead and this goes. */
-  :root { --main-column-width: min(100%, 80rem); --water-tint: var(--color-secondary);
+     The side water fades out towards the page's content column
+     (--content-width, set at the top of this file), so it never lies
+     behind the content. */
+  :root { --water-tint: var(--color-secondary);
           --water-image: url("/images/site/water-wave.jpg"); }
   .water-mask {
     background: var(--water-tint);
@@ -609,8 +611,8 @@
                  -webkit-mask-position: center 85%; mask-position: center 85%; }
   .sides-fade { position: absolute; inset: 0;
                 background: linear-gradient(to right, transparent 0%,
-                  var(--color-base-100) calc(50% - var(--main-column-width) / 2),
-                  var(--color-base-100) calc(50% + var(--main-column-width) / 2),
+                  var(--color-base-100) calc(50% - var(--content-width) / 2),
+                  var(--color-base-100) calc(50% + var(--content-width) / 2),
                   transparent 100%); }
   /* The site hat (header + category bar): the same water across the full
      width, fading into the page colour from 45% of the way down. Its own
@@ -688,18 +690,12 @@
   /* ---------- Footer (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Footer"): a pale band across the whole
      window, its three columns lined up with the page's content column
-     (artsy_main's, --main-column-width, with the same side padding).
-     Links not underlined, one per line. */
+     (--content-width). Links not underlined, one per line. */
   .site-footer {
     margin-top: var(--section-gap); padding: 32px 0;
     background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300);
   }
-  /* Side padding steps up with the window, at the same widths as
-     artsy_main's (Tailwind's px-4 sm:px-6 lg:px-8): 16px, then 24px
-     from 640px, then 32px from 1024px. */
-  .site-footer-inner { width: var(--main-column-width); margin: 0 auto; padding: 0 16px; }
-  @media (min-width: 640px) { .site-footer-inner { padding: 0 24px; } }
-  @media (min-width: 1024px) { .site-footer-inner { padding: 0 32px; } }
+  .site-footer-inner { width: var(--content-width); margin: 0 auto; }
   .site-footer-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
   .site-footer-heading { font-family: var(--font-sans); font-weight: 700; font-size: 1rem; margin-bottom: 8px; }
   .site-footer-cols a { display: block; padding: 2px 0; color: var(--color-base-content); text-decoration: none; }

@@ -26,7 +26,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
-      <div class="max-w-7xl mx-auto px-4 py-8 bg-base-100">
+      <div class="py-8 bg-base-100">
         <%!-- Page Header --%>
         <div class="mb-8">
           <h1 class="text-4xl font-bold text-base-content mb-2">Our Artists</h1>

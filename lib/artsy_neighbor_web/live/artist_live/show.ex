@@ -111,7 +111,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
       <%!-- Top Section: Artist Profile with bg-base-100 --%>
       <div class="bg-base-100">
-        <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="py-8">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <%!-- Left Column: Image Carousel --%>
             <div>
@@ -280,7 +280,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
       <%!-- Bottom Section: Works --%>
       <div class="bg-base-200 py-12">
-        <div class="max-w-7xl mx-auto px-4">
+        <div>
           <.header>
             Collections by {@artist.nickname}
           </.header>
@@ -325,7 +325,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
       <%!-- Ribbon: more works (excludes featured collection images shown above) --%>
       <div :if={length(@ribbon_products) > 0} class="bg-base-100 py-12">
-        <div class="max-w-7xl mx-auto px-4">
+        <div>
           <h2 class="text-2xl font-bold text-base-content mb-6">More Works</h2>
           <div class="relative flex items-center">
             <button

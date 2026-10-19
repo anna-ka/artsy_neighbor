@@ -589,3 +589,34 @@ developer's review, commit. Fixed colours left in each file (about
 
 Feature work found along the way goes into `NOTES.md`, not into the
 restyling commits.
+
+### Artist page (agreed 2026-10-19)
+
+`ArtistLive.Show` and `ArtistLive.Store` become one page with tabs, as
+in `artist-page.html`. One commit per step, each with screenshots at
+computer and phone width and the developer's review:
+
+0. **Page width:** `artsy_main`'s column becomes `--content-width`
+   (80% of the window, no cap); `--main-column-width` goes. All pages.
+1. **One page with tabs:** `Store` merged into `Show`; each tab its
+   own address (`/artists/:id` Works, `/artists/:id/store` Shop,
+   `/artists/:id/contact` Contact), switched by a LiveView patch; the
+   compact header on every tab but Works; first LiveView tests for the
+   page (tabs, artist not found, owner preview).
+2. **Artist header:** photo carousel, name, area, mediums, 3-line bio
+   with "Show full bio ›", phone layout.
+3. **Works tab:** Featured works, Collections, "See all works ›",
+   report link.
+4. **Shop tab, part 1:** announcement, collection chips, search /
+   category / sort ("Filter and sort" on phones), grid, "Show more
+   works".
+5. **Shop tab, part 2:** Pickup and delivery, Reviews.
+6. **Contact tab.**
+
+Until the features exist:
+- **Featured works** shows the artist's 4 newest available works
+  (until artists can choose, `NOTES.md` #23).
+- **No Commissions tab** until artists have a yes/no commissions
+  setting, so no artist appears to say something they didn't.
+- **Motto** and **Returns** (both new Artist fields) are left out;
+  `NOTES.md` #26.
