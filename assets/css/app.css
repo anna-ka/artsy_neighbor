@@ -561,7 +561,7 @@
      and site name near the left edge, search box and links near the
      right. Shared measurements, so the category bar and the admin strip
      can line up with the site name. */
-  .site-header, .admin-strip { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
+  .site-header, .category-bar, .admin-strip { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
   .site-header { border-bottom: var(--border) solid var(--color-base-300); }
   .site-header-row { display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
   .brand { display: flex; align-items: center; gap: var(--logo-gap); flex: none; color: inherit; text-decoration: none; }
@@ -597,6 +597,20 @@
   .header-dot { position: absolute; top: -2px; right: -9px; width: 8px; height: 8px; border-radius: 50%; }
   .header-dot-unread { background: var(--color-error); }
   .header-dot-review { background: var(--color-warning); }
+  /* Category bar, under the header: one row of links starting exactly
+     under the site name (screen edge + logo + gap), same font as the
+     header links. Scrolls sideways when it doesn't fit, without a
+     scrollbar. The "«" / "»" buttons appear on phones only. */
+  .category-bar { position: relative; border-bottom: var(--border) solid var(--color-base-300); }
+  .category-bar-track {
+    display: flex; gap: 24px; overflow-x: auto; scrollbar-width: none;
+    padding: 8px var(--header-edge) 10px calc(var(--header-edge) + var(--logo-size) + var(--logo-gap));
+  }
+  .category-bar-track li { flex: none; }
+  .category-bar-track a { font-size: 15px; white-space: nowrap; color: var(--color-base-content); text-decoration: none; }
+  .category-bar-track a:hover { color: var(--color-secondary); }
+  .category-bar-track a:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+  .category-bar-button { display: none; }
   /* Admin pages: a slim strip under the header, so it's clear where you are. */
   .admin-strip {
     padding: 4px var(--header-edge);
@@ -609,12 +623,26 @@
      their own row, then the links on a row (or two) of their own, "Log in"
      and "Register" first. */
   @media (max-width: 760px) {
-    .site-header, .admin-strip { --header-edge: 16px; }
+    .site-header, .category-bar, .admin-strip { --header-edge: 16px; }
     .site-header-row { flex-wrap: wrap; gap: 10px; }
     .header-search-box { order: 3; flex: 1 1 60%; margin-left: 0; }
     .header-search-button { order: 4; margin-left: 0; }
     .header-links { order: 5; flex: 1 1 100%; flex-wrap: wrap; gap: 6px 20px; padding: 4px 0 2px; }
     .header-links .header-first { order: -1; }
+    /* Category bar: room at the end for "»". The buttons sit at the two
+       ends over a fade into the page colour; "«" shows once scrolled,
+       "»" while there is more (CategoryBar in app.js). */
+    .category-bar-track { padding-right: 48px; }
+    .category-bar-button {
+      display: flex; position: absolute; top: 0; bottom: 0; width: 48px; align-items: center;
+      border: 0; cursor: pointer; font-size: 22px; line-height: 1; color: var(--color-base-content);
+    }
+    .category-bar-button[hidden] { display: none; }
+    .category-bar-more { right: 0; justify-content: flex-end; padding-right: 12px;
+      background: linear-gradient(to right, transparent, var(--color-base-100) 40%); }
+    .category-bar-less { left: 0; justify-content: flex-start; padding-left: 12px;
+      background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
+    .category-bar-button:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: -2px; }
   }
 }
 

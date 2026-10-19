@@ -31,14 +31,40 @@ const ScrollToBottom = {
   scrollToBottom() { this.el.scrollTop = this.el.scrollHeight }
 }
 
-const CategoryScroll = {
+// The category bar under the header (Layouts.navlayout/1). On phones it
+// scrolls sideways, with "«" / "»" buttons: tapping scrolls the row by
+// most of its width. "»" hides at the right end, "«" at the left end, so
+// each shows only when there is more that way (as setUpScrollRow in
+// docs/design/mockups/mockup.js). On wider screens CSS hides both.
+// The bar has phx-update="ignore", so LiveView doesn't undo the
+// `hidden` this sets whenever the page updates.
+const CategoryBar = {
   mounted() {
-    const inner = this.el.querySelector("[data-scroll-inner]")
-    this.el.querySelectorAll("[data-scroll-dir]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        inner.scrollBy({ left: parseInt(btn.dataset.scrollDir) * 200, behavior: "smooth" })
-      })
+    const track = this.el.querySelector("[data-scroll-track]")
+    const lessButton = this.el.querySelector("[data-scroll-less]")
+    const moreButton = this.el.querySelector("[data-scroll-more]")
+
+    const updateButtons = () => {
+      const atStart = track.scrollLeft <= 2
+      const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2
+      lessButton.hidden = atStart
+      moreButton.hidden = atEnd
+    }
+
+    moreButton.addEventListener("click", () => {
+      track.scrollBy({ left: track.clientWidth * 0.7, behavior: "smooth" })
     })
+    lessButton.addEventListener("click", () => {
+      track.scrollBy({ left: -track.clientWidth * 0.7, behavior: "smooth" })
+    })
+    track.addEventListener("scroll", updateButtons)
+    // Re-check when the window (and so the bar) changes size.
+    this.resizeObserver = new ResizeObserver(updateButtons)
+    this.resizeObserver.observe(track)
+    updateButtons()
+  },
+  destroyed() {
+    this.resizeObserver.disconnect()
   }
 }
 
@@ -162,7 +188,7 @@ const csrfToken =document.querySelector("meta[name='csrf-token']").getAttribute(
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, CategoryScroll, ScrollToBottom},
+  hooks: {...colocatedHooks, CategoryBar, ScrollToBottom},
 })
 
 // Show progress bar on live navigation and form submits

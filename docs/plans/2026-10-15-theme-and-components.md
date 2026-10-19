@@ -510,6 +510,19 @@ width:
      readers. Not changed: `Layouts.app` (Phoenix's own header, only on
      the email-confirmation page); it goes when that page is restyled.
 3. **Category bar**, starting under the wordmark, with "«" / "»" on phones.
+   - **Done (2026-10-19).** In `Layouts.navlayout/1`, styles under
+     "Category bar" in `app.css`: one row of plain links (15px, like the
+     header links), "All categories" first, starting under the site name
+     at every width, a thin line under it. When the row doesn't fit it
+     scrolls sideways without a scrollbar; on phones "»" shows while
+     there is more to the right and "«" once scrolled (each over a fade
+     into the page colour). The script is the `CategoryBar` hook in
+     `assets/js/app.js` (replaces the old `CategoryScroll`, whose arrows
+     showed at every width and never hid). The bar has
+     `phx-update="ignore"`, so a page update doesn't reset the buttons
+     (the categories don't change while a page is open). The admin strip
+     now sits under the category bar, so the header and the bar stay
+     together.
 4. **Water background** behind the header and in the side margins.
 5. **Footer** as in the mockup; links to pages that don't exist yet are
    placeholders.

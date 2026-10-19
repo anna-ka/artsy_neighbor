@@ -68,45 +68,43 @@ defmodule ArtsyNeighborWeb.Layouts do
       </div>
     </header>
 
-    <div :if={@variant == "admin"} class="admin-strip">Admin</div>
-
-    <!-- Second row: Category links (scrollable) -->
+    <%!-- Category bar: starts under the site name. On phones it scrolls
+         sideways, with "«" / "»" buttons that show only when there is more
+         in their direction (the CategoryBar hook in assets/js/app.js). --%>
     <nav
-      aria-label="Category navigation"
-      class="relative flex items-center w-full py-1"
-      id="category-nav"
-      phx-hook="CategoryScroll"
+      id="category-bar"
+      class="category-bar"
+      aria-label="Categories"
+      phx-hook="CategoryBar"
+      phx-update="ignore"
     >
-      <button
-        class="btn btn-ghost btn-sm px-1 flex-none"
-        data-scroll-dir="-1"
-        aria-label="Scroll categories left"
-      >
-        <.icon name="hero-chevron-left" class="size-4" />
-      </button>
-
-      <ul
-        data-scroll-inner
-        class="flex flex-row flex-nowrap overflow-x-auto scroll-smooth gap-1 flex-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
-      >
-        <li class="flex-none">
-          <a href={~p"/categories"} class="btn btn-ghost whitespace-nowrap">All categories</a>
-        </li>
-        <li :for={category <- @nav_categories} class="flex-none">
-          <.link navigate={~p"/categories/#{category}"} class="btn btn-ghost whitespace-nowrap">
-            {category.name}
-          </.link>
+      <ul class="category-bar-track" data-scroll-track>
+        <li><.link navigate={~p"/categories"}>All categories</.link></li>
+        <li :for={category <- @nav_categories}>
+          <.link navigate={~p"/categories/#{category}"}>{category.name}</.link>
         </li>
       </ul>
-
       <button
-        class="btn btn-ghost btn-sm px-1 flex-none"
-        data-scroll-dir="1"
-        aria-label="Scroll categories right"
+        type="button"
+        class="category-bar-button category-bar-less"
+        data-scroll-less
+        aria-label="Previous categories"
+        hidden
       >
-        <.icon name="hero-chevron-right" class="size-4" />
+        «
+      </button>
+      <button
+        type="button"
+        class="category-bar-button category-bar-more"
+        data-scroll-more
+        aria-label="More categories"
+        hidden
+      >
+        »
       </button>
     </nav>
+
+    <div :if={@variant == "admin"} class="admin-strip">Admin</div>
 
     <!-- Main content area (customized by child layouts) -->
     {render_slot(@inner_block)}
