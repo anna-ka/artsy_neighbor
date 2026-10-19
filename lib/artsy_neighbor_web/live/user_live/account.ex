@@ -37,7 +37,7 @@ defmodule ArtsyNeighborWeb.UserLive.Account do
         </dl>
 
         <div>
-          <.link navigate={~p"/users/settings"} class="text-link">
+          <.link navigate={~p"/users/settings"}>
             Change your email or password
           </.link>
           <p class="mt-1 text-sm text-muted">

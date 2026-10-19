@@ -120,6 +120,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
     <.link
       navigate={~p"/artists/#{@artist}?#{[return_to: "/artists", return_label: "Artist Directory"]}"}
       id={@dom_id}
+      class="no-underline"
     >
       <%!-- DaisyUI Card Component --%>
       <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">

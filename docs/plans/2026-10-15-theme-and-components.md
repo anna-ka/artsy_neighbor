@@ -562,6 +562,21 @@ width:
      footer had; they now look for "localpalette".
 6. **The ordinary link look for every link**; header, footer and cards
    switch it off; the `text-link` class is no longer needed.
+   - **Done (2026-10-19).** The look is now a rule for every `<a>` in
+     `@layer base` in `app.css` (the mockups' own `a` rule). Being in
+     the base layer, it loses to any class that says otherwise: the
+     header, category bar, footer, the new cards and buttons already
+     switch the underline off with their own rules, and a Tailwind class
+     on a link (`no-underline`, `text-...`) still wins. `text-link` is
+     gone. Two knock-on fixes: the quiet link keeps its grey underline
+     (`text-decoration-color: currentColor`, or it would have taken the
+     slate one), and daisyUI's `btn`, still on pages not yet restyled,
+     gets no underline when it is a link. The old `product_card`,
+     `category_card`, the artist list's `artist_card` and the three
+     kinds of row in the messages list got `no-underline` (every line
+     in them was underlined); they go in Phase E anyway. Links on other old pages now show the ordinary
+     look, which is what Phase E would give them.
+   - **Phase D done.** Next: Phase E.
 
 ## Phase E: pages, one at a time
 

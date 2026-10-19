@@ -134,6 +134,27 @@
     font-family: var(--font-heading);
     font-weight: var(--heading-weight);
   }
+
+  /* The ordinary link look, for every link (chosen 2026-10-15): the
+     text colour with a thin slate underline a little below the text
+     (clear of g and y); on mouse-over the text turns slate and the line
+     gets thicker. Being in "@layer base", it loses to any class that
+     says otherwise: the header, category bar, footer, cards and buttons
+     switch the underline off with their own rules, and a Tailwind class
+     on a link (no-underline, text-...) still wins. */
+  a {
+    color: var(--color-base-content);
+    text-decoration: underline;
+    text-decoration-color: var(--color-secondary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+  }
+  a:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+  a:focus-visible {
+    outline: 2px solid var(--color-secondary);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
 }
 
 /* Buttons, form fields and messages, chosen in Phase 0
@@ -450,20 +471,20 @@
   /* ---------- Links and small text pieces ----------
      <.section_heading>, <.show_more>, <.quiet_link>, <.report_link>,
      <.chip> and <.filter_chip> in custom_components.ex. */
-  /* The ordinary link look (chosen 2026-10-15): the text colour with a
-     thin slate underline a little below the text (clear of g and y); on
-     mouse-over the text turns slate and the line gets thicker. For now a
-     class (text-link) that pages add; it becomes the look of every link
-     in Phase D, when the header (whose links aren't underlined) is
-     rebuilt. "Show more" looks the same, but is a button. */
-  .text-link, .show-more {
+  /* daisyUI's own buttons (btn), still on pages not yet restyled
+     (Phase E), are sometimes links: they keep no underline. */
+  .btn { text-decoration: none; }
+
+  /* "Show more" is a button that looks like an ordinary link (the look
+     of every <a>, under "@layer base" above). */
+  .show-more {
     color: var(--color-base-content);
     text-decoration: underline;
     text-decoration-color: var(--color-secondary);
     text-decoration-thickness: 1px;
     text-underline-offset: 4px;
   }
-  .text-link:hover, .show-more:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
+  .show-more:hover { color: var(--color-secondary); text-decoration-thickness: 2px; }
   .show-more { padding: 4px 0; background: none; border: 0; font: inherit; cursor: pointer; }
   /* Quieter links ("Report a concern", "Back to top"): grey, smaller,
      the ordinary text colour on mouse-over. */
@@ -471,12 +492,13 @@
     font-size: 14px;
     color: var(--color-muted);
     text-decoration: underline;
+    text-decoration-color: currentColor;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
   .quiet-link:hover { color: var(--color-base-content); }
   /* Keyboard focus: the same slate ring as buttons. */
-  .text-link:focus-visible, .show-more:focus-visible, .quiet-link:focus-visible {
+  .show-more:focus-visible, .quiet-link:focus-visible {
     outline: 2px solid var(--color-secondary);
     outline-offset: 3px;
     border-radius: 4px;

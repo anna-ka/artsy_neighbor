@@ -159,7 +159,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
             <li :for={conversation <- @system_conversations} id={"conv-system-#{conversation.id}"}>
               <.link
                 navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors"
+                class="flex items-center gap-4 py-3 px-2 rounded-lg no-underline hover:bg-base-200 transition-colors"
               >
                 <div class="avatar placeholder">
                   <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
@@ -191,7 +191,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
             <li :for={conversation <- @conversations_as_buyer} id={"conv-buyer-#{conversation.id}"}>
               <.link
                 navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 py-3 px-2 rounded-lg hover:bg-base-200 transition-colors"
+                class="flex items-center gap-4 py-3 px-2 rounded-lg no-underline hover:bg-base-200 transition-colors"
               >
                 <div class="avatar">
                   <div class="w-12 h-12 rounded-full">
@@ -234,7 +234,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
             >
               <.link
                 navigate={~p"/messages/#{conversation.id}"}
-                class="flex items-center gap-4 flex-1 rounded-lg hover:bg-base-200 transition-colors"
+                class="flex items-center gap-4 flex-1 rounded-lg no-underline hover:bg-base-200 transition-colors"
               >
                 <div class="avatar placeholder">
                   <div class="w-12 h-12 rounded-full bg-base-300 text-base-content">

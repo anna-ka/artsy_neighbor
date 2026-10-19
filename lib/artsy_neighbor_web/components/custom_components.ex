@@ -29,7 +29,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       )
 
     ~H"""
-    <.link navigate={~p"/products/#{@product}"} id={@dom_id}>
+    <.link navigate={~p"/products/#{@product}"} id={@dom_id} class="no-underline">
       <div class="bg-base-200 rounded-lg shadow-md p-3 pb-2">
         <div class="h-60 rounded mb-2 overflow-hidden bg-gray-100 flex items-center justify-center">
           <img
@@ -70,7 +70,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       )
 
     ~H"""
-    <.link navigate={~p"/products?#{[category_id: @category.id]}"}>
+    <.link navigate={~p"/products?#{[category_id: @category.id]}"} class="no-underline">
       <div
         style={"background-image: url(#{@image_url})"}
         class="rounded-lg h-64 flex items-end justify-center pb-10 bg-cover bg-center relative bg-gray-200"
@@ -255,9 +255,8 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
   @doc """
   Renders a section's title, with an optional link (or "Show more"
-  button) on the right of it.
-
-  For a link, give it the ordinary link look with `class="text-link"`.
+  button) on the right of it. A link there has the ordinary link look,
+  like every link.
 
   ## Examples
 
@@ -266,7 +265,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       <.section_heading>
         Popular artists
         <:link>
-          <.link navigate={~p"/artists"} class="text-link">See all artists ›</.link>
+          <.link navigate={~p"/artists"}>See all artists ›</.link>
         </:link>
       </.section_heading>
   """

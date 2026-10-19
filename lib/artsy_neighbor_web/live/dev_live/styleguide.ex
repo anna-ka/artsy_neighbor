@@ -476,18 +476,18 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
           <p class="mb-6 text-muted">
             <code>&lt;.section_heading&gt;</code>, <code>&lt;.show_more&gt;</code>, <code>&lt;.quiet_link&gt;</code>, <code>&lt;.report_link&gt;</code>,
             <code>&lt;.chip&gt;</code>
-            and <code>&lt;.filter_chip&gt;</code>. Ordinary links get the <code>text-link</code>
-            class for now; in Phase D it becomes the look of every link.
+            and <code>&lt;.filter_chip&gt;</code>. Every link has the ordinary link look (a rule for all
+            links in <code>app.css</code>); the header, footer and cards switch it off.
           </p>
 
           <div class="space-y-10 max-w-3xl">
             <div>
               <p class="mb-3 text-sm text-muted">A link in text and a link on its own:</p>
               <p>
-                Pickup is arranged with the artist; see <.link href="#" class="text-link">how pickup works</.link>.
+                Pickup is arranged with the artist; see <.link href="#">how pickup works</.link>.
               </p>
               <p class="mt-2">
-                <.link href="#" class="text-link">See all works by this artist ›</.link>
+                <.link href="#">See all works by this artist ›</.link>
               </p>
             </div>
 
@@ -498,7 +498,7 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
               <.section_heading>
                 Popular artists
                 <:link>
-                  <.link href="#" class="text-link">See all artists ›</.link>
+                  <.link href="#">See all artists ›</.link>
                 </:link>
               </.section_heading>
               <.section_heading>
@@ -624,7 +624,7 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
                   text={sample.text}
                 >
                   <:bought>
-                    <.link href="#" class="text-link">{sample.work}</.link>
+                    <.link href="#">{sample.work}</.link>
                   </:bought>
                   <:report>
                     <.quiet_link href="#">Report this review</.quiet_link>
@@ -654,7 +654,7 @@ defmodule ArtsyNeighborWeb.DevLive.Styleguide do
             <div>
               <p class="mb-3 text-sm text-muted">A link (it goes nowhere).</p>
               <.placeholder what="Commissions">
-                <.link id="placeholder-demo-link" navigate="/" class="text-link">
+                <.link id="placeholder-demo-link" navigate="/">
                   Ask about a commission
                 </.link>
               </.placeholder>
