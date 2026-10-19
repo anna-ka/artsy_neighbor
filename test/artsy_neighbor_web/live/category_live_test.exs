@@ -7,7 +7,7 @@ defmodule ArtsyNeighborWeb.CategoryLiveTest do
   describe "Index" do
     test "lists categories page loads", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/categories")
-      assert html =~ "Artsy Neighbor"
+      assert html =~ "localpalette"
     end
 
     test "shows category in listing", %{conn: conn} do

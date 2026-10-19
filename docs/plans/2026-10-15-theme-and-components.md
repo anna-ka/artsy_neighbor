@@ -547,6 +547,19 @@ width:
      the header.
 5. **Footer** as in the mockup; links to pages that don't exist yet are
    placeholders.
+   - **Done (2026-10-19).** In `Layouts.navlayout/1`, styles under
+     "Footer" in `app.css`: a pale band across the whole window, the
+     three columns (Company · Legal · Follow us) lined up with
+     `artsy_main`'s content column (`--main-column-width`, same side
+     padding); two columns on phones. Only "Contact" (`/contactus`) is a
+     real page; the other seven links are `<.placeholder>`s. The old
+     footer's extra links (Careers, Cookie policy, Twitter, Pinterest)
+     are gone, as in the mockup. Last line: "© <this year> localpalette —
+     art from your neighbours in Victoria, BC" (lowercase, like the
+     wordmark; the year is the server's). Column titles are `h2` (the
+     first level under the page's own title), in bold Switzer. Three
+     "page loads" tests looked for "Artsy Neighbor", which only the old
+     footer had; they now look for "localpalette".
 6. **The ordinary link look for every link**; header, footer and cards
    switch it off; the `text-link` class is no longer needed.
 

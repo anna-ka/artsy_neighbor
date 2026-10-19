@@ -3,6 +3,6 @@ defmodule ArtsyNeighborWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Artsy Neighbor"
+    assert html_response(conn, 200) =~ "localpalette"
   end
 end

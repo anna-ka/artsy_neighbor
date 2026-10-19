@@ -663,6 +663,28 @@
     font-size: 14px; font-weight: 600; color: var(--color-muted);
   }
 
+  /* ---------- Footer (Layouts.navlayout/1) ----------
+     From the mockups (mockup.css, "Footer"): a pale band across the whole
+     window, its three columns lined up with the page's content column
+     (artsy_main's, --main-column-width, with the same side padding).
+     Links not underlined, one per line. */
+  .site-footer {
+    margin-top: var(--section-gap); padding: 32px 0;
+    background: var(--color-base-200); border-top: var(--border) solid var(--color-base-300);
+  }
+  /* Side padding steps up with the window, at the same widths as
+     artsy_main's (Tailwind's px-4 sm:px-6 lg:px-8): 16px, then 24px
+     from 640px, then 32px from 1024px. */
+  .site-footer-inner { width: var(--main-column-width); margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 640px) { .site-footer-inner { padding: 0 24px; } }
+  @media (min-width: 1024px) { .site-footer-inner { padding: 0 32px; } }
+  .site-footer-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .site-footer-heading { font-family: var(--font-sans); font-weight: 700; font-size: 1rem; margin-bottom: 8px; }
+  .site-footer-cols a { display: block; padding: 2px 0; color: var(--color-base-content); text-decoration: none; }
+  .site-footer-cols a:hover { color: var(--color-secondary); }
+  .site-footer-cols a:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+  .site-footer-copy { margin-top: 24px; color: var(--color-muted); font-size: 14px; }
+
   /* Phone width: logo and name on the first row, search box and button on
      their own row, then the links on a row (or two) of their own, "Log in"
      and "Register" first. */
@@ -689,6 +711,8 @@
     .category-bar-less { left: 0; justify-content: flex-start; padding-left: 12px;
       background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
     .category-bar-button:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: -2px; }
+    /* Footer: two columns. */
+    .site-footer-cols { grid-template-columns: 1fr 1fr; }
   }
 }
 

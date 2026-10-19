@@ -7,7 +7,7 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
   describe "Index" do
     test "products listing page loads", %{conn: conn} do
       {:ok, _live, html} = live(conn, ~p"/products")
-      assert html =~ "Artsy Neighbor"
+      assert html =~ "localpalette"
     end
 
     test "shows product title in listing", %{conn: conn} do

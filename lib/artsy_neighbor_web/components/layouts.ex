@@ -123,56 +123,52 @@ defmodule ArtsyNeighborWeb.Layouts do
     <!-- Main content area (customized by child layouts) -->
     {render_slot(@inner_block)}
 
-    <!-- Footer -->
-    <footer class="bg-gray-900 text-white py-12">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
-    <!-- Column 1: Company Info -->
+    <%!-- Footer, as in the mockups. Only "Contact" leads to a real page
+       so far; the others are placeholders until their pages exist. --%>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <nav aria-label="Footer" class="site-footer-cols">
           <div>
-            <h3 class="text-lg font-semibold mb-4">Company</h3>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-white">About Us</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Our Mission</a></li>
+            <h2 class="site-footer-heading">Company</h2>
+            <ul>
               <li>
-                <.link href={~p"/contactus"}>
-                  Contact
-                </.link>
+                <.placeholder what="About us page"><a href="#">About us</a></.placeholder>
               </li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Careers</a></li>
+              <li>
+                <.placeholder what="Our mission page"><a href="#">Our mission</a></.placeholder>
+              </li>
+              <li><.link href={~p"/contactus"}>Contact</.link></li>
             </ul>
           </div>
-          
-    <!-- Column 2: Legal -->
           <div>
-            <h3 class="text-lg font-semibold mb-4">Legal</h3>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-white">User Agreement</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Privacy Policy</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Cookie Policy</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Terms of Service</a></li>
+            <h2 class="site-footer-heading">Legal</h2>
+            <ul>
+              <li>
+                <.placeholder what="User agreement"><a href="#">User agreement</a></.placeholder>
+              </li>
+              <li>
+                <.placeholder what="Privacy policy"><a href="#">Privacy policy</a></.placeholder>
+              </li>
+              <li>
+                <.placeholder what="Terms of service"><a href="#">Terms of service</a></.placeholder>
+              </li>
             </ul>
           </div>
-          
-    <!-- Column 3: Social Media -->
           <div>
-            <h3 class="text-lg font-semibold mb-4">Follow Us</h3>
-            <ul class="space-y-2">
-              <li><a href="#" class="text-gray-400 hover:text-white">Facebook</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Instagram</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Twitter</a></li>
-              <li><a href="#" class="text-gray-400 hover:text-white">Pinterest</a></li>
+            <h2 class="site-footer-heading">Follow us</h2>
+            <ul>
+              <li>
+                <.placeholder what="Our Facebook page"><a href="#">Facebook</a></.placeholder>
+              </li>
+              <li>
+                <.placeholder what="Our Instagram page"><a href="#">Instagram</a></.placeholder>
+              </li>
             </ul>
           </div>
-        </div>
-        
-    <!-- Row 2: Divider -->
-        <div class="border-t border-gray-700 my-8"></div>
-        
-    <!-- Row 3: Copyright -->
-        <div class="text-center text-gray-400">
-          <p>&copy; 2025 Artsy Neighbor. All rights reserved.</p>
-        </div>
+        </nav>
+        <p class="site-footer-copy">
+          © {Date.utc_today().year} localpalette — art from your neighbours in Victoria, BC
+        </p>
       </div>
     </footer>
 
