@@ -524,6 +524,27 @@ width:
      now sits under the category bar, so the header and the bar stay
      together.
 4. **Water background** behind the header and in the side margins.
+   - **Done (2026-10-19).** As in the mockups: the wave photo (Matt Hardy
+     on Unsplash) used as a mask for a faint slate tint, behind the
+     header and category bar (the "site hat", fading into the page
+     colour towards the bottom), and fixed behind the page in the side
+     margins, strongest at the window's edges. No side water on phones.
+     Styles under "Water" in `app.css`. The photo is now
+     `priv/static/images/site/water-wave.jpg` (in git, so a deploy has
+     it; 570 KB, can be made smaller later). The side layer sits under
+     the page with `z-index: -1`, not with the mockup's rule that lifts
+     every other part of the page (that rule would also have moved the
+     confirm dialog and the message column). The side water fades out
+     towards `--main-column-width`, `artsy_main`'s real column width
+     today (the whole window up to 80rem), so it never lies behind
+     content and shows only in windows wider than 80rem. Phase A's
+     `--content-width` (80%, no cap) is still unused: when Phase E gives
+     the column that width, the fade switches to it and
+     `--main-column-width` goes;
+     `artsy_main`'s column lost its own solid background, which had
+     drawn a hard edge over the water. `artsy_wide` (admin tables) keeps
+     its full-width background, so those pages have water only behind
+     the header.
 5. **Footer** as in the mockup; links to pages that don't exist yet are
    placeholders.
 6. **The ordinary link look for every link**; header, footer and cards

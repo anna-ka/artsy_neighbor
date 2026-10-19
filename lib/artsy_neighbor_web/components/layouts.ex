@@ -35,74 +35,88 @@ defmodule ArtsyNeighborWeb.Layouts do
 
   def navlayout(assigns) do
     ~H"""
-    <header class="site-header">
-      <div class="site-header-row">
-        <.link navigate={~p"/"} class="brand" aria-label="localpalette, home page">
-          <%!-- The logo is still a draft (the final one is being made). --%>
-          <img src={~p"/images/site/logo-draft.png"} alt="" class="brand-logo" />
-          <.wordmark />
-        </.link>
+    <%!-- Faint water in the side margins, fixed behind the whole page
+         (see "Water" in app.css). --%>
+    <div class="page-sides" aria-hidden="true">
+      <div class="sides-photo water-mask"></div>
+      <div class="sides-fade"></div>
+    </div>
 
-        <%!-- Search isn't built yet. The box can't be typed into
+    <%!-- The "site hat": header and category bar, with the same water
+         behind them, fading into the page colour towards the bottom. --%>
+    <div class="site-hat">
+      <div class="hat-photo water-mask" aria-hidden="true"></div>
+      <div class="hat-fade" aria-hidden="true"></div>
+
+      <header class="site-header">
+        <div class="site-header-row">
+          <.link navigate={~p"/"} class="brand" aria-label="localpalette, home page">
+            <%!-- The logo is still a draft (the final one is being made). --%>
+            <img src={~p"/images/site/logo-draft.png"} alt="" class="brand-logo" />
+            <.wordmark />
+          </.link>
+
+          <%!-- Search isn't built yet. The box can't be typed into
              (readonly), so nobody types a search that goes nowhere. --%>
-        <.placeholder what="Search">
-          <label class="header-search-box">
-            <.icon name="hero-magnifying-glass" class="size-[18px] flex-none" />
-            <input
-              type="search"
-              name="q"
-              placeholder="What are you looking for?"
-              aria-label="Search"
-              readonly
-            />
-          </label>
-          <button type="button" class="btn-base btn-ordinary header-search-button">Search</button>
-        </.placeholder>
+          <.placeholder what="Search">
+            <label class="header-search-box">
+              <.icon name="hero-magnifying-glass" class="size-[18px] flex-none" />
+              <input
+                type="search"
+                name="q"
+                placeholder="What are you looking for?"
+                aria-label="Search"
+                readonly
+              />
+            </label>
+            <button type="button" class="btn-base btn-ordinary header-search-button">Search</button>
+          </.placeholder>
 
-        <.header_links
-          current_scope={@current_scope}
-          has_unread={@has_unread}
-          pending_reviews_as_buyer={@pending_reviews_as_buyer}
-          pending_reviews_as_vendor={@pending_reviews_as_vendor}
-        />
-      </div>
-    </header>
+          <.header_links
+            current_scope={@current_scope}
+            has_unread={@has_unread}
+            pending_reviews_as_buyer={@pending_reviews_as_buyer}
+            pending_reviews_as_vendor={@pending_reviews_as_vendor}
+          />
+        </div>
+      </header>
 
-    <%!-- Category bar: starts under the site name. On phones it scrolls
+      <%!-- Category bar: starts under the site name. On phones it scrolls
          sideways, with "«" / "»" buttons that show only when there is more
          in their direction (the CategoryBar hook in assets/js/app.js). --%>
-    <nav
-      id="category-bar"
-      class="category-bar"
-      aria-label="Categories"
-      phx-hook="CategoryBar"
-      phx-update="ignore"
-    >
-      <ul class="category-bar-track" data-scroll-track>
-        <li><.link navigate={~p"/categories"}>All categories</.link></li>
-        <li :for={category <- @nav_categories}>
-          <.link navigate={~p"/categories/#{category}"}>{category.name}</.link>
-        </li>
-      </ul>
-      <button
-        type="button"
-        class="category-bar-button category-bar-less"
-        data-scroll-less
-        aria-label="Previous categories"
-        hidden
+      <nav
+        id="category-bar"
+        class="category-bar"
+        aria-label="Categories"
+        phx-hook="CategoryBar"
+        phx-update="ignore"
       >
-        «
-      </button>
-      <button
-        type="button"
-        class="category-bar-button category-bar-more"
-        data-scroll-more
-        aria-label="More categories"
-        hidden
-      >
-        »
-      </button>
-    </nav>
+        <ul class="category-bar-track" data-scroll-track>
+          <li><.link navigate={~p"/categories"}>All categories</.link></li>
+          <li :for={category <- @nav_categories}>
+            <.link navigate={~p"/categories/#{category}"}>{category.name}</.link>
+          </li>
+        </ul>
+        <button
+          type="button"
+          class="category-bar-button category-bar-less"
+          data-scroll-less
+          aria-label="Previous categories"
+          hidden
+        >
+          «
+        </button>
+        <button
+          type="button"
+          class="category-bar-button category-bar-more"
+          data-scroll-more
+          aria-label="More categories"
+          hidden
+        >
+          »
+        </button>
+      </nav>
+    </div>
 
     <div :if={@variant == "admin"} class="admin-strip">Admin</div>
 
@@ -302,7 +316,7 @@ defmodule ArtsyNeighborWeb.Layouts do
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
       <main class="flex justify-center">
-        <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8 bg-base-100">
+        <div class="flex-1 max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           {render_slot(@inner_block)}
         </div>
       </main>

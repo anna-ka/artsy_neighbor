@@ -556,6 +556,50 @@
   .review-text { margin-top: 4px; }
   .review-report { margin-top: 4px; }
 
+  /* ---------- Water (Layouts.navlayout/1) ----------
+     From the mockups (mockup.css, "Site hat" and "Side margins"). One
+     photo of a wave (Matt Hardy on Unsplash), used as a mask: its light
+     ripples let a slate tint show through, its dark parts hide it, so the
+     photo's own blue never shows, only the tint, faintly.
+     --main-column-width is the real width of artsy_main's column today
+     (max-w-7xl): the whole window, at most 80rem. The side water fades
+     out towards it, so it only shows in windows wider than the column,
+     and never behind the page's content. When Phase E gives the column
+     the planned --content-width (80%, set at the top of this file), the
+     fade should use that instead and this goes. */
+  :root { --main-column-width: min(100%, 80rem); --water-tint: var(--color-secondary);
+          --water-image: url("/images/site/water-wave.jpg"); }
+  .water-mask {
+    background: var(--water-tint);
+    -webkit-mask-image: var(--water-image); mask-image: var(--water-image);
+    -webkit-mask-size: cover; mask-size: cover;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    mask-mode: luminance;
+  }
+  /* Side margins: fixed behind the page (it doesn't move when the page
+     scrolls). z-index -1 puts it under everything else on the page; the
+     page colour itself is painted on the window, behind it. The fade
+     covers the middle column with the page colour, so only the margins
+     show water, strongest at the window's edges. A higher second number
+     in the position shows lower, more textured water. */
+  .page-sides { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+  .sides-photo { position: absolute; inset: 0; opacity: 0.22;
+                 -webkit-mask-position: center 85%; mask-position: center 85%; }
+  .sides-fade { position: absolute; inset: 0;
+                background: linear-gradient(to right, transparent 0%,
+                  var(--color-base-100) calc(50% - var(--main-column-width) / 2),
+                  var(--color-base-100) calc(50% + var(--main-column-width) / 2),
+                  transparent 100%); }
+  /* The site hat (header + category bar): the same water across the full
+     width, fading into the page colour from 45% of the way down. Its own
+     solid background keeps the side water from showing through. */
+  .site-hat { position: relative; overflow: hidden; background: var(--color-base-100); }
+  .site-hat > header, .site-hat > nav { position: relative; z-index: 1; }
+  .hat-photo { position: absolute; inset: 0; pointer-events: none; opacity: 0.22;
+               -webkit-mask-position: center 58%; mask-position: center 58%; }
+  .hat-fade { position: absolute; inset: 0; pointer-events: none;
+              background: linear-gradient(to bottom, transparent 45%, var(--color-base-100)); }
+
   /* ---------- Header (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Header"). Spans the full window: logo
      and site name near the left edge, search box and links near the
@@ -624,6 +668,8 @@
      and "Register" first. */
   @media (max-width: 760px) {
     .site-header, .category-bar, .admin-strip { --header-edge: 16px; }
+    /* No side water on phones: there's no room for it (the hat keeps its water). */
+    .page-sides { display: none; }
     .site-header-row { flex-wrap: wrap; gap: 10px; }
     .header-search-box { order: 3; flex: 1 1 60%; margin-left: 0; }
     .header-search-button { order: 4; margin-left: 0; }
