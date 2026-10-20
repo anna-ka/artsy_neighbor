@@ -886,7 +886,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     # Regression test: filter_artist_products/2 used to have no status
     # filter at all, so an :archived product still showed up on the
-    # artist's own public store page (ArtistLive.Store).
+    # Shop tab of the artist's public page (ArtistLive.Show).
     test "excludes an archived product", %{artist: artist, p1: p1} do
       {:ok, _} = Products.soft_delete_product(p1)
 

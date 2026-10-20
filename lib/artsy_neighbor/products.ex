@@ -76,12 +76,12 @@ defmodule ArtsyNeighbor.Products do
 
   @doc """
     Filters products for a specific artist based on the provided filter
-    criteria, for the artist's own public store page
-    (ArtistLive.Store — /artist/:id/store). All products are loaded with
+    criteria, for the Shop tab of the artist's public page
+    (ArtistLive.Show — /artists/:id/store). All products are loaded with
     associations.
 
     Only available products are returned (only_available/1). The caller
-    (ArtistLive.Store.handle_params/3) already checks the artist's own
+    (ArtistLive.Show.handle_params/3) already checks the artist's own
     status; only_available/1 checks it again here as defense in depth,
     like every other public product query in this file.
   """

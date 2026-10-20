@@ -583,6 +583,94 @@
      all of it on phones), centred. The footer lines up with it. */
   .main-column { width: var(--content-width); margin: 0 auto; }
 
+  /* ---------- Artist page (ArtistLive.Show) ----------
+     From the artist-page mockup. Header: photo column left, details
+     right; then the tabs (Works / Shop / Commissions / Contact). On
+     every tab but Works the header is "compact" (class "compact"):
+     smaller photo and name, and no carousel controls (left out in
+     show.ex), so the tab's own content starts higher. */
+  .artist-top {
+    --artist-photo-width: 280px;
+    display: grid;
+    grid-template-columns: var(--artist-photo-width) 1fr;
+    /* Grows with the screen: 6% of its width, between 72px and 160px. */
+    gap: clamp(72px, 6vw, 160px);
+    align-items: start;
+    padding-top: 32px;
+  }
+  .artist-top h1 { font-size: 36px; }
+  .artist-top.compact { --artist-photo-width: 140px; gap: 40px; }
+  .artist-top.compact h1 { font-size: 30px; }
+
+  /* The tab row's bottom line runs the full width; the current tab is
+     dark and underlined. */
+  .artist-tabs {
+    display: flex;
+    gap: 32px;
+    margin-top: var(--section-gap);
+    border-bottom: var(--border) solid var(--color-base-300);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .artist-tab {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 2px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--color-muted);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .artist-tab[aria-current="page"] {
+    color: var(--color-base-content);
+    border-bottom-color: var(--color-base-content);
+    font-weight: 600;
+  }
+
+  .artist-report { margin-top: var(--section-gap); }
+
+  /* Commissions (and later Contact) tab: one readable column, with a
+     cream panel holding the main button. */
+  .artist-tab-body { padding-top: 32px; max-width: 72ch; }
+  .artist-panel { background: var(--color-base-200); border-radius: var(--radius-box); padding: 20px 24px 24px; }
+  .artist-panel-title { font-size: 22px; }
+  .artist-panel p { margin: 6px 0 16px; }
+
+  /* "Back to ...": in the empty space between the category bar and the
+     artist header, starting where "All categories" starts and looking
+     like it. That spot is the screen edge + logo + gap of the category
+     bar (24px + 66px + 10px, see "Header" below) from the window's left
+     edge; the column starts half the difference between window and
+     column further right, so that is subtracted. Trial on the artist
+     page (2026-10-19). On phones it starts at the column's edge. */
+  .main-column { position: relative; }
+  .back-under-menu {
+    position: absolute;
+    top: 12px;
+    left: calc(100px - (100vw - 100%) / 2);
+    font-size: 15px;
+    white-space: nowrap;
+    color: var(--color-base-content);
+    text-decoration: none;
+  }
+  .back-under-menu:hover { color: var(--color-secondary); }
+  @media (max-width: 760px) {
+    .back-under-menu { left: 0; }
+  }
+
+  /* Phones: small photo beside the name. The compact header drops the bio. */
+  @media (max-width: 760px) {
+    .artist-top,
+    .artist-top.compact { --artist-photo-width: 110px; gap: 16px; padding-top: 20px; }
+    .artist-top h1,
+    .artist-top.compact h1 { font-size: 26px; }
+    .artist-top.compact .artist-bio { display: none; }
+    .artist-tabs { gap: 20px; }
+    .artist-tab { font-size: 15px; }
+  }
+
   /* ---------- Water (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Site hat" and "Side margins"). One
      photo of a wave (Matt Hardy on Unsplash), used as a mask: its light

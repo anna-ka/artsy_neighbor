@@ -51,8 +51,11 @@ defmodule ArtsyNeighborWeb.Router do
       live "/products/:id", ProductLive.Show
 
       live "/artists", ArtistLive.Index
-      live "/artists/:id", ArtistLive.Show
-      live "/artists/:id/store", ArtistLive.Store
+      # One artist page with four tabs, each with its own address.
+      live "/artists/:id", ArtistLive.Show, :works
+      live "/artists/:id/store", ArtistLive.Show, :shop
+      live "/artists/:id/commissions", ArtistLive.Show, :commissions
+      live "/artists/:id/contact", ArtistLive.Show, :contact
 
       live "/categories", CategoryLive.Index, :index
       live "/categories/:id", CategoryLive.Show, :show

@@ -616,7 +616,14 @@ computer and phone width and the developer's review:
 Until the features exist:
 - **Featured works** shows the artist's 4 newest available works
   (until artists can choose, `NOTES.md` #23).
-- **No Commissions tab** until artists have a yes/no commissions
-  setting, so no artist appears to say something they didn't.
+- **Commissions tab with fixed text** (changed 2026-10-19; it was
+  going to stay hidden): the mockup's "takes commissions" text and a
+  "Send message" button, the same for every artist, so the tab can be
+  seen and tested. Until artists have a yes/no commissions setting it
+  says every artist takes commissions (`NOTES.md` #26).
+- **"Back to ..." link** (trial, 2026-10-19, artist page only): just
+  under the category bar, lined up with "All categories" and styled
+  like the category links. Keep or remove it: not decided yet. If it
+  stays, other pages with `<.back>` follow.
 - **Motto** and **Returns** (both new Artist fields) are left out;
   `NOTES.md` #26.

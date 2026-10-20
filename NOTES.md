@@ -285,9 +285,16 @@ working on the code should keep in mind.
         splash"), separate from the temporary `announcement`.
       - **Returns policy**: the artist's own text, shown in a "Returns"
         section at the end of the Shop tab.
-      - **Takes commissions (yes/no)**: brings back the Commissions tab
-        (hidden until then); see the commissions item above and the plan
-        doc's "Artist page" section.
+      - **Takes commissions (yes/no)**: chooses the Commissions tab's
+        text. Until then the tab shows the same fixed "takes
+        commissions" text for every artist (decided 2026-10-19), so it
+        says so even for artists who don't; see the commissions item
+        above and the plan doc's "Artist page" section.
+
+  27. **Artists index: cards per row by screen size** (added
+      2026-10-19). `ArtistLive.Index` cards are fine 4 to a row on a
+      laptop but far too big on a large monitor; more per row on wider
+      screens. For when Phase E reaches that page.
 
 
 
