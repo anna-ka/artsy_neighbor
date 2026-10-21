@@ -44,7 +44,7 @@ Repo.delete_all(User)
 
 elena =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "Elena_Oils",
     first_name: "Elena",
     last_name: "Martinez",
@@ -84,7 +84,7 @@ Enum.each(
 
 tom =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "TomSculpts",
     first_name: "Thomas",
     last_name: "Chen",
@@ -123,7 +123,7 @@ Enum.each(
 
 sarah =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "SarahInks",
     first_name: "Sarah",
     last_name: "Thompson",
@@ -164,7 +164,7 @@ Enum.each(
 
 raj =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "Raj_Ceramics",
     first_name: "Rajesh",
     last_name: "Patel",
@@ -204,7 +204,7 @@ Enum.each(
 
 maria =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "MariaFiber",
     first_name: "Maria",
     last_name: "Rodriguez",
@@ -246,7 +246,7 @@ Enum.each(
 
 david =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "David_Photos",
     first_name: "David",
     last_name: "Kim",
@@ -285,7 +285,7 @@ Enum.each(
 
 anna =
   %Artist{}
-  |> Artist.changeset(%{
+  |> Artist.activation_changeset(%{
     nickname: "Anna's Magnificent Art Studio",
     first_name: "Anna",
     last_name: "Kazantseva",
@@ -312,8 +312,20 @@ _anna_collection =
 
 %ArtistImage{}
 |> ArtistImage.changeset(%{
-  path: "/images/Crow-Wolfgang-Heubeck.webp",
+  # Someone else's crow photo (Wolfgang Heubeck), kept on purpose: a
+  # weaker, wide photo, to see how the site holds up with the pictures
+  # real artists will upload.
+  path: "/images/seed/anna/crow-photo-wolfgang-heubeck.webp",
   position: 1,
+  artist_id: anna.id
+})
+|> Repo.insert!()
+
+# A detail of Anna's own painting "Crow Woman".
+%ArtistImage{}
+|> ArtistImage.changeset(%{
+  path: "/images/seed/anna/crow-woman-detail.jpg",
+  position: 2,
   artist_id: anna.id
 })
 |> Repo.insert!()
@@ -340,7 +352,7 @@ if Mix.env() == :dev do
 
   # Link anna artist to the user account
   anna
-  |> Artist.changeset(%{user_id: anna_user.id})
+  |> Artist.activation_changeset(%{user_id: anna_user.id})
   |> Repo.update!()
 
   # Grant admin privileges
@@ -370,7 +382,7 @@ if Mix.env() == :dev do
       |> Repo.insert!()
 
     artist
-    |> Artist.changeset(%{user_id: user.id})
+    |> Artist.activation_changeset(%{user_id: user.id})
     |> Repo.update!()
   end
 
@@ -444,7 +456,7 @@ clothing =
   })
   |> Repo.insert!()
 
-other_art =
+_other_art =
   %Category{}
   |> Category.changeset(%{
     name: "Other Art",
@@ -891,4 +903,97 @@ handwoven_pullover =
 })
 |> Repo.insert!()
 
-IO.puts("Seeded 16 products with images successfully!")
+# Anna's own paintings, in two collections of her own (her
+# "Uncategorized" collection, made above, stays empty). Photos are in
+# priv/static/images/seed/anna/, which is in git.
+
+anna_oils =
+  %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "Oil paintings", position: 2, artist_id: anna.id})
+  |> Repo.insert!()
+
+anna_spirit_animals =
+  %ProductCollection{}
+  |> ProductCollection.changeset(%{name: "Spirit animals", position: 3, artist_id: anna.id})
+  |> Repo.insert!()
+
+anna_works = [
+  %{
+    title: "Protectress",
+    descr:
+      "A woman and her child asleep in the shelter of a great wolf, " <>
+        "painted in warm golds against a deep blue night.",
+    details: "Original oil painting, signed on the back.",
+    price: 1000.00,
+    collection_id: anna_oils.id,
+    position: 1,
+    width: 70,
+    height: 45,
+    materials: "Oil on canvas",
+    unique_work: true,
+    photos: ["protectress-1.jpg", "protectress-2.jpg"]
+  },
+  %{
+    title: "Crow",
+    descr:
+      "A crow on a round panel, circled by small painted stones. " <>
+        "The second photo shows the head up close.",
+    details: "Original oil painting on a wooden panel.",
+    price: 600.00,
+    collection_id: anna_oils.id,
+    position: 2,
+    width: 60,
+    length: 60,
+    materials: "Oil on wood",
+    unique_work: false,
+    photos: ["crow-1.jpg", "crow-2.jpg"]
+  },
+  %{
+    title: "Mother Otter",
+    descr: "A river otter swimming towards you through blue-green water, on a round canvas.",
+    details: "Original oil painting, ready to hang.",
+    price: 800.00,
+    collection_id: anna_spirit_animals.id,
+    position: 1,
+    width: 70,
+    materials: "Oil on canvas",
+    unique_work: true,
+    photos: ["mother-otter.jpg"]
+  },
+  %{
+    title: "Crow Woman",
+    descr:
+      "A woman wrapped in a crow's wings, its head and beak above her own, " <>
+        "against a blaze of orange and gold. The second photo shows her face up close.",
+    details: "Original oil painting, signed on the back.",
+    price: 900.00,
+    collection_id: anna_spirit_animals.id,
+    position: 2,
+    materials: "Oil on canvas",
+    unique_work: true,
+    photos: ["crow-woman.jpg", "crow-woman-detail.jpg"]
+  }
+]
+
+for work <- anna_works do
+  product =
+    %Product{}
+    |> Product.changeset(
+      work
+      |> Map.delete(:photos)
+      |> Map.merge(%{artist_id: anna.id, category_id: paintings.id, units: "cm"})
+    )
+    |> Repo.insert!()
+
+  for {photo, position} <- Enum.with_index(work.photos, 1) do
+    %ProductImage{}
+    |> ProductImage.changeset(%{
+      path: "/images/seed/anna/#{photo}",
+      position: position,
+      product_id: product.id
+    })
+    |> Repo.insert!()
+  end
+end
+
+IO.puts("Seeded 20 products with images successfully!")
