@@ -607,6 +607,13 @@ computer and phone width and the developer's review:
    with "Show full bio ›", phone layout.
 3. **Works tab:** Featured works, Collections, "See all works ›",
    report link.
+   *Decided 2026-10-22:* the default "Uncategorized" collection gets
+   no card; Collections shows when at least one named collection has
+   available works, and collections without any are left out; a plain
+   thin line (no spiral) between Featured works and Collections; an
+   artist with no available works gets "… has no works for sale right
+   now." The old cream band, "More Works" ribbon and `product_card`
+   are gone from this tab.
 4. **Shop tab, part 1:** announcement, collection chips, search /
    category / sort ("Filter and sort" on phones), grid, "Show more
    works".
@@ -621,9 +628,14 @@ Until the features exist:
   "Send message" button, the same for every artist, so the tab can be
   seen and tested. Until artists have a yes/no commissions setting it
   says every artist takes commissions (`NOTES.md` #26).
-- **"Back to ..." link** (trial, 2026-10-19, artist page only): just
-  under the category bar, lined up with "All categories" and styled
-  like the category links. Keep or remove it: not decided yet. If it
-  stays, other pages with `<.back>` follow.
+- **Top space and "Back to ..." link (2026-10-22):** the artist page
+  drops `artsy_main`'s 80px top space (`top_space={false}`) and keeps
+  only its own 32px, as in the mockup. Other pages keep the 80px until
+  they are restyled; each restyled page turns it off the same way. The
+  "Back to ..." link (trial since 2026-10-19) stays, now on a line of
+  its own under the category bar, lined up with "All categories"; the
+  header starts a little higher when it is there. Keep it or remove
+  it: still not decided. If it stays, other pages with `<.back>`
+  follow.
 - **Motto** and **Returns** (both new Artist fields) are left out;
   `NOTES.md` #26.

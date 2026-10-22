@@ -28,7 +28,9 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   import ArtsyNeighborWeb.CustomComponents,
     only: [
       product_card: 1,
+      artwork_card: 1,
       collection_card: 1,
+      section_heading: 1,
       button_artsy: 1,
       report_link: 1,
       chip: 1,
@@ -54,12 +56,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         {:noreply, artist_not_found(socket)}
 
       artist.status == :active ->
-        {:noreply, load_page(socket, artist, params)}
+        {:noreply, load_page(socket, artist, params, :public)}
 
       owner_previewing?(artist, params, socket) ->
         socket =
           socket
-          |> load_page(artist, params)
+          |> load_page(artist, params, :owner_preview)
           |> put_flash(:info, "Preview — your profile is not yet visible to the public.")
 
         {:noreply, socket}
@@ -84,8 +86,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     Map.get(params, "preview") == "1" && viewer_artist != nil && viewer_artist.id == artist.id
   end
 
-  # Assigns for the header, then for the tab being shown.
-  defp load_page(socket, artist, params) do
+  # Assigns for the header, then for the tab being shown. `audience` is
+  # :public, or :owner_preview when the owner previews a profile that
+  # isn't public yet; the tabs pick their queries by it.
+  defp load_page(socket, artist, params, audience) do
     artist_images = Enum.sort_by(artist.artist_images, fn image -> image.position end)
 
     # Switching tabs keeps the photo being shown (the compact header shows
@@ -98,6 +102,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:return_label, Map.get(params, "return_label"))
     |> assign(:kept_params, Map.take(params, @kept_params))
     |> assign(:artist, artist)
+    |> assign(:audience, audience)
     |> assign(:page_title, artist.nickname)
     |> assign(:artist_images, artist_images)
     |> assign(:photo_index, photo_index)
@@ -107,51 +112,56 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> load_tab(socket.assigns.live_action, artist, params)
   end
 
+  # Featured works: the 4 newest available works, until artists can
+  # choose their own (NOTES.md #23).
   defp load_tab(socket, :works, artist, _params) do
-    collections = Products.list_collections_for_artist(artist.id)
-
-    # With several collections, each one's first work is shown on its
-    # collection card; "More works" shows the rest.
-    ribbon_products =
-      if length(collections) > 1 do
-        featured_ids =
-          collections
-          |> Enum.map(fn collection -> List.first(collection.products) end)
-          |> Enum.reject(fn product -> product == nil end)
-          |> MapSet.new(fn product -> product.id end)
-
-        collections
-        |> Enum.flat_map(fn collection -> collection.products end)
-        |> Enum.reject(fn product -> MapSet.member?(featured_ids, product.id) end)
-      else
-        []
+    featured_products =
+      case socket.assigns.audience do
+        :public -> Products.list_newest_artist_products(artist.id, 4)
+        :owner_preview -> Products.list_newest_artist_products_for_owner_preview(artist.id, 4)
       end
 
     socket
-    |> assign(:collections, collections)
-    |> assign(:ribbon_products, ribbon_products)
+    |> assign(:featured_products, featured_products)
+    |> assign(:collections, shown_collections(socket.assigns.audience, artist))
   end
 
   defp load_tab(socket, :shop, artist, params) do
     categories =
       Enum.map(Categories.list_categories(), fn category -> {category.name, category.id} end)
 
+    # The same collections as the Works tab's cards: none without works,
+    # no "Uncategorized".
     collection_options =
-      artist.id
-      |> Products.list_collections_for_artist_no_preloads()
+      socket.assigns.audience
+      |> shown_collections(artist)
       |> Enum.map(fn collection -> {collection.name, collection.id} end)
 
     filters = Map.take(params, @filter_params)
 
+    products =
+      case socket.assigns.audience do
+        :public -> Products.filter_artist_products(artist.id, filters)
+        :owner_preview -> Products.filter_artist_products_for_owner_preview(artist.id, filters)
+      end
+
     socket
     |> assign(:categories, categories)
     |> assign(:collection_options, collection_options)
-    |> assign(:products, Products.filter_artist_products(artist.id, filters))
+    |> assign(:products, products)
     |> assign(:form, to_form(filters))
   end
 
   defp load_tab(socket, :commissions, _artist, _params), do: socket
   defp load_tab(socket, :contact, _artist, _params), do: socket
+
+  # The artist's collections that have works to show (Works tab cards,
+  # Shop tab filter).
+  defp shown_collections(:public, artist),
+    do: Products.list_public_collections_for_artist(artist.id)
+
+  defp shown_collections(:owner_preview, artist),
+    do: Products.list_collections_for_owner_preview(artist.id)
 
   # The address of one tab, keeping the preview and "Back to ..." params.
   defp tab_path(artist, :works, query), do: ~p"/artists/#{artist}?#{query}"
@@ -210,13 +220,14 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
+      top_space={false}
     >
       <%!-- "Back to ...": just under the category bar, lined up with
-           "All categories" and styled like it (trial, 2026-10-19) --%>
+           "All categories" and styled like it. Only when the page was
+           opened with return_to and return_label. --%>
       <.link :if={@return_to && @return_label} navigate={@return_to} class="back-under-menu">
         ← {@return_label}
       </.link>
-
       <%!-- Header: photos left, details right. Compact on every tab but Works. --%>
       <div class={["artist-top", @live_action != :works && "compact"]}>
         <.artist_photos
@@ -284,8 +295,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       <.works_tab
         :if={@live_action == :works}
         artist={@artist}
+        featured_products={@featured_products}
         collections={@collections}
-        ribbon_products={@ribbon_products}
         kept_params={@kept_params}
       />
 
@@ -406,69 +417,56 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> Enum.reject(fn line -> line == "" end)
   end
 
-  # Works tab: the artist's collections, then "More works".
-  # (Replaced by Featured works + Collections in step 3 of the
-  # artist-page plan.)
+  # Works tab: Featured works with "See all works ›" (which opens the
+  # Shop tab), a thin line, then the artist's collections. Each section
+  # only when it has something in it; no available works at all shows a
+  # short note instead.
   attr :artist, :map, required: true
-  attr :collections, :list, required: true
-  attr :ribbon_products, :list, required: true
+  attr :featured_products, :list, required: true
+  attr :collections, :list, required: true, doc: "From list_public_collections_for_artist/1"
   attr :kept_params, :map, required: true
 
   defp works_tab(assigns) do
     ~H"""
-    <div class="bg-base-200 py-12">
-      <.header>
-        Collections by {@artist.nickname}
-      </.header>
-
-      <%= if length(@collections) == 1 do %>
-        <%!-- Single collection: flat product grid, no heading --%>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <.product_card :for={product <- hd(@collections).products} product={product} />
-        </div>
-      <% else %>
-        <%!-- Multiple collections: one card per collection, each opening
-             the Shop tab with only that collection's works --%>
-        <div class="card-grid">
-          <.collection_card
-            :for={collection <- @collections}
-            name={collection.name}
-            image={collection_image(collection)}
-            navigate={
-              tab_path(
-                @artist,
-                :shop,
-                Map.put(@kept_params, "collection_id", collection.id)
-              )
-            }
-          />
-        </div>
-      <% end %>
-    </div>
-
-    <%!-- Ribbon: more works (excludes featured collection images shown above) --%>
-    <div :if={length(@ribbon_products) > 0} class="bg-base-100 py-12">
-      <h2 class="text-2xl font-bold text-base-content mb-6">More Works</h2>
-      <div class="relative flex items-center">
-        <button
-          class="btn btn-circle btn-sm absolute left-0 z-10 shadow"
-          onclick="this.nextElementSibling.scrollBy({left: -320, behavior: 'smooth'})"
-        >
-          ❮
-        </button>
-        <div class="flex overflow-x-auto scroll-smooth gap-4 py-2 px-10">
-          <div :for={product <- @ribbon_products} class="flex-none w-64">
-            <.product_card product={product} />
-          </div>
-        </div>
-        <button
-          class="btn btn-circle btn-sm absolute right-0 z-10 shadow"
-          onclick="this.previousElementSibling.scrollBy({left: 320, behavior: 'smooth'})"
-        >
-          ❯
-        </button>
+    <section :if={@featured_products != []} class="artist-works-section">
+      <.section_heading>Featured works</.section_heading>
+      <div class="card-grid">
+        <.artwork_card
+          :for={product <- @featured_products}
+          product={product}
+          show_artist={false}
+        />
       </div>
-    </div>
+      <div class="artist-see-all">
+        <.link patch={tab_path(@artist, :shop, @kept_params)}>See all works ›</.link>
+      </div>
+    </section>
+
+    <p :if={@featured_products == []} class="artist-no-works">
+      {@artist.nickname} has no works for sale right now.
+    </p>
+
+    <hr :if={@featured_products != [] && @collections != []} class="artist-divider" />
+
+    <%!-- One card per collection, each opening the Shop tab with only
+         that collection's works --%>
+    <section :if={@collections != []} class="artist-works-section">
+      <.section_heading>Collections by {@artist.nickname}</.section_heading>
+      <div class="card-grid">
+        <.collection_card
+          :for={collection <- @collections}
+          name={collection.name}
+          image={collection_image(collection)}
+          navigate={
+            tab_path(
+              @artist,
+              :shop,
+              Map.put(@kept_params, "collection_id", collection.id)
+            )
+          }
+        />
+      </div>
+    </section>
     """
   end
 

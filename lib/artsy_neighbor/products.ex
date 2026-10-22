@@ -6,6 +6,7 @@ defmodule ArtsyNeighbor.Products do
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
 
+  alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.HardDelete
   alias ArtsyNeighbor.Products.Product
@@ -84,16 +85,64 @@ defmodule ArtsyNeighbor.Products do
     (ArtistLive.Show.handle_params/3) already checks the artist's own
     status; only_available/1 checks it again here as defense in depth,
     like every other public product query in this file.
+
+    For the owner's preview of a profile that isn't public yet, use
+    `filter_artist_products_for_owner_preview/2`.
   """
   def filter_artist_products(artist_id, filter) do
+    artist_products(artist_id, filter, :public)
+  end
+
+  @doc """
+  Like `filter_artist_products/2`, but for the owner's preview of their
+  own profile (`?preview=1`), which isn't public yet: the artist's own
+  status is not checked. Only for a caller that has made sure the
+  viewer owns the profile (ArtistLive.Show does).
+  """
+  def filter_artist_products_for_owner_preview(artist_id, filter) do
+    artist_products(artist_id, filter, :owner_preview)
+  end
+
+  defp artist_products(artist_id, filter, audience) do
     Product
-    |> only_available()
+    |> shown_products(audience)
     |> where([p], p.artist_id == ^artist_id)
     |> join(:inner, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
     |> with_collection(filter["collection_id"])
     |> with_string(filter["search"])
     |> sort_by(filter["sort_by"])
+    |> preload([:artist, :category, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns an artist's `count` newest available works, newest first, with
+  their artist, category and photos loaded.
+
+  The artist page's "Featured works" shows these until artists can
+  choose their own (NOTES.md #23). For the owner's preview, use
+  `list_newest_artist_products_for_owner_preview/2`.
+  """
+  def list_newest_artist_products(artist_id, count) do
+    newest_artist_products(artist_id, count, :public)
+  end
+
+  @doc """
+  Like `list_newest_artist_products/2`, but for the owner's preview of
+  their own profile: the artist's own status is not checked. Only for a
+  caller that has made sure the viewer owns the profile.
+  """
+  def list_newest_artist_products_for_owner_preview(artist_id, count) do
+    newest_artist_products(artist_id, count, :owner_preview)
+  end
+
+  defp newest_artist_products(artist_id, count, audience) do
+    Product
+    |> shown_products(audience)
+    |> where([p], p.artist_id == ^artist_id)
+    |> order_by([p], desc: p.inserted_at, desc: p.id)
+    |> limit(^count)
     |> preload([:artist, :category, product_images: ^images_by_position()])
     |> Repo.all()
   end
@@ -272,6 +321,22 @@ defmodule ArtsyNeighbor.Products do
     |> where([p], p.status == :available)
     |> where([p], not is_nil(p.artist_id))
     |> where([p], p.artist_id in subquery(active_artist_ids))
+  end
+
+  # Which products the artist page may show. Each artist-page query
+  # above is written once, in a private function that takes the
+  # audience, and calls this; its public functions only pick the
+  # audience. So the two cases differ only here:
+  #   * :public — only_available/1, for every visitor.
+  #   * :owner_preview — the same, except the artist's own status is not
+  #     checked: the owner previewing a profile that isn't public yet
+  #     sees what visitors will see once it is.
+  defp shown_products(query, :public), do: only_available(query)
+
+  defp shown_products(query, :owner_preview) do
+    query
+    |> where([p], p.status == :available)
+    |> where([p], not is_nil(p.artist_id))
   end
 
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
@@ -704,14 +769,42 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Returns all collections for an artist, ordered by position.
-  Does not preload products. Used when only collection names and IDs are needed (e.g. for filter dropdown).
+  Returns the collections a visitor should see on an artist's page,
+  ordered by position. Each has only its available works preloaded
+  (ordered like `list_collections_for_artist/1`).
+
+  Left out: collections with no available works, and the artist's
+  default "Uncategorized" collection, which is a catch-all rather than
+  a collection the artist named. For the owner's preview, use
+  `list_collections_for_owner_preview/1`.
   """
-  def list_collections_for_artist_no_preloads(artist_id) do
+  def list_public_collections_for_artist(artist_id) do
+    shown_collections(artist_id, :public)
+  end
+
+  @doc """
+  Like `list_public_collections_for_artist/1`, but for the owner's
+  preview of their own profile: the artist's own status is not checked.
+  Only for a caller that has made sure the viewer owns the profile.
+  """
+  def list_collections_for_owner_preview(artist_id) do
+    shown_collections(artist_id, :owner_preview)
+  end
+
+  defp shown_collections(artist_id, audience) do
+    available_products =
+      Product
+      |> shown_products(audience)
+      |> order_by([p], asc_nulls_last: p.position, asc: p.title)
+      |> preload(product_images: ^images_by_position())
+
     ProductCollection
     |> where([c], c.artist_id == ^artist_id)
+    |> where([c], c.name != ^Artists.default_collection_name())
     |> order_by([c], asc: c.position)
+    |> preload(products: ^available_products)
     |> Repo.all()
+    |> Enum.reject(fn collection -> collection.products == [] end)
   end
 
   # Returns a query for products ordered by position (nulls last), then title.

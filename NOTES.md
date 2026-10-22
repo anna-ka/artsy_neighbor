@@ -230,11 +230,24 @@ working on the code should keep in mind.
 
   11. **All users need to be able to see their Purchasing History**. It is not built yet.
   12. **Sales history** for sellers (now named Orders) needs a brush up. It would be good to have a way for sellers to see their reviews and summary statistics at a glance.
-  13. Artists home pages (/artists/:id): the section showing collections is not wired up. Links do not link to anything. Also collection "Uncategorized" shows even when it is not empty. It also appears in the drop down box in /artists/:id/store even when it is empty. The "Uncategoriezed" collection should not show when it is empty. 
+  13. Artists home pages (/artists/:id): the section showing collections is not wired up. Links do not link to anything. Also collection "Uncategorized" shows even when it is not empty. It also appears in the drop down box in /artists/:id/store even when it is empty. The "Uncategoriezed" collection should not show when it is empty.
+      - *Done 2026-10-22 (artist-page step 3):* collection cards open the Shop tab filtered to that collection; the cards and the Shop tab's collection filter both leave out "Uncategorized" and collections with no available works (`Products.list_public_collections_for_artist/1`, and `list_collections_for_owner_preview/1` for the owner's preview).
 
   14. The name of the website in the end will be LocalPalette, not ArtsyNeighbor. We need to adjust UI for that. Code can remain as is (we do not need to rename the project)
 
   16. Do a pass on Vendor dashboard and tools. Editing products from Vendor dashboard is very rough. We want to be allow vendors to set status of products to :archived. They should be able to see them in their list of products clearly labelled as Archived so they can restore them with minimal changes. I am also contenplating allowing them to have :unavailable products - those they are working to make more of, sort of sold out products. These would show on their stores but could not be purchased until status changes. Not sure if this later should be included in the first release.
+      - *Added 2026-10-22:* vendors need toggles to make each work
+        available / unavailable / archived. Today there is no way back:
+        deactivating a profile cascades every `:available` work to
+        `:unavailable` (`Artists.deactivate_artist/1`), and reactivating
+        doesn't restore them. `Products.restore_product/1` exists but
+        has no vendor UI, and it requires the artist to be `:active`, so
+        it can't make works available for a profile that's still in
+        preview.
+      - *Test then:* the owner's preview (`/artists/:id?preview=1` on
+        an inactive profile) should show available works on the Works
+        and Shop tabs and their collections (built in artist-page
+        step 3, so far only covered by automated tests).
 
   17. I need some solid advice and to make decisions about how to store images. Right now everything is local on my laptop, I have no idea how to set it up so it would work on server.
 
@@ -256,6 +269,12 @@ working on the code should keep in mind.
       featured (and probably their order) from their vendor tools —
       belongs with the vendor tools pass (#16). Needs a product decision
       on how many (four fill one row) and what shows if none are chosen.
+      - *2026-10-22:* the Works tab now shows the 4 newest available
+        works as a stand-in (artist-page step 3). Choosing waits for the
+        vendor tools redesign, not the artist-page steps. Suggested
+        shape: an optional `featured_position` (1–4) on products, a
+        "Feature on my page" switch in the vendor's product list, and
+        the newest works filling any places not chosen.
 
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 

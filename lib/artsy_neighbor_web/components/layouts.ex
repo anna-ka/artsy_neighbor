@@ -298,6 +298,12 @@ defmodule ArtsyNeighborWeb.Layouts do
   attr :pending_reviews_as_buyer, :integer, default: 0
   attr :pending_reviews_as_vendor, :integer, default: 0
 
+  # Restyled pages (Phase E) set their own space at the top and turn
+  # this off; the rest keep the old 80px until they are restyled.
+  attr :top_space, :boolean,
+    default: true,
+    doc: "false drops the 80px space above the page"
+
   slot :inner_block, required: true
 
   def artsy_main(assigns) do
@@ -311,7 +317,7 @@ defmodule ArtsyNeighborWeb.Layouts do
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
     >
-      <main class="main-column py-20">
+      <main class={["main-column", if(@top_space, do: "py-20", else: "pb-20")]}>
         {render_slot(@inner_block)}
       </main>
     </.navlayout>

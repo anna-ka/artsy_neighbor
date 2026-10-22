@@ -42,6 +42,19 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       refute render(view) =~ "Crow with Stones"
     end
 
+    test "the Shop tab's collection filter lists only collections with works", %{conn: conn} do
+      artist = artist_fixture()
+      oils = collection_fixture(artist, "Oils", 2)
+      _empty = collection_fixture(artist, "Empty", 3)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, "#filter-form option", "Oils")
+      refute has_element?(view, "#filter-form option", "Empty")
+      refute has_element?(view, "#filter-form option", "Uncategorized")
+    end
+
     test "the Contact tab asks a logged-out visitor to log in", %{conn: conn} do
       artist = artist_fixture()
       {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
@@ -154,22 +167,50 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
   end
 
   describe "Works tab" do
-    test "each collection card opens the Shop tab with only that collection", %{conn: conn} do
+    test "Featured works shows the 4 newest available works", %{conn: conn} do
       artist = artist_fixture()
 
-      {:ok, oils} =
-        ArtsyNeighbor.Products.create_collection(%{
-          name: "Oils",
-          position: 1,
-          artist_id: artist.id
-        })
+      for number <- 1..5 do
+        product_fixture(%{artist_id: artist.id, title: "Work #{number}"})
+      end
 
-      {:ok, _sketches} =
-        ArtsyNeighbor.Products.create_collection(%{
-          name: "Sketches",
-          position: 2,
-          artist_id: artist.id
-        })
+      product_fixture(%{artist_id: artist.id, title: "Hidden work", status: :unavailable})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      # Work 1 is the oldest of the five, so it's the one left out.
+      for number <- 2..5 do
+        assert has_element?(view, ".artwork-card-title", "Work #{number}")
+      end
+
+      refute has_element?(view, ".artwork-card-title", "Work 1")
+      refute has_element?(view, ".artwork-card-title", "Hidden work")
+    end
+
+    test "See all works opens the Shop tab", %{conn: conn} do
+      artist = artist_fixture()
+      product_fixture(%{artist_id: artist.id})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      view |> element(".artist-see-all a", "See all works") |> render_click()
+
+      assert_patch(view, ~p"/artists/#{artist}/store")
+    end
+
+    test "an artist with no available works gets a short note", %{conn: conn} do
+      artist = artist_fixture()
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      assert has_element?(view, ".artist-no-works", "has no works for sale right now")
+      refute has_element?(view, ".section-heading", "Featured works")
+    end
+
+    test "each collection card opens the Shop tab with only that collection", %{conn: conn} do
+      artist = artist_fixture()
+      oils = collection_fixture(artist, "Oils", 2)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
 
       {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
 
@@ -179,6 +220,37 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
                "Oils"
              )
     end
+
+    test "leaves out Uncategorized and collections with no available works", %{conn: conn} do
+      artist = artist_fixture()
+      [uncategorized] = ArtsyNeighbor.Products.list_collections_for_artist(artist.id)
+      product_fixture(%{artist_id: artist.id, collection_id: uncategorized.id})
+
+      _empty = collection_fixture(artist, "Empty", 2)
+      sold_out = collection_fixture(artist, "Sold out", 3)
+
+      product_fixture(%{
+        artist_id: artist.id,
+        collection_id: sold_out.id,
+        status: :unavailable
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      refute has_element?(view, ".collection-card")
+      refute has_element?(view, ".section-heading", "Collections by")
+    end
+  end
+
+  defp collection_fixture(artist, name, position) do
+    {:ok, collection} =
+      ArtsyNeighbor.Products.create_collection(%{
+        name: name,
+        position: position,
+        artist_id: artist.id
+      })
+
+    collection
   end
 
   describe "Commissions tab" do
@@ -230,6 +302,26 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       # Switching tabs keeps the preview.
       view |> element(".artist-tab", "Shop") |> render_click()
       assert_patch(view, ~p"/artists/#{artist}/store?preview=1")
+    end
+
+    test "the owner's preview shows their works on the Works and Shop tabs", %{conn: conn} do
+      artist = artist_fixture(%{status: :inactive})
+      oils = collection_fixture(artist, "Oils", 2)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Harbour"})
+      product_fixture(%{artist_id: artist.id, title: "Hidden work", status: :unavailable})
+      conn = log_in_user(conn, Accounts.get_user!(artist.user_id))
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}?preview=1")
+
+      assert has_element?(view, ".artwork-card-title", "Harbour")
+      assert has_element?(view, ".collection-card", "Oils")
+      refute has_element?(view, ".artwork-card-title", "Hidden work")
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store?preview=1")
+
+      assert render(view) =~ "Harbour"
+      refute render(view) =~ "Hidden work"
+      assert has_element?(view, "#filter-form option", "Oils")
     end
 
     test "someone else can't preview an inactive profile", %{conn: conn} do
