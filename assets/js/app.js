@@ -31,6 +31,48 @@ const ScrollToBottom = {
   scrollToBottom() { this.el.scrollTop = this.el.scrollHeight }
 }
 
+// The bio on the artist page (ArtistLive.Show). The server shortens it
+// to a few lines (--bio-lines in app.css) and handles "Show full bio ›".
+// This hook answers the one question the server can't: is the bio
+// actually longer than those lines? If it is, the hook marks the bio
+// with data-overflowing, and CSS then shows the button and fades out the
+// last line. It checks again whenever the bio's box changes size (a tab
+// switch, as the compact header allows fewer lines; a resized window),
+// and once more when the site's fonts have finished loading: the real
+// font can wrap the text onto more lines than the stand-in font did,
+// while the shortened box keeps the same size, so the size watcher
+// alone wouldn't notice.
+// It sets the mark with this.js(), not directly, so LiveView keeps it
+// when it next updates the page instead of removing it.
+const BioClamp = {
+  mounted() {
+    this.text = this.el.querySelector("[data-bio-text]")
+    this.observer = new ResizeObserver(() => this.check())
+    this.observer.observe(this.text)
+    this.check()
+    document.fonts.ready.then(() => this.check())
+  },
+  destroyed() {
+    this.observer.disconnect()
+    this.gone = true
+  },
+  check() {
+    // The fonts can finish loading after the visitor has left the page.
+    if (this.gone) return
+
+    const style = getComputedStyle(this.text)
+    const lines = Number(style.getPropertyValue("--bio-lines"))
+    const shortHeight = lines * parseFloat(style.lineHeight)
+    // scrollHeight is the full text's height, even while it's cut off.
+    const overflowing = this.text.scrollHeight > shortHeight + 1
+    if (overflowing) {
+      this.js().setAttribute(this.el, "data-overflowing", "")
+    } else {
+      this.js().removeAttribute(this.el, "data-overflowing")
+    }
+  }
+}
+
 // The category bar under the header (Layouts.navlayout/1). On phones it
 // scrolls sideways, with "«" / "»" buttons: tapping scrolls the row by
 // most of its width. "»" hides at the right end, "«" at the left end, so
@@ -188,7 +230,7 @@ const csrfToken =document.querySelector("meta[name='csrf-token']").getAttribute(
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, CategoryBar, ScrollToBottom},
+  hooks: {...colocatedHooks, BioClamp, CategoryBar, ScrollToBottom},
 })
 
 // Show progress bar on live navigation and form submits

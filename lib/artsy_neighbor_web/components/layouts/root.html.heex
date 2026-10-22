@@ -11,11 +11,17 @@
     <%!-- Sentient and Switzer, from Fontshare's font service (see Phase A in
          docs/plans/2026-10-15-theme-and-components.md). Careful when changing
          the weight list: Fontshare quietly returns a different font for some
-         lists, so check the result (e.g. with curl -g). --%>
+         lists, so check the result (e.g. with curl -g). One link per font:
+         in a single link asking for both, a weight both fonts want (300)
+         was dropped from one of them (2026-10-22). --%>
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://api.fontshare.com/v2/css?f[]=sentient@300,301,400,401,500,600,700&f[]=switzer@400,500,600,700&display=swap"
+      href="https://api.fontshare.com/v2/css?f[]=sentient@300,301,400,401,500,600,700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://api.fontshare.com/v2/css?f[]=switzer@300,400,500,600,700&display=swap"
     />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>

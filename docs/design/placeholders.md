@@ -35,7 +35,9 @@ Entry format:
 
 ## Artist page
 
-(none yet)
+- **Artist's motto** (header, under the name): "Bursting with colour"
+  for every artist. Needs: a motto field on Artist and in the vendor
+  profile form. NOTES.md: #26.
 
 ## Product page
 

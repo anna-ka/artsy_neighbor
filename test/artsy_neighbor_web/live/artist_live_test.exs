@@ -60,6 +60,99 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
     end
   end
 
+  describe "header" do
+    test "shows only the postal district, never the full postal code", %{conn: conn} do
+      artist = artist_fixture(%{area_code: "v8v 4p9"})
+      {:ok, view, html} = live(conn, ~p"/artists/#{artist}")
+
+      assert has_element?(view, ".artist-area", "V8V · Victoria")
+      refute html =~ "4P9"
+      refute html =~ "4p9"
+    end
+
+    test "each line of the bio is its own paragraph", %{conn: conn} do
+      bio =
+        "I have painted in Victoria for over thirty years.\n\n" <>
+          "I grew up on a farm in the Okanagan.\nNow I paint full time in Fernwood."
+
+      artist = artist_fixture(%{bio: bio})
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      assert has_element?(view, ".artist-bio-text p", "over thirty years.")
+      assert has_element?(view, ".artist-bio-text p", "farm in the Okanagan.")
+      assert has_element?(view, ".artist-bio-text p", "full time in Fernwood.")
+    end
+
+    test "Show full bio opens the whole bio, Show less shortens it again", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+      assert has_element?(view, ".artist-bio-text.clamped")
+
+      view |> element(".artist-bio button", "Show full bio") |> render_click()
+      refute has_element?(view, ".artist-bio-text.clamped")
+      assert has_element?(view, ~s|.artist-bio button[aria-expanded="true"]|, "Show less")
+
+      view |> element(".artist-bio button", "Show less") |> render_click()
+      assert has_element?(view, ".artist-bio-text.clamped")
+    end
+
+    test "the arrows go through the photos and wrap around", %{conn: conn} do
+      artist = artist_fixture()
+      add_artist_photos(artist, 3)
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      assert photo_shown?(view, "/uploads/photo-1.jpg")
+      refute photo_shown?(view, "/uploads/photo-2.jpg")
+
+      view |> element(".carousel-arrow.next") |> render_click()
+      assert photo_shown?(view, "/uploads/photo-2.jpg")
+      refute photo_shown?(view, "/uploads/photo-1.jpg")
+
+      view |> element(".carousel-arrow.prev") |> render_click()
+      view |> element(".carousel-arrow.prev") |> render_click()
+      assert photo_shown?(view, "/uploads/photo-3.jpg")
+    end
+
+    test "the compact header keeps the current photo, without arrows", %{conn: conn} do
+      artist = artist_fixture()
+      add_artist_photos(artist, 2)
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      view |> element(".carousel-arrow.next") |> render_click()
+      view |> element(".artist-tab", "Shop") |> render_click()
+
+      assert photo_shown?(view, "/uploads/photo-2.jpg")
+      refute has_element?(view, ".carousel-arrow")
+    end
+
+    test "an artist with no photos gets an empty frame and no arrows", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
+
+      assert has_element?(view, ".artist-photo")
+      refute has_element?(view, ".artist-photo img")
+      refute has_element?(view, ".carousel-arrow")
+    end
+  end
+
+  # Gives the artist `count` photos, /uploads/photo-1.jpg and so on.
+  defp add_artist_photos(artist, count) do
+    for position <- 1..count do
+      %ArtsyNeighbor.Artists.ArtistImage{}
+      |> ArtsyNeighbor.Artists.ArtistImage.changeset(%{
+        path: "/uploads/photo-#{position}.jpg",
+        position: position,
+        artist_id: artist.id
+      })
+      |> ArtsyNeighbor.Repo.insert!()
+    end
+  end
+
+  # True when the header shows the photo at `path` (and it isn't hidden).
+  defp photo_shown?(view, path) do
+    has_element?(view, ~s|.artist-photo img[src="#{path}"]:not([hidden])|)
+  end
+
   describe "Works tab" do
     test "each collection card opens the Shop tab with only that collection", %{conn: conn} do
       artist = artist_fixture()

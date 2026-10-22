@@ -296,6 +296,17 @@ working on the code should keep in mind.
       laptop but far too big on a large monitor; more per row on wider
       screens. For when Phase E reaches that page.
 
+  28. **Postal code → neighbourhood name** (added 2026-10-21, wanted
+      soon). Artists enter a full postal code (`area_code`), which can
+      narrow down to one block, so it shouldn't be public. A small
+      module mapping its first 3 characters (the district, e.g. "V8V")
+      to a Victoria neighbourhood name ("Fernwood · Victoria" in the
+      mockup). Until then the artist page header shows only the first
+      3 characters ("V8V · Victoria"). Also still showing the full code
+      publicly: the artists index cards (`ArtistLive.Index`) and its
+      "Neighborhood" sort; and the vendor profile form's label says
+      "visible to customers", with a full code as its example.
+
 
 
 

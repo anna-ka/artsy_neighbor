@@ -26,7 +26,15 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   alias ArtsyNeighbor.Conversations
 
   import ArtsyNeighborWeb.CustomComponents,
-    only: [product_card: 1, collection_card: 1, button_artsy: 1, report_link: 1]
+    only: [
+      product_card: 1,
+      collection_card: 1,
+      button_artsy: 1,
+      report_link: 1,
+      chip: 1,
+      show_more: 1,
+      placeholder: 1
+    ]
 
   # Query params that every tab link keeps.
   @kept_params ["preview", "return_to", "return_label"]
@@ -35,7 +43,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   @filter_params ["search", "category_id", "collection_id", "sort_by"]
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, return_to: nil, return_label: nil)}
+    {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0, bio_open: false)}
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
@@ -80,6 +88,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   defp load_page(socket, artist, params) do
     artist_images = Enum.sort_by(artist.artist_images, fn image -> image.position end)
 
+    # Switching tabs keeps the photo being shown (the compact header shows
+    # just that one); another artist starts at their first photo.
+    same_artist? = socket.assigns[:artist] != nil && socket.assigns.artist.id == artist.id
+    photo_index = if same_artist?, do: socket.assigns.photo_index, else: 0
+
     socket
     |> assign(:return_to, Map.get(params, "return_to"))
     |> assign(:return_label, Map.get(params, "return_label"))
@@ -87,7 +100,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:artist, artist)
     |> assign(:page_title, artist.nickname)
     |> assign(:artist_images, artist_images)
-    |> assign(:total_slides, length(artist_images))
+    |> assign(:photo_index, photo_index)
+    # Every tab starts with the bio shortened, as the compact header
+    # allows fewer lines.
+    |> assign(:bio_open, false)
     |> load_tab(socket.assigns.live_action, artist, params)
   end
 
@@ -156,6 +172,25 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     {:noreply, push_patch(socket, to: tab_path(socket.assigns.artist, :shop, query))}
   end
 
+  # Header: an arrow on the photo was pressed. The index wraps around, so
+  # "next" on the last photo shows the first one.
+  def handle_event("show_photo", %{"index" => index}, socket) do
+    photo_count = length(socket.assigns.artist_images)
+
+    photo_index =
+      case Integer.parse(index) do
+        {number, ""} when photo_count > 0 -> Integer.mod(number, photo_count)
+        _ -> 0
+      end
+
+    {:noreply, assign(socket, :photo_index, photo_index)}
+  end
+
+  # Header: "Show full bio ›" / "Show less ‹".
+  def handle_event("toggle_bio", _params, socket) do
+    {:noreply, assign(socket, :bio_open, !socket.assigns.bio_open)}
+  end
+
   # Commissions and Contact tabs: "Send message". Finds or creates a conversation between
   # the current user (buyer) and the artist (seller), then navigates to
   # that conversation's page.
@@ -184,77 +219,46 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
       <%!-- Header: photos left, details right. Compact on every tab but Works. --%>
       <div class={["artist-top", @live_action != :works && "compact"]}>
-        <div class="artist-photo-column">
-          <%!-- DaisyUI Carousel --%>
-          <div class="carousel carousel-center w-full rounded-lg bg-base-300">
-            <%= for {img, index} <- Enum.with_index(@artist_images, 1) do %>
-              <div id={"slide#{index}"} class="carousel-item relative w-full aspect-[7/10]">
-                <img
-                  src={img.path}
-                  alt={"#{@artist.nickname} - image #{index}"}
-                  class="w-full h-full object-cover"
-                />
-                <%!-- Arrows: Works tab only (the compact photo is too small) --%>
-                <div
-                  :if={@live_action == :works}
-                  class="absolute flex justify-between transform -translate-y-1/2 left-2 right-2 top-1/2"
-                >
-                  <a
-                    href={"#slide#{if index == 1, do: @total_slides, else: index - 1}"}
-                    class="btn btn-circle btn-sm opacity-70 hover:opacity-100"
-                  >
-                    ❮
-                  </a>
-                  <a
-                    href={"#slide#{if index == @total_slides, do: 1, else: index + 1}"}
-                    class="btn btn-circle btn-sm opacity-70 hover:opacity-100"
-                  >
-                    ❯
-                  </a>
-                </div>
-              </div>
-            <% end %>
+        <.artist_photos
+          artist={@artist}
+          images={@artist_images}
+          photo_index={@photo_index}
+          controls={@live_action == :works}
+        />
+
+        <div class="artist-details">
+          <h1>{@artist.nickname}</h1>
+          <%!-- The artist's own motto: the same fixed text for everyone
+               until artists can set one (NOTES.md #26) --%>
+          <.placeholder what="Artist's motto">
+            <div class="artist-motto">Bursting with colour</div>
+          </.placeholder>
+          <div class="artist-area">{area_label(@artist.area_code)}</div>
+
+          <div :if={@artist.medium not in [nil, []]} class="artist-mediums chip-row">
+            <.chip :for={medium <- @artist.medium}>{medium}</.chip>
           </div>
 
-          <%!-- Carousel Indicators (Dots) --%>
-          <div :if={@live_action == :works} class="flex justify-center w-full py-4 gap-2">
-            <%= for {_img, index} <- Enum.with_index(@artist_images, 1) do %>
-              <a href={"#slide#{index}"} class="btn btn-xs">{index}</a>
-            <% end %>
-          </div>
-        </div>
-
-        <div>
-          <h1 class="mb-6">{@artist.nickname}</h1>
-
-          <%!-- Neighborhood Badge --%>
-          <div class="mb-6">
-            <div class="badge badge-secondary badge-outline badge-lg">
-              {@artist.area_code}
+          <%!-- Bio: the first few lines (3 on Works, 2 in the compact
+               header, none in the compact header on phones), then
+               "Show full bio ›". The BioClamp hook (app.js) shows that
+               button only if the bio is longer than those lines. --%>
+          <div id="artist-bio" class="artist-bio" phx-hook="BioClamp">
+            <h2 class="artist-bio-label">About the artist</h2>
+            <div
+              id="artist-bio-text"
+              class={["artist-bio-text", !@bio_open && "clamped"]}
+              data-bio-text
+            >
+              <p :for={paragraph <- bio_paragraphs(@artist.bio)}>{paragraph}</p>
             </div>
-          </div>
-
-          <%!-- Medium Tags --%>
-          <div class="mb-6">
-            <h2 class="text-sm font-semibold text-base-content/60 mb-2">Mediums</h2>
-            <div class="flex flex-wrap gap-2">
-              <%= for medium <- @artist.medium do %>
-                <span class="badge badge-primary">
-                  {medium}
-                </span>
-              <% end %>
-            </div>
-          </div>
-
-          <%!-- Bio: only 2 lines in the compact header --%>
-          <div class="artist-bio">
-            <h2 class="text-sm font-semibold text-base-content/60 mb-2">About the Artist</h2>
-            <p class={[
-              "text-base-content/80 leading-relaxed",
-              @live_action != :works && "line-clamp-2"
-            ]}>
-              {@artist.bio}
-            </p>
+            <.show_more
+              phx-click="toggle_bio"
+              aria-controls="artist-bio-text"
+              aria-expanded={to_string(@bio_open)}
+            >
+              {if @bio_open, do: "Show less ‹", else: "Show full bio ›"}
+            </.show_more>
           </div>
         </div>
       </div>
@@ -321,6 +325,85 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       </div>
     </Layouts.artsy_main>
     """
+  end
+
+  # Header: the artist's photos, one at a time, in a tall 7:10 frame.
+  # With more than one photo, the Works tab adds arrows and dots on top
+  # of the photo (so they take no extra room); the compact header is too
+  # small for them and shows just the current photo. No photos: an
+  # empty cream frame of the same shape.
+  attr :artist, :map, required: true
+  attr :images, :list, required: true
+  attr :photo_index, :integer, required: true
+  attr :controls, :boolean, required: true, doc: "Show the arrows and dots"
+
+  defp artist_photos(assigns) do
+    assigns = assign(assigns, :photo_count, length(assigns.images))
+
+    ~H"""
+    <div
+      class="artist-photo"
+      aria-roledescription="carousel"
+      aria-label={"Photos of #{@artist.nickname}"}
+    >
+      <img
+        :for={{image, index} <- Enum.with_index(@images)}
+        src={image.path}
+        alt={"#{@artist.nickname}, photo #{index + 1} of #{@photo_count}"}
+        hidden={index != @photo_index}
+      />
+
+      <%= if @controls && @photo_count > 1 do %>
+        <button
+          type="button"
+          class="carousel-arrow prev"
+          phx-click="show_photo"
+          phx-value-index={@photo_index - 1}
+          aria-label="Previous photo"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="carousel-arrow next"
+          phx-click="show_photo"
+          phx-value-index={@photo_index + 1}
+          aria-label="Next photo"
+        >
+          ›
+        </button>
+        <div class="carousel-dots" aria-hidden="true">
+          <span
+            :for={index <- 0..(@photo_count - 1)}
+            class={index == @photo_index && "current"}
+          >
+          </span>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  # The artist's area: only the postal district, the first 3 characters
+  # of their postal code ("V8V · Victoria"). The full code can point to a
+  # single block, so it's never shown. A proper neighbourhood name comes
+  # later (NOTES.md #28).
+  defp area_label(nil), do: "Victoria"
+
+  defp area_label(postal_code) do
+    district = postal_code |> String.trim() |> String.slice(0, 3) |> String.upcase()
+    "#{district} · Victoria"
+  end
+
+  # The bio as paragraphs: every line break the artist typed starts a new
+  # paragraph (one Enter or a blank line alike); empty lines are dropped.
+  defp bio_paragraphs(nil), do: []
+
+  defp bio_paragraphs(bio) do
+    bio
+    |> String.split(~r/\R/)
+    |> Enum.map(fn line -> String.trim(line) end)
+    |> Enum.reject(fn line -> line == "" end)
   end
 
   # Works tab: the artist's collections, then "More works".
