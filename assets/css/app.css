@@ -589,6 +589,31 @@
   .review-text { margin-top: 4px; }
   .review-report { margin-top: 4px; }
 
+  /* ---------- Page numbers (<.page_numbers>) ----------
+     Under a long list shown a page at a time. Each number is a
+     44px square, easy to tap; the current page is filled in, like a
+     chosen chip. Wraps onto a second line on narrow phones. */
+  .page-numbers { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; margin-top: 28px; }
+  .page-number, .page-step {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; height: 44px; padding: 0 10px; border-radius: var(--radius-field);
+    color: var(--color-base-content); text-decoration: none;
+  }
+  .page-step { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a.page-number:hover { background: var(--color-soft); }
+  .page-number[aria-current="page"] { background: var(--color-base-content); color: var(--color-base-100); font-weight: 600; }
+  .page-number:focus-visible, .page-step:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+  .page-gap { color: var(--color-muted); padding: 0 4px; }
+  .page-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+  /* Phones: the numbers on the first line, "‹ Previous" and "Next ›"
+     under them at the two edges, so nothing wraps in odd places. */
+  @media (max-width: 760px) {
+    .page-numbers { display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "list list" "previous next"; row-gap: 8px; }
+    .page-list { grid-area: list; }
+    .page-step[rel="prev"] { grid-area: previous; justify-self: start; }
+    .page-step[rel="next"] { grid-area: next; justify-self: end; }
+  }
+
   /* ---------- Page column (Layouts.artsy_main/1) ----------
      The page's content: --content-width wide (80% of the window, almost
      all of it on phones), centred. The footer lines up with it. */
@@ -799,6 +824,11 @@
   .artist-review-list { max-width: 80ch; margin-top: 12px; }
   .shop-no-reviews { color: var(--color-muted); }
   .back-to-top { margin-top: 16px; }
+  .see-all-reviews { margin-top: 12px; }
+  /* The reviews page (not a tab, reached from the Shop tab). */
+  .reviews-page { padding-top: 32px; }
+  .back-to-shop { display: inline-block; margin-bottom: 20px; color: var(--color-base-content); text-underline-offset: 3px; }
+  .reviews-page .artist-review-list { margin-top: 12px; }
   @media (max-width: 760px) {
     .shop-links { justify-content: flex-start; }
   }

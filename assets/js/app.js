@@ -233,6 +233,15 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {...colocatedHooks, BioClamp, CategoryBar, ScrollToBottom},
 })
 
+// The server can ask for an element to be scrolled to the top of the
+// screen (push_event "scroll-into-view" with the element's id), e.g. the
+// artist's reviews after a page number is pressed: a LiveView patch
+// otherwise keeps the scroll position.
+window.addEventListener("phx:scroll-into-view", event => {
+  const element = document.getElementById(event.detail.id)
+  if (element) element.scrollIntoView({block: "start"})
+})
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))

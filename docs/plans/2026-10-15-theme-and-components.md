@@ -645,6 +645,12 @@ computer and phone width and the developer's review:
    first, fetched a page at a time), and page numbers at the bottom
    ("‹ Previous 1 2 3 … 12 Next ›"; none when one page is enough) as a
    shared component for other long lists later.
+   *Built 2026-10-23 (5b):* the link says "‹ Back to the shop" (an
+   artist's name with "'s shop" reads badly for names like "… Studio");
+   the Shop tab stays marked on the reviews page; a page number scrolls
+   the list back to its "Reviews" heading (a LiveView patch would stay
+   at the bottom); on phones the numbers get a line of their own, with
+   "‹ Previous" and "Next ›" under them at the two edges.
 6. **Contact tab.**
 
 Until the features exist:

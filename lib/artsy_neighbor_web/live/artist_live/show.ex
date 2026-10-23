@@ -8,6 +8,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     * Commissions — `/artists/:id/commissions` (live_action `:commissions`)
     * Contact — `/artists/:id/contact` (live_action `:contact`)
 
+  Plus one page that isn't a tab: all the artist's reviews, 10 a page,
+  at `/artists/:id/reviews?page=2` (live_action `:reviews`), reached
+  from the Shop tab's "See all ... reviews ›". The Shop tab stays marked
+  there.
+
   Switching tabs is a LiveView patch: the page stays, `handle_params/3`
   runs again and only what's below the tabs changes. On every tab but
   Works the header is "compact" (smaller photo, shorter bio) so the
@@ -38,7 +43,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       placeholder: 1,
       star_rating: 1,
       review: 1,
-      quiet_link: 1
+      quiet_link: 1,
+      page_numbers: 1
     ]
 
   # Query params that every tab link keeps.
@@ -58,6 +64,9 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
 
   # How many of the newest reviews the Shop tab shows.
   @shop_review_count 3
+
+  # How many reviews each page of the reviews page shows.
+  @reviews_per_page 10
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0, bio_open: false)}
@@ -125,7 +134,19 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     # allows fewer lines.
     |> assign(:bio_open, false)
     |> load_tab(socket.assigns.live_action, artist, params)
+    |> scroll_to_reviews(socket.assigns.live_action, same_artist?)
   end
+
+  # Coming to the reviews page from elsewhere on this page (a page
+  # number, or "See all ... reviews ›"), the browser would stay scrolled
+  # where it was, often near the bottom; this brings the "Reviews"
+  # heading to the top instead (the "scroll-into-view" listener in
+  # app.js). Not when the page is first opened, which starts at the top.
+  defp scroll_to_reviews(socket, :reviews, true = _same_artist?) do
+    push_event(socket, "scroll-into-view", %{id: "artist-reviews"})
+  end
+
+  defp scroll_to_reviews(socket, _live_action, _same_artist?), do: socket
 
   # Featured works: the 4 newest available works, until artists can
   # choose their own (NOTES.md #23).
@@ -180,8 +201,39 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:review_summary, Reviews.vendor_review_summary(artist.id))
   end
 
+  # All the reviews, a page at a time. A page number that isn't a number
+  # gives the first page; one past the end gives the last.
+  defp load_tab(socket, :reviews, artist, params) do
+    summary = Reviews.vendor_review_summary(artist.id)
+    total_pages = max(1, ceil(summary.count / @reviews_per_page))
+    page = params |> Map.get("page") |> page_number() |> min(total_pages)
+
+    reviews =
+      Reviews.list_vendor_reviews_for_artist(artist.id,
+        limit: @reviews_per_page,
+        offset: (page - 1) * @reviews_per_page
+      )
+
+    socket
+    |> assign(:page_title, "Reviews of #{artist.nickname}")
+    |> assign(:review_summary, summary)
+    |> assign(:reviews, reviews)
+    |> assign(:page, page)
+    |> assign(:total_pages, total_pages)
+  end
+
   defp load_tab(socket, :commissions, _artist, _params), do: socket
   defp load_tab(socket, :contact, _artist, _params), do: socket
+
+  # The page number from the address: a whole number from 1, else 1.
+  defp page_number(text) when is_binary(text) do
+    case Integer.parse(text) do
+      {number, ""} when number >= 1 -> number
+      _ -> 1
+    end
+  end
+
+  defp page_number(_missing), do: 1
 
   # The artist's collections that have works to show (Works tab cards,
   # Shop tab filter).
@@ -196,6 +248,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   defp tab_path(artist, :shop, query), do: ~p"/artists/#{artist}/store?#{query}"
   defp tab_path(artist, :commissions, query), do: ~p"/artists/#{artist}/commissions?#{query}"
   defp tab_path(artist, :contact, query), do: ~p"/artists/#{artist}/contact?#{query}"
+  defp tab_path(artist, :reviews, query), do: ~p"/artists/#{artist}/reviews?#{query}"
+
+  # The tab marked as current: the reviews page belongs to Shop.
+  defp current_tab(:reviews), do: :shop
+  defp current_tab(live_action), do: live_action
 
   # Shop tab: puts the filters in the address, which reloads the works
   # (handle_params/3). Empty filters are left out of the address.
@@ -328,7 +385,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           }
           patch={tab_path(@artist, tab, @kept_params)}
           class="artist-tab"
-          aria-current={if @live_action == tab, do: "page"}
+          aria-current={if current_tab(@live_action) == tab, do: "page"}
         >
           {label}
         </.link>
@@ -356,6 +413,19 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         review_summary={@review_summary}
         audience={@audience}
         current_scope={@current_scope}
+        kept_params={@kept_params}
+      />
+
+      <.reviews_page
+        :if={@live_action == :reviews}
+        artist={@artist}
+        reviews={@reviews}
+        review_summary={@review_summary}
+        page={@page}
+        total_pages={@total_pages}
+        audience={@audience}
+        current_scope={@current_scope}
+        kept_params={@kept_params}
       />
 
       <.commissions_tab
@@ -544,6 +614,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   attr :review_summary, :map, required: true, doc: "%{count: ..., average: ...}"
   attr :audience, :atom, required: true, doc: ":public or :owner_preview"
   attr :current_scope, :any, required: true
+  attr :kept_params, :map, required: true
 
   defp shop_tab(assigns) do
     ~H"""
@@ -653,12 +724,63 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         />
         <.artist_review_list
           reviews={@reviews}
-          artist={@artist}
           audience={@audience}
           current_scope={@current_scope}
+          return_to={~p"/artists/#{@artist}/store"}
         />
+        <div :if={@review_summary.count > length(@reviews)} class="see-all-reviews">
+          <.link patch={tab_path(@artist, :reviews, @kept_params)}>
+            See all {@review_summary.count} reviews ›
+          </.link>
+        </div>
       <% end %>
       <div class="back-to-top"><.quiet_link href="#top">Back to top</.quiet_link></div>
+    </section>
+    """
+  end
+
+  # The reviews page: every review of the artist, newest first, 10 a
+  # page, with page numbers at the bottom.
+  attr :artist, :map, required: true
+  attr :reviews, :list, required: true, doc: "This page's reviews"
+  attr :review_summary, :map, required: true
+  attr :page, :integer, required: true
+  attr :total_pages, :integer, required: true
+  attr :audience, :atom, required: true
+  attr :current_scope, :any, required: true
+  attr :kept_params, :map, required: true
+
+  defp reviews_page(assigns) do
+    ~H"""
+    <section id="artist-reviews" class="reviews-page">
+      <.link patch={tab_path(@artist, :shop, @kept_params)} class="back-to-shop">
+        ‹ Back to the shop
+      </.link>
+      <.section_heading>Reviews</.section_heading>
+      <p :if={@review_summary.count == 0} class="shop-no-reviews">No reviews yet.</p>
+      <%= if @review_summary.count > 0 do %>
+        <.star_rating
+          look="full"
+          rating={@review_summary.average}
+          count={@review_summary.count}
+        />
+        <.artist_review_list
+          reviews={@reviews}
+          audience={@audience}
+          current_scope={@current_scope}
+          return_to={tab_path(@artist, :reviews, Map.put(@kept_params, "page", to_string(@page)))}
+        />
+        <.page_numbers
+          page={@page}
+          total_pages={@total_pages}
+          page_path={
+            fn page ->
+              tab_path(@artist, :reviews, Map.put(@kept_params, "page", to_string(page)))
+            end
+          }
+          label="Pages of reviews"
+        />
+      <% end %>
     </section>
     """
   end
@@ -668,9 +790,9 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   # (and not in the owner's preview, where the work's page isn't public
   # yet).
   attr :reviews, :list, required: true
-  attr :artist, :map, required: true
   attr :audience, :atom, required: true
   attr :current_scope, :any, required: true
+  attr :return_to, :string, required: true, doc: "Where the report form goes back to"
 
   defp artist_review_list(assigns) do
     ~H"""
@@ -690,7 +812,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           <.report_link
             subject="vendor_review_of"
             id={review.id}
-            return_to={~p"/artists/#{@artist.id}/store"}
+            return_to={@return_to}
             return_label="Artist page"
           >
             Report this review

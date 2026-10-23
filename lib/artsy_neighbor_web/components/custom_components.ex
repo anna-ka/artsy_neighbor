@@ -579,6 +579,102 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Renders page numbers for a long list shown a page at a time:
+
+      ‹ Previous  1  …  5  6  7  …  12  Next ›
+
+  The first and last page, and the pages next to the current one, are
+  always there; "…" stands for the pages left out. The current page is
+  marked, not a link. Shows nothing when everything fits on one page.
+  On phones the numbers get a line of their own, with "‹ Previous" and
+  "Next ›" on the line below.
+
+  Each number is a LiveView patch link, so the list changes without
+  reloading the page, and each page has its own address (Back and
+  bookmarks work). The page gives `page_path`, a function that turns a
+  page number into that page's address.
+
+  ## Example
+
+      <.page_numbers
+        page={@page}
+        total_pages={@total_pages}
+        page_path={fn page -> ~p"/artists/\#{@artist}/reviews?page=\#{page}" end}
+        label="Pages of reviews"
+      />
+  """
+  attr :page, :integer, required: true, doc: "The current page, from 1"
+  attr :total_pages, :integer, required: true
+  attr :page_path, :any, required: true, doc: "A function: page number -> address"
+  attr :label, :string, default: "Pages", doc: "What screen readers hear for the whole row"
+
+  def page_numbers(assigns) do
+    assigns = assign(assigns, :items, page_items(assigns.page, assigns.total_pages))
+
+    ~H"""
+    <nav :if={@total_pages > 1} class="page-numbers" aria-label={@label}>
+      <.link :if={@page > 1} patch={@page_path.(@page - 1)} class="page-step" rel="prev">
+        ‹ Previous
+      </.link>
+      <span class="page-list">
+        <%= for item <- @items do %>
+          <span :if={item == :gap} class="page-gap" aria-hidden="true">…</span>
+          <span :if={item == @page} class="page-number" aria-current="page">
+            <span class="sr-only">Page</span> {item}
+          </span>
+          <.link
+            :if={item != :gap && item != @page}
+            patch={@page_path.(item)}
+            class="page-number"
+            aria-label={"Page #{item}"}
+          >
+            {item}
+          </.link>
+        <% end %>
+      </span>
+      <.link :if={@page < @total_pages} patch={@page_path.(@page + 1)} class="page-step" rel="next">
+        Next ›
+      </.link>
+    </nav>
+    """
+  end
+
+  @doc """
+  The page numbers `page_numbers/1` shows, in order, with `:gap` where
+  pages are left out: the first and last page and three pages around
+  the current one (moved inwards at either end, so page 1 of 12 gives
+  1, 2, 3, …, 12). A gap of just one page shows that page instead of
+  "…", which would take as much room. For example, page 6 of 12 gives
+  `[1, :gap, 5, 6, 7, :gap, 12]`.
+  """
+  def page_items(_page, total_pages) when total_pages <= 1, do: [1]
+
+  def page_items(page, total_pages) do
+    window_start = max(1, min(page - 1, total_pages - 2))
+    window_end = min(total_pages, window_start + 2)
+
+    shown =
+      ([1, total_pages] ++ Enum.to_list(window_start..window_end))
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    # Walk through the shown pages; between two of them, fill in a
+    # single missing page, or put a :gap for more than one. (Built
+    # backwards, as adding to the front of a list is cheap, then turned
+    # around.)
+    shown
+    |> Enum.reduce([], fn number, items ->
+      case items do
+        [] -> [number]
+        [previous | _] when number - previous == 1 -> [number | items]
+        [previous | _] when number - previous == 2 -> [number, previous + 1 | items]
+        _ -> [number, :gap | items]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  @doc """
   Marks a feature that is shown but not built yet. Wrap the markup the
   real feature would have (a button, a tab, a line of text); it looks
   exactly the same, but pressing it only shows a small note, "Not built

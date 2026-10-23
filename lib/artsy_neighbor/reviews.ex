@@ -142,8 +142,8 @@ defmodule ArtsyNeighbor.Reviews do
 
   @doc """
   The artist's visible reviews (see above), newest first, each with its
-  reviewer and the order's items (with their products) preloaded, for
-  the artist page.
+  reviewer and the order's items (with their products, first added
+  first) preloaded, for the artist page.
 
   Options, for showing them a page at a time:
 
@@ -159,13 +159,18 @@ defmodule ArtsyNeighbor.Reviews do
         # id as a tie-breaker, so pages don't overlap when two reviews
         # have the same submitted_at
         order_by: [desc: vr.submitted_at, desc: vr.id],
-        offset: ^offset,
-        preload: [:reviewer, order: [items: :product]]
+        offset: ^offset
       )
 
     query = if limit, do: limit(query, ^limit), else: query
 
-    Repo.all(query)
+    # The order's works in the order they were added, so a page that
+    # names only the first one always names the same one.
+    items_query = from(item in ArtsyNeighbor.Orders.OrderItem, order_by: item.id)
+
+    query
+    |> Repo.all()
+    |> Repo.preload([:reviewer, order: [items: {items_query, :product}]])
   end
 
   @doc """

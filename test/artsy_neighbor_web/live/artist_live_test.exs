@@ -306,6 +306,64 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
     end
   end
 
+  describe "reviews page" do
+    test "the Shop tab links to it only when there are more than 3 reviews", %{conn: conn} do
+      artist = artist_fixture()
+      for _ <- 1..3, do: reviewed_order(artist)
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+      refute has_element?(view, "a", "See all")
+
+      reviewed_order(artist)
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      view |> element("a", "See all 4 reviews") |> render_click()
+      assert_patch(view, ~p"/artists/#{artist}/reviews")
+    end
+
+    test "10 reviews a page, newest first, with page numbers", %{conn: conn} do
+      artist = artist_fixture()
+
+      # Review 1 is the oldest, review 12 the newest.
+      for number <- 1..12 do
+        reviewed_order(artist, body: "Review #{number}", days_ago: 13 - number)
+      end
+
+      {:ok, view, html} = live(conn, ~p"/artists/#{artist}/reviews")
+
+      assert review_texts(html) == Enum.map(12..3//-1, fn number -> "Review #{number}" end)
+      assert has_element?(view, ~s|.artist-tab[aria-current="page"]|, "Shop")
+      assert has_element?(view, ".artist-top.compact")
+      assert has_element?(view, ~s|.page-number[aria-current="page"]|, "1")
+
+      view |> element(~s|.page-numbers a[aria-label="Page 2"]|) |> render_click()
+
+      assert_patch(view, ~p"/artists/#{artist}/reviews?page=2")
+      assert review_texts(render(view)) == ["Review 2", "Review 1"]
+    end
+
+    test "a page number out of range shows the nearest page", %{conn: conn} do
+      artist = artist_fixture()
+      reviewed_order(artist, body: "Only one")
+
+      {:ok, _view, html} = live(conn, ~p"/artists/#{artist}/reviews?page=7")
+      assert review_texts(html) == ["Only one"]
+
+      {:ok, _view, html} = live(conn, ~p"/artists/#{artist}/reviews?page=abc")
+      assert review_texts(html) == ["Only one"]
+    end
+
+    test "\"Back to the shop\" goes to the Shop tab", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/reviews")
+
+      assert has_element?(view, "#artist-reviews", "No reviews yet.")
+
+      view |> element("a", "Back to the shop") |> render_click()
+      assert_patch(view, ~p"/artists/#{artist}/store")
+    end
+  end
+
   # A completed order from a new buyer (or `buyer:`) with the artist's
   # review of it, visible on the artist page: completed 20 days ago
   # (`completed_days_ago:`), so the 14 days are over, and submitted
