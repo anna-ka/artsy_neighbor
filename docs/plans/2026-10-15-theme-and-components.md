@@ -629,6 +629,22 @@ computer and phone width and the developer's review:
    phones (smaller text in a field makes iPhones zoom in). The links
    down to Pickup and delivery / Returns / Reviews come with step 5.
 5. **Shop tab, part 2:** Pickup and delivery, Reviews.
+   *Decided 2026-10-23:* two commits. **5a**, on the Shop tab: links
+   under the announcement down to "Pickup and delivery" and "Reviews
+   ★ (n)" (no Reviews link when there are none), a thin line after the
+   grid, Pickup and delivery (option name, the artist's note under it),
+   Reviews (stars + "4.2 out of 5 · 6 reviews", the 3 newest, "See all
+   n reviews ›" when there are more), "Back to top" after each
+   section; "No reviews yet." when there are none. Each review: stars,
+   username, month, "bought <work>" ("bought A and 1 more" for several
+   works; a title links to its work only while it is for sale), text,
+   and "Report this review" for logged-in viewers. Returns stays out
+   (no field yet, `NOTES.md` #26). **5b**, a reviews page of its own,
+   `/artists/:id/reviews?page=2`: the compact header, a "‹ Back to
+   <artist>'s shop" link, the star summary, 10 reviews a page (newest
+   first, fetched a page at a time), and page numbers at the bottom
+   ("‹ Previous 1 2 3 … 12 Next ›"; none when one page is enough) as a
+   shared component for other long lists later.
 6. **Contact tab.**
 
 Until the features exist:

@@ -443,10 +443,14 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       <.star_rating rating={@rating} count={@review_count} href="#reviews" />
 
       <.star_rating rating={@rating} count={@review_count} look="full" />
+
+  A `label` is shown before the stars, as part of the link, e.g.
+  "Reviews ★★★★☆ (25)" on the artist's Shop tab.
   """
   attr :rating, :any, required: true, doc: "The average, from 0 to 5, e.g. 4.4"
   attr :count, :integer, required: true, doc: "How many reviews"
   attr :look, :string, default: "short", values: ~w(short home full)
+  attr :label, :string, default: nil, doc: "Words before the stars, e.g. \"Reviews\""
   attr :rest, :global, include: ~w(href navigate patch)
 
   def star_rating(assigns) do
@@ -462,10 +466,12 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
     ~H"""
     <.link :if={@is_link} class="star-rating" aria-label={@spoken} {@rest}>
+      <span :if={@label} class="star-rating-words" aria-hidden="true">{@label}</span>
       <.stars rating={@rating} />
       <span class="star-rating-words" aria-hidden="true">{@words}</span>
     </.link>
     <span :if={not @is_link} class="star-rating" role="img" aria-label={@spoken} {@rest}>
+      <span :if={@label} class="star-rating-words" aria-hidden="true">{@label}</span>
       <.stars rating={@rating} />
       <span class="star-rating-words" aria-hidden="true">{@words}</span>
     </span>

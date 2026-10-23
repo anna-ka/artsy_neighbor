@@ -780,6 +780,29 @@
     .shop-select { flex: 0 1 70%; }
   }
 
+  /* Links down to Pickup and delivery / Reviews: under the
+     announcement, ending at the right edge like the search and sort
+     below. Ordinary text colour and size rather than the link colour,
+     to keep this part calm; still underlined, so they read as links. */
+  .shop-links { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 28px; margin-bottom: 20px; }
+  .shop-links a { color: var(--color-base-content); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .shop-links a.star-rating { color: var(--color-base-content); }
+
+  /* The sections after the works: closer together than the big page
+     sections; their headings separate them. */
+  .shop-end-section { padding-top: var(--section-gap); }
+  .shop-end-section + .shop-end-section { padding-top: 40px; }
+  .delivery-list { list-style: none; padding: 0; margin: 0; max-width: 70ch; }
+  .delivery-list li + li { margin-top: 14px; }
+  .delivery-list strong { display: block; font-weight: 600; }
+  .delivery-list span { color: var(--color-muted); }
+  .artist-review-list { max-width: 80ch; margin-top: 12px; }
+  .shop-no-reviews { color: var(--color-muted); }
+  .back-to-top { margin-top: 16px; }
+  @media (max-width: 760px) {
+    .shop-links { justify-content: flex-start; }
+  }
+
   .artist-report { margin-top: var(--section-gap); text-align: right; }
 
   /* "Back to ...": just under the category bar, starting where "All

@@ -91,18 +91,18 @@ working on the code should keep in mind.
 - **No real payment processing yet.** Charge/refund functions are `Logger`
   stubs; a `payment_method` field (cash/Interac) is planned but not yet on the
   `Order` schema.
-- **Flagging: reporting works for vendors/products/buyers; reviews and
-  admin moderation don't yet.** Buyers/vendors can report a rogue vendor,
-  product, or buyer via `/flag/:subject_type/:subject_id` (`FlagLive.New`)
-  — see `Reviews.resolve_subject/2` and `Reviews.create_flag/1`.
-  `resolve_subject/2` also handles the three `*_review_of` types
-  (flagging a review itself), but nothing in the UI links to them yet,
-  because reviews aren't shown publicly anywhere today — only to the two
-  parties on an order, on their own private pages. A future UI pass needs
-  to cover, together: a public reviews display, "flag this review" entry
-  points once that exists, and the `/admin/flags` moderation view
-  (review/resolve/dismiss reports) — plus notifying a reporter when their
-  flag's status changes, which depends on that moderation view existing.
+- **Flagging: reporting works; admin moderation doesn't yet.**
+  Buyers/vendors can report a rogue vendor, product, or buyer via
+  `/flag/:subject_type/:subject_id` (`FlagLive.New`) — see
+  `Reviews.resolve_subject/2` and `Reviews.create_flag/1`. Since the
+  artist page's step 5a (2026-10-23), reviews of artists are shown
+  publicly on the artist's Shop tab, each with "Report this review"
+  (`vendor_review_of`). Product and buyer reviews still aren't shown
+  publicly, so `product_review_of` / `buyer_review_of` have no links yet.
+  Reports are only stored: there is no `/admin/flags` moderation view
+  (review/resolve/dismiss reports) and no notice to a reporter when their
+  flag's status changes, which depends on that view existing. Fine
+  while only we use the site; needed before testers.
 
 ## Deferred follow-ups (small, scoped)
 
@@ -191,13 +191,17 @@ working on the code should keep in mind.
 
 ## Features / next chunks of work
 
-1. **Admin moderation pass** . The admin UI right now is a rough draft. It is incomplete and inconvenient for any even a small volume of users. Need to add good comfortable UI to moderate vendors, users and buyers, reviews, products and to resolve flags. Not sure if UI for moderating converstions is needed. Also not sure what it may look like.
+1. **Admin moderation pass** . **Must include a screen for reports
+   (`/admin/flags`)**: since 2026-10-23 the artist page has "Report this
+   review" links, so review reports are being collected with no way yet
+   to see or act on them (reports of artists, works and buyers too).
+   The admin UI right now is a rough draft. It is incomplete and inconvenient for any even a small volume of users. Need to add good comfortable UI to moderate vendors, users and buyers, reviews, products and to resolve flags. Not sure if UI for moderating converstions is needed. Also not sure what it may look like.
 
  `/admin/flags` (review/resolve/dismiss
-   reports), a public reviews display, "flag this review" entry points,
-   and notifying a reporter when their flag's status changes.
-   The "Flagging" bullet under Known limitations above says these four
-   need to ship together. **Design decision already made, not yet built:** `Flag` needs
+   reports) and notifying a reporter when their flag's status changes
+   (reviews of artists and their "Report this review" links are on the
+   artist page since 2026-10-23; product reviews follow with the product
+   page). **Design decision already made, not yet built:** `Flag` needs
    a new status (e.g. `:subject_removed`, not `:dismissed`/`:removed`) for
    when a flagged review is soft-deleted by its own author before any
    admin acts on the flag.

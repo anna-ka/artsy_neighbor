@@ -23,6 +23,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Reviews
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [
@@ -34,7 +35,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       report_link: 1,
       chip: 1,
       show_more: 1,
-      placeholder: 1
+      placeholder: 1,
+      star_rating: 1,
+      review: 1,
+      quiet_link: 1
     ]
 
   # Query params that every tab link keeps.
@@ -51,6 +55,9 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   # How many works the Shop tab shows at first, and how many more each
   # "Show more works" adds. 12 fills whole rows of 2, 3 or 4 cards.
   @page_size 12
+
+  # How many of the newest reviews the Shop tab shows.
+  @shop_review_count 3
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0, bio_open: false)}
@@ -166,6 +173,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:collections, shown_collections(socket.assigns.audience, artist))
     # Any change of filters starts again with the first page of works.
     |> assign(:shown_count, @page_size)
+    |> assign(
+      :reviews,
+      Reviews.list_vendor_reviews_for_artist(artist.id, limit: @shop_review_count)
+    )
+    |> assign(:review_summary, Reviews.vendor_review_summary(artist.id))
   end
 
   defp load_tab(socket, :commissions, _artist, _params), do: socket
@@ -340,6 +352,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         total_count={@total_count}
         category_counts={@category_counts}
         collections={@collections}
+        reviews={@reviews}
+        review_summary={@review_summary}
+        audience={@audience}
+        current_scope={@current_scope}
       />
 
       <.commissions_tab
@@ -512,9 +528,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     end
   end
 
-  # Shop tab: the artist's announcement, filters (search, category, sort,
-  # collection chips), the works a page at a time, then pickup and
-  # delivery (redesigned in step 5 of the artist-page plan).
+  # Shop tab: the artist's announcement, links down to the sections at
+  # the end, filters (search, category, sort, collection chips), the
+  # works a page at a time, then Pickup and delivery and the newest
+  # reviews.
   attr :artist, :map, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :filters, :map, required: true, doc: "The filters in the address"
@@ -523,6 +540,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   attr :total_count, :integer, required: true, doc: "All the artist's works, unfiltered"
   attr :category_counts, :list, required: true
   attr :collections, :list, required: true
+  attr :reviews, :list, required: true, doc: "The newest reviews of the artist"
+  attr :review_summary, :map, required: true, doc: "%{count: ..., average: ...}"
+  attr :audience, :atom, required: true, doc: ":public or :owner_preview"
+  attr :current_scope, :any, required: true
 
   defp shop_tab(assigns) do
     ~H"""
@@ -534,6 +555,23 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       >
         <strong>Note from {@artist.nickname}:</strong> {@artist.announcement}
       </div>
+
+      <%!-- Links down to the sections at the end, so they are easy to
+           find without scrolling past every work --%>
+      <nav
+        :if={@artist.delivery_options != [] || @review_summary.count > 0}
+        class="shop-links"
+        aria-label={"Buying from #{@artist.nickname}"}
+      >
+        <a :if={@artist.delivery_options != []} href="#pickup-delivery">Pickup and delivery</a>
+        <.star_rating
+          :if={@review_summary.count > 0}
+          label="Reviews"
+          rating={@review_summary.average}
+          count={@review_summary.count}
+          href="#artist-reviews"
+        />
+      </nav>
 
       <p :if={@total_count == 0} class="artist-no-works">
         {@artist.nickname} has no works for sale right now.
@@ -589,23 +627,105 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       </div>
     </section>
 
-    <section :if={@artist.delivery_options != []} class="mt-6">
-      <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Options</h2>
-      <ul class="space-y-1">
-        <%= for option <- @artist.delivery_options do %>
-          <li class="text-sm text-base-content/80">
-            <span class="font-medium">{delivery_option_label(option)}</span>
-            <%= if (get_in(@artist.delivery_info, [option]) || "") != "" do %>
-              <span class="text-base-content/60">
-                — {get_in(@artist.delivery_info, [option])}
-              </span>
-            <% end %>
-          </li>
-        <% end %>
+    <hr class="artist-divider" />
+
+    <%!-- The artist's delivery options, each with their own note --%>
+    <section :if={@artist.delivery_options != []} id="pickup-delivery" class="shop-end-section">
+      <.section_heading>Pickup and delivery</.section_heading>
+      <ul class="delivery-list">
+        <li :for={option <- @artist.delivery_options}>
+          <strong>{delivery_option_label(option)}</strong>
+          <span :if={delivery_note(@artist, option) != ""}>{delivery_note(@artist, option)}</span>
+        </li>
       </ul>
+      <div class="back-to-top"><.quiet_link href="#top">Back to top</.quiet_link></div>
+    </section>
+
+    <%!-- Reviews of the artist by buyers, newest first --%>
+    <section id="artist-reviews" class="shop-end-section">
+      <.section_heading>Reviews</.section_heading>
+      <p :if={@review_summary.count == 0} class="shop-no-reviews">No reviews yet.</p>
+      <%= if @review_summary.count > 0 do %>
+        <.star_rating
+          look="full"
+          rating={@review_summary.average}
+          count={@review_summary.count}
+        />
+        <.artist_review_list
+          reviews={@reviews}
+          artist={@artist}
+          audience={@audience}
+          current_scope={@current_scope}
+        />
+      <% end %>
+      <div class="back-to-top"><.quiet_link href="#top">Back to top</.quiet_link></div>
     </section>
     """
   end
+
+  # A list of reviews of the artist, each naming the work that was
+  # bought. A title links to its work only while the work is for sale
+  # (and not in the owner's preview, where the work's page isn't public
+  # yet).
+  attr :reviews, :list, required: true
+  attr :artist, :map, required: true
+  attr :audience, :atom, required: true
+  attr :current_scope, :any, required: true
+
+  defp artist_review_list(assigns) do
+    ~H"""
+    <ul class="review-list artist-review-list">
+      <.review
+        :for={review <- @reviews}
+        id={"review-#{review.id}"}
+        stars={review.stars}
+        name={review.reviewer.username}
+        date={review.submitted_at}
+        text={review.body}
+      >
+        <:bought :if={review.order.items != []}>
+          <.bought_works items={review.order.items} audience={@audience} />
+        </:bought>
+        <:report :if={@current_scope && @current_scope.user}>
+          <.report_link
+            subject="vendor_review_of"
+            id={review.id}
+            return_to={~p"/artists/#{@artist.id}/store"}
+            return_label="Artist page"
+          >
+            Report this review
+          </.report_link>
+        </:report>
+      </.review>
+    </ul>
+    """
+  end
+
+  # The works bought in an order: the first one's title (as it was when
+  # bought), a link while the work is still for sale, then "and 2 more"
+  # if there were others.
+  attr :items, :list, required: true, doc: "The order's items, at least one"
+  attr :audience, :atom, required: true
+
+  defp bought_works(assigns) do
+    first = hd(assigns.items)
+
+    assigns =
+      assigns
+      |> assign(:first, first)
+      |> assign(:link?, assigns.audience == :public && for_sale?(first.product))
+      |> assign(:others, length(assigns.items) - 1)
+      |> assign(:path, ~p"/products/#{first.product_id}")
+
+    ~H"""
+    <.link :if={@link?} navigate={@path}>{@first.product_title}</.link>
+    <span :if={not @link?}>{@first.product_title}</span>
+    <span :if={@others > 0}>and {@others} more</span>
+    """
+  end
+
+  defp for_sale?(nil), do: false
+  defp for_sale?(product), do: product.status == :available
 
   # Shop tab: search, category and sort in one row, ending at the
   # right edge. The category dropdown lists only the categories the
@@ -760,4 +880,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   defp delivery_option_label("shipping"), do: "Shipping"
   defp delivery_option_label("other"), do: "Other"
   defp delivery_option_label(other), do: other
+
+  # The artist's own note for one delivery option, or "" when there's none.
+  defp delivery_note(artist, option) do
+    (artist.delivery_info || %{})
+    |> Map.get(option, "")
+    |> to_string()
+    |> String.trim()
+  end
 end

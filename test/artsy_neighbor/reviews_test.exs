@@ -606,6 +606,35 @@ defmodule ArtsyNeighbor.ReviewsTest do
 
       assert Reviews.list_vendor_reviews_for_artist(other_artist.id) == []
     end
+
+    test "newest first, a page at a time with :limit and :offset" do
+      artist = artist_fixture()
+
+      # Visible because the 14 days are over; submitted 3, 2 and 1 days ago.
+      [oldest, middle, newest] =
+        for days_ago <- [3, 2, 1] do
+          buyer = user_fixture()
+          order = order_fixture(buyer_id: buyer.id, artist_id: artist.id) |> complete_order(20)
+
+          vendor_review_fixture(%{
+            order_id: order.id,
+            reviewer_id: buyer.id,
+            artist_id: artist.id
+          })
+          |> backdate_submission(days_ago)
+        end
+
+      ids = fn reviews -> Enum.map(reviews, fn review -> review.id end) end
+
+      assert ids.(Reviews.list_vendor_reviews_for_artist(artist.id)) ==
+               [newest.id, middle.id, oldest.id]
+
+      assert ids.(Reviews.list_vendor_reviews_for_artist(artist.id, limit: 2)) ==
+               [newest.id, middle.id]
+
+      assert ids.(Reviews.list_vendor_reviews_for_artist(artist.id, limit: 2, offset: 2)) ==
+               [oldest.id]
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -775,6 +804,38 @@ defmodule ArtsyNeighbor.ReviewsTest do
                })
 
       refute changeset.valid?
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # vendor_review_summary/1
+  # ---------------------------------------------------------------------------
+  describe "vendor_review_summary/1" do
+    test "counts and averages the visible reviews only" do
+      artist = artist_fixture()
+
+      for {stars, completed_days_ago} <- [{5, 20}, {4, 20}, {4, 20}, {1, 2}] do
+        buyer = user_fixture()
+
+        order =
+          order_fixture(buyer_id: buyer.id, artist_id: artist.id)
+          |> complete_order(completed_days_ago)
+
+        vendor_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          artist_id: artist.id,
+          stars: stars
+        })
+      end
+
+      # The 1-star review is still in its 14 days: (5 + 4 + 4) / 3 = 4.33
+      assert Reviews.vendor_review_summary(artist.id) == %{count: 3, average: 4.3}
+    end
+
+    test "no visible reviews" do
+      artist = artist_fixture()
+      assert Reviews.vendor_review_summary(artist.id) == %{count: 0, average: nil}
     end
   end
 

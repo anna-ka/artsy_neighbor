@@ -140,9 +140,51 @@ defmodule ArtsyNeighbor.Reviews do
   # background job is needed.
   # ---------------------------------------------------------------------------
 
-  def list_vendor_reviews_for_artist(artist_id) do
-    now = DateTime.utc_now()
-    window_cutoff = DateTime.add(now, -@review_window_days, :day)
+  @doc """
+  The artist's visible reviews (see above), newest first, each with its
+  reviewer and the order's items (with their products) preloaded, for
+  the artist page.
+
+  Options, for showing them a page at a time:
+
+    * `:limit` — at most this many (default: all)
+    * `:offset` — skip this many first (default: 0)
+  """
+  def list_vendor_reviews_for_artist(artist_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit)
+    offset = Keyword.get(opts, :offset, 0)
+
+    query =
+      from(vr in visible_vendor_reviews(artist_id),
+        # id as a tie-breaker, so pages don't overlap when two reviews
+        # have the same submitted_at
+        order_by: [desc: vr.submitted_at, desc: vr.id],
+        offset: ^offset,
+        preload: [:reviewer, order: [items: :product]]
+      )
+
+    query = if limit, do: limit(query, ^limit), else: query
+
+    Repo.all(query)
+  end
+
+  @doc """
+  How many visible reviews the artist has and their average, rounded to
+  one decimal: `%{count: 6, average: 4.2}`. The average is nil when there
+  are none.
+  """
+  def vendor_review_summary(artist_id) do
+    {count, average} =
+      from(vr in visible_vendor_reviews(artist_id), select: {count(vr.id), avg(vr.stars)})
+      |> Repo.one()
+
+    %{count: count, average: round_average(average)}
+  end
+
+  # The artist's reviews that the public may see: not removed, and either
+  # the artist has reviewed the buyer too, or the 14 days are over.
+  defp visible_vendor_reviews(artist_id) do
+    window_cutoff = DateTime.add(DateTime.utc_now(), -@review_window_days, :day)
 
     from(vr in VendorReview,
       left_join: br in BuyerReview,
@@ -151,11 +193,12 @@ defmodule ArtsyNeighbor.Reviews do
       on: o.id == vr.order_id,
       where: vr.artist_id == ^artist_id,
       where: vr.status == :active,
-      where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
-      order_by: [desc: vr.submitted_at]
+      where: not is_nil(br.id) or o.completed_at <= ^window_cutoff
     )
-    |> Repo.all()
   end
+
+  defp round_average(nil), do: nil
+  defp round_average(average), do: average |> Decimal.to_float() |> Float.round(1)
 
   def list_buyer_reviews_for_user(buyer_id) do
     now = DateTime.utc_now()
@@ -198,21 +241,7 @@ defmodule ArtsyNeighbor.Reviews do
   # ---------------------------------------------------------------------------
 
   def avg_rating_for_artist(artist_id) do
-    now = DateTime.utc_now()
-    window_cutoff = DateTime.add(now, -@review_window_days, :day)
-
-    from(vr in VendorReview,
-      left_join: br in BuyerReview,
-      on: br.order_id == vr.order_id and br.status == :active,
-      join: o in ArtsyNeighbor.Orders.Order,
-      on: o.id == vr.order_id,
-      where: vr.artist_id == ^artist_id,
-      where: vr.status == :active,
-      where: not is_nil(br.id) or o.completed_at <= ^window_cutoff,
-      select: avg(vr.stars)
-    )
-    |> Repo.one()
-    |> then(fn avg -> if avg, do: avg |> Decimal.to_float() |> Float.round(1), else: nil end)
+    vendor_review_summary(artist_id).average
   end
 
   def avg_rating_for_buyer(buyer_id) do

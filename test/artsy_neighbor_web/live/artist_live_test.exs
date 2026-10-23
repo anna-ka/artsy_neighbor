@@ -4,8 +4,13 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighbor.AccountsFixtures
+  import ArtsyNeighbor.OrdersFixtures
+  import ArtsyNeighbor.ReviewsFixtures
 
   alias ArtsyNeighbor.Accounts
+  alias ArtsyNeighbor.Repo
+  alias ArtsyNeighbor.Orders.OrderItem
 
   # The artist page (ArtistLive.Show): one page, three tabs.
 
@@ -199,6 +204,151 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
     |> LazyHTML.from_fragment()
     |> LazyHTML.query(".artwork-card-title")
     |> Enum.map(fn title -> title |> LazyHTML.text() |> String.trim() end)
+  end
+
+  describe "Shop tab: pickup and delivery, reviews" do
+    test "lists the delivery options with the artist's notes", %{conn: conn} do
+      artist =
+        artist_fixture(%{
+          delivery_options: ["pickup", "artist_delivery"],
+          delivery_info: %{"pickup" => "Weekday afternoons in Fernwood."}
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, ~s|.shop-links a[href="#pickup-delivery"]|)
+      assert has_element?(view, "#pickup-delivery li", "Pickup at the artist's studio")
+      assert has_element?(view, "#pickup-delivery li", "Weekday afternoons in Fernwood.")
+      assert has_element?(view, "#pickup-delivery li", "Artist delivers")
+    end
+
+    test "an artist without reviews: no Reviews link, \"No reviews yet.\"", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      refute has_element?(view, ~s|.shop-links a[href="#artist-reviews"]|)
+      assert has_element?(view, "#artist-reviews", "No reviews yet.")
+    end
+
+    test "shows the summary and the 3 newest reviews", %{conn: conn} do
+      artist = artist_fixture()
+      reviewed_order(artist, stars: 2, body: "Oldest", days_ago: 4)
+      reviewed_order(artist, stars: 4, body: "Third", days_ago: 3)
+      reviewed_order(artist, stars: 5, body: "Second", days_ago: 2)
+      reviewed_order(artist, stars: 5, body: "Newest", days_ago: 1)
+
+      {:ok, view, html} = live(conn, ~p"/artists/#{artist}/store")
+
+      # (2 + 4 + 5 + 5) / 4 = 4.0
+      assert has_element?(view, ~s|.shop-links a[href="#artist-reviews"]|, "(4)")
+      assert html =~ "4.0 out of 5 · 4 reviews"
+      assert review_texts(html) == ["Newest", "Second", "Third"]
+    end
+
+    test "each review names the buyer and the work bought", %{conn: conn} do
+      artist = artist_fixture()
+      crow = product_fixture(%{artist_id: artist.id, title: "Crow Study"})
+      otter = product_fixture(%{artist_id: artist.id, title: "Otter"})
+      buyer = user_fixture()
+
+      review =
+        reviewed_order(artist, buyer: buyer, products: [crow, otter], body: "Lovely")
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, "#review-#{review.id}", buyer.username)
+      assert has_element?(view, ~s|#review-#{review.id} a[href="/products/#{crow.id}"]|)
+      assert has_element?(view, "#review-#{review.id}", "and 1 more")
+    end
+
+    test "a work no longer for sale is named without a link", %{conn: conn} do
+      artist = artist_fixture()
+      crow = product_fixture(%{artist_id: artist.id, title: "Crow Study"})
+      review = reviewed_order(artist, products: [crow])
+      crow |> Ecto.Changeset.change(status: :unavailable) |> Repo.update!()
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, "#review-#{review.id}", "Crow Study")
+      refute has_element?(view, "#review-#{review.id} a[href='/products/#{crow.id}']")
+    end
+
+    test "leaves out removed reviews and reviews still in their 14 days", %{conn: conn} do
+      artist = artist_fixture()
+      shown = reviewed_order(artist, body: "Shown")
+      removed = reviewed_order(artist, body: "Removed")
+      {:ok, _} = ArtsyNeighbor.Reviews.soft_delete_vendor_review(removed)
+      # Completed yesterday and the artist hasn't reviewed the buyer yet
+      reviewed_order(artist, body: "Too early", completed_days_ago: 1)
+
+      {:ok, view, html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert review_texts(html) == ["Shown"]
+      assert has_element?(view, "#review-#{shown.id}")
+      assert html =~ "out of 5 · 1 review"
+    end
+
+    test "\"Report this review\" only for logged-in visitors", %{conn: conn} do
+      artist = artist_fixture()
+      review = reviewed_order(artist)
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+      refute has_element?(view, "#review-#{review.id}", "Report this review")
+
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(
+               view,
+               ~s|#review-#{review.id} a[href^="/flag/vendor_review_of/#{review.id}"]|,
+               "Report this review"
+             )
+    end
+  end
+
+  # A completed order from a new buyer (or `buyer:`) with the artist's
+  # review of it, visible on the artist page: completed 20 days ago
+  # (`completed_days_ago:`), so the 14 days are over, and submitted
+  # `days_ago:` days ago (for the order of reviews). The order holds
+  # `products:` (a new work by the artist if none given).
+  defp reviewed_order(artist, opts \\ []) do
+    buyer = Keyword.get_lazy(opts, :buyer, fn -> user_fixture() end)
+
+    products =
+      Keyword.get_lazy(opts, :products, fn -> [product_fixture(%{artist_id: artist.id})] end)
+
+    order =
+      order_fixture(buyer_id: buyer.id, artist_id: artist.id)
+      |> complete_order(Keyword.get(opts, :completed_days_ago, 20))
+
+    for product <- products do
+      %OrderItem{}
+      |> OrderItem.changeset(%{
+        order_id: order.id,
+        product_id: product.id,
+        quantity: 1,
+        unit_price: product.price,
+        product_title: product.title
+      })
+      |> Repo.insert!()
+    end
+
+    vendor_review_fixture(%{
+      order_id: order.id,
+      reviewer_id: buyer.id,
+      artist_id: artist.id,
+      stars: Keyword.get(opts, :stars, 5),
+      body: Keyword.get(opts, :body, "Great vendor!")
+    })
+    |> backdate_submission(Keyword.get(opts, :days_ago, 0))
+  end
+
+  # The texts of the reviews on a rendered page, top to bottom.
+  defp review_texts(html) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(".review-text")
+    |> Enum.map(fn text -> text |> LazyHTML.text() |> String.trim() end)
   end
 
   describe "header" do
