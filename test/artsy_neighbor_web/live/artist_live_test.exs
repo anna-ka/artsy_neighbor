@@ -42,19 +42,6 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       refute render(view) =~ "Crow with Stones"
     end
 
-    test "the Shop tab's collection filter lists only collections with works", %{conn: conn} do
-      artist = artist_fixture()
-      oils = collection_fixture(artist, "Oils", 2)
-      _empty = collection_fixture(artist, "Empty", 3)
-      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
-
-      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
-
-      assert has_element?(view, "#filter-form option", "Oils")
-      refute has_element?(view, "#filter-form option", "Empty")
-      refute has_element?(view, "#filter-form option", "Uncategorized")
-    end
-
     test "the Contact tab asks a logged-out visitor to log in", %{conn: conn} do
       artist = artist_fixture()
       {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
@@ -71,6 +58,147 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       assert {:error, {:live_redirect, %{to: "/messages/" <> _id}}} =
                view |> element("button", "Send message") |> render_click()
     end
+  end
+
+  describe "Shop tab" do
+    test "collection chips: only collections with works, each with its count", %{conn: conn} do
+      artist = artist_fixture()
+      oils = collection_fixture(artist, "Oils", 2)
+      _empty = collection_fixture(artist, "Empty", 3)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
+      product_fixture(%{artist_id: artist.id})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, ~s|.filter-chip[aria-pressed="true"]|, "All works")
+      assert has_element?(view, ".filter-chip", ~r/All works\s*\(3\)/)
+      assert has_element?(view, ".filter-chip", ~r/Oils\s*\(2\)/)
+      refute has_element?(view, ".filter-chip", "Empty")
+      refute has_element?(view, ".filter-chip", "Uncategorized")
+    end
+
+    test "a chip's count leaves out works whose category was deleted, as the list does",
+         %{conn: conn} do
+      artist = artist_fixture()
+      oils = collection_fixture(artist, "Oils", 2)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Kept"})
+      lost = product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Lost"})
+
+      # What an admin's hard delete of the category does to its works.
+      lost |> Ecto.Changeset.change(category_id: nil) |> ArtsyNeighbor.Repo.update!()
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store?collection_id=#{oils.id}")
+
+      assert has_element?(view, ".filter-chip", ~r/Oils\s*\(1\)/)
+      assert view |> render() |> titles_in_order() == ["Kept"]
+    end
+
+    test "a chip shows only that collection and keeps the search", %{conn: conn} do
+      artist = artist_fixture()
+      oils = collection_fixture(artist, "Oils", 2)
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Crow in Oil"})
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Otter in Oil"})
+      product_fixture(%{artist_id: artist.id, title: "Crow in Ink"})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store?search=crow")
+      view |> element(".filter-chip", "Oils") |> render_click()
+
+      assert_patch(view, ~p"/artists/#{artist}/store?collection_id=#{oils.id}&search=crow")
+      assert has_element?(view, ~s|.filter-chip[aria-pressed="true"]|, "Oils")
+      assert has_element?(view, ".artwork-card", "Crow in Oil")
+      refute has_element?(view, ".artwork-card", "Otter in Oil")
+      refute has_element?(view, ".artwork-card", "Crow in Ink")
+    end
+
+    test "the category dropdown lists the artist's categories, only when there are two or more",
+         %{conn: conn} do
+      artist = artist_fixture()
+      first = product_fixture(%{artist_id: artist.id})
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+      refute has_element?(view, ~s|select[name="category_id"]|)
+
+      _second = product_fixture(%{artist_id: artist.id, category_id: first.category_id})
+      _other = product_fixture(%{artist_id: artist.id})
+      first_category = ArtsyNeighbor.Repo.preload(first, :category).category
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(
+               view,
+               ~s|select[name="category_id"] option|,
+               "#{first_category.name} (2)"
+             )
+    end
+
+    test "newest works come first unless another order is chosen", %{conn: conn} do
+      artist = artist_fixture()
+      product_fixture(%{artist_id: artist.id, title: "Older and Cheap", price: "10"})
+      product_fixture(%{artist_id: artist.id, title: "Newer and Dear", price: "500"})
+
+      {:ok, _view, html} = live(conn, ~p"/artists/#{artist}/store")
+      assert titles_in_order(html) == ["Newer and Dear", "Older and Cheap"]
+
+      {:ok, _view, html} = live(conn, ~p"/artists/#{artist}/store?sort_by=price_asc")
+      assert titles_in_order(html) == ["Older and Cheap", "Newer and Dear"]
+
+      # An order that isn't offered is ignored rather than crashing.
+      {:ok, _view, html} = live(conn, ~p"/artists/#{artist}/store?sort_by=collection")
+      assert titles_in_order(html) == ["Newer and Dear", "Older and Cheap"]
+    end
+
+    test "shows 12 works, and 12 more with each Show more works", %{conn: conn} do
+      artist = artist_fixture()
+      category = ArtsyNeighbor.CategoriesFixtures.category_fixture()
+
+      for number <- 1..14 do
+        product_fixture(%{
+          artist_id: artist.id,
+          category_id: category.id,
+          title: "Work #{number}"
+        })
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+      assert view |> render() |> titles_in_order() |> length() == 12
+      assert has_element?(view, ".shop-show-more", "Showing 12 of 14 works")
+
+      view |> element("button", "Show more works") |> render_click()
+
+      assert view |> render() |> titles_in_order() |> length() == 14
+      refute has_element?(view, ".shop-show-more")
+    end
+
+    test "shows the artist's announcement when it's turned on", %{conn: conn} do
+      artist =
+        artist_fixture()
+        |> Ecto.Changeset.change(
+          announcement: "Studio closed next week.",
+          announcement_active: true
+        )
+        |> ArtsyNeighbor.Repo.update!()
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, ".shop-notice", "Studio closed next week.")
+    end
+
+    test "an artist with no works gets a short note, not filters", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
+
+      assert has_element?(view, ".artist-no-works", "has no works for sale right now")
+      refute has_element?(view, "#filter-form")
+    end
+  end
+
+  # The titles of the artwork cards on a rendered page, top to bottom.
+  defp titles_in_order(html) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(".artwork-card-title")
+    |> Enum.map(fn title -> title |> LazyHTML.text() |> String.trim() end)
   end
 
   describe "header" do
@@ -321,7 +449,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
 
       assert render(view) =~ "Harbour"
       refute render(view) =~ "Hidden work"
-      assert has_element?(view, "#filter-form option", "Oils")
+      assert has_element?(view, ".filter-chip", "Oils")
     end
 
     test "someone else can't preview an inactive profile", %{conn: conn} do

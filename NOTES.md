@@ -173,6 +173,19 @@ working on the code should keep in mind.
   used by anything currently passing; fix if touched.
 - **No admin-LiveView test coverage exists anywhere** (no `log_in_admin`/
   admin fixture helper) — noted since Phase 0, never addressed.
+- **A work should always have a category** (decided 2026-10-23). The
+  product form requires one, but the database doesn't:
+  `products.category_id` is nullable, and hard-deleting a category sets
+  it to null on that category's works. `AdminCategories.hard_delete_category/1`
+  only refuses when the category has *available* works, so its
+  unavailable/archived works lose their category, and restoring one later
+  can make it available with none. Plan: a catch-all category (name to
+  pick, e.g. "A class of its own") that such works move into instead of
+  losing their category; then `category_id` can be made required in the
+  database. Deleting a category that has no works stays allowed. Until
+  then, `Products.shown_collections/2` skips works without a category so
+  the Shop tab's chip counts match its list (found in step 4's code
+  review).
 
 - **UI to request commissions** . It basically comes down to a fancy looking entry-point (button) which opens the chat between artist and buyer. But we do need to include a way for the artist to bill buyers through the system, thus collecting our share
 

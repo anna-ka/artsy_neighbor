@@ -124,7 +124,7 @@ defmodule ArtsyNeighborWeb.CoreComponents do
       <.button variant="main" phx-disable-with="Saving…">Save changes</.button>
       <.button variant="quiet" navigate={~p"/"}>Back to the home page</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
+  attr :rest, :global, include: ~w(href navigate patch method download name value disabled type)
   attr :class, :any, default: nil, doc: "extra classes, added to the kind's own"
   attr :variant, :string, default: "ordinary", values: ~w(main ordinary quiet danger danger_final)
   slot :inner_block, required: true

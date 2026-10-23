@@ -20,8 +20,6 @@ defmodule ArtsyNeighborWeb.HomeLive do
       |> stream(:featured_products, featured_products)
       |> stream(:favorite_products, favorite_products)
 
-    IO.inspect(socket, label: "HomeLive mount socket")
-
     {:ok, socket}
   end
 

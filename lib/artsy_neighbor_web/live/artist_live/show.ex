@@ -21,13 +21,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
-  alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [
-      product_card: 1,
+      filter_chip: 1,
       artwork_card: 1,
       collection_card: 1,
       section_heading: 1,
@@ -41,8 +40,17 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   # Query params that every tab link keeps.
   @kept_params ["preview", "return_to", "return_label"]
 
-  # Query params of the Shop tab's filter form.
+  # Query params of the Shop tab's filters.
   @filter_params ["search", "category_id", "collection_id", "sort_by"]
+
+  # The Shop tab's sort choices besides the default, "Newest first"
+  # (which has no sort_by in the address). Anything else in the address
+  # is ignored.
+  @sort_values ["price_asc", "price_desc"]
+
+  # How many works the Shop tab shows at first, and how many more each
+  # "Show more works" adds. 12 fills whole rows of 2, 3 or 4 cards.
+  @page_size 12
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0, bio_open: false)}
@@ -127,29 +135,37 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   end
 
   defp load_tab(socket, :shop, artist, params) do
-    categories =
-      Enum.map(Categories.list_categories(), fn category -> {category.name, category.id} end)
+    filters =
+      params
+      |> Map.take(@filter_params)
+      |> Map.reject(fn {key, value} -> key == "sort_by" && value not in @sort_values end)
 
-    # The same collections as the Works tab's cards: none without works,
-    # no "Uncategorized".
-    collection_options =
-      socket.assigns.audience
-      |> shown_collections(artist)
-      |> Enum.map(fn collection -> {collection.name, collection.id} end)
-
-    filters = Map.take(params, @filter_params)
-
-    products =
+    {products, category_counts} =
       case socket.assigns.audience do
-        :public -> Products.filter_artist_products(artist.id, filters)
-        :owner_preview -> Products.filter_artist_products_for_owner_preview(artist.id, filters)
+        :public ->
+          {Products.filter_artist_products(artist.id, filters),
+           Products.count_artist_products_by_category(artist.id)}
+
+        :owner_preview ->
+          {Products.filter_artist_products_for_owner_preview(artist.id, filters),
+           Products.count_artist_products_by_category_for_owner_preview(artist.id)}
       end
 
+    # All the artist's works, before any filter: the sum of the category counts.
+    total_count =
+      Enum.reduce(category_counts, 0, fn {_id, _name, count}, sum -> sum + count end)
+
     socket
-    |> assign(:categories, categories)
-    |> assign(:collection_options, collection_options)
-    |> assign(:products, products)
+    |> assign(:filters, filters)
     |> assign(:form, to_form(filters))
+    |> assign(:products, products)
+    |> assign(:total_count, total_count)
+    |> assign(:category_counts, category_counts)
+    # The same collections as the Works tab's cards: none without works,
+    # no "Uncategorized".
+    |> assign(:collections, shown_collections(socket.assigns.audience, artist))
+    # Any change of filters starts again with the first page of works.
+    |> assign(:shown_count, @page_size)
   end
 
   defp load_tab(socket, :commissions, _artist, _params), do: socket
@@ -169,17 +185,31 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   defp tab_path(artist, :commissions, query), do: ~p"/artists/#{artist}/commissions?#{query}"
   defp tab_path(artist, :contact, query), do: ~p"/artists/#{artist}/contact?#{query}"
 
-  # Shop tab: the filter form changed. Puts the filters in the address,
-  # which reloads the works (handle_params/3).
-  def handle_event("filter", params, socket) do
-    filters =
-      params
-      |> Map.take(@filter_params)
-      |> Map.reject(fn {_key, value} -> value in [nil, ""] end)
-
+  # Shop tab: puts the filters in the address, which reloads the works
+  # (handle_params/3). Empty filters are left out of the address.
+  defp patch_shop(socket, filters) do
+    filters = Map.reject(filters, fn {_key, value} -> value in [nil, ""] end)
     query = Map.merge(socket.assigns.kept_params, filters)
 
-    {:noreply, push_patch(socket, to: tab_path(socket.assigns.artist, :shop, query))}
+    push_patch(socket, to: tab_path(socket.assigns.artist, :shop, query))
+  end
+
+  # Shop tab: the filter form changed (search, category, sort). The
+  # chosen collection comes along in a hidden field.
+  def handle_event("filter", params, socket) do
+    {:noreply, patch_shop(socket, Map.take(params, @filter_params))}
+  end
+
+  # Shop tab: a collection chip was pressed ("" is "All works"). The
+  # other filters stay as they are.
+  def handle_event("choose_collection", %{"id" => id}, socket) do
+    filters = Map.put(socket.assigns.filters, "collection_id", id)
+    {:noreply, patch_shop(socket, filters)}
+  end
+
+  # Shop tab: "Show more works".
+  def handle_event("show_more", _params, socket) do
+    {:noreply, assign(socket, :shown_count, socket.assigns.shown_count + @page_size)}
   end
 
   # Header: an arrow on the photo was pressed. The index wraps around, so
@@ -304,10 +334,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         :if={@live_action == :shop}
         artist={@artist}
         form={@form}
-        categories={@categories}
-        collection_options={@collection_options}
+        filters={@filters}
         products={@products}
-        clear_path={tab_path(@artist, :shop, @kept_params)}
+        shown_count={@shown_count}
+        total_count={@total_count}
+        category_counts={@category_counts}
+        collections={@collections}
       />
 
       <.commissions_tab
@@ -480,36 +512,80 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     end
   end
 
-  # Shop tab: announcement, filters, all available works, pickup and
-  # delivery. (Redesigned in steps 4 and 5 of the artist-page plan.)
+  # Shop tab: the artist's announcement, filters (search, category, sort,
+  # collection chips), the works a page at a time, then pickup and
+  # delivery (redesigned in step 5 of the artist-page plan).
   attr :artist, :map, required: true
   attr :form, Phoenix.HTML.Form, required: true
-  attr :categories, :list, required: true
-  attr :collection_options, :list, required: true
-  attr :products, :list, required: true
-  attr :clear_path, :string, required: true
+  attr :filters, :map, required: true, doc: "The filters in the address"
+  attr :products, :list, required: true, doc: "All works matching the filters"
+  attr :shown_count, :integer, required: true, doc: "How many of them to show"
+  attr :total_count, :integer, required: true, doc: "All the artist's works, unfiltered"
+  attr :category_counts, :list, required: true
+  attr :collections, :list, required: true
 
   defp shop_tab(assigns) do
     ~H"""
-    <div
-      :if={@artist.announcement_active && @artist.announcement not in [nil, ""]}
-      class="alert alert-info mt-6 text-sm"
-    >
-      {@artist.announcement}
-    </div>
+    <section class="shop">
+      <%!-- The artist's own announcement, only when they've turned it on --%>
+      <div
+        :if={@artist.announcement_active && @artist.announcement not in [nil, ""]}
+        class="shop-notice"
+      >
+        <strong>Note from {@artist.nickname}:</strong> {@artist.announcement}
+      </div>
 
-    <section class="my-6">
-      <.filter_form
-        form={@form}
-        categories={@categories}
-        collection_options={@collection_options}
-        clear_path={@clear_path}
-      />
-    </section>
+      <p :if={@total_count == 0} class="artist-no-works">
+        {@artist.nickname} has no works for sale right now.
+      </p>
 
-    <section class="bg-base-200 py-12">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <.product_card :for={product <- @products} product={product} />
+      <div :if={@total_count > 0} class="shop-filters">
+        <.filter_form
+          form={@form}
+          filters={@filters}
+          artist={@artist}
+          category_counts={@category_counts}
+        />
+
+        <%!-- Collections as chips: one tap, all of them in sight --%>
+        <div :if={@collections != []} class="chip-row" role="group" aria-label="Show works from">
+          <.filter_chip
+            pressed={Map.get(@filters, "collection_id") in [nil, ""]}
+            count={@total_count}
+            phx-click="choose_collection"
+            phx-value-id=""
+          >
+            All works
+          </.filter_chip>
+          <.filter_chip
+            :for={collection <- @collections}
+            pressed={Map.get(@filters, "collection_id") == to_string(collection.id)}
+            count={length(collection.products)}
+            phx-click="choose_collection"
+            phx-value-id={collection.id}
+          >
+            {collection.name}
+          </.filter_chip>
+        </div>
+      </div>
+
+      <div class="card-grid">
+        <.artwork_card
+          :for={product <- Enum.take(@products, @shown_count)}
+          product={product}
+          show_artist={false}
+        />
+      </div>
+
+      <p :if={@total_count > 0 && @products == []} class="shop-no-results">
+        No works match your choice. Try another word, or choose "All works".
+      </p>
+
+      <%!-- A button rather than endless scrolling, so the footer stays
+           within reach and people know how much there is --%>
+      <div :if={length(@products) > @shown_count} class="shop-show-more">
+        <span>Showing {@shown_count} of {length(@products)} works</span>
+        <.button phx-click="show_more">Show more works</.button>
       </div>
     </section>
 
@@ -531,69 +607,83 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     """
   end
 
+  # Shop tab: search, category and sort in one row, ending at the
+  # right edge. The category dropdown lists only the categories the
+  # artist has works in, and is left out when that's just one.
+  #
+  # On phones the search box shares its row with a "Filter and sort"
+  # button, which opens category and sort on rows of their own below.
+  # The button works in the browser alone (JS.toggle_class, nothing
+  # sent to the server), and says how many of the two are changed from
+  # the default, e.g. "Filter and sort (1)", so nothing is hidden
+  # without a hint.
   attr :form, Phoenix.HTML.Form, required: true
-  attr :categories, :list, required: true
-  attr :collection_options, :list, required: true
-  attr :clear_path, :string, required: true, doc: "The Shop tab with no filters"
+  attr :filters, :map, required: true
+  attr :artist, :map, required: true
+  attr :category_counts, :list, required: true
 
   defp filter_form(assigns) do
+    category_options =
+      Enum.map(assigns.category_counts, fn {id, name, count} -> {"#{name} (#{count})", id} end)
+
+    changed_count =
+      Enum.count(["category_id", "sort_by"], fn key -> Map.get(assigns.filters, key) end)
+
+    assigns =
+      assigns
+      |> assign(:category_options, category_options)
+      |> assign(:changed_count, changed_count)
+
     ~H"""
-    <.form for={@form} id="filter-form" phx-change="filter" phx-submit="filter">
-      <div class="flex flex-wrap gap-4 items-end">
-        <%!-- Search --%>
-        <div class="flex-1 min-w-48">
-          <.input
-            field={@form[:search]}
-            type="text"
-            label="Search"
-            placeholder="Search products..."
-            autocomplete="off"
-            phx-debounce="1000"
-          />
-        </div>
+    <.form for={@form} id="filter-form" class="shop-tools" phx-change="filter" phx-submit="filter">
+      <input
+        type="search"
+        name={@form[:search].name}
+        value={@form[:search].value}
+        class="field-input shop-search"
+        placeholder={"Search #{@artist.nickname}'s works"}
+        aria-label={"Search #{@artist.nickname}'s works"}
+        autocomplete="off"
+        phx-debounce="1000"
+      />
+      <%!-- The chosen collection (set by the chips), so it stays when
+           the search, category or sort changes --%>
+      <input type="hidden" name={@form[:collection_id].name} value={@form[:collection_id].value} />
 
-        <%!-- Filter by Category --%>
-        <div class="min-w-48">
-          <.input
-            field={@form[:category_id]}
-            type="select"
-            label="Category"
-            prompt="All categories"
-            options={@categories}
-          />
-        </div>
+      <.button
+        type="button"
+        class="shop-filter-toggle"
+        aria-controls="shop-options"
+        aria-expanded="false"
+        phx-click={
+          JS.toggle_class("open", to: "#shop-options")
+          |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+        }
+      >
+        Filter and sort{if @changed_count > 0, do: " (#{@changed_count})"}
+      </.button>
 
-        <%!-- Filter by Collection --%>
-        <div class="min-w-48">
-          <.input
-            field={@form[:collection_id]}
-            type="select"
-            label="Collection"
-            prompt="All collections by artist"
-            options={@collection_options}
-          />
-        </div>
-
-        <%!-- Sort By --%>
-        <div class="min-w-48">
-          <.input
-            field={@form[:sort_by]}
-            type="select"
-            label="Sort by"
-            prompt="Default"
-            options={[
-              {"Price: Low to High", "price_asc"},
-              {"Price: High to Low", "price_desc"},
-              {"Collection", "collection"},
-              {"Category", "category"}
-            ]}
-          />
-        </div>
-
-        <%!-- Reset --%>
-        <div>
-          <.link patch={@clear_path} class="btn btn-ghost">Clear</.link>
-        </div>
+      <div id="shop-options" class="shop-options">
+        <label :if={length(@category_options) > 1} class="shop-option">
+          Category
+          <select name={@form[:category_id].name} class="field-input shop-select">
+            <option value="">All categories</option>
+            {Phoenix.HTML.Form.options_for_select(@category_options, @form[:category_id].value)}
+          </select>
+        </label>
+        <label class="shop-option">
+          Sort by
+          <select name={@form[:sort_by].name} class="field-input shop-select">
+            {Phoenix.HTML.Form.options_for_select(
+              [
+                {"Newest first", ""},
+                {"Price: low to high", "price_asc"},
+                {"Price: high to low", "price_desc"}
+              ],
+              @form[:sort_by].value
+            )}
+          </select>
+        </label>
       </div>
     </.form>
     """

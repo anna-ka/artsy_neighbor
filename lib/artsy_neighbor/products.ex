@@ -111,8 +111,42 @@ defmodule ArtsyNeighbor.Products do
     |> with_category(filter["category_id"])
     |> with_collection(filter["collection_id"])
     |> with_string(filter["search"])
-    |> sort_by(filter["sort_by"])
+    # The Shop tab shows the newest works first unless asked otherwise.
+    |> sort_by(filter["sort_by"] || "newest")
     |> preload([:artist, :category, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns the categories an artist has available works in, with how
+  many works each, as `{category_id, category_name, count}` tuples
+  ordered by name. For the Shop tab's category dropdown ("Paintings
+  (21)"). For the owner's preview, use
+  `count_artist_products_by_category_for_owner_preview/1`.
+  """
+  def count_artist_products_by_category(artist_id) do
+    artist_category_counts(artist_id, :public)
+  end
+
+  @doc """
+  Like `count_artist_products_by_category/1`, but for the owner's
+  preview of their own profile: the artist's own status is not checked.
+  Only for a caller that has made sure the viewer owns the profile.
+  """
+  def count_artist_products_by_category_for_owner_preview(artist_id) do
+    artist_category_counts(artist_id, :owner_preview)
+  end
+
+  # Counts the same works the Shop tab lists (its inner join on category
+  # leaves out works without one), grouped by their category.
+  defp artist_category_counts(artist_id, audience) do
+    Product
+    |> shown_products(audience)
+    |> where([p], p.artist_id == ^artist_id)
+    |> join(:inner, [p], c in assoc(p, :category), as: :category)
+    |> group_by([category: c], [c.id, c.name])
+    |> order_by([category: c], asc: c.name)
+    |> select([p, category: c], {c.id, c.name, count(p.id)})
     |> Repo.all()
   end
 
@@ -220,8 +254,9 @@ defmodule ArtsyNeighbor.Products do
     )
   end
 
-  # Sorts the products. Supported: "price_asc", "price_desc", "artist", "category".
-  # Defaults to title order.
+  # Sorts the products. Supported: "newest", "price_asc", "price_desc",
+  # "artist", "category", "collection". Defaults to title order.
+  defp sort_by(query, "newest"), do: order_by(query, [p], desc: p.inserted_at, desc: p.id)
   defp sort_by(query, "price_asc"), do: order_by(query, [p], asc: p.price)
   defp sort_by(query, "price_desc"), do: order_by(query, [p], desc: p.price)
   defp sort_by(query, "artist"), do: order_by(query, [artist: a], asc: a.nickname)
@@ -792,9 +827,14 @@ defmodule ArtsyNeighbor.Products do
   end
 
   defp shown_collections(artist_id, audience) do
+    # Works without a category are left out, as the Shop tab's list
+    # leaves them out (artist_products/3 joins on category), so a
+    # collection's chip count matches what pressing it shows. A work
+    # loses its category only when an admin hard-deletes that category.
     available_products =
       Product
       |> shown_products(audience)
+      |> where([p], not is_nil(p.category_id))
       |> order_by([p], asc_nulls_last: p.position, asc: p.title)
       |> preload(product_images: ^images_by_position())
 

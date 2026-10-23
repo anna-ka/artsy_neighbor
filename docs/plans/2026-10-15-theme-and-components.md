@@ -617,6 +617,17 @@ computer and phone width and the developer's review:
 4. **Shop tab, part 1:** announcement, collection chips, search /
    category / sort ("Filter and sort" on phones), grid, "Show more
    works".
+   *Decided 2026-10-23:* 12 works at first and 12 more per "Show more
+   works" (whole rows of 2, 3 or 4 cards); sort is "Newest first"
+   (default), "Price: low to high", "Price: high to low" (the old
+   "Collection" / "Category" sorts and the "Clear" button are gone);
+   the category dropdown only when the artist has works in two or more
+   categories; collection chips wrap onto more lines on phones rather
+   than scrolling sideways; the search hint keeps the artist's name
+   ("Search Wren's works") and may be cut off for long names; search
+   and dropdowns are 15px like the chips on computers, but stay 16px on
+   phones (smaller text in a field makes iPhones zoom in). The links
+   down to Pickup and delivery / Returns / Reviews come with step 5.
 5. **Shop tab, part 2:** Pickup and delivery, Reviews.
 6. **Contact tab.**
 
