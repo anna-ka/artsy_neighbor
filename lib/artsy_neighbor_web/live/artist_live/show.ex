@@ -110,6 +110,16 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     Map.get(params, "preview") == "1" && viewer_artist != nil && viewer_artist.id == artist.id
   end
 
+  # True when the logged-in vendor is looking at their own artist page,
+  # public or in preview. They can't message themselves, so "Send
+  # message" is shown to them but disabled.
+  defp own_profile?(artist, socket) do
+    scope = socket.assigns.current_scope
+    viewer_artist = scope && scope.artist
+
+    viewer_artist != nil && viewer_artist.id == artist.id
+  end
+
   # Assigns for the header, then for the tab being shown. `audience` is
   # :public, or :owner_preview when the owner previews a profile that
   # isn't public yet; the tabs pick their queries by it.
@@ -127,6 +137,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:kept_params, Map.take(params, @kept_params))
     |> assign(:artist, artist)
     |> assign(:audience, audience)
+    |> assign(:own_profile, own_profile?(artist, socket))
     |> assign(:page_title, artist.nickname)
     |> assign(:artist_images, artist_images)
     |> assign(:photo_index, photo_index)
@@ -303,6 +314,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   # Commissions and Contact tabs: "Send message". Finds or creates a conversation between
   # the current user (buyer) and the artist (seller), then navigates to
   # that conversation's page.
+  # The owner's button is disabled; this guards against a click that
+  # gets through anyway.
+  def handle_event("message_artist", _params, %{assigns: %{own_profile: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("message_artist", _params, socket) do
     artist_id = socket.assigns.artist.id
     buyer_id = socket.assigns.current_scope.user.id
@@ -432,12 +449,14 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
         :if={@live_action == :commissions}
         artist={@artist}
         current_scope={@current_scope}
+        own_profile={@own_profile}
       />
 
       <.contact_tab
         :if={@live_action == :contact}
         artist={@artist}
         current_scope={@current_scope}
+        own_profile={@own_profile}
       />
 
       <%!-- Under every tab --%>
@@ -936,6 +955,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   # setting it says every artist takes commissions (NOTES.md).
   attr :artist, :map, required: true
   attr :current_scope, :any, required: true
+  attr :own_profile, :boolean, required: true
 
   defp commissions_tab(assigns) do
     ~H"""
@@ -946,47 +966,58 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           Would you like a work made especially for you? Send {@artist.nickname} a message to tell them what you have in mind. You will hear back about
           what is possible, how long it would take and what it would cost.
         </p>
-        <.message_button current_scope={@current_scope} />
+        <.message_button current_scope={@current_scope} own_profile={@own_profile} />
       </div>
     </section>
     """
   end
 
-  # Contact tab: send a message, and the artist's links elsewhere online.
-  # (Redesigned in step 6 of the artist-page plan.)
+  # Contact tab: a panel with "Send message", then the artist's links
+  # elsewhere online (only the ones filled in). The artist's address,
+  # email and phone are never shown; messages go through the site.
   attr :artist, :map, required: true
   attr :current_scope, :any, required: true
+  attr :own_profile, :boolean, required: true
 
   defp contact_tab(assigns) do
-    ~H"""
-    <div class="mt-8">
-      <.message_button current_scope={@current_scope} />
-    </div>
+    assigns = assign(assigns, :online_links, online_links(assigns.artist))
 
-    <div :if={@artist.homepage || @artist.instagram || @artist.facebook} class="mt-8">
-      <h2 class="text-sm font-semibold text-base-content/60 mb-2">Online</h2>
-      <div class="flex flex-wrap gap-3">
-        <a :if={@artist.homepage} href={@artist.homepage} target="_blank" rel="noopener">
-          Website
-        </a>
-        <a :if={@artist.instagram} href={@artist.instagram} target="_blank" rel="noopener">
-          Instagram
-        </a>
-        <a :if={@artist.facebook} href={@artist.facebook} target="_blank" rel="noopener">
-          Facebook
-        </a>
+    ~H"""
+    <section class="artist-tab-body">
+      <div class="artist-panel">
+        <h2 class="artist-panel-title">Get in touch with {@artist.nickname}</h2>
+        <p>
+          Questions about a work, a commission or a studio visit? Send {@artist.nickname} a message.
+          You'll find the reply under Messages.
+        </p>
+        <.message_button current_scope={@current_scope} own_profile={@own_profile} />
+        <p :if={!(@current_scope && @current_scope.user)} class="artist-small-note">
+          New here? <.link navigate={~p"/users/register"}>Create an account</.link>
+          — it only takes a minute.
+        </p>
       </div>
-    </div>
+
+      <div :if={@online_links != []} class="artist-contact-section">
+        <h2>Elsewhere online</h2>
+        <ul class="artist-plain-list">
+          <li :for={{label, url} <- @online_links}>
+            <a href={url} target="_blank" rel="noopener">{label}</a>
+          </li>
+        </ul>
+      </div>
+    </section>
     """
   end
 
-  # "Send message" for a logged-in visitor, "Log in to message" otherwise.
+  # "Send message" for a logged-in visitor ("disabled" for the artist on
+  # their own page), "Log in to message" otherwise.
   attr :current_scope, :any, required: true
+  attr :own_profile, :boolean, required: true
 
   defp message_button(assigns) do
     ~H"""
     <%= if @current_scope && @current_scope.user do %>
-      <.button_artsy variant="primary" phx-click="message_artist">
+      <.button_artsy variant="primary" phx-click="message_artist" disabled={@own_profile}>
         Send message
       </.button_artsy>
     <% else %>
@@ -995,6 +1026,37 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       </.button_artsy>
     <% end %>
     """
+  end
+
+  # The Contact tab's "Elsewhere online" list: {label, url} for each of
+  # the artist's links that is filled in, e.g.
+  # {"Instagram", "https://www.instagram.com/marenholtpaints"}. The label
+  # is just the kind of link: names can't be read reliably from Facebook
+  # and Instagram addresses ("facebook.com/profile.php?id=...").
+  defp online_links(artist) do
+    [
+      {"Website", artist.homepage},
+      {"Instagram", artist.instagram},
+      {"Facebook", artist.facebook}
+    ]
+    |> Enum.reject(fn {_label, url} -> blank?(url) end)
+    |> Enum.map(fn {label, url} -> {label, with_scheme(url)} end)
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(text), do: String.trim(text) == ""
+
+  # Artists may save a link without "https://" (e.g. "marenholt.ca").
+  # Without it the browser would treat the link as an address on this
+  # site, so it is added here (the saved value stays as it is).
+  defp with_scheme(url) do
+    url = String.trim(url)
+
+    if String.starts_with?(url, ["http://", "https://"]) do
+      url
+    else
+      "https://" <> url
+    end
   end
 
   defp delivery_option_label("pickup"), do: "Pickup at the artist's studio"

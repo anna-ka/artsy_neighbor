@@ -664,7 +664,7 @@
     border-radius: 50%;
     background: color-mix(in srgb, var(--color-base-100) 40%, transparent);
     color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
-    font: 300 22px/1 var(--font-body);
+    font: 300 22px/1 var(--font-sans);
     cursor: pointer;
   }
   .carousel-arrow:hover { background: color-mix(in srgb, var(--color-base-100) 70%, transparent); }
@@ -707,7 +707,7 @@
      in app.js) the last line fades out and "Show full bio ›" shows.
      Lines of at most about 100 characters. */
   .artist-bio { margin-top: 32px; }
-  .artist-bio-label { font-family: var(--font-body); font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .artist-bio-label { font-family: var(--font-sans); font-size: 16px; font-weight: 600; margin-bottom: 6px; }
   .artist-bio-text {
     --bio-lines: 3;
     --bio-line-height: 1.55em;
@@ -856,12 +856,20 @@
     .back-under-menu + .artist-top { padding-top: 12px; }
   }
 
-  /* Commissions (and later Contact) tab: one readable column, with a
-     cream panel holding the main button. */
+  /* Commissions and Contact tabs: one readable column, with a cream
+     panel holding the main button. */
   .artist-tab-body { padding-top: 32px; max-width: 72ch; }
   .artist-panel { background: var(--color-base-200); border-radius: var(--radius-box); padding: 20px 24px 24px; }
   .artist-panel-title { font-size: 22px; }
   .artist-panel p { margin: 6px 0 16px; }
+  /* "New here? Create an account" under the button. */
+  .artist-panel p.artist-small-note { margin: 10px 0 0; font-size: 14px; color: var(--color-muted); }
+  .artist-small-note a { color: var(--color-base-content); text-underline-offset: 3px; }
+  /* Contact tab, under the panel: small headings, plain link list. */
+  .artist-contact-section h2 { font-family: var(--font-sans); font-size: inherit; font-weight: 600; margin: 28px 0 6px; }
+  .artist-plain-list { list-style: none; padding: 0; margin: 0; }
+  .artist-plain-list li + li { margin-top: 4px; }
+  .artist-plain-list a { color: var(--color-base-content); text-decoration: underline; text-underline-offset: 3px; }
 
   /* Phones: a small photo beside the name, area and mediums; the bio
      below them at full width. .artist-details "dissolves" (display:

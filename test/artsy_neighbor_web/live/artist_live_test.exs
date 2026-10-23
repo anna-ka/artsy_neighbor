@@ -603,6 +603,71 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
     end
   end
 
+  describe "Contact tab" do
+    test "a logged-out visitor is also offered to create an account", %{conn: conn} do
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
+
+      assert has_element?(view, ".artist-panel-title", "Get in touch with #{artist.nickname}")
+      assert has_element?(view, ~s|.artist-small-note a[href="/users/register"]|)
+    end
+
+    test "a logged-in visitor isn't offered to create an account", %{conn: conn} do
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
+
+      refute has_element?(view, ".artist-small-note")
+    end
+
+    test "Elsewhere online lists the filled-in links by kind", %{conn: conn} do
+      artist =
+        artist_fixture(%{
+          homepage: "marenholt.ca",
+          instagram: "https://www.instagram.com/marenholtpaints/",
+          facebook: nil
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
+
+      # A link saved without "https://" gets it, so it doesn't point at this site.
+      assert has_element?(
+               view,
+               ~s|.artist-plain-list a[href="https://marenholt.ca"][target="_blank"]|,
+               "Website"
+             )
+
+      assert has_element?(
+               view,
+               ~s|.artist-plain-list a[href="https://www.instagram.com/marenholtpaints/"]|,
+               "Instagram"
+             )
+
+      refute has_element?(view, ".artist-plain-list a", "Facebook")
+    end
+
+    test "no Elsewhere online section without links", %{conn: conn} do
+      artist = artist_fixture(%{homepage: nil, instagram: nil, facebook: nil})
+      {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/contact")
+
+      refute has_element?(view, ".artist-contact-section")
+    end
+
+    test "the artist sees a disabled Send message on their own page", %{conn: conn} do
+      artist = artist_fixture()
+      conn = log_in_user(conn, Accounts.get_user!(artist.user_id))
+
+      for tab <- ["contact", "commissions"] do
+        {:ok, view, _html} = live(conn, "/artists/#{artist.id}/#{tab}")
+
+        assert has_element?(view, "button[disabled]", "Send message")
+        # A click that gets through anyway does nothing.
+        render_click(view, "message_artist", %{})
+        assert has_element?(view, "button[disabled]", "Send message")
+      end
+    end
+  end
+
   describe "artist not found" do
     test "an unknown artist goes back to the artists list", %{conn: conn} do
       assert {:error, {:live_redirect, %{to: "/artists", flash: flash}}} =

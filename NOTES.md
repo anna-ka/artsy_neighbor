@@ -187,6 +187,16 @@ working on the code should keep in mind.
   the Shop tab's chip counts match its list (found in step 4's code
   review).
 
+- **Logging in from the artist page doesn't come back to it** (found
+  2026-10-23, artist-page step 6). "Log in to message" on the Contact
+  and Commissions tabs goes to `/users/log-in`, and after logging in the
+  visitor lands on the usual signed-in page, not back on the artist.
+  The return path (`:user_return_to` in `UserAuth`) is only stored when
+  a logged-out visitor is bounced from a page that requires login. Fix:
+  pass the artist page along (e.g. a `return_to` param the login page
+  stores in the session), checking it's a path on this site so it
+  can't send people elsewhere. The same applies to "Create an account".
+
 - **UI to request commissions** . It basically comes down to a fancy looking entry-point (button) which opens the chat between artist and buyer. But we do need to include a way for the artist to bill buyers through the system, thus collecting our share
 
 ## Features / next chunks of work
@@ -326,6 +336,12 @@ working on the code should keep in mind.
         commissions" text for every artist (decided 2026-10-19), so it
         says so even for artists who don't; see the commissions item
         above and the plan doc's "Artist page" section.
+      - **Studio visits**: whether the artist welcomes studio visits
+        (and how: by appointment, open-studio days), shown in a
+        "Studio" section on the Contact tab as in the mockup ("Fernwood,
+        Victoria. Studio visits by appointment — ask in a message").
+        Left out in step 6 (2026-10-23) so the page doesn't promise
+        visits for every artist; the neighbourhood part waits on #28.
 
   27. **Artists index: cards per row by screen size** (added
       2026-10-19). `ArtistLive.Index` cards are fine 4 to a row on a

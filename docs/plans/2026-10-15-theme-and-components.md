@@ -652,6 +652,22 @@ computer and phone width and the developer's review:
    at the bottom); on phones the numbers get a line of their own, with
    "‹ Previous" and "Next ›" under them at the two edges.
 6. **Contact tab.**
+   *Decided 2026-10-23:* the same cream panel as the Commissions tab:
+   "Get in touch with <artist>", a line saying the reply comes under
+   Messages (no "her"/"his": artists' pronouns aren't known), and
+   "Send message"; logged out, "Log in to message" with "New here?
+   Create an account — it only takes a minute." under it. Then
+   "Elsewhere online": the artist's website, Instagram and Facebook
+   (only the ones filled in, opening in a new tab), labelled just
+   "Website", "Instagram", "Facebook" (names can't be read reliably
+   from Facebook and Instagram addresses, e.g.
+   `facebook.com/profile.php?id=...`; found in code review). A link
+   saved without "https://" gets it when the page is built (the
+   saved value stays the same). The mockup's "Studio" section is left
+   out until there's a studio-visits field (`NOTES.md` #26). The
+   artist looking at their own page sees "Send message" disabled, on
+   the Contact and Commissions tabs. Logging in from here doesn't come
+   back to the artist page yet (`NOTES.md`, deferred follow-ups).
 
 Until the features exist:
 - **Featured works** shows the artist's 4 newest available works
