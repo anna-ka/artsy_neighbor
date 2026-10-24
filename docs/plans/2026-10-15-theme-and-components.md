@@ -688,3 +688,58 @@ Until the features exist:
   follow.
 - **Motto** and **Returns** (both new Artist fields) are left out;
   `NOTES.md` #26.
+
+### Product page (agreed 2026-10-23)
+
+`ProductLive.Show` restyled as in `product-page.html`. One commit per
+step, each with screenshots at computer and phone width and the
+developer's review:
+
+1. **Top: photos and details.** The whole work, never cropped, at a
+   fixed height, with small see-through arrows on the photo's edges and
+   square thumbnails under it. Beside it: title, "by <artist>" (links
+   to the artist page), area ("V8V · Victoria", as in the artist
+   header), medium, size, "Unique work — one of a kind", the price, and
+   two buttons of equal width. Phones: one column, photo first, buttons
+   stacked. The page drops `artsy_main`'s 80px top space. First real
+   LiveView tests for the page.
+2. **Information sections** under the buttons: About this work,
+   Details, Pickup and delivery (the artist's options with their notes,
+   shared with the Shop tab), and the work's own Reviews (a star row
+   just above the price linking down to them; the list closed by
+   default, "See reviews ›", all reviews shown when opened).
+3. **Below the top:** "More by <artist>" (4 works, "See all works by
+   <artist> ›" to the Shop tab), "You may also like" (the 4 newest
+   works in the same category by other artists, fetched 4 at a time),
+   the report link; `artwork_card` replaces `product_card`; plain thin
+   lines between sections.
+4. **Large view of the work** (added 2026-10-23, done right after step
+   1, before step 2): clicking the photo opens it over a dark
+   background, as large as the window allows, with the same arrows,
+   a close button and Esc. A `<dialog>` like the confirm dialog, no new
+   library. A real zoom (click or pinch to full size, drag to move,
+   e.g. PhotoSwipe) only if this isn't enough; a magnifier on hover
+   was ruled out (no use on phones, confusing).
+
+*Decided 2026-10-23:*
+- No reviews: neither the star row nor the Reviews section.
+- **Returns** left out until there's a field (`NOTES.md` #26); the old
+  page's made-up returns text goes.
+- Buttons "Request to buy" and "Send message"; logged out "Log in to
+  buy" with "New here? Create an account" under it (as on the Contact
+  tab); the artist looking at their own work sees both buttons
+  disabled.
+- The price is exact but without ".00": "CA$640", "CA$639.99".
+- The "‹ Back to …" link only when the visitor came with `return_to`
+  (as on the artist page); the mockup's "‹ Maren Holt" is left out,
+  since "by <artist>" already links there.
+- Owner preview of an unavailable work waits for the vendor status
+  toggles (`NOTES.md` #16).
+
+*Built 2026-10-23 (step 1):* the work takes 30% of the width, not half
+as in the mockup (it looked too big); its top lines up with the title
+on every screen. In the mockup the photo was centred in a box of fixed
+height, so its top moved with the window's height. Now the thumbnails
+under it move up or down when photos of different shapes are switched.
+The report link sits at the bottom, right-aligned, as on the artist
+page.

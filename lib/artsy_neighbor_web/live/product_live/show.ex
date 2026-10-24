@@ -1,13 +1,31 @@
 defmodule ArtsyNeighborWeb.ProductLive.Show do
+  @moduledoc """
+  A work's public page, `/products/:id`: the whole work (never cropped)
+  with its other photos on the left, and its details, price and the
+  "Request to buy" / "Send message" buttons on the right. Below them:
+  more by the same artist and similar works by others.
+
+  Only works that are for sale (see `Products.only_available/1`) have a
+  page; any other address goes back to `/products` with "Product not
+  found".
+  """
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Orders
-  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, button_artsy: 1, back: 1]
+
+  import ArtsyNeighborWeb.CustomComponents,
+    only: [
+      product_card: 1,
+      report_link: 1,
+      area_label: 1,
+      artwork_size: 1,
+      exact_price: 1
+    ]
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, return_to: nil, return_label: nil)}
+    {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0)}
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
@@ -36,8 +54,9 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           |> assign(:return_to, Map.get(params, "return_to"))
           |> assign(:return_label, Map.get(params, "return_label"))
           |> assign(:product, product)
+          |> assign(:own_work, own_work?(product, socket))
           |> assign(:images, images)
-          |> assign(:current_image_index, 0)
+          |> assign(:photo_index, 0)
           |> assign(:page_title, product.title)
           |> assign(:products_by_artist, products_by_artist)
           |> assign(:similar_products, similar_products)
@@ -46,33 +65,52 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     end
   end
 
-  def handle_event("prev_image", _, socket) do
-    count = length(socket.assigns.images)
-    new_index = rem(socket.assigns.current_image_index - 1 + count, count)
-    {:noreply, assign(socket, :current_image_index, new_index)}
+  # True when the logged-in vendor is looking at one of their own works.
+  # They can't buy from or message themselves, so both buttons are
+  # shown to them but disabled.
+  defp own_work?(product, socket) do
+    scope = socket.assigns.current_scope
+    viewer_artist = scope && scope.artist
+
+    viewer_artist != nil && viewer_artist.id == product.artist_id
   end
 
-  def handle_event("next_image", _, socket) do
-    count = length(socket.assigns.images)
-    new_index = rem(socket.assigns.current_image_index + 1, count)
-    {:noreply, assign(socket, :current_image_index, new_index)}
+  # An arrow on the photo or a thumbnail was pressed. The index wraps
+  # around, so "next" on the last photo shows the first one.
+  def handle_event("show_photo", %{"index" => index}, socket) do
+    photo_count = length(socket.assigns.images)
+
+    photo_index =
+      case Integer.parse(index) do
+        {number, ""} when photo_count > 0 -> Integer.mod(number, photo_count)
+        _ -> 0
+      end
+
+    {:noreply, assign(socket, :photo_index, photo_index)}
   end
 
-  def handle_event("select_image", %{"index" => index}, socket) do
-    {:noreply, assign(socket, :current_image_index, String.to_integer(index))}
+  # "Send message" and "Request to buy": the artist's own buttons are
+  # disabled; these guard against a click that gets through anyway.
+  def handle_event("message_artist", _params, %{assigns: %{own_work: true}} = socket) do
+    {:noreply, socket}
   end
 
-  @doc """
-    Handles the "Message Seller" button click.
-    Finds or creates a conversation between the current user (buyer) and the artist (seller), then navigates to that conversation's page.
-  """
-  def handle_event("message_seller", _params, socket) do
+  def handle_event("request_to_buy", _params, %{assigns: %{own_work: true}} = socket) do
+    {:noreply, socket}
+  end
+
+  # "Send message": finds or creates a conversation between the current
+  # user (buyer) and the artist (seller), then opens it.
+  def handle_event("message_artist", _params, socket) do
     artist_id = socket.assigns.product.artist_id
     buyer_id = socket.assigns.current_scope.user.id
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer_id, artist_id)
     {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
   end
 
+  # "Request to buy": adds the work to the buyer's open order with this
+  # artist (starting one if there is none), then opens the conversation,
+  # where the two of them arrange the rest.
   def handle_event("request_to_buy", _params, socket) do
     product = socket.assigns.product
     buyer = socket.assigns.current_scope.user
@@ -85,7 +123,10 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}])
 
         order ->
-          if product.unique_work && Enum.any?(order.items, &(&1.product_id == product.id)) do
+          already_in_order? =
+            Enum.any?(order.items, fn item -> item.product_id == product.id end)
+
+          if product.unique_work && already_in_order? do
             {:error, :unique_work_already_in_order}
           else
             Orders.add_item_to_order(order, product, :buyer)
@@ -114,231 +155,84 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
+      top_space={false}
     >
-      <div>
-        <.back :if={@return_to && @return_label} navigate={@return_to}>
-          {@return_label}
-        </.back>
-      </div>
+      <%!-- "Back to ...", as on the artist page: only when the page was
+           opened with return_to and return_label. --%>
+      <.link :if={@return_to && @return_label} navigate={@return_to} class="back-under-menu">
+        ← {@return_label}
+      </.link>
 
-      <div class="py-8 bg-base-100">
-        <%!-- Main Section: Two Columns --%>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12 items-start">
-          <%!-- Left Column: Image Gallery --%>
-          <div>
-            <%!-- Main Image --%>
-            <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
-              <img
-                src={
-                  Enum.at(@images, @current_image_index, %{path: "/images/placeholder-product.jpg"}).path
-                }
-                alt={@product.title}
-                class="w-full h-full object-contain"
-              />
+      <%!-- Top: the work left, its details right (one column on phones) --%>
+      <div class="product-top">
+        <.work_photos product={@product} images={@images} photo_index={@photo_index} />
 
-              <%!-- Left Arrow --%>
-              <button
-                :if={length(@images) > 1}
-                phx-click="prev_image"
-                class="absolute left-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-
-              <%!-- Right Arrow --%>
-              <button
-                :if={length(@images) > 1}
-                phx-click="next_image"
-                class="absolute right-2 top-1/2 -translate-y-1/2 bg-base-100/80 hover:bg-base-100 text-base-content rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <%!-- Thumbnail Gallery --%>
-            <div class="grid grid-cols-4 gap-2">
-              <%= for {image, idx} <- Enum.with_index(@images) do %>
-                <div
-                  phx-click="select_image"
-                  phx-value-index={idx}
-                  class={[
-                    "aspect-square rounded-lg overflow-hidden bg-base-100 cursor-pointer hover:opacity-75 transition-opacity border-2 flex items-center justify-center",
-                    if(idx == @current_image_index,
-                      do: "border-primary",
-                      else: "border-transparent hover:border-primary"
-                    )
-                  ]}
-                >
-                  <img
-                    src={image.path}
-                    alt={"#{@product.title} - thumbnail #{idx + 1}"}
-                    class="w-full h-full object-contain"
-                  />
-                </div>
-              <% end %>
-            </div>
+        <div class="product-info">
+          <h1>{@product.title}</h1>
+          <div class="product-by">
+            by <.link navigate={~p"/artists/#{@product.artist}"}>{@product.artist.nickname}</.link>
           </div>
+          <div class="artist-area">{area_label(@product.artist.area_code)}</div>
 
-          <%!-- Right Column: Product Information --%>
+          <ul class="product-facts">
+            <li :if={present?(@product.materials)}>{@product.materials}</li>
+            <li :if={artwork_size(@product)}>{artwork_size(@product)}</li>
+            <li :if={@product.unique_work} class="product-unique">
+              <%!-- A four-pointed star, from the mockup --%>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                aria-hidden="true"
+              >
+                <path d="M12 3l2.2 6.3L21 12l-6.8 2.7L12 21l-2.2-6.3L3 12l6.8-2.7z" />
+              </svg>
+              Unique work — one of a kind
+            </li>
+          </ul>
+
+          <div class="product-price">{exact_price(@product.price)}</div>
+
+          <.buy_buttons current_scope={@current_scope} own_work={@own_work} />
+
+          <%!-- The old sections, until step 2 of the product page
+               (docs/plans/2026-10-15-theme-and-components.md) --%>
           <div>
-            <%!--  Title and Artist --%>
-            <div class="mb-5">
-              <h1 class="text-4xl font-bold mb-2 text-base-content">{@product.title}</h1>
-              <p class="text-xl text-base-content/70">by {@product.artist.nickname}</p>
-              <div
-                :if={@product.unique_work}
-                class="flex items-center gap-1 mt-2 text-sm text-base-content/60"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4 text-secondary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                  />
-                </svg>
-                <span>Unique work — one of a kind</span>
-              </div>
+            <div class="rounded-lg bg-base-100 mt-6">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
+              <p class="text-base-content/80 leading-relaxed">
+                {@product.descr}
+              </p>
             </div>
 
-            <div>
-              <%!-- Price --%>
-              <div class="rounded-lg  mb-5 bg-base-100">
-                <%!-- <h2 class="text-sm font-semibold text-base-content/60 mb-2">Price</h2> --%>
-                <p class="text-3xl font-bold text-base-content">
-                  CA${Decimal.to_string(@product.price)}
-                </p>
-              </div>
-
-              <%= if @current_scope && @current_scope.user do %>
-                <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
-                  <.button_artsy variant="primary" size="block" phx-click="request_to_buy">
-                    Request to Buy
-                  </.button_artsy>
-                  
-    <!--div class="text-base-content/80">
-                  or
-                </div-->
-
-                  <.button_artsy variant="secondary" size="block" phx-click="message_seller">
-                    Message Seller
-                  </.button_artsy>
-
-                  <.link
-                    navigate={
-                      ~p"/flag/product/#{@product.id}?#{[return_to: ~p"/products/#{@product.id}", return_label: "Product page"]}"
-                    }
-                    class="text-xs text-base-content/40 underline"
-                  >
-                    Report this listing
-                  </.link>
-                </div>
-              <% else %>
-                <div class="flex flex-col lg:flex-col items-center gap-4 mb-12">
-                  <.button_artsy variant="primary" size="block" navigate={~p"/users/log-in"}>
-                    Log-in to Buy or to Message Seller
-                  </.button_artsy>
-                </div>
-              <% end %>
+            <div class="rounded-lg bg-base-100 space-y-6">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
+              <p class="text-base-content/80 leading-relaxed">
+                {@product.details}
+              </p>
             </div>
 
-            <div>
-              <%!-- Category & Subcategory --%>
-              <%!-- <div class="rounded-lg p-6 bg-base-100">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Category</h2>
-              <p class="text-lg text-base-content"><%= @product.category %> · <%= @product.subcategory %></p>
-            </div> --%>
+            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
+              <p class="text-base-content/80 leading-relaxed">
+                Pick up at the artist studio. Contact the seller to check about delivery/shipping options and cost.
+              </p>
+            </div>
 
-              <%!-- Product Description (placeholder) --%>
-              <div class="rounded-lg bg-base-100 mt-6">
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
-                <p class="text-base-content/80 leading-relaxed">
-                  {@product.descr}
-                </p>
-              </div>
-
-              <%!-- Dimensions --%>
-              <div
-                :if={@product.width || @product.length || @product.height}
-                class="rounded-lg bg-base-100 mt-6"
-              >
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Dimensions</h2>
-                <p class="text-base-content/80">
-                  {[
-                    @product.width && "W: #{Decimal.to_string(@product.width)} #{@product.units}",
-                    @product.length && "L: #{Decimal.to_string(@product.length)} #{@product.units}",
-                    @product.height && "H: #{Decimal.to_string(@product.height)} #{@product.units}"
-                  ]
-                  |> Enum.filter(& &1)
-                  |> Enum.join("; ")}
-                </p>
-              </div>
-
-              <%!-- Materials --%>
-              <div :if={@product.materials} class="rounded-lg bg-base-100 mt-6">
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Materials</h2>
-                <p class="text-base-content/80">{@product.materials}</p>
-              </div>
-
-              <%!-- Details (placeholder) --%>
-              <div class="rounded-lg bg-base-100 space-y-6">
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
-                <p class="text-base-content/80 leading-relaxed">
-                  {@product.details}
-                </p>
-              </div>
-
-              <%!-- Delivery Information --%>
-              <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-                <p class="text-base-content/80 leading-relaxed">
-                  Pick up at the artist studio. Contact the seller to check about delivery/shipping options and cost.
-                </p>
-              </div>
-
-              <%!-- Return policy --%>
-              <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-                <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-                <p class="text-base-content/80 leading-relaxed">
-                  Items in original packaging can be returned if in original condition.
-                </p>
-              </div>
+            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
+              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
+              <p class="text-base-content/80 leading-relaxed">
+                Items in original packaging can be returned if in original condition.
+              </p>
             </div>
           </div>
         </div>
+      </div>
 
+      <div class="py-8 bg-base-100">
         <%!-- More by This Artist Section --%>
         <div :if={length(@products_by_artist) > 0} class="mb-12">
           <h2 class="text-2xl font-bold mb-6 text-base-content">
@@ -357,7 +251,125 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           </div>
         </div>
       </div>
+
+      <div class="product-report">
+        <.report_link
+          :if={@current_scope && @current_scope.user}
+          subject="product"
+          id={@product.id}
+          return_to={~p"/products/#{@product.id}"}
+          return_label="Product page"
+        >
+          Report a concern about this listing
+        </.report_link>
+      </div>
     </Layouts.artsy_main>
     """
   end
+
+  # The work's photos, one at a time: the whole photo, never cropped,
+  # inside an area of fixed height (so the text beside it never jumps
+  # when switching photos). With more than one photo: small see-through
+  # arrows on the photo's own edges and square thumbnails under it.
+  # No photos: the placeholder picture.
+  attr :product, :map, required: true
+  attr :images, :list, required: true
+  attr :photo_index, :integer, required: true
+
+  defp work_photos(assigns) do
+    assigns = assign(assigns, :photo_count, length(assigns.images))
+
+    ~H"""
+    <div class="work-photos">
+      <div class="work-view">
+        <%!-- The frame is exactly as big as the photo, so the arrows
+             (placed inside it) sit on the photo's own edges. --%>
+        <div
+          class="work-frame"
+          aria-roledescription="carousel"
+          aria-label={"Photos of #{@product.title}"}
+        >
+          <img
+            :if={@photo_count == 0}
+            src="/images/placeholder-product.jpg"
+            alt={"#{@product.title} (no photo yet)"}
+          />
+          <img
+            :for={{image, index} <- Enum.with_index(@images)}
+            src={image.path}
+            alt={"#{@product.title}, photo #{index + 1} of #{@photo_count}"}
+            hidden={index != @photo_index}
+          />
+
+          <%= if @photo_count > 1 do %>
+            <button
+              type="button"
+              class="carousel-arrow prev"
+              phx-click="show_photo"
+              phx-value-index={@photo_index - 1}
+              aria-label="Previous photo"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              class="carousel-arrow next"
+              phx-click="show_photo"
+              phx-value-index={@photo_index + 1}
+              aria-label="Next photo"
+            >
+              ›
+            </button>
+          <% end %>
+        </div>
+      </div>
+
+      <div :if={@photo_count > 1} class="work-thumbs">
+        <button
+          :for={{image, index} <- Enum.with_index(@images)}
+          type="button"
+          class={index == @photo_index && "current"}
+          phx-click="show_photo"
+          phx-value-index={index}
+          aria-label={"Show photo #{index + 1}"}
+          aria-pressed={to_string(index == @photo_index)}
+        >
+          <img src={image.path} alt="" />
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  # The two main buttons, of equal width. Logged out: "Log in to buy",
+  # with a line about creating an account under it. The artist sees
+  # both buttons on their own works, disabled.
+  attr :current_scope, :any, required: true
+  attr :own_work, :boolean, required: true
+
+  defp buy_buttons(assigns) do
+    ~H"""
+    <%= if @current_scope && @current_scope.user do %>
+      <div class="product-actions">
+        <.button variant="main" phx-click="request_to_buy" disabled={@own_work}>
+          Request to buy
+        </.button>
+        <.button phx-click="message_artist" disabled={@own_work}>
+          Send message
+        </.button>
+      </div>
+    <% else %>
+      <div class="product-actions">
+        <.button variant="main" navigate={~p"/users/log-in"}>Log in to buy</.button>
+      </div>
+      <p class="product-small-note">
+        New here? <.link navigate={~p"/users/register"}>Create an account</.link>
+        — it only takes a minute.
+      </p>
+    <% end %>
+    """
+  end
+
+  defp present?(nil), do: false
+  defp present?(text), do: String.trim(text) != ""
 end

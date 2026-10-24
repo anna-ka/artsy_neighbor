@@ -275,6 +275,11 @@ working on the code should keep in mind.
         an inactive profile) should show available works on the Works
         and Shop tabs and their collections (built in artist-page
         step 3, so far only covered by automated tests).
+      - *Added 2026-10-23:* a vendor can't see their own work's
+        product page while it's unavailable: `/products/:id` only shows
+        available works and otherwise sends them to `/products` with
+        "Product not found". With the toggles, the product page needs an
+        owner preview like the artist page's `?preview=1`.
 
   17. I need some solid advice and to make decisions about how to store images. Right now everything is local on my laptop, I have no idea how to set it up so it would work on server.
 
@@ -320,6 +325,10 @@ working on the code should keep in mind.
       to a landscape 4:3 shape (decided 2026-10-07), so the product page
       must always show the whole, uncropped work; a later option is to
       let artists choose which part a tile shows.
+      - *Added 2026-10-23:* keep a large version of each product photo
+        too (e.g. up to ~2000–2500px on the long side), not only a
+        page-sized one: the product page's large view (and any later
+        zoom) can only show pixels that exist.
 
     25. Add ability for buyers to Follow artists. This means a button to opt in and also a clear interface for vendors to send updates tp subscribers.
 

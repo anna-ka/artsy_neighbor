@@ -907,6 +907,98 @@
     .artist-tab { font-size: 15px; }
   }
 
+  /* ---------- Product page (ProductLive.Show) ----------
+     From the product-page mockup. Top: the work left (30% of the width,
+     changed from half on 2026-10-23), its details right. The columns
+     don't follow each photo's width, so the text never jumps when
+     switching photos. One column on phones. The
+     carousel arrows (.carousel-arrow) and the area (.artist-area) are
+     the artist page's, above. */
+  .product-top {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(300px, 7fr);
+    /* Grows with the screen: 5% of its width, between 48px and 120px. */
+    gap: clamp(48px, 5vw, 120px);
+    align-items: start;
+    padding-top: 32px;
+  }
+  .back-under-menu + .product-top { padding-top: 16px; }
+
+  /* The whole work, never cropped: the photo keeps its own shape, at
+     most --work-height tall, with a faint outline like the cards (no
+     mat). Its top lines up with the title on every screen (it was
+     centred in a box of fixed height until 2026-10-23, so its top moved
+     with the window's height). The frame is exactly as big as the
+     photo, so the arrows inside it sit on the photo's own edges. */
+  .work-view {
+    --work-height: min(72vh, 720px);
+    display: flex;
+    justify-content: center;
+  }
+  .work-frame { position: relative; max-width: 100%; }
+  .work-frame img {
+    display: block;
+    max-width: 100%;
+    max-height: var(--work-height);
+    width: auto;
+    height: auto;
+    border: 1.5px solid var(--color-base-300);
+    border-radius: var(--radius-box);
+  }
+  .work-frame img[hidden] { display: none; }
+  /* Thumbnails: small square crops under the work; the one shown gets a
+     dark ring. */
+  .work-thumbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 16px; }
+  .work-thumbs button { padding: 0; border: 0; background: none; border-radius: 8px; cursor: pointer; }
+  .work-thumbs img {
+    display: block;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border: 1.5px solid var(--color-base-300);
+    border-radius: 8px;
+  }
+  .work-thumbs button.current img { outline: 2px solid var(--color-base-content); outline-offset: 2px; }
+  .work-thumbs button:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 4px; }
+
+  /* Details column */
+  .product-info h1 { font-size: 36px; }
+  /* "by Maren Holt": the title font, italic, like the artist's motto. */
+  .product-by {
+    margin-top: 6px;
+    font-family: var(--font-heading);
+    font-weight: var(--heading-weight);
+    font-style: italic;
+    font-size: 20px;
+  }
+  .product-by a { color: inherit; }
+  .product-facts { list-style: none; padding: 0; margin: 24px 0 0; color: var(--color-muted); }
+  .product-facts li + li { margin-top: 2px; }
+  .product-unique { display: flex; align-items: center; gap: 6px; color: var(--color-base-content); }
+  .product-price { margin-top: 24px; font-family: var(--font-heading); font-weight: 400; font-size: 30px; }
+  /* Both buttons get the width of the wider one: two equal columns,
+     only as wide as the longer words need. */
+  .product-actions { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .product-actions:has(> :only-child) { grid-template-columns: auto; }
+  /* "New here? Create an account" under the button, logged out. */
+  .product-small-note { margin-top: 10px; font-size: 14px; color: var(--color-muted); }
+  .product-small-note a { color: var(--color-base-content); text-underline-offset: 3px; }
+
+  .product-report { margin-top: var(--section-gap); text-align: right; }
+
+  /* Phones: one column, the work on top; the buttons stacked at full
+     width, as on the artist page. */
+  @media (max-width: 760px) {
+    .product-top { grid-template-columns: 1fr; gap: 24px; padding-top: 20px; }
+    .back-under-menu + .product-top { padding-top: 12px; }
+    .work-view { --work-height: 70vh; }
+    .product-info h1 { font-size: 22px; }
+    .product-by { font-size: 17px; margin-top: 2px; }
+    .product-price { font-size: 26px; }
+    .product-actions { display: grid; grid-template-columns: 1fr; }
+    .work-thumbs img { width: 52px; height: 52px; }
+  }
+
   /* ---------- Water (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Site hat" and "Side margins"). One
      photo of a wave (Matt Hardy on Unsplash), used as a mask: its light

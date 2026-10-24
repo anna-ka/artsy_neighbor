@@ -44,7 +44,8 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       star_rating: 1,
       review: 1,
       quiet_link: 1,
-      page_numbers: 1
+      page_numbers: 1,
+      area_label: 1
     ]
 
   # Query params that every tab link keeps.
@@ -530,17 +531,6 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       <% end %>
     </div>
     """
-  end
-
-  # The artist's area: only the postal district, the first 3 characters
-  # of their postal code ("V8V · Victoria"). The full code can point to a
-  # single block, so it's never shown. A proper neighbourhood name comes
-  # later (NOTES.md #28).
-  defp area_label(nil), do: "Victoria"
-
-  defp area_label(postal_code) do
-    district = postal_code |> String.trim() |> String.slice(0, 3) |> String.upcase()
-    "#{district} · Victoria"
   end
 
   # The bio as paragraphs: every line break the artist typed starts a new

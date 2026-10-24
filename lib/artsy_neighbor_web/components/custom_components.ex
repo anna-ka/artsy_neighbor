@@ -182,9 +182,12 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     |> Enum.join(" · ")
   end
 
-  # "70 × 50 cm" from whichever of width, length and height are filled in;
-  # nil when none are.
-  defp artwork_size(product) do
+  @doc """
+  A work's size as text, "70 × 50 cm", from whichever of width, length
+  and height are filled in; nil when none are. Used on artwork cards and
+  the product page.
+  """
+  def artwork_size(product) do
     numbers =
       [product.width, product.length, product.height]
       |> Enum.reject(fn number -> is_nil(number) end)
@@ -195,6 +198,34 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       # Non-breaking spaces (\u00A0), so a size never breaks across lines.
       _some -> Enum.join(numbers, "\u00A0×\u00A0") <> "\u00A0" <> product.units
     end
+  end
+
+  @doc """
+  A work's exact price, for the product page: "CA$640" when it is whole
+  dollars, "CA$639.99" when there are cents (no ".00"). Artwork cards
+  round to whole dollars instead.
+  """
+  def exact_price(price) do
+    rounded = Decimal.round(price, 2)
+
+    if Decimal.equal?(rounded, Decimal.round(rounded, 0)) do
+      "CA$" <> Integer.to_string(Decimal.to_integer(Decimal.round(rounded, 0)))
+    else
+      "CA$" <> Decimal.to_string(rounded, :normal)
+    end
+  end
+
+  @doc """
+  The artist's area, for the artist page and the product page: only the
+  postal district, the first 3 characters of their postal code
+  ("V8V · Victoria"). The full code can point to a single block, so it's
+  never shown. A proper neighbourhood name comes later (NOTES.md #28).
+  """
+  def area_label(nil), do: "Victoria"
+
+  def area_label(postal_code) do
+    district = postal_code |> String.trim() |> String.slice(0, 3) |> String.upcase()
+    "#{district} · Victoria"
   end
 
   # "CA$350": whole dollars only, rounded to the nearest dollar (349.99
