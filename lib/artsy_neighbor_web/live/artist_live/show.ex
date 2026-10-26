@@ -43,9 +43,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       placeholder: 1,
       star_rating: 1,
       review: 1,
+      delivery_options: 1,
       quiet_link: 1,
       page_numbers: 1,
-      area_label: 1
+      area_label: 1,
+      paragraphs: 1
     ]
 
   # Query params that every tab link keeps.
@@ -378,7 +380,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
               class={["artist-bio-text", !@bio_open && "clamped"]}
               data-bio-text
             >
-              <p :for={paragraph <- bio_paragraphs(@artist.bio)}>{paragraph}</p>
+              <p :for={paragraph <- paragraphs(@artist.bio)}>{paragraph}</p>
             </div>
             <.show_more
               phx-click="toggle_bio"
@@ -533,17 +535,6 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     """
   end
 
-  # The bio as paragraphs: every line break the artist typed starts a new
-  # paragraph (one Enter or a blank line alike); empty lines are dropped.
-  defp bio_paragraphs(nil), do: []
-
-  defp bio_paragraphs(bio) do
-    bio
-    |> String.split(~r/\R/)
-    |> Enum.map(fn line -> String.trim(line) end)
-    |> Enum.reject(fn line -> line == "" end)
-  end
-
   # Works tab: Featured works with "See all works ›" (which opens the
   # Shop tab), a thin line, then the artist's collections. Each section
   # only when it has something in it; no available works at all shows a
@@ -637,12 +628,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       </div>
 
       <%!-- Links down to the sections at the end, so they are easy to
-           find without scrolling past every work --%>
-      <nav
-        :if={@artist.delivery_options != [] || @review_summary.count > 0}
-        class="shop-links"
-        aria-label={"Buying from #{@artist.nickname}"}
-      >
+           find without scrolling past every work. "Reviews" is always
+           there: with none yet, it leads to "No reviews yet.", which is
+           worth knowing too. --%>
+      <nav class="shop-links" aria-label={"Buying from #{@artist.nickname}"}>
         <a :if={@artist.delivery_options != []} href="#pickup-delivery">Pickup and delivery</a>
         <.star_rating
           :if={@review_summary.count > 0}
@@ -651,6 +640,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           count={@review_summary.count}
           href="#artist-reviews"
         />
+        <a :if={@review_summary.count == 0} href="#artist-reviews">Reviews</a>
       </nav>
 
       <p :if={@total_count == 0} class="artist-no-works">
@@ -712,12 +702,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     <%!-- The artist's delivery options, each with their own note --%>
     <section :if={@artist.delivery_options != []} id="pickup-delivery" class="shop-end-section">
       <.section_heading>Pickup and delivery</.section_heading>
-      <ul class="delivery-list">
-        <li :for={option <- @artist.delivery_options}>
-          <strong>{delivery_option_label(option)}</strong>
-          <span :if={delivery_note(@artist, option) != ""}>{delivery_note(@artist, option)}</span>
-        </li>
-      </ul>
+      <.delivery_options artist={@artist} />
       <div class="back-to-top"><.quiet_link href="#top">Back to top</.quiet_link></div>
     </section>
 
@@ -1047,19 +1032,5 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     else
       "https://" <> url
     end
-  end
-
-  defp delivery_option_label("pickup"), do: "Pickup at the artist's studio"
-  defp delivery_option_label("artist_delivery"), do: "Artist delivers"
-  defp delivery_option_label("shipping"), do: "Shipping"
-  defp delivery_option_label("other"), do: "Other"
-  defp delivery_option_label(other), do: other
-
-  # The artist's own note for one delivery option, or "" when there's none.
-  defp delivery_note(artist, option) do
-    (artist.delivery_info || %{})
-    |> Map.get(option, "")
-    |> to_string()
-    |> String.trim()
   end
 end

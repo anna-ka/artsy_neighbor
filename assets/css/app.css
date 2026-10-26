@@ -1055,6 +1055,11 @@
   .product-facts li + li { margin-top: 2px; }
   .product-unique { display: flex; align-items: center; gap: 6px; color: var(--color-base-content); }
   .product-price { margin-top: 24px; font-family: var(--font-heading); font-weight: 400; font-size: 30px; }
+  /* "Reviews of this work ★★★★☆ (2)" sits just above the price, close to it. */
+  .product-rating { margin-top: 24px; }
+  .product-rating + .product-price { margin-top: 4px; }
+  .product-rating a.star-rating { color: var(--color-base-content); }
+  .product-no-reviews { color: var(--color-muted); }
   /* Both buttons get the width of the wider one: two equal columns,
      only as wide as the longer words need. */
   .product-actions { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
@@ -1062,6 +1067,29 @@
   /* "New here? Create an account" under the button, logged out. */
   .product-small-note { margin-top: 10px; font-size: 14px; color: var(--color-muted); }
   .product-small-note a { color: var(--color-base-content); text-underline-offset: 3px; }
+
+  /* Information sections under the buttons, separated by thin lines.
+     Always open (no click-to-expand), so nothing is hidden. */
+  .product-sections { margin-top: 32px; }
+  .product-sections > section { border-top: var(--border) solid var(--color-base-300); padding: 18px 0; }
+  .product-sections h2 { font-family: var(--font-sans); font-size: inherit; font-weight: 600; margin-bottom: 6px; }
+  .product-sections p { margin: 0; font-weight: 300; max-width: 70ch; }
+  .product-sections p + p { margin-top: 0.8em; }
+  /* The option names in normal weight here, so they don't read as a
+     second heading under the section's own. */
+  .product-sections .delivery-list strong { font-weight: 400; }
+  .product-sections .delivery-list li + li { margin-top: 8px; }
+  /* Reviews of this work: "See reviews ›" opens the list, "Hide reviews ‹"
+     closes it (a <details>, without the browser's own triangle). */
+  #work-reviews { scroll-margin-top: 24px; }
+  .work-reviews { margin-top: 8px; }
+  .work-reviews summary { display: inline-block; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .work-reviews summary::-webkit-details-marker { display: none; }
+  .work-reviews summary:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 3px; border-radius: 4px; }
+  .work-reviews .when-open { display: none; }
+  .work-reviews[open] .when-open { display: inline; }
+  .work-reviews[open] .when-closed { display: none; }
+  .work-reviews .review-list { margin-top: 8px; }
 
   .product-report { margin-top: var(--section-gap); text-align: right; }
 

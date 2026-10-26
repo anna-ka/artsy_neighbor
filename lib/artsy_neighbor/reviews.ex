@@ -222,9 +222,40 @@ defmodule ArtsyNeighbor.Reviews do
     |> Repo.all()
   end
 
+  @doc """
+  The reviews of one work that the public may see, newest first, with
+  each reviewer loaded (for their name).
+  """
   def list_product_reviews_for_product(product_id) do
-    now = DateTime.utc_now()
-    window_cutoff = DateTime.add(now, -@review_window_days, :day)
+    from(pr in visible_product_reviews(product_id),
+      # id as a tie-breaker, for a steady order when two reviews have the
+      # same submitted_at
+      order_by: [desc: pr.submitted_at, desc: pr.id]
+    )
+    |> Repo.all()
+    |> Repo.preload(:reviewer)
+  end
+
+  @doc """
+  How many visible reviews the work has and their average, rounded to
+  one decimal: `%{count: 2, average: 4.5}`. The average is nil when there
+  are none.
+  """
+  def product_review_summary(product_id) do
+    {count, average} =
+      from(pr in visible_product_reviews(product_id),
+        select: {count(pr.id), avg(pr.stars)}
+      )
+      |> Repo.one()
+
+    %{count: count, average: round_average(average)}
+  end
+
+  # The work's reviews that the public may see: not removed, and either
+  # the artist and the buyer have both reviewed each other, or the 14
+  # days are over.
+  defp visible_product_reviews(product_id) do
+    window_cutoff = DateTime.add(DateTime.utc_now(), -@review_window_days, :day)
 
     from(pr in ProductReview,
       join: o in ArtsyNeighbor.Orders.Order,
@@ -235,10 +266,8 @@ defmodule ArtsyNeighbor.Reviews do
       on: br.order_id == pr.order_id and br.status == :active,
       where: pr.product_id == ^product_id,
       where: pr.status == :active,
-      where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
-      order_by: [desc: pr.submitted_at]
+      where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff
     )
-    |> Repo.all()
   end
 
   # ---------------------------------------------------------------------------
@@ -268,23 +297,7 @@ defmodule ArtsyNeighbor.Reviews do
   end
 
   def avg_rating_for_product(product_id) do
-    now = DateTime.utc_now()
-    window_cutoff = DateTime.add(now, -@review_window_days, :day)
-
-    from(pr in ProductReview,
-      join: o in ArtsyNeighbor.Orders.Order,
-      on: o.id == pr.order_id,
-      left_join: vr in VendorReview,
-      on: vr.order_id == pr.order_id and vr.status == :active,
-      left_join: br in BuyerReview,
-      on: br.order_id == pr.order_id and br.status == :active,
-      where: pr.product_id == ^product_id,
-      where: pr.status == :active,
-      where: (not is_nil(vr.id) and not is_nil(br.id)) or o.completed_at <= ^window_cutoff,
-      select: avg(pr.stars)
-    )
-    |> Repo.one()
-    |> then(fn avg -> if avg, do: avg |> Decimal.to_float() |> Float.round(1), else: nil end)
+    product_review_summary(product_id).average
   end
 
   # ---------------------------------------------------------------------------

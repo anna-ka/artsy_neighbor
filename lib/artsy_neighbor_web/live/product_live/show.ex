@@ -15,6 +15,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Orders
+  alias ArtsyNeighbor.Reviews
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [
@@ -22,7 +23,12 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       report_link: 1,
       area_label: 1,
       artwork_size: 1,
-      exact_price: 1
+      exact_price: 1,
+      delivery_options: 1,
+      paragraphs: 1,
+      star_rating: 1,
+      review: 1,
+      quiet_link: 1
     ]
 
   def mount(_params, _session, socket) do
@@ -57,6 +63,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           |> assign(:product, product)
           |> assign(:own_work, own_work?(product, socket))
           |> assign(:images, images)
+          |> assign(:reviews, Reviews.list_product_reviews_for_product(product.id))
+          |> assign(:review_summary, Reviews.product_review_summary(product.id))
           |> assign(:photo_index, 0)
           |> assign(:page_title, product.title)
           |> assign(:products_by_artist, products_by_artist)
@@ -195,41 +203,32 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             </li>
           </ul>
 
+          <%!-- With reviews: links down to them and opens the list.
+               Without: says so, as plain text (a link would only lead
+               down to "No reviews yet."). --%>
+          <div :if={@review_summary.count == 0} class="product-rating product-no-reviews">
+            No reviews of this work yet
+          </div>
+          <div :if={@review_summary.count > 0} class="product-rating">
+            <.star_rating
+              label="Reviews of this work"
+              rating={@review_summary.average}
+              count={@review_summary.count}
+              href="#work-reviews"
+              phx-click={open_reviews()}
+            />
+          </div>
+
           <div class="product-price">{exact_price(@product.price)}</div>
 
           <.buy_buttons current_scope={@current_scope} own_work={@own_work} />
 
-          <%!-- The old sections, until step 2 of the product page
-               (docs/plans/2026-10-15-theme-and-components.md) --%>
-          <div>
-            <div class="rounded-lg bg-base-100 mt-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">About this item</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                {@product.descr}
-              </p>
-            </div>
-
-            <div class="rounded-lg bg-base-100 space-y-6">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Details</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                {@product.details}
-              </p>
-            </div>
-
-            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                Pick up at the artist studio. Contact the seller to check about delivery/shipping options and cost.
-              </p>
-            </div>
-
-            <div class="bg-base-100 mt-6 pt-6 border-t border-base-content/20">
-              <h2 class="text-sm font-semibold text-base-content/60 mb-2">Delivery Information</h2>
-              <p class="text-base-content/80 leading-relaxed">
-                Items in original packaging can be returned if in original condition.
-              </p>
-            </div>
-          </div>
+          <.info_sections
+            product={@product}
+            reviews={@reviews}
+            review_summary={@review_summary}
+            current_scope={@current_scope}
+          />
         </div>
       </div>
 
@@ -446,6 +445,101 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     </dialog>
     """
   end
+
+  # Under the buttons, separated by thin lines and always open: About
+  # this work, Details, Pickup and delivery (the artist's options, as on
+  # the Shop tab), and Reviews of this work (always there, "No reviews
+  # yet." when there are none). Any other section with nothing to say
+  # is left out.
+  attr :product, :map, required: true
+  attr :reviews, :list, required: true, doc: "The work's visible reviews, newest first"
+  attr :review_summary, :map, required: true, doc: "%{count: ..., average: ...}"
+  attr :current_scope, :any, required: true
+
+  defp info_sections(assigns) do
+    ~H"""
+    <div class="product-sections">
+      <section :if={paragraphs(@product.descr) != []}>
+        <h2>About this work</h2>
+        <p :for={paragraph <- paragraphs(@product.descr)}>{paragraph}</p>
+      </section>
+
+      <section :if={paragraphs(@product.details) != []}>
+        <h2>Details</h2>
+        <p :for={paragraph <- paragraphs(@product.details)}>{paragraph}</p>
+      </section>
+
+      <section :if={@product.artist.delivery_options != []}>
+        <h2>Pickup and delivery</h2>
+        <.delivery_options artist={@product.artist} />
+      </section>
+
+      <%!-- Always there, as on the artist's Shop tab: that a work has
+           no reviews yet is worth knowing too --%>
+      <section id="work-reviews">
+        <h2>Reviews of this work</h2>
+        <p :if={@review_summary.count == 0} class="product-no-reviews">No reviews yet.</p>
+        <%= if @review_summary.count > 0 do %>
+          <.star_rating look="full" rating={@review_summary.average} count={@review_summary.count} />
+          <.work_reviews reviews={@reviews} current_scope={@current_scope} product={@product} />
+          <%!-- The star row near the price jumps down here; this goes
+               back up (as after each section at the end of the Shop tab) --%>
+          <div class="back-to-top"><.quiet_link href="#top">Back to top</.quiet_link></div>
+        <% end %>
+      </section>
+    </div>
+    """
+  end
+
+  # The work's reviews, closed by default: "See reviews ›" opens all of
+  # them, "Hide reviews ‹" closes them again (the browser's own
+  # <details>, so it needs no server round trip). The star row near the
+  # price opens it too. ignore_attributes keeps LiveView from removing
+  # the "open" attribute (set by the browser, not the server) every time
+  # the page updates, which would close it.
+  attr :reviews, :list, required: true
+  attr :current_scope, :any, required: true
+  attr :product, :map, required: true
+
+  defp work_reviews(assigns) do
+    ~H"""
+    <details
+      id="work-reviews-list"
+      class="work-reviews"
+      phx-mounted={JS.ignore_attributes(["open"])}
+    >
+      <summary>
+        <span class="when-closed">See reviews ›</span>
+        <span class="when-open">Hide reviews ‹</span>
+      </summary>
+      <ul class="review-list">
+        <.review
+          :for={review <- @reviews}
+          id={"review-#{review.id}"}
+          stars={review.stars}
+          name={review.reviewer.username}
+          date={review.submitted_at}
+          text={review.body}
+        >
+          <:report :if={@current_scope && @current_scope.user}>
+            <.report_link
+              subject="product_review_of"
+              id={review.id}
+              return_to={~p"/products/#{@product.id}"}
+              return_label="Product page"
+            >
+              Report this review
+            </.report_link>
+          </:report>
+        </.review>
+      </ul>
+    </details>
+    """
+  end
+
+  # The star row near the price: opens the reviews; its link then
+  # scrolls down to them.
+  defp open_reviews, do: JS.set_attribute({"open", ""}, to: "#work-reviews-list")
 
   # The two main buttons, of equal width. Logged out: "Log in to buy",
   # with a line about creating an account under it. The artist sees

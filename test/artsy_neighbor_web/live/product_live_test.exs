@@ -3,6 +3,8 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
 
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighbor.OrdersFixtures
+  import ArtsyNeighbor.ReviewsFixtures
 
   alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Products
@@ -69,6 +71,80 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       assert has_element?(view, ".product-unique", "Unique work")
       assert has_element?(view, ".product-price", "CA$640")
       refute has_element?(view, ".product-price", "CA$640.00")
+    end
+
+    test "shows About this work, Details, and the artist's pickup and delivery", %{conn: conn} do
+      artist =
+        ArtsyNeighbor.ArtistsFixtures.artist_fixture(%{
+          delivery_options: ["pickup", "shipping"],
+          delivery_info: %{"pickup" => "Weekday afternoons in Fernwood."}
+        })
+
+      product =
+        product_fixture(%{
+          artist_id: artist.id,
+          descr: "A crow near Ross Bay.\nThe stones are from the same beach.",
+          details: "Painted in 2025."
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      assert has_element?(view, ".product-sections h2", "About this work")
+      # Each line the artist typed is its own paragraph.
+      assert has_element?(view, ".product-sections p", "A crow near Ross Bay.")
+      assert has_element?(view, ".product-sections p", "The stones are from the same beach.")
+      assert has_element?(view, ".product-sections h2", "Details")
+      assert has_element?(view, ".product-sections p", "Painted in 2025.")
+      assert has_element?(view, ".product-sections h2", "Pickup and delivery")
+      assert has_element?(view, ".delivery-list li", "Pickup at the artist's studio")
+      assert has_element?(view, ".delivery-list li", "Weekday afternoons in Fernwood.")
+      assert has_element?(view, ".delivery-list li", "Shipping")
+      # The old page's made-up returns text is gone.
+      refute render(view) =~ "original packaging"
+    end
+
+    test "no Pickup and delivery section when the artist has no options", %{conn: conn} do
+      artist = ArtsyNeighbor.ArtistsFixtures.artist_fixture(%{delivery_options: []})
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      refute has_element?(view, ".product-sections h2", "Pickup and delivery")
+    end
+
+    test "a work with reviews: the star row and Reviews of this work", %{conn: conn} do
+      product = product_fixture()
+      reviewed(product, stars: 5, body: "Even lovelier in person.")
+      reviewed(product, stars: 4, body: "Easy pickup.")
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      # Just above the price, a link down to the reviews.
+      assert has_element?(
+               view,
+               ~s|.product-rating a[href="#work-reviews"]|,
+               "Reviews of this work"
+             )
+
+      assert has_element?(view, "#work-reviews h2", "Reviews of this work")
+      assert has_element?(view, "#work-reviews", "4.5 out of 5 · 2 reviews")
+      # The list is in the page, closed until "See reviews ›" is pressed.
+      assert has_element?(view, "#work-reviews-list:not([open]) summary", "See reviews")
+      assert has_element?(view, "#work-reviews-list .review", "Even lovelier in person.")
+      assert has_element?(view, "#work-reviews-list .review", "Easy pickup.")
+      assert has_element?(view, ~s|#work-reviews a[href="#top"]|, "Back to top")
+    end
+
+    test "a work without reviews says so, near the price and in the section", %{conn: conn} do
+      product = product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      # Plain text near the price, not a link.
+      assert has_element?(view, ".product-rating", "No reviews of this work yet")
+      refute has_element?(view, ".product-rating a")
+      assert has_element?(view, "#work-reviews h2", "Reviews of this work")
+      assert has_element?(view, "#work-reviews", "No reviews yet.")
+      refute has_element?(view, "#work-reviews-list")
     end
 
     test "a price with cents keeps them", %{conn: conn} do
@@ -210,6 +286,24 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
                "Back to the shop"
              )
     end
+  end
+
+  # A visible review of the work: a completed order, 20 days ago (past
+  # the 14 days, so the public may see it), reviewed by a new buyer.
+  defp reviewed(product, opts) do
+    buyer = ArtsyNeighbor.AccountsFixtures.user_fixture()
+
+    order =
+      order_fixture(buyer_id: buyer.id, artist_id: product.artist_id)
+      |> complete_order(20)
+
+    product_review_fixture(%{
+      order_id: order.id,
+      product_id: product.id,
+      reviewer_id: buyer.id,
+      stars: Keyword.fetch!(opts, :stars),
+      body: Keyword.fetch!(opts, :body)
+    })
   end
 
   # True when the photo with this path is the one shown (the others are

@@ -840,6 +840,46 @@ defmodule ArtsyNeighbor.ReviewsTest do
   end
 
   # ---------------------------------------------------------------------------
+  # product_review_summary/1 and list_product_reviews_for_product/1
+  # ---------------------------------------------------------------------------
+  describe "product_review_summary/1 and list_product_reviews_for_product/1" do
+    test "count, average and list include the visible reviews only" do
+      artist = artist_fixture()
+      product = product_fixture(%{artist_id: artist.id})
+
+      for {stars, completed_days_ago} <- [{5, 20}, {4, 20}, {1, 2}] do
+        buyer = user_fixture()
+
+        order =
+          order_fixture(buyer_id: buyer.id, artist_id: artist.id)
+          |> complete_order(completed_days_ago)
+
+        product_review_fixture(%{
+          order_id: order.id,
+          product_id: product.id,
+          reviewer_id: buyer.id,
+          stars: stars
+        })
+      end
+
+      # The 1-star review is still in its 14 days: (5 + 4) / 2 = 4.5
+      assert Reviews.product_review_summary(product.id) == %{count: 2, average: 4.5}
+
+      reviews = Reviews.list_product_reviews_for_product(product.id)
+      assert Enum.sort(Enum.map(reviews, fn review -> review.stars end)) == [4, 5]
+      # The reviewer is loaded, for their name.
+      assert Enum.all?(reviews, fn review -> review.reviewer.username != nil end)
+    end
+
+    test "no visible reviews" do
+      product = product_fixture()
+
+      assert Reviews.product_review_summary(product.id) == %{count: 0, average: nil}
+      assert Reviews.list_product_reviews_for_product(product.id) == []
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # avg_rating_for_artist/1
   # ---------------------------------------------------------------------------
   describe "avg_rating_for_artist/1" do

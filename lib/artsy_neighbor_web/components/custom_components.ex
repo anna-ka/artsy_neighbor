@@ -228,6 +228,60 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     "#{district} · Victoria"
   end
 
+  @doc """
+  Text the artist typed (a bio, a work's description), as a list of
+  paragraphs: every line break starts a new paragraph (one Enter or a
+  blank line alike); empty lines are dropped. `nil` gives `[]`.
+
+  ## Example
+
+      <p :for={paragraph <- paragraphs(@artist.bio)}>{paragraph}</p>
+  """
+  def paragraphs(nil), do: []
+
+  def paragraphs(text) do
+    text
+    |> String.split(~r/\R/)
+    |> Enum.map(fn line -> String.trim(line) end)
+    |> Enum.reject(fn line -> line == "" end)
+  end
+
+  @doc """
+  The artist's pickup and delivery options, each with the artist's own
+  note under it, for the Shop tab of the artist page and the product
+  page. Renders nothing when the artist has no options.
+
+  ## Example
+
+      <.delivery_options artist={@artist} />
+  """
+  attr :artist, :map, required: true
+
+  def delivery_options(assigns) do
+    ~H"""
+    <ul :if={@artist.delivery_options != []} class="delivery-list">
+      <li :for={option <- @artist.delivery_options}>
+        <strong>{delivery_option_label(option)}</strong>
+        <span :if={delivery_note(@artist, option) != ""}>{delivery_note(@artist, option)}</span>
+      </li>
+    </ul>
+    """
+  end
+
+  defp delivery_option_label("pickup"), do: "Pickup at the artist's studio"
+  defp delivery_option_label("artist_delivery"), do: "Artist delivers"
+  defp delivery_option_label("shipping"), do: "Shipping"
+  defp delivery_option_label("other"), do: "Other"
+  defp delivery_option_label(other), do: other
+
+  # The artist's own note for one delivery option, or "" when there's none.
+  defp delivery_note(artist, option) do
+    (artist.delivery_info || %{})
+    |> Map.get(option, "")
+    |> to_string()
+    |> String.trim()
+  end
+
   # "CA$350": whole dollars only, rounded to the nearest dollar (349.99
   # shows as 350, 349.49 as 349). The product page and orders keep the
   # exact price. A price under 50 cents would round to "CA$0" and look

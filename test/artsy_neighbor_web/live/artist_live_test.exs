@@ -222,11 +222,13 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       assert has_element?(view, "#pickup-delivery li", "Artist delivers")
     end
 
-    test "an artist without reviews: no Reviews link, \"No reviews yet.\"", %{conn: conn} do
+    test "an artist without reviews: a plain Reviews link, \"No reviews yet.\"", %{conn: conn} do
       artist = artist_fixture()
       {:ok, view, _html} = live(conn, ~p"/artists/#{artist}/store")
 
-      refute has_element?(view, ~s|.shop-links a[href="#artist-reviews"]|)
+      # Still a link down to the section, just without stars.
+      assert has_element?(view, ~s|.shop-links a[href="#artist-reviews"]|, "Reviews")
+      refute has_element?(view, ".shop-links .star-rating")
       assert has_element?(view, "#artist-reviews", "No reviews yet.")
     end
 

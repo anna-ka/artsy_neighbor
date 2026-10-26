@@ -631,7 +631,9 @@ computer and phone width and the developer's review:
 5. **Shop tab, part 2:** Pickup and delivery, Reviews.
    *Decided 2026-10-23:* two commits. **5a**, on the Shop tab: links
    under the announcement down to "Pickup and delivery" and "Reviews
-   ★ (n)" (no Reviews link when there are none), a thin line after the
+   ★ (n)" (with none, a plain "Reviews" link down to "No reviews
+   yet.", changed 2026-10-26: that there are none is worth knowing
+   too), a thin line after the
    grid, Pickup and delivery (option name, the artist's note under it),
    Reviews (stars + "4.2 out of 5 · 6 reviews", the 3 newest, "See all
    n reviews ›" when there are more), "Back to top" after each
@@ -735,7 +737,10 @@ developer's review:
    dialog on every update.
 
 *Decided 2026-10-23:*
-- No reviews: neither the star row nor the Reviews section.
+- A work with no reviews shows neither the star row nor the Reviews
+  section. *Changed 2026-10-26:* it says so instead, as the artist
+  page does ("No reviews of this work yet" near the price, "No reviews
+  yet." in the section); that there are none is worth knowing too.
 - **Returns** left out until there's a field (`NOTES.md` #26); the old
   page's made-up returns text goes.
 - Buttons "Request to buy" and "Send message"; logged out "Log in to
@@ -756,3 +761,25 @@ height, so its top moved with the window's height. Now the thumbnails
 under it move up or down when photos of different shapes are switched.
 The report link sits at the bottom, right-aligned, as on the artist
 page.
+
+*Built 2026-10-26 (step 2):* About this work, Details, and Pickup and
+delivery, always open, separated by thin lines, then Reviews of this
+work (always there; see the 2026-10-26 change above). Each line break the artist typed starts a new paragraph, as in
+the bio (`paragraphs/1`, now shared in CustomComponents). Pickup and
+delivery uses the same `<.delivery_options>` as the Shop tab; here the
+option names are in normal weight, so they don't read as a second
+heading. It is left out when the artist has no options.
+Reviews: the heading and the star row both say "Reviews of this work",
+so they aren't taken for the artist's reviews (developer's request).
+The star row ("Reviews of this work ★★★★☆ (3)") sits just above the
+price, links down to the section and opens the list. The section shows
+"4.7 out of 5 · 3 reviews" and "See reviews ›" / "Hide reviews ‹" (the
+browser's own `<details>`, kept open across page updates with
+`JS.ignore_attributes`); each review has "Report this review" for
+logged-in users, and "Back to top" follows the section, as on the
+Shop tab (developer's request). With no reviews: plain text "No
+reviews of this work yet" near the price (not a link, since it would
+only lead down to "No reviews yet."), and "No reviews yet." in the
+section. `Reviews.product_review_summary/1` added, sharing one
+visibility query with `list_product_reviews_for_product/1` (which now
+loads the reviewers).
