@@ -60,6 +60,12 @@ if config_env() == :prod do
 
   config :artsy_neighbor, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # The home page's hero work (see config.exs): its id in this database.
+  # Not set: the picture shows with no credit and no link.
+  if hero_id = System.get_env("HOME_HERO_PRODUCT_ID") do
+    config :artsy_neighbor, :home_hero, product_id: String.to_integer(hero_id)
+  end
+
   config :artsy_neighbor, ArtsyNeighborWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [

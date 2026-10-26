@@ -383,23 +383,23 @@ working on the code should keep in mind.
       changing that one function.
 
   30. **Choosing the home page's featured work** (added 2026-10-26).
-      The hero shows a detail of one work, set by hand in
-      `config/config.exs` (`:home_hero`: the picture, its alt text and
-      the work's id) and changed only by a new deploy. Later: an admin
+      The hero shows a detail of one work, set by hand: the picture and
+      its alt text in `config/config.exs` (`:home_hero`), the work's id
+      per environment (86 in `dev.exs`; on the deployed site the
+      `HOME_HERO_PRODUCT_ID` environment variable, read in
+      `runtime.exs`; without it the picture has no credit or link). Later: an admin
       page to pick the work and upload its detail picture (one the
       artist supplied or approved), changed every week or two
       ("featured artist"); perhaps a paid placement one day, then
       labelled as such.
-      Two problems with the stopgap, found in code review (2026-10-26),
-      to fix with that admin page:
-      - **The work's id is the same in every environment.** Ids differ
-        between databases, so on the deployed site (or after a
-        reseed) id 86 may be another artist's work or none: the
-        Protectress picture would then carry someone else's title and
-        name and link to their work. Check this at the private deploy
-        (step 2 of the order of work): set the id per environment, or
-        leave it out there, before anyone else sees the site.
-      - **A non-`:active` artist is still credited.** `get_hero_work/1`
+      Found in code review (2026-10-26):
+      - *Fixed 2026-10-26:* the work's id was the same in every
+        environment, so on another database the picture could carry
+        another artist's name. Now set per environment (above). At the
+        private deploy (step 2 of the order of work): add the work and
+        its photo there, then set `HOME_HERO_PRODUCT_ID` to its id.
+        After a reseed of dev, check that 86 is still Protectress.
+      - **Still open, for the admin page: a non-`:active` artist is still credited.** `get_hero_work/1`
         doesn't check the artist's status, and the unlinked credit
         still shows when the work isn't for sale. So a removed or
         inactive artist's name and postal district would stay on the

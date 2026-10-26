@@ -88,5 +88,9 @@ config :phoenix_live_view,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
 
+# The home page's hero work (see config.exs): Protectress in the
+# developer's own database.
+config :artsy_neighbor, :home_hero, product_id: 86
+
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false

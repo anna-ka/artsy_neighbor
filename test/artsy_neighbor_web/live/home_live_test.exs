@@ -75,5 +75,15 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
       assert has_element?(live, "div.home-hero-art img")
       refute has_element?(live, ".home-hero-credit")
     end
+
+    test "shows the picture without a credit when no work is set (as in test and prod by default)",
+         %{conn: conn} do
+      use_hero_work(nil)
+
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      assert has_element?(live, "div.home-hero-art img")
+      refute has_element?(live, ".home-hero-credit")
+    end
   end
 end

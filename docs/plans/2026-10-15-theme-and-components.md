@@ -836,8 +836,10 @@ at computer and phone width and the developer's review:
    third card alone) settled with screenshots while building.
 
 *Decided 2026-10-26:*
-- **Hero work:** chosen in code for now (one setting: the picture and
-  the work's id), product 86 *Protectress* with the developer's crop
+- **Hero work:** chosen in config for now (the picture and the work's
+  id; the id per environment, since ids differ between databases:
+  `dev.exs`, and `HOME_HERO_PRODUCT_ID` on the deployed site, changed
+  after code review), product 86 *Protectress* with the developer's crop
   `wolf-protectress-faces-crop.jpg`, committed as
   `priv/static/images/site/hero-protectress.jpg` (1400px wide; the rest of
   `priv/static/images` stays gitignored). An admin choosing a

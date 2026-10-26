@@ -336,8 +336,10 @@ defmodule ArtsyNeighbor.Products do
   also link to the work's page (the same check as only_available/1).
 
   Returns `%{product: product, for_sale: true | false}`, or nil when
-  there is no such work.
+  there is no such work, or no id was set (nil).
   """
+  def get_hero_work(nil), do: nil
+
   def get_hero_work(id) do
     case Repo.get(Product, id) do
       nil ->
