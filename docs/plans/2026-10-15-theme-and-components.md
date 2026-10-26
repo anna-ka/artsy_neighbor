@@ -806,3 +806,49 @@ Also in this step, the three points left over from step 2:
   "Back to …" could be mistaken for a way back to the report form).
 - The artist still sees both report links on their own work, as on the
   artist page (developer's decision).
+
+### Home page (agreed 2026-10-26)
+
+`HomeLive` restyled as in `home-page.html` (split hero; the order from
+the mockup's second round). One commit per step, each with screenshots
+at computer and phone width and the developer's review:
+
+1. **Hero.** No 80px top space. The picture takes 2/5 of the width;
+   beside it "Greater Victoria is brimming with art.", one sentence,
+   and a "How it works" button that opens the three steps in place
+   (`JS.toggle`, no trip to the server). Phones: picture on top. The
+   credit on the picture ("*Protectress* (detail) · <artist> · <area>")
+   is built from the work itself, so it stays right if the title or
+   name changes. First real LiveView tests for the page.
+2. **Popular categories:** 4 tiles (`collection_card`), "Show more
+   categories ›" / "Show fewer categories ‹" at the top right; ordered
+   by how many works are for sale in each, empty ones left out.
+3. **New works and the invitation to artists:** the 8 newest works
+   (`artwork_card`, no prices), "See all new works ›" to
+   `/products?sort_by=newest`; the "Are you an artist in Greater
+   Victoria?" panel with "Offer your art" (`/offer-art`). The old
+   "Featured Products" / "Our favorites" go, and with them this page's
+   `product_card` and `category_card`.
+4. **Popular artists:** 3 cards (a new component): a banner from one
+   of the artist's works, round photo, name, area, stars ("4.8 · 31
+   reviews"), three small works, "Visit <name>'s page ›"; one
+   sideways-scrolling row on phones. Tablets (2 per row would leave the
+   third card alone) settled with screenshots while building.
+
+*Decided 2026-10-26:*
+- **Hero work:** chosen in code for now (one setting: the picture and
+  the work's id), product 86 *Protectress* with the developer's crop
+  `wolf-protectress-faces-crop.jpg`, committed as
+  `priv/static/images/site/hero-protectress.jpg` (1400px wide; the rest of
+  `priv/static/images` stays gitignored). An admin choosing a
+  "featured work" every week or two goes into `NOTES.md`. If the work
+  stops being for sale, the picture and credit stay but no longer
+  link (the same rule as "bought <work>" in reviews).
+- **Popular artists:** artists with at least 3 reviews, best average
+  first; empty places filled by the artists who added works most
+  recently. Only artists with at least one work for sale (the banner
+  and thumbnails need them).
+- **Invitation panel:** left out for visitors who already have an
+  artist page; the header shows them "Your shop" instead of "Offer
+  art", as before.
+- Motto (`NOTES.md` #26) and "Follow" (#25) wait for their features.

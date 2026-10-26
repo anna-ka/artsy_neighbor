@@ -330,6 +330,31 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
+  The work shown in the home page's hero, with its artist, for the
+  credit on the picture. The picture is a detail of that work, so it is
+  credited whatever the work's status; `for_sale` says whether it may
+  also link to the work's page (the same check as only_available/1).
+
+  Returns `%{product: product, for_sale: true | false}`, or nil when
+  there is no such work.
+  """
+  def get_hero_work(id) do
+    case Repo.get(Product, id) do
+      nil ->
+        nil
+
+      product ->
+        for_sale =
+          Product
+          |> only_available()
+          |> where([p], p.id == ^product.id)
+          |> Repo.exists?()
+
+        %{product: Repo.preload(product, :artist), for_sale: for_sale}
+    end
+  end
+
+  @doc """
   Same as get_product_with_associations/1 but not scoped to :available — the
   admin-only escape hatch, mirroring get_products_by_artist_all_status/1's
   naming. Returns nil if the product doesn't exist at all.

@@ -82,6 +82,14 @@ config :artsy_neighbor, :timezone, "America/Vancouver"
 # The name shown in system/admin messages and emails. Change here to rebrand.
 config :artsy_neighbor, :platform_name, "Artsy Neighbour"
 
+# The home page's hero: a detail of one work, chosen by hand for now. The
+# credit on the picture (title, artist, area) comes from the work itself.
+# See "Home page" in docs/plans/2026-10-15-theme-and-components.md.
+config :artsy_neighbor, :home_hero,
+  image: "/images/site/hero-protectress.jpg",
+  alt: "Detail of the painting Protectress: a wolf's face beside a sleeping woman",
+  product_id: 86
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

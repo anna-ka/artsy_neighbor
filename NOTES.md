@@ -382,6 +382,29 @@ working on the code should keep in mind.
       on what visitors look at and buy. Swapping it in only means
       changing that one function.
 
+  30. **Choosing the home page's featured work** (added 2026-10-26).
+      The hero shows a detail of one work, set by hand in
+      `config/config.exs` (`:home_hero`: the picture, its alt text and
+      the work's id) and changed only by a new deploy. Later: an admin
+      page to pick the work and upload its detail picture (one the
+      artist supplied or approved), changed every week or two
+      ("featured artist"); perhaps a paid placement one day, then
+      labelled as such.
+      Two problems with the stopgap, found in code review (2026-10-26),
+      to fix with that admin page:
+      - **The work's id is the same in every environment.** Ids differ
+        between databases, so on the deployed site (or after a
+        reseed) id 86 may be another artist's work or none: the
+        Protectress picture would then carry someone else's title and
+        name and link to their work. Check this at the private deploy
+        (step 2 of the order of work): set the id per environment, or
+        leave it out there, before anyone else sees the site.
+      - **A non-`:active` artist is still credited.** `get_hero_work/1`
+        doesn't check the artist's status, and the unlinked credit
+        still shows when the work isn't for sale. So a removed or
+        inactive artist's name and postal district would stay on the
+        home page. The credit should only show for an `:active` artist.
+
 
 
 

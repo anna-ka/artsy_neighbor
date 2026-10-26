@@ -1122,6 +1122,47 @@
     .work-viewer-arrow.next { right: 8px; }
   }
 
+  /* ---------- Home page (HomeLive) ----------
+     From home-page.html. */
+
+  /* Hero: a detail of one work on the left (2/5 of the width), the
+     welcome on the right. The frame takes the picture's own shape, so
+     the picture is shown whole, never cut. */
+  .home-hero { display: grid; grid-template-columns: 2fr 3fr; align-items: center; padding-top: 32px; }
+  .home-hero-art { display: block; position: relative; overflow: hidden; border-radius: var(--radius-box);
+                   border: 1.5px solid var(--color-base-300); }
+  .home-hero-art img { display: block; width: 100%; height: auto; }
+  /* The credit: no background, so it doesn't cover the painting; small,
+     thin white letters with a soft shadow, readable on any colour. Not
+     underlined, though the whole picture is a link. */
+  .home-hero-credit { position: absolute; left: 14px; bottom: 10px; right: 14px; color: #fff; font-size: 13px;
+                      font-weight: 300; letter-spacing: 0.01em;
+                      text-shadow: 0 0 3px rgb(0 0 0 / 0.7), 0 0 8px rgb(0 0 0 / 0.4); }
+  a.home-hero-art, a.home-hero-art:hover { text-decoration: none; }
+  .home-hero-words { padding: 24px 0 24px clamp(40px, 6vw, 112px); }
+  .home-hero-words h1 { font-size: clamp(32px, 3.2vw, 46px); }
+  .home-hero-words p { font-size: 18px; margin-top: 18px; max-width: 34ch; }
+  .home-hero-actions { margin-top: 28px; }
+
+  /* "How it works": three numbered steps that open in place. */
+  .how-steps { list-style: none; counter-reset: step; padding: 0; margin-top: 20px; max-width: 40ch; }
+  .how-steps[hidden] { display: none; }
+  .how-steps li { counter-increment: step; position: relative; padding-left: 40px; }
+  .how-steps li + li { margin-top: 14px; }
+  .how-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px;
+                          border-radius: 50%; border: var(--border) solid var(--color-base-content); font-size: 14px;
+                          display: flex; align-items: center; justify-content: center; }
+  .how-steps strong { display: block; font-weight: 600; }
+  .how-steps span { color: var(--color-muted); }
+
+  /* Phones: the picture on top, the words under it. */
+  @media (max-width: 760px) {
+    .home-hero { grid-template-columns: 1fr; padding-top: 20px; }
+    .home-hero-words { padding: 24px 0 8px; }
+    .home-hero-words h1 { font-size: 30px; }
+    .home-hero-words p { font-size: 17px; }
+  }
+
   /* ---------- Water (Layouts.navlayout/1) ----------
      From the mockups (mockup.css, "Site hat" and "Side margins"). One
      photo of a wave (Matt Hardy on Unsplash), used as a mask: its light

@@ -3,7 +3,10 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Categories
-  import ArtsyNeighborWeb.CustomComponents, only: [product_card: 1, category_card: 1]
+  alias Phoenix.LiveView.JS
+
+  import ArtsyNeighborWeb.CustomComponents,
+    only: [product_card: 1, category_card: 1, area_label: 1]
 
   def mount(_params, _session, socket) do
     products = Products.list_products_with_associations()
@@ -13,7 +16,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
     socket =
       socket
       |> assign(
-        homekey: "homevalue",
+        hero: hero(),
         categories: Categories.list_categories(),
         show_more_categories: false
       )
@@ -32,18 +35,45 @@ defmodule ArtsyNeighborWeb.HomeLive do
       has_unread={@has_unread_messages}
       pending_reviews_as_buyer={@pending_reviews_as_buyer}
       pending_reviews_as_vendor={@pending_reviews_as_vendor}
+      top_space={false}
     >
-      <div class="grid grid-cols-1 gap-8">
-        <%!-- Row 1: Hero Section --%>
-        <section class="hero">
-          <div
-            style={"background-image: url(#{~p"/images/artist-hero.jpg"})"}
-            class="mt-8 w-full h-96 bg-cover bg-center rounded-lg"
-          >
-          </div>
-          <h1 class="text-4xl font-bold mt-6 text-white">Discover Unique Art from Local Artists</h1>
-        </section>
+      <section class="home-hero" aria-label="Welcome">
+        <.hero_picture hero={@hero} />
 
+        <div class="home-hero-words">
+          <h1>Greater Victoria is brimming with art.</h1>
+          <p>
+            Explore the local art scene, support the artistic life of our community,
+            or offer your own work to your neighbours.
+          </p>
+          <div class="home-hero-actions">
+            <.button
+              id="how-it-works-button"
+              aria-expanded="false"
+              aria-controls="how-it-works"
+              phx-click={toggle_how_it_works()}
+            >
+              How it works
+            </.button>
+          </div>
+          <ol id="how-it-works" class="how-steps" hidden>
+            <li>
+              <strong>Find a work you love</strong>
+              <span>Browse by category, or visit an artist's page.</span>
+            </li>
+            <li>
+              <strong>Request to buy</strong>
+              <span>The artist confirms, and you arrange the details together in messages.</span>
+            </li>
+            <li>
+              <strong>Pick it up from the artist</strong>
+              <span>Or have it delivered, if the artist offers delivery.</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-1 gap-8 mt-16">
         <%!-- Rows 2-3: Top Categories (3 images in a row) --%>
         <section>
           <h2 class="text-3xl font-bold mb-6">Top Categories</h2>
@@ -108,6 +138,59 @@ defmodule ArtsyNeighborWeb.HomeLive do
       </div>
     </Layouts.artsy_main>
     """
+  end
+
+  # The hero picture: linked to the work's page (credit included) while
+  # the work is for sale; otherwise the same picture and credit, unlinked.
+  # No credit when the work (or its artist) can't be found at all.
+  attr :hero, :map, required: true
+
+  defp hero_picture(%{hero: %{work: %{for_sale: true}}} = assigns) do
+    ~H"""
+    <.link navigate={~p"/products/#{@hero.work.product}"} class="home-hero-art">
+      <img src={@hero.image} alt={@hero.alt} />
+      <.hero_credit product={@hero.work.product} />
+    </.link>
+    """
+  end
+
+  defp hero_picture(assigns) do
+    ~H"""
+    <div class="home-hero-art">
+      <img src={@hero.image} alt={@hero.alt} />
+      <.hero_credit :if={@hero.work && @hero.work.product.artist} product={@hero.work.product} />
+    </div>
+    """
+  end
+
+  attr :product, :map, required: true
+
+  defp hero_credit(assigns) do
+    assigns = assign(assigns, :area, area_label(assigns.product.artist.area_code))
+
+    ~H"""
+    <span class="home-hero-credit">
+      <em>{@product.title}</em> (detail) · {@product.artist.nickname} · {@area}
+    </span>
+    """
+  end
+
+  # The hero setting from config/config.exs, plus the work it shows.
+  defp hero do
+    setting = Application.fetch_env!(:artsy_neighbor, :home_hero)
+
+    %{
+      image: setting[:image],
+      alt: setting[:alt],
+      work: Products.get_hero_work(setting[:product_id])
+    }
+  end
+
+  # "How it works" opens and closes the three steps without a trip to
+  # the server. JS attribute changes survive LiveView's page updates.
+  defp toggle_how_it_works do
+    JS.toggle_attribute({"hidden", ""}, to: "#how-it-works")
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#how-it-works-button")
   end
 
   def handle_event("toggle_more_categories", _, socket) do
