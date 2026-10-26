@@ -377,49 +377,48 @@ defmodule ArtsyNeighbor.Products do
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
 
   @doc """
-  Gets products by a specific artist.
-
-  ## Examples
-
-      iex> get_products_by_artist(artist_id)
-      [%Product{artist_id: artist_id, ...}, ...]
-
+  Returns up to `count` other available works by the same artist as
+  `product`, newest first, with their artist and photos loaded: the
+  product page's "More by <artist>".
   """
-  def get_products_by_artist(artist_id) do
+  def list_more_by_artist(product, count) do
     Product
     |> only_available()
-    |> where([p], p.artist_id == ^artist_id)
-    |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
+    |> where([p], p.artist_id == ^product.artist_id and p.id != ^product.id)
+    |> order_by([p], desc: p.inserted_at, desc: p.id)
+    |> limit(^count)
+    |> preload([:artist, product_images: ^images_by_position()])
     |> Repo.all()
   end
 
   @doc """
-  Same as get_products_by_artist/1 but not scoped to :available — for the
-  vendor's own dashboard, where they need to see and manage every product
-  they own, including ones they've archived (see soft_delete_product/1).
-  get_products_by_artist/1 is public-facing and would hide an archived
-  product from its own owner.
+  Returns up to `count` available works by other artists in the same
+  category as `product`, newest first, with their artist and photos
+  loaded: the product page's "You may also like". A work without a
+  category (its category was deleted) has none.
+  """
+  def list_similar_works(%Product{category_id: nil}, _count), do: []
+
+  def list_similar_works(product, count) do
+    Product
+    |> only_available()
+    |> where([p], p.category_id == ^product.category_id)
+    |> where([p], p.artist_id != ^product.artist_id)
+    |> order_by([p], desc: p.inserted_at, desc: p.id)
+    |> limit(^count)
+    |> preload([:artist, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
+
+  @doc """
+  All of an artist's products, whatever their status — for the vendor's
+  own dashboard, where they need to see and manage every product they
+  own, including ones they've archived (see soft_delete_product/1).
   """
   def get_products_by_artist_all_status(artist_id) do
     Product
     |> where([p], p.artist_id == ^artist_id)
     |> preload([:artist, :category, :collection, product_images: ^images_by_position()])
-    |> Repo.all()
-  end
-
-  @doc """
-  Returns products that have a specific category.
-  ## Examples
-
-      iex> get_products_by_category(category_id)
-      [%Product{category_id: category_id, ...}, ...]
-
-  """
-  def get_products_by_category(category_id) do
-    Product
-    |> only_available()
-    |> where([p], p.category_id == ^category_id)
-    |> preload([:product_images, :artist, :category])
     |> Repo.all()
   end
 

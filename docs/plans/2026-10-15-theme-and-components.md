@@ -783,3 +783,26 @@ only lead down to "No reviews yet."), and "No reviews yet." in the
 section. `Reviews.product_review_summary/1` added, sharing one
 visibility query with `list_product_reviews_for_product/1` (which now
 loads the reviewers).
+
+*Built 2026-10-26 (step 3):* "More by <artist>" (their 4 newest other
+works, without the artist's name on the cards) and "You may also like"
+(the 4 newest works by others in the same category), each after a thin
+line and left out when empty, in the same `card-grid` as the artist
+page (2 per row on phones). "See all works by <artist> ›" sits under
+the grid on the right, as "See all works ›" on the Works tab (the
+mockup had it on the left). `Products.list_more_by_artist/2` and
+`list_similar_works/2` fetch only those 4 and replace
+`get_products_by_artist/1` and `get_products_by_category/1`, which
+loaded every work; the old category query also crashed the page of a
+work whose category had been deleted. No spiral crests between the
+sections: plain lines, as agreed.
+Also in this step, the three points left over from step 2:
+- One or two reviews are simply shown, with no "See reviews ›" (a
+  toggle over one review is more clicking than reading); three or more
+  stay closed behind it.
+- The report links still lead back to the plain product page, without
+  its "← Back to …" link (developer's decision: passing it along adds to
+  the `return_to` concern in `NOTES.md` step 5, and after reporting,
+  "Back to …" could be mistaken for a way back to the report form).
+- The artist still sees both report links on their own work, as on the
+  artist page (developer's decision).

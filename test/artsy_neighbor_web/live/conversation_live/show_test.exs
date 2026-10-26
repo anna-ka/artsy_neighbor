@@ -357,8 +357,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
   # Vendor adding an item to an already-open order
   # ---------------------------------------------------------------------------
 
-  # Regression test: open_add_item_form used to use the public-scoped
-  # Products.get_products_by_artist/1, so a vendor whose own profile wasn't
+  # Regression test: open_add_item_form used to use a public-scoped
+  # product list (Products.only_available/1), so a vendor whose own profile wasn't
   # :active saw zero products to add to their own open order.
   describe "vendor add item to order" do
     test "shows the vendor's own product even though it isn't :available — the vendor dashboard already gets this right, this page didn't" do

@@ -60,6 +60,11 @@ which is mechanical and done once, up front.
 5. **Email + focused security check** — real outgoing mail (#2, #10);
    basic authorization checks (can a vendor touch another vendor's data,
    can a buyer see another buyer's orders, upload safety) — part of #21.
+   Includes the `return_to` links (noted 2026-10-26): "Back to …" links
+   and the report form (`FlagLive.New`) use `return_to` from the address
+   as it comes, so a crafted link could send a visitor to another site.
+   Accept only paths on our own site (starting with one `/`, not `//`),
+   in one shared check.
 6. **Developer's own rehearsal** on the deployed site, as vendor, buyer,
    and admin; fix what turns up. Then **invite testers**.
 7. **Before public launch** — full flag moderation pass (rest of #1),
@@ -367,6 +372,15 @@ working on the code should keep in mind.
       publicly: the artists index cards (`ArtistLive.Index`) and its
       "Neighborhood" sort; and the vendor profile form's label says
       "visible to customers", with a full code as its example.
+
+  29. **Better "You may also like" on the product page** (added
+      2026-10-26, no date yet). For now it shows the 4 newest works by
+      other artists in the same category (`Products.list_similar_works/2`),
+      which is good enough to start with. Eventually it should suggest
+      works by some measure of similarity (medium, subject, colours,
+      price range, or the photos themselves) or by a recommender based
+      on what visitors look at and buy. Swapping it in only means
+      changing that one function.
 
 
 

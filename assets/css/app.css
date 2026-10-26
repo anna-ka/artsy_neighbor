@@ -1089,7 +1089,14 @@
   .work-reviews .when-open { display: none; }
   .work-reviews[open] .when-open { display: inline; }
   .work-reviews[open] .when-closed { display: none; }
-  .work-reviews .review-list { margin-top: 8px; }
+  /* One or two reviews are shown as they are, more inside the <details>. */
+  .product-sections .review-list { margin-top: 8px; }
+
+  /* Below the top: "More by <artist>" and "You may also like", each after
+     a thin line, as between the artist page's sections. */
+  .product-divider { margin-top: var(--section-gap); border: 0; border-top: var(--border) solid var(--color-base-300); }
+  .product-more { padding-top: var(--section-gap); }
+  .product-see-all { text-align: right; margin-top: 16px; }
 
   .product-report { margin-top: var(--section-gap); text-align: right; }
 

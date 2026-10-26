@@ -128,11 +128,25 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
 
       assert has_element?(view, "#work-reviews h2", "Reviews of this work")
       assert has_element?(view, "#work-reviews", "4.5 out of 5 · 2 reviews")
+      # One or two reviews are simply shown, with nothing to open.
+      assert has_element?(view, "#work-reviews .review", "Even lovelier in person.")
+      assert has_element?(view, "#work-reviews .review", "Easy pickup.")
+      refute has_element?(view, "#work-reviews-list")
+      assert has_element?(view, ~s|#work-reviews a[href="#top"]|, "Back to top")
+    end
+
+    test "three or more reviews are closed behind See reviews", %{conn: conn} do
+      product = product_fixture()
+      reviewed(product, stars: 5, body: "Even lovelier in person.")
+      reviewed(product, stars: 4, body: "Easy pickup.")
+      reviewed(product, stars: 5, body: "Beautifully framed.")
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
       # The list is in the page, closed until "See reviews ›" is pressed.
       assert has_element?(view, "#work-reviews-list:not([open]) summary", "See reviews")
       assert has_element?(view, "#work-reviews-list .review", "Even lovelier in person.")
-      assert has_element?(view, "#work-reviews-list .review", "Easy pickup.")
-      assert has_element?(view, ~s|#work-reviews a[href="#top"]|, "Back to top")
+      assert has_element?(view, "#work-reviews-list .review", "Beautifully framed.")
     end
 
     test "a work without reviews says so, near the price and in the section", %{conn: conn} do
@@ -286,6 +300,90 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
                "Back to the shop"
              )
     end
+  end
+
+  describe "Show: below the top" do
+    test "More by the artist: their other works, newest first, and a link to the Shop tab",
+         %{conn: conn} do
+      product = product_fixture() |> ArtsyNeighbor.Repo.preload(:artist)
+      artist_id = product.artist_id
+
+      for days <- [5, 4, 3, 2, 1] do
+        product_fixture(%{artist_id: artist_id, title: "Other work #{days}"})
+        |> made_days_ago(days)
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+      nickname = product.artist.nickname
+
+      assert has_element?(view, "#more-by-artist h2", "More by #{nickname}")
+      # The four newest: the oldest of the five is left out, and so is
+      # this work itself.
+      assert has_element?(view, "#more-by-artist .artwork-card", "Other work 1")
+      assert has_element?(view, "#more-by-artist .artwork-card", "Other work 4")
+      refute has_element?(view, "#more-by-artist .artwork-card", "Other work 5")
+      refute has_element?(view, ~s|#more-by-artist a[href="/products/#{product.id}"]|)
+
+      assert has_element?(
+               view,
+               ~s|.product-see-all a[href="/artists/#{artist_id}/store"]|,
+               "See all works by #{nickname}"
+             )
+    end
+
+    test "You may also like: works by other artists in the same category", %{conn: conn} do
+      product = product_fixture()
+      similar = product_fixture(%{category_id: product.category_id, title: "A neighbouring work"})
+
+      _same_artist =
+        product_fixture(%{
+          artist_id: product.artist_id,
+          category_id: product.category_id,
+          title: "Same artist's work"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      assert has_element?(view, "#similar-works h2", "You may also like")
+      assert has_element?(view, ~s|#similar-works a[href="/products/#{similar.id}"]|)
+      # The artist's own works are under More by, not here.
+      assert has_element?(view, "#more-by-artist .artwork-card", "Same artist")
+      refute has_element?(view, "#similar-works .artwork-card", "Same artist")
+    end
+
+    test "no sections when there are no other works", %{conn: conn} do
+      product = product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      refute has_element?(view, ".product-more")
+      refute has_element?(view, ".product-divider")
+    end
+
+    test "a work whose category was deleted still has its page", %{conn: conn} do
+      product = product_fixture()
+
+      product
+      |> Ecto.Changeset.change(category_id: nil)
+      |> ArtsyNeighbor.Repo.update!()
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      assert has_element?(view, ".product-info h1", product.title)
+      refute has_element?(view, "#similar-works")
+    end
+  end
+
+  # Sets when the product was added, `days` ago, so "newest first" can be
+  # tested without depending on the order the fixtures were made in.
+  defp made_days_ago(product, days) do
+    added_at =
+      DateTime.utc_now()
+      |> DateTime.add(-days, :day)
+      |> DateTime.truncate(:second)
+
+    product
+    |> Ecto.Changeset.change(inserted_at: added_at)
+    |> ArtsyNeighbor.Repo.update!()
   end
 
   # A visible review of the work: a completed order, 20 days ago (past

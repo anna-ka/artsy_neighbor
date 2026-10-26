@@ -3,8 +3,9 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   A work's public page, `/products/:id`: the whole work (never cropped)
   with its other photos on the left, and its details, price and the
   "Request to buy" / "Send message" buttons on the right. Clicking the
-  photo opens a large view of it. Below them: more by the same artist and
-  similar works by others.
+  photo opens a large view of it. Below them: "More by <artist>" and
+  "You may also like" (works by others in the same category), four
+  works each.
 
   Only works that are for sale (see `Products.only_available/1`) have a
   page; any other address goes back to `/products` with "Product not
@@ -19,7 +20,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [
-      product_card: 1,
+      artwork_card: 1,
+      section_heading: 1,
       report_link: 1,
       area_label: 1,
       artwork_size: 1,
@@ -30,6 +32,9 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       review: 1,
       quiet_link: 1
     ]
+
+  # How many works "More by <artist>" and "You may also like" show.
+  @works_per_row 4
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket, return_to: nil, return_label: nil, photo_index: 0)}
@@ -46,16 +51,6 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       product ->
         images = Products.list_images_for_product(product.id)
 
-        products_by_artist =
-          Products.get_products_by_artist(product.artist_id)
-          |> Enum.reject(fn p -> p.id == product.id end)
-          |> Enum.take(4)
-
-        similar_products =
-          Products.get_products_by_category(product.category_id)
-          |> Enum.reject(fn p -> p.id == product.id || p.artist_id == product.artist_id end)
-          |> Enum.take(4)
-
         socket =
           socket
           |> assign(:return_to, Map.get(params, "return_to"))
@@ -67,8 +62,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           |> assign(:review_summary, Reviews.product_review_summary(product.id))
           |> assign(:photo_index, 0)
           |> assign(:page_title, product.title)
-          |> assign(:products_by_artist, products_by_artist)
-          |> assign(:similar_products, similar_products)
+          |> assign(:more_by_artist, Products.list_more_by_artist(product, @works_per_row))
+          |> assign(:similar_works, Products.list_similar_works(product, @works_per_row))
 
         {:noreply, socket}
     end
@@ -232,25 +227,33 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         </div>
       </div>
 
-      <div class="py-8 bg-base-100">
-        <%!-- More by This Artist Section --%>
-        <div :if={length(@products_by_artist) > 0} class="mb-12">
-          <h2 class="text-2xl font-bold mb-6 text-base-content">
-            More by {@product.artist.nickname}
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <.product_card :for={product <- @products_by_artist} product={product} />
+      <%!-- Below the top, each after a thin line: more by the same
+           artist, then similar works by others. A section with no
+           works is left out. --%>
+      <%= if @more_by_artist != [] do %>
+        <hr class="product-divider" />
+        <section id="more-by-artist" class="product-more">
+          <.section_heading>More by {@product.artist.nickname}</.section_heading>
+          <div class="card-grid">
+            <.artwork_card :for={work <- @more_by_artist} product={work} show_artist={false} />
           </div>
-        </div>
+          <div class="product-see-all">
+            <.link navigate={~p"/artists/#{@product.artist}/store"}>
+              See all works by {@product.artist.nickname} ›
+            </.link>
+          </div>
+        </section>
+      <% end %>
 
-        <%!-- You May Also Like Section --%>
-        <div :if={length(@similar_products) > 0} class="mb-12">
-          <h2 class="text-2xl font-bold mb-6 text-base-content">You May Also Like</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <.product_card :for={product <- @similar_products} product={product} />
+      <%= if @similar_works != [] do %>
+        <hr class="product-divider" />
+        <section id="similar-works" class="product-more">
+          <.section_heading>You may also like</.section_heading>
+          <div class="card-grid">
+            <.artwork_card :for={work <- @similar_works} product={work} />
           </div>
-        </div>
-      </div>
+        </section>
+      <% end %>
 
       <div class="product-report">
         <.report_link
@@ -491,19 +494,27 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     """
   end
 
-  # The work's reviews, closed by default: "See reviews ›" opens all of
-  # them, "Hide reviews ‹" closes them again (the browser's own
-  # <details>, so it needs no server round trip). The star row near the
-  # price opens it too. ignore_attributes keeps LiveView from removing
-  # the "open" attribute (set by the browser, not the server) every time
-  # the page updates, which would close it.
+  # The work's reviews. One or two are simply shown. More are closed by
+  # default: "See reviews ›" opens all of them, "Hide reviews ‹" closes
+  # them again (the browser's own <details>, so it needs no server round
+  # trip). The star row near the price opens it too. ignore_attributes
+  # keeps LiveView from removing the "open" attribute (set by the
+  # browser, not the server) every time the page updates, which would
+  # close it.
   attr :reviews, :list, required: true
   attr :current_scope, :any, required: true
   attr :product, :map, required: true
 
   defp work_reviews(assigns) do
     ~H"""
+    <.review_list
+      :if={length(@reviews) <= 2}
+      reviews={@reviews}
+      current_scope={@current_scope}
+      product={@product}
+    />
     <details
+      :if={length(@reviews) > 2}
       id="work-reviews-list"
       class="work-reviews"
       phx-mounted={JS.ignore_attributes(["open"])}
@@ -512,33 +523,45 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         <span class="when-closed">See reviews ›</span>
         <span class="when-open">Hide reviews ‹</span>
       </summary>
-      <ul class="review-list">
-        <.review
-          :for={review <- @reviews}
-          id={"review-#{review.id}"}
-          stars={review.stars}
-          name={review.reviewer.username}
-          date={review.submitted_at}
-          text={review.body}
-        >
-          <:report :if={@current_scope && @current_scope.user}>
-            <.report_link
-              subject="product_review_of"
-              id={review.id}
-              return_to={~p"/products/#{@product.id}"}
-              return_label="Product page"
-            >
-              Report this review
-            </.report_link>
-          </:report>
-        </.review>
-      </ul>
+      <.review_list reviews={@reviews} current_scope={@current_scope} product={@product} />
     </details>
     """
   end
 
-  # The star row near the price: opens the reviews; its link then
-  # scrolls down to them.
+  # The reviews themselves, each with "Report this review" for
+  # logged-in visitors.
+  attr :reviews, :list, required: true
+  attr :current_scope, :any, required: true
+  attr :product, :map, required: true
+
+  defp review_list(assigns) do
+    ~H"""
+    <ul class="review-list">
+      <.review
+        :for={review <- @reviews}
+        id={"review-#{review.id}"}
+        stars={review.stars}
+        name={review.reviewer.username}
+        date={review.submitted_at}
+        text={review.body}
+      >
+        <:report :if={@current_scope && @current_scope.user}>
+          <.report_link
+            subject="product_review_of"
+            id={review.id}
+            return_to={~p"/products/#{@product.id}"}
+            return_label="Product page"
+          >
+            Report this review
+          </.report_link>
+        </:report>
+      </.review>
+    </ul>
+    """
+  end
+
+  # The star row near the price: opens the reviews (when they are closed
+  # behind "See reviews ›"); its link then scrolls down to them.
   defp open_reviews, do: JS.set_attribute({"open", ""}, to: "#work-reviews-list")
 
   # The two main buttons, of equal width. Logged out: "Log in to buy",

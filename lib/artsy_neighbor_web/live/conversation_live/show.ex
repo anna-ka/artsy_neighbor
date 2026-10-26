@@ -736,9 +736,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     end
   end
 
-  # Uses the all-status product list, not the public-scoped
-  # get_products_by_artist/1: this is the vendor managing their own open
-  # order, and the public variant returns nothing at all when the
+  # Uses the all-status product list, not a public-scoped one
+  # (Products.only_available/1): this is the vendor managing their own
+  # open order, and a public list returns nothing at all when the
   # vendor's own artist profile isn't :active (same reason the vendor
   # dashboard uses the all-status version).
   def handle_event("open_add_item_form", %{"id" => id}, socket) do

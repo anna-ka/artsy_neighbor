@@ -470,36 +470,34 @@ defmodule ArtsyNeighbor.ProductsTest do
   # Querying — by artist / by category
   # ============================================================
 
-  describe "get_products_by_artist/1" do
-    test "returns only products belonging to the given artist" do
-      artist1 = artist_fixture()
-      artist2 = artist_fixture()
-      category = category_fixture()
+  describe "list_more_by_artist/2" do
+    test "the artist's other works, newest first, at most `count`" do
+      artist = artist_fixture()
+      shown = product_fixture(%{artist_id: artist.id})
+      oldest = product_fixture(%{artist_id: artist.id}) |> made_days_ago(30)
+      newest = product_fixture(%{artist_id: artist.id}) |> made_days_ago(1)
+      middle = product_fixture(%{artist_id: artist.id}) |> made_days_ago(10)
+      _by_someone_else = product_fixture()
 
-      p1 = product_fixture(%{artist_id: artist1.id, category_id: category.id})
-      _p2 = product_fixture(%{artist_id: artist2.id, category_id: category.id})
+      ids = Products.list_more_by_artist(shown, 2) |> Enum.map(fn p -> p.id end)
+      assert ids == [newest.id, middle.id]
 
-      results = Products.get_products_by_artist(artist1.id)
-      assert length(results) == 1
-      assert hd(results).id == p1.id
+      ids = Products.list_more_by_artist(shown, 4) |> Enum.map(fn p -> p.id end)
+      assert ids == [newest.id, middle.id, oldest.id]
     end
 
-    test "returns empty list for artist with no products" do
+    test "leaves out works that aren't for sale" do
       artist = artist_fixture()
-      assert Products.get_products_by_artist(artist.id) == []
-    end
+      shown = product_fixture(%{artist_id: artist.id})
+      archived = product_fixture(%{artist_id: artist.id})
+      {:ok, _} = Products.soft_delete_product(archived)
 
-    test "excludes archived products — this is exactly the gap get_products_by_artist_all_status/1 exists to fix" do
-      artist = artist_fixture()
-      product = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(product)
-
-      assert Products.get_products_by_artist(artist.id) == []
+      assert Products.list_more_by_artist(shown, 4) == []
     end
   end
 
   describe "get_products_by_artist_all_status/1" do
-    test "includes archived and unavailable products, unlike get_products_by_artist/1" do
+    test "includes archived and unavailable products" do
       artist = artist_fixture()
       available = product_fixture(%{artist_id: artist.id})
       archived = product_fixture(%{artist_id: artist.id})
@@ -523,23 +521,37 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
   end
 
-  describe "get_products_by_category/1" do
-    test "returns only products in the given category" do
-      artist = artist_fixture()
-      cat1 = category_fixture()
-      cat2 = category_fixture()
+  describe "list_similar_works/2" do
+    test "other artists' works in the same category, newest first, at most `count`" do
+      category = category_fixture()
+      shown = product_fixture(%{category_id: category.id})
+      older = product_fixture(%{category_id: category.id}) |> made_days_ago(20)
+      newer = product_fixture(%{category_id: category.id}) |> made_days_ago(2)
+      _same_artist = product_fixture(%{artist_id: shown.artist_id, category_id: category.id})
+      _other_category = product_fixture()
 
-      p1 = product_fixture(%{artist_id: artist.id, category_id: cat1.id})
-      _p2 = product_fixture(%{artist_id: artist.id, category_id: cat2.id})
+      ids = Products.list_similar_works(shown, 4) |> Enum.map(fn p -> p.id end)
+      assert ids == [newer.id, older.id]
 
-      results = Products.get_products_by_category(cat1.id)
-      assert length(results) == 1
-      assert hd(results).id == p1.id
+      ids = Products.list_similar_works(shown, 1) |> Enum.map(fn p -> p.id end)
+      assert ids == [newer.id]
     end
 
-    test "returns empty list for category with no products" do
+    test "leaves out works that aren't for sale" do
       category = category_fixture()
-      assert Products.get_products_by_category(category.id) == []
+      shown = product_fixture(%{category_id: category.id})
+      archived = product_fixture(%{category_id: category.id})
+      {:ok, _} = Products.soft_delete_product(archived)
+
+      assert Products.list_similar_works(shown, 4) == []
+    end
+
+    test "a work without a category (its category was deleted) has none" do
+      category = category_fixture()
+      _same_category = product_fixture(%{category_id: category.id})
+      shown = product_fixture(%{category_id: category.id})
+
+      assert Products.list_similar_works(%{shown | category_id: nil}, 4) == []
     end
   end
 
@@ -1158,5 +1170,18 @@ defmodule ArtsyNeighbor.ProductsTest do
       from(a in ArtsyNeighbor.Artists.Artist, where: a.id == ^artist.id),
       set: [status: Atom.to_string(status)]
     )
+  end
+
+  # Sets when the product was added, `days` ago, so "newest first" can be
+  # tested without depending on the order the fixtures were made in.
+  defp made_days_ago(product, days) do
+    added_at =
+      DateTime.utc_now()
+      |> DateTime.add(-days, :day)
+      |> DateTime.truncate(:second)
+
+    product
+    |> Ecto.Changeset.change(inserted_at: added_at)
+    |> Repo.update!()
   end
 end
