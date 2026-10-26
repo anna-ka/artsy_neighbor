@@ -367,6 +367,12 @@ defmodule ArtsyNeighbor.Products do
     |> Repo.get(id)
   end
 
+  @doc """
+  Narrows a product query to the works the public may see, i.e. the
+  works for sale: `:available`, with an artist, and that artist
+  `:active`. For other contexts too (`Categories.list_popular_categories/0`),
+  so "for sale" means the same everywhere.
+  """
   # A subquery, not a join — only_available/1 is composed into queries that
   # sometimes already join :artist under their own alias (filter_products/1,
   # filter_products_all_status/1), so adding a second join here under a
@@ -376,7 +382,7 @@ defmodule ArtsyNeighbor.Products do
   # product's own status is wrong for some reason (a write path that
   # bypasses those cascades, a bug, direct DB access), this keeps public
   # queries from ever surfacing a product whose artist isn't :active.
-  defp only_available(query) do
+  def only_available(query) do
     active_artist_ids = from(a in Artist, where: a.status == :active, select: a.id)
 
     query

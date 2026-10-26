@@ -6,7 +6,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
   alias Phoenix.LiveView.JS
 
   import ArtsyNeighborWeb.CustomComponents,
-    only: [product_card: 1, category_card: 1, area_label: 1]
+    only: [product_card: 1, collection_card: 1, section_heading: 1, show_more: 1, area_label: 1]
 
   def mount(_params, _session, socket) do
     products = Products.list_products_with_associations()
@@ -17,8 +17,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
       socket
       |> assign(
         hero: hero(),
-        categories: Categories.list_categories(),
-        show_more_categories: false
+        categories: Categories.list_popular_categories()
       )
       |> stream(:featured_products, featured_products)
       |> stream(:favorite_products, favorite_products)
@@ -73,38 +72,37 @@ defmodule ArtsyNeighborWeb.HomeLive do
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-8 mt-16">
-        <%!-- Rows 2-3: Top Categories (3 images in a row) --%>
-        <section>
-          <h2 class="text-3xl font-bold mb-6">Top Categories</h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <.category_card :for={category <- Enum.take(@categories, 3)} category={category} />
-          </div>
-
-          <%!-- More categories --%>
-          <div :if={@show_more_categories} class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <.category_card :for={category <- Enum.slice(@categories, 3, 6)} category={category} />
-          </div>
-
-          <div class="flex justify-between items-center mt-6">
-            <button
-              :if={length(@categories) > 3}
-              phx-click="toggle_more_categories"
-              class="text-lg font-medium cursor-pointer hover:underline"
+      <%!-- Popular categories: the first 4 tiles, the rest opened in place
+           by "Show more categories" (no trip to the server) --%>
+      <section class="home-section" aria-label="Popular categories">
+        <.section_heading>
+          Popular categories
+          <:link :if={length(@categories) > 4}>
+            <.show_more
+              id="categories-toggle"
+              aria-expanded="false"
+              phx-click={toggle_more_categories()}
             >
-              {if @show_more_categories, do: "See less categories ↑", else: "See more categories ➔"}
-            </button>
-            <.link navigate={~p"/categories"} class="text-lg font-medium hover:underline">
-              See all categories →
-            </.link>
-          </div>
-        </section>
+              <span class="categories-toggle-more">Show more categories ›</span>
+              <span class="categories-toggle-fewer" hidden>Show fewer categories ‹</span>
+            </.show_more>
+          </:link>
+        </.section_heading>
+        <div id="popular-categories" class="card-grid">
+          <.collection_card
+            :for={{category, index} <- Enum.with_index(@categories)}
+            name={category.name}
+            image={category.main_img}
+            navigate={~p"/products?#{[category_id: category.id]}"}
+            hidden={index >= 4}
+          />
+        </div>
+      </section>
 
+      <div class="grid grid-cols-1 gap-8 mt-16">
         <%!-- Row 4: Featured Products --%>
         <section>
-          <.link navigate={~p"/products"}>
-            <h2 class="text-3xl font-bold mb-6">Featured Products</h2>
-          </.link>
+          <h2 class="text-3xl font-bold mb-6">Featured Products</h2>
           <div
             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
             id="featured-products"
@@ -120,9 +118,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
 
         <%!-- Row 5: Our favorites (placeholder) --%>
         <section>
-          <.link navigate={~p"/products"}>
-            <h2 class="text-3xl font-bold mb-6">Our favorites</h2>
-          </.link>
+          <h2 class="text-3xl font-bold mb-6">Our favorites</h2>
           <div
             class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
             id="favorite-products"
@@ -193,8 +189,13 @@ defmodule ArtsyNeighborWeb.HomeLive do
     |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#how-it-works-button")
   end
 
-  def handle_event("toggle_more_categories", _, socket) do
-    {:noreply, assign(socket, :show_more_categories, !socket.assigns.show_more_categories)}
+  # "Show more categories" shows the rest of the tiles (all but the
+  # first 4) and changes its words to "Show fewer categories"; clicked
+  # again, it undoes both.
+  defp toggle_more_categories do
+    JS.toggle_attribute({"hidden", ""}, to: "#popular-categories > :nth-child(n+5)")
+    |> JS.toggle_attribute({"hidden", ""}, to: "#categories-toggle span")
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#categories-toggle")
   end
 
   def handle_event(_event, _, socket) do

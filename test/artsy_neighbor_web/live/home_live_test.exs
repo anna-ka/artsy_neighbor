@@ -5,6 +5,7 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
 
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighbor.CategoriesFixtures
 
   alias ArtsyNeighbor.Products
 
@@ -84,6 +85,62 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
 
       assert has_element?(live, "div.home-hero-art img")
       refute has_element?(live, ".home-hero-credit")
+    end
+  end
+
+  describe "Popular categories" do
+    # Makes a category with the given number of works for sale.
+    defp category_with_works(name, count) do
+      category = category_fixture(%{name: name})
+
+      Enum.each(1..count, fn _ ->
+        product_fixture(%{category_id: category.id})
+      end)
+
+      category
+    end
+
+    test "shows the first 4 tiles, most works first, each linking to its works", %{conn: conn} do
+      paintings = category_with_works("Paintings", 3)
+      category_with_works("Pottery", 2)
+      category_with_works("Jewelry", 1)
+      category_with_works("Sculptures", 1)
+      category_with_works("Clothing", 1)
+      category_fixture(%{name: "Empty"})
+
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      assert has_element?(live, "h2", "Popular categories")
+
+      assert has_element?(
+               live,
+               ~s|#popular-categories a:nth-child(1)[href="/products?category_id=#{paintings.id}"]|,
+               "Paintings"
+             )
+
+      assert has_element?(live, "#popular-categories a:nth-child(2)", "Pottery")
+      # Ties by name: Clothing, Jewelry, Sculptures; Sculptures waits
+      # behind "Show more categories".
+      assert has_element?(live, "#popular-categories a:nth-child(3):not([hidden])", "Clothing")
+      assert has_element?(live, "#popular-categories a:nth-child(4):not([hidden])", "Jewelry")
+      assert has_element?(live, "#popular-categories a:nth-child(5)[hidden]", "Sculptures")
+      refute has_element?(live, "#popular-categories a", "Empty")
+
+      assert has_element?(
+               live,
+               "#categories-toggle[aria-expanded=false]",
+               "Show more categories"
+             )
+    end
+
+    test "has no Show more button with 4 categories or fewer", %{conn: conn} do
+      category_with_works("Paintings", 1)
+      category_with_works("Pottery", 1)
+
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      assert has_element?(live, "#popular-categories a", "Pottery")
+      refute has_element?(live, "#categories-toggle")
     end
   end
 end

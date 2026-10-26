@@ -7,6 +7,7 @@ defmodule ArtsyNeighbor.Categories do
   alias ArtsyNeighbor.Repo
 
   alias ArtsyNeighbor.Categories.Category
+  alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.Product
 
   @doc """
@@ -21,6 +22,28 @@ defmodule ArtsyNeighbor.Categories do
   def list_categories do
     Category
     |> with_status(:active)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns the active categories that have at least one work for sale,
+  the one with the most works for sale first (ties by name): the home
+  page's "Popular categories". "For sale" means what the public sees,
+  `Products.only_available/1`.
+  """
+  def list_popular_categories do
+    # How many works are for sale in each category, as a small table
+    # (category_id, count) joined to the categories below.
+    for_sale_counts =
+      Product
+      |> Products.only_available()
+      |> group_by([p], p.category_id)
+      |> select([p], %{category_id: p.category_id, count: count(p.id)})
+
+    Category
+    |> with_status(:active)
+    |> join(:inner, [c], n in subquery(for_sale_counts), on: n.category_id == c.id)
+    |> order_by([c, n], desc: n.count, asc: c.name)
     |> Repo.all()
   end
 

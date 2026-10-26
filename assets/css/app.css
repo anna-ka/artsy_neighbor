@@ -1128,7 +1128,8 @@
   /* Hero: a detail of one work on the left (2/5 of the width), the
      welcome on the right. The frame takes the picture's own shape, so
      the picture is shown whole, never cut. */
-  .home-hero { display: grid; grid-template-columns: 2fr 3fr; align-items: center; padding-top: 32px; }
+  /* Top-aligned, so opening "How it works" doesn't move the picture. */
+  .home-hero { display: grid; grid-template-columns: 2fr 3fr; align-items: start; padding-top: 32px; }
   .home-hero-art { display: block; position: relative; overflow: hidden; border-radius: var(--radius-box);
                    border: 1.5px solid var(--color-base-300); }
   .home-hero-art img { display: block; width: 100%; height: auto; }
@@ -1154,6 +1155,19 @@
                           display: flex; align-items: center; justify-content: center; }
   .how-steps strong { display: block; font-weight: 600; }
   .how-steps span { color: var(--color-muted); }
+
+  /* The sections under the hero. */
+  .home-section { margin-top: 64px; }
+  /* Popular categories: tiles after the first 4 wait for "Show more
+     categories" (.collection-card sets display, which would beat
+     "hidden"). */
+  #popular-categories .collection-card[hidden] { display: none; }
+  /* Tablets (3 tiles per row): while the rest are hidden, show 3 tiles,
+     not 4, so the 4th doesn't sit alone on a second row. It comes back
+     with "Show more categories" (aria-expanded="true"). */
+  @media (min-width: 761px) and (max-width: 1279px) {
+    .home-section:has(#categories-toggle[aria-expanded="false"]) #popular-categories > :nth-child(4) { display: none; }
+  }
 
   /* Phones: the picture on top, the words under it. */
   @media (max-width: 760px) {

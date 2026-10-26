@@ -47,6 +47,44 @@ defmodule ArtsyNeighbor.CategoriesTest do
       assert archived in result
     end
 
+    test "list_popular_categories/0 puts the category with the most works for sale first, ties by name" do
+      one_work = category_fixture(%{name: "Pottery"})
+      two_works = category_fixture(%{name: "Paintings"})
+      also_one_work = category_fixture(%{name: "Jewelry"})
+
+      product_fixture(%{category_id: one_work.id})
+      product_fixture(%{category_id: two_works.id})
+      product_fixture(%{category_id: two_works.id})
+      product_fixture(%{category_id: also_one_work.id})
+
+      names =
+        Enum.map(Categories.list_popular_categories(), fn category -> category.name end)
+
+      assert names == ["Paintings", "Jewelry", "Pottery"]
+    end
+
+    test "list_popular_categories/0 counts only works for sale, and leaves out empty categories" do
+      category = category_fixture()
+      # One for sale; one not for sale; one whose artist isn't active.
+      product_fixture(%{category_id: category.id})
+      product_fixture(%{category_id: category.id, status: :unavailable})
+      hidden_artist = ArtsyNeighbor.ArtistsFixtures.artist_fixture(%{status: :inactive})
+      product_fixture(%{category_id: category.id, artist_id: hidden_artist.id})
+
+      not_for_sale = category_fixture()
+      product_fixture(%{category_id: not_for_sale.id, status: :unavailable})
+      empty = category_fixture()
+
+      {:ok, archived} = category_fixture() |> Categories.soft_delete_category()
+      # An archived category with a work for sale still doesn't show.
+      product_fixture(%{category_id: archived.id})
+
+      ids = Enum.map(Categories.list_popular_categories(), fn category -> category.id end)
+
+      assert ids == [category.id]
+      refute empty.id in ids
+    end
+
     test "get_category!/1 returns the category with given id" do
       category = category_fixture()
       assert Categories.get_category!(category.id) == category
