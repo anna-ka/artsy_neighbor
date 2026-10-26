@@ -720,6 +720,19 @@ developer's review:
    library. A real zoom (click or pinch to full size, drag to move,
    e.g. PhotoSwipe) only if this isn't enough; a magnifier on hover
    was ruled out (no use on phones, confusing).
+   *Built 2026-10-26:* opened by clicking the photo (the pointer shows
+   a magnifying glass) or a small "enlarge" button in its bottom right
+   corner. Nearly black, the photo as large as fits, "Photo 2 of 3",
+   the arrow keys step through the photos. Closed by the × in the top
+   right corner, Esc, a click on the dark area, or a "back to normal
+   size" button in the photo's corner (the enlarge button's
+   counterpart, asked for by the developer). On phones the page's own
+   photo is 30% smaller than the column (70% of its width, at most 49%
+   of the screen's height; developer's request). The page's photo follows the large view, so closing
+   it shows the photo last seen. Two short, general listeners in
+   app.js: "show-modal" (opens a `<dialog>`) and `data-arrow-keys`;
+   `JS.ignore_attributes(["open"])` stops LiveView from closing the
+   dialog on every update.
 
 *Decided 2026-10-23:*
 - No reviews: neither the star row nor the Reviews section.

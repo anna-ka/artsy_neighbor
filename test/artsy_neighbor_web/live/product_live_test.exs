@@ -118,6 +118,42 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       refute has_element?(view, ".work-thumbs")
     end
 
+    test "the large view shows the current photo and has its own arrows", %{conn: conn} do
+      product = product_fixture()
+
+      for position <- 1..2 do
+        {:ok, _image} =
+          Products.create_product_image(%{
+            path: "/uploads/work-#{position}.jpg",
+            position: position,
+            product_id: product.id
+          })
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      # The browser opens it (showModal, from app.js); the page only has
+      # to contain it, with the button that opens it.
+      assert has_element?(view, "button.work-enlarge")
+      assert has_element?(view, ~s|#work-viewer img[src="/uploads/work-1.jpg"]|)
+      assert has_element?(view, "#work-viewer .work-viewer-count", "Photo 1 of 2")
+
+      view |> element(".work-viewer-arrow.next") |> render_click()
+
+      assert has_element?(view, ~s|#work-viewer img[src="/uploads/work-2.jpg"]|)
+      assert has_element?(view, "#work-viewer .work-viewer-count", "Photo 2 of 2")
+      # The page's own photo follows, so closing the large view shows the same one.
+      assert photo_shown?(view, "/uploads/work-2.jpg")
+    end
+
+    test "a work without photos has no large view", %{conn: conn} do
+      product = product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      refute has_element?(view, "#work-viewer")
+      refute has_element?(view, "button.work-enlarge")
+    end
+
     test "a logged-out visitor is asked to log in to buy", %{conn: conn} do
       product = product_fixture()
       {:ok, view, _html} = live(conn, ~p"/products/#{product}")

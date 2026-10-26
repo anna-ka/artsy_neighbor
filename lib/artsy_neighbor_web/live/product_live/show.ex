@@ -2,8 +2,9 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   @moduledoc """
   A work's public page, `/products/:id`: the whole work (never cropped)
   with its other photos on the left, and its details, price and the
-  "Request to buy" / "Send message" buttons on the right. Below them:
-  more by the same artist and similar works by others.
+  "Request to buy" / "Send message" buttons on the right. Clicking the
+  photo opens a large view of it. Below them: more by the same artist and
+  similar works by others.
 
   Only works that are for sale (see `Products.only_available/1`) have a
   page; any other address goes back to `/products` with "Product not
@@ -267,11 +268,11 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     """
   end
 
-  # The work's photos, one at a time: the whole photo, never cropped,
-  # inside an area of fixed height (so the text beside it never jumps
-  # when switching photos). With more than one photo: small see-through
-  # arrows on the photo's own edges and square thumbnails under it.
-  # No photos: the placeholder picture.
+  # The work's photos, one at a time: the whole photo, never cropped.
+  # With more than one photo: small see-through arrows on the photo's own
+  # edges and square thumbnails under it. No photos: the placeholder
+  # picture. Clicking the photo (or the small "enlarge" button in its
+  # corner) opens the large view, <.work_viewer>.
   attr :product, :map, required: true
   attr :images, :list, required: true
   attr :photo_index, :integer, required: true
@@ -299,7 +300,20 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
             src={image.path}
             alt={"#{@product.title}, photo #{index + 1} of #{@photo_count}"}
             hidden={index != @photo_index}
+            class="work-enlargeable"
+            phx-click={open_viewer()}
           />
+
+          <button
+            :if={@photo_count > 0}
+            type="button"
+            class="work-enlarge"
+            phx-click={open_viewer()}
+            aria-label="See a larger photo"
+            title="See a larger photo"
+          >
+            <.icon name="hero-arrows-pointing-out" class="size-4" />
+          </button>
 
           <%= if @photo_count > 1 do %>
             <button
@@ -337,7 +351,99 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           <img src={image.path} alt="" />
         </button>
       </div>
+
+      <.work_viewer
+        :if={@photo_count > 0}
+        product={@product}
+        images={@images}
+        photo_index={@photo_index}
+      />
     </div>
+    """
+  end
+
+  # Opens the large view (the "show-modal" listener in app.js).
+  defp open_viewer, do: JS.dispatch("show-modal", to: "#work-viewer")
+
+  # The large view: the photo being shown, as large as the window allows,
+  # over a dark background, with the same arrows (and the arrow keys:
+  # the data-arrow-keys listener in app.js presses the arrow buttons),
+  # "Photo 2 of 3", a close button and, in the photo's corner, a "back to
+  # normal size" button (the counterpart of the "enlarge" one). Esc or a
+  # click on the dark area also closes it. It is the browser's own <dialog>, opened with
+  # showModal() from app.js; ignore_attributes keeps LiveView from
+  # removing its "open" attribute (which the browser sets, not the
+  # server) every time the page updates, which would close it.
+  attr :product, :map, required: true
+  attr :images, :list, required: true
+  attr :photo_index, :integer, required: true
+
+  defp work_viewer(assigns) do
+    assigns =
+      assign(assigns,
+        photo_count: length(assigns.images),
+        image: Enum.at(assigns.images, assigns.photo_index)
+      )
+
+    ~H"""
+    <dialog
+      id="work-viewer"
+      class="work-viewer"
+      aria-label={"Large view of #{@product.title}"}
+      data-close-on-backdrop
+      data-arrow-keys
+      phx-mounted={JS.ignore_attributes(["open"])}
+    >
+      <%!-- The frame is exactly as big as the photo, so the "back to
+           normal size" button sits in the photo's own corner, where the
+           "enlarge" button was. --%>
+      <div class="work-viewer-frame">
+        <img
+          src={@image.path}
+          alt={"#{@product.title}, photo #{@photo_index + 1} of #{@photo_count}"}
+        />
+        <form method="dialog">
+          <button
+            type="submit"
+            class="work-enlarge work-viewer-shrink"
+            aria-label="Back to the normal size"
+            title="Back to the normal size"
+          >
+            <.icon name="hero-arrows-pointing-in" class="size-4" />
+          </button>
+        </form>
+      </div>
+
+      <form method="dialog">
+        <button type="submit" class="work-viewer-close" aria-label="Close the large view">
+          <.icon name="hero-x-mark" class="size-6" />
+        </button>
+      </form>
+
+      <%= if @photo_count > 1 do %>
+        <button
+          type="button"
+          class="work-viewer-arrow prev"
+          data-arrow="prev"
+          phx-click="show_photo"
+          phx-value-index={@photo_index - 1}
+          aria-label="Previous photo"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="work-viewer-arrow next"
+          data-arrow="next"
+          phx-click="show_photo"
+          phx-value-index={@photo_index + 1}
+          aria-label="Next photo"
+        >
+          ›
+        </button>
+        <p class="work-viewer-count">Photo {@photo_index + 1} of {@photo_count}</p>
+      <% end %>
+    </dialog>
     """
   end
 

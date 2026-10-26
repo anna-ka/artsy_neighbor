@@ -946,6 +946,85 @@
     border-radius: var(--radius-box);
   }
   .work-frame img[hidden] { display: none; }
+  /* Clicking the photo opens the large view; the pointer shows a
+     magnifying glass to say so. */
+  .work-frame img.work-enlargeable { cursor: zoom-in; }
+  /* The small "enlarge" button in the photo's bottom right corner, in the
+     same see-through style as the carousel arrows. */
+  .work-enlarge {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-base-100) 55%, transparent);
+    color: color-mix(in srgb, var(--color-base-content) 75%, transparent);
+    cursor: zoom-in;
+  }
+  .work-enlarge:hover { background: color-mix(in srgb, var(--color-base-100) 80%, transparent); }
+  .work-enlarge:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
+
+  /* The large view (<dialog id="work-viewer">): the whole window, nearly
+     black, the photo as large as fits, the arrows at the window's edges,
+     a close button in the top right corner and "Photo 2 of 3" under the
+     photo. */
+  .work-viewer {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgb(20 20 20 / 0.96);
+    color: white;
+  }
+  .work-viewer[open] { display: flex; align-items: center; justify-content: center; }
+  .work-viewer::backdrop { background: rgb(20 20 20 / 0.96); }
+  .work-viewer-frame { position: relative; }
+  .work-viewer img {
+    display: block;
+    max-width: calc(100vw - 144px);
+    max-height: calc(100dvh - 96px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  .work-viewer-close,
+  .work-viewer-arrow {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.12);
+    color: white;
+    cursor: pointer;
+  }
+  .work-viewer-close:hover,
+  .work-viewer-arrow:hover { background: rgb(255 255 255 / 0.25); }
+  .work-viewer-close:focus-visible,
+  .work-viewer-arrow:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+  .work-viewer-close { top: 16px; right: 16px; }
+  /* "Back to the normal size": the counterpart of the "enlarge" button,
+     with its look and place (class work-enlarge) and the opposite
+     pointer. */
+  .work-viewer-shrink { cursor: zoom-out; }
+  .work-viewer-shrink:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+  .work-viewer-arrow { top: 50%; transform: translateY(-50%); padding-bottom: 4px; font: 300 32px/1 var(--font-sans); }
+  .work-viewer-arrow.prev { left: 16px; }
+  .work-viewer-arrow.next { right: 16px; }
+  .work-viewer-count { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 14px; color: rgb(255 255 255 / 0.75); }
+  /* The page behind doesn't scroll while the large view is open. */
+  html:has(.work-viewer[open]) { overflow: hidden; }
   /* Thumbnails: small square crops under the work; the one shown gets a
      dark ring. */
   .work-thumbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 16px; }
@@ -991,12 +1070,21 @@
   @media (max-width: 760px) {
     .product-top { grid-template-columns: 1fr; gap: 24px; padding-top: 20px; }
     .back-under-menu + .product-top { padding-top: 12px; }
-    .work-view { --work-height: 70vh; }
+    /* The photo 30% smaller than the full column (developer's request,
+       2026-10-26): 70% of the width, at most 49% of the screen's height. */
+    .work-view { --work-height: 49vh; }
+    .work-frame { max-width: 70%; }
     .product-info h1 { font-size: 22px; }
     .product-by { font-size: 17px; margin-top: 2px; }
     .product-price { font-size: 26px; }
     .product-actions { display: grid; grid-template-columns: 1fr; }
     .work-thumbs img { width: 52px; height: 52px; }
+    /* Large view: the photo nearly the full width; the arrows smaller,
+       over the photo's edges. */
+    .work-viewer img { max-width: calc(100vw - 16px); max-height: calc(100dvh - 120px); }
+    .work-viewer-arrow { width: 40px; height: 40px; font-size: 28px; }
+    .work-viewer-arrow.prev { left: 8px; }
+    .work-viewer-arrow.next { right: 8px; }
   }
 
   /* ---------- Water (Layouts.navlayout/1) ----------

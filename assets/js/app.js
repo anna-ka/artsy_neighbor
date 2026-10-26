@@ -242,6 +242,39 @@ window.addEventListener("phx:scroll-into-view", event => {
   if (element) element.scrollIntoView({block: "start"})
 })
 
+// Opening a <dialog> as a full-screen overlay: a page sends "show-modal"
+// to it with JS.dispatch("show-modal", to: "#the-dialog-id"), e.g. the
+// product page's large view of a work. LiveView has no command of its own
+// for this; the browser's showModal() dims the page behind the dialog,
+// keeps keyboard focus inside it and closes it on Esc.
+window.addEventListener("show-modal", event => {
+  if (event.target instanceof HTMLDialogElement) event.target.showModal()
+})
+
+// A dialog with data-close-on-backdrop closes when the dark area around
+// its content is clicked (that click lands on the dialog itself).
+window.addEventListener("click", event => {
+  const target = event.target
+  if (target instanceof HTMLDialogElement && target.hasAttribute("data-close-on-backdrop")) {
+    target.close()
+  }
+})
+
+// In an open dialog with data-arrow-keys, the left and right arrow keys
+// press its buttons marked data-arrow="prev" / data-arrow="next" (the
+// product page's large view: step through the photos).
+window.addEventListener("keydown", event => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+  const dialog = document.querySelector("dialog[open][data-arrow-keys]")
+  if (!dialog) return
+  const which = event.key === "ArrowLeft" ? "prev" : "next"
+  const button = dialog.querySelector(`[data-arrow="${which}"]`)
+  if (button) {
+    event.preventDefault()
+    button.click()
+  }
+})
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
