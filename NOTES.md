@@ -191,6 +191,13 @@ working on the code should keep in mind.
   then, `Products.shown_collections/2` skips works without a category so
   the Shop tab's chip counts match its list (found in step 4's code
   review).
+  Revisit too (2026-10-26, home page step 3's code review): the
+  all-works page (`Products.filter_products/1`) now lists works without
+  a category (a left join), because the home page's New works showed
+  them and "See all new works" left them out. Once every work is sure
+  to have a category, decide whether to change it back to an inner join
+  and drop the "no category" handling there (and in
+  `list_similar_works/2`, `shown_collections/2`).
 
 - **Logging in from the artist page doesn't come back to it** (found
   2026-10-23, artist-page step 6). "Log in to message" on the Contact
@@ -404,6 +411,18 @@ working on the code should keep in mind.
         still shows when the work isn't for sale. So a removed or
         inactive artist's name and postal district would stay on the
         home page. The credit should only show for an `:active` artist.
+
+  31. **Better choice of works for the home page's "New works"**
+      (added 2026-10-26, no date yet). For now it shows the 8 newest
+      works on the site (`Products.list_newest_works/1`). One artist
+      adding a batch of works fills most of it (in dev data, 6 of 8 were
+      one artist's bowls). On the live site the newest works aren't
+      necessarily the best ones to show: better a curated selection
+      (admin-chosen, like #30) or the best-reviewed / most popular
+      works. Nothing backs that yet (no curation tools, too few reviews
+      or sales). A small stopgap if needed sooner: at most 2 works per
+      artist. Swapping it in means changing that one function (and the
+      section's name and "See all" link, if it stops being "new").
 
 
 

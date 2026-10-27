@@ -854,3 +854,13 @@ at computer and phone width and the developer's review:
   artist page; the header shows them "Your shop" instead of "Offer
   art", as before.
 - Motto (`NOTES.md` #26) and "Follow" (#25) wait for their features.
+- **Step 2 (committed `07e4246`):** on tablets (3 tiles per row) only 3
+  category tiles show until "Show more categories". The hero picture is
+  top-aligned, so opening "How it works" doesn't move it. "Featured
+  Products" / "Our favorites" lost their links to all products (they go
+  in step 3 anyway).
+- **Step 3:** "New works" is left out when nothing is for sale. The
+  all-works page's "Sort by" got a "Newest first" choice, so "See all
+  new works" lands on a page that says how it's sorted. The old
+  `product_card` and `category_card` stay for now: the all-works and
+  categories pages still use them.

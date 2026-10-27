@@ -433,9 +433,8 @@ defmodule ArtsyNeighbor.ProductsTest do
   end
 
   # ============================================================
-  # list_products_with_associations/0 — backs the home page's product
-  # grid, including "featured products" (Enum.take/2 of this list in
-  # HomeLive), so its scoping is public-facing.
+  # list_products_with_associations/0 — backs the dev style guide's
+  # samples; its scoping is public-facing all the same.
   # ============================================================
 
   describe "list_products_with_associations/0" do
@@ -469,6 +468,27 @@ defmodule ArtsyNeighbor.ProductsTest do
   # ============================================================
   # Querying — by artist / by category
   # ============================================================
+
+  describe "list_newest_works/1" do
+    test "the newest works on the site, by any artist, at most `count`" do
+      oldest = product_fixture() |> made_days_ago(30)
+      newest = product_fixture() |> made_days_ago(1)
+      middle = product_fixture() |> made_days_ago(10)
+
+      ids = Products.list_newest_works(2) |> Enum.map(fn p -> p.id end)
+      assert ids == [newest.id, middle.id]
+
+      ids = Products.list_newest_works(8) |> Enum.map(fn p -> p.id end)
+      assert ids == [newest.id, middle.id, oldest.id]
+    end
+
+    test "leaves out works that aren't for sale" do
+      archived = product_fixture()
+      {:ok, _} = Products.soft_delete_product(archived)
+
+      assert Products.list_newest_works(8) == []
+    end
+  end
 
   describe "list_more_by_artist/2" do
     test "the artist's other works, newest first, at most `count`" do
@@ -689,6 +709,29 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert p1.id in ids
       assert p2.id in ids
       assert p3.id in ids
+    end
+
+    # Regression test: the home page's New works shows works without a
+    # category, and its "See all new works" leads here.
+    test "includes a work without a category, also when searching and sorting",
+         %{p1: p1} do
+      uncategorized =
+        product_fixture(%{title: "Sunset Without Category"})
+        |> Ecto.Changeset.change(category_id: nil)
+        |> Repo.update!()
+
+      ids = Products.filter_products(%{}) |> Enum.map(fn p -> p.id end)
+      assert uncategorized.id in ids
+
+      ids = Products.filter_products(%{"search" => "Sunset"}) |> Enum.map(fn p -> p.id end)
+      assert uncategorized.id in ids
+      assert p1.id in ids
+
+      ids = Products.filter_products(%{"sort_by" => "category"}) |> Enum.map(fn p -> p.id end)
+      assert List.last(ids) == uncategorized.id
+
+      ids = Products.filter_products(%{"sort_by" => "newest"}) |> Enum.map(fn p -> p.id end)
+      assert uncategorized.id in ids
     end
 
     test "filter by category_id returns only that category's products",

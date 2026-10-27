@@ -1169,8 +1169,17 @@
     .home-section:has(#categories-toggle[aria-expanded="false"]) #popular-categories > :nth-child(4) { display: none; }
   }
 
+  /* The invitation to artists: a quiet cream panel, not a banner; the
+     button moves under the words when there isn't room beside them. */
+  .home-invite { background: var(--color-base-200); border-radius: var(--radius-box);
+                 padding: 32px clamp(24px, 4vw, 56px); display: flex; justify-content: space-between;
+                 align-items: center; gap: 24px; flex-wrap: wrap; }
+  .home-invite h2 { font-size: 26px; }
+  .home-invite p { margin-top: 6px; max-width: 60ch; }
+
   /* Phones: the picture on top, the words under it. */
   @media (max-width: 760px) {
+    .home-invite h2 { font-size: 21px; }
     .home-hero { grid-template-columns: 1fr; padding-top: 20px; }
     .home-hero-words { padding: 24px 0 8px; }
     .home-hero-words h1 { font-size: 30px; }

@@ -42,13 +42,17 @@ defmodule ArtsyNeighbor.Products do
 
   @doc """
   Filters products based on the provided filter criteria.
-  All products are loaded with associations.
+  All products are loaded with associations. Works without a category
+  are included (sorted last by category).
   """
   def filter_products(filter) do
     Product
     |> only_available()
     |> join(:inner, [p], a in assoc(p, :artist), as: :artist)
-    |> join(:inner, [p], c in assoc(p, :category), as: :category)
+    # A left join, so works without a category (left empty, or their
+    # category was deleted) are still listed; the home page's "See all
+    # new works" leads here, and New works shows them too.
+    |> join(:left, [p], c in assoc(p, :category), as: :category)
     |> with_category(filter["category_id"])
     |> with_artist(filter["artist"])
     |> with_search_term(filter["search"])
@@ -408,6 +412,20 @@ defmodule ArtsyNeighbor.Products do
   end
 
   defp images_by_position, do: from(i in ProductImage, order_by: [asc: i.position])
+
+  @doc """
+  Returns the `count` newest available works on the whole site, newest
+  first, with their artist and photos loaded: the home page's "New
+  works".
+  """
+  def list_newest_works(count) do
+    Product
+    |> only_available()
+    |> order_by([p], desc: p.inserted_at, desc: p.id)
+    |> limit(^count)
+    |> preload([:artist, product_images: ^images_by_position()])
+    |> Repo.all()
+  end
 
   @doc """
   Returns up to `count` other available works by the same artist as

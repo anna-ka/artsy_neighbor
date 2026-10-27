@@ -117,6 +117,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Index do
             label="Sort by"
             prompt="Default"
             options={[
+              {"Newest first", "newest"},
               {"Price: Low to High", "price_asc"},
               {"Price: High to Low", "price_desc"},
               {"Artist", "artist"},

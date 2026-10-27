@@ -6,21 +6,21 @@ defmodule ArtsyNeighborWeb.HomeLive do
   alias Phoenix.LiveView.JS
 
   import ArtsyNeighborWeb.CustomComponents,
-    only: [product_card: 1, collection_card: 1, section_heading: 1, show_more: 1, area_label: 1]
+    only: [
+      artwork_card: 1,
+      collection_card: 1,
+      section_heading: 1,
+      show_more: 1,
+      area_label: 1
+    ]
 
   def mount(_params, _session, socket) do
-    products = Products.list_products_with_associations()
-    featured_products = Enum.take(products, 4)
-    favorite_products = Enum.take(products, -4)
-
     socket =
-      socket
-      |> assign(
+      assign(socket,
         hero: hero(),
-        categories: Categories.list_popular_categories()
+        categories: Categories.list_popular_categories(),
+        new_works: Products.list_newest_works(8)
       )
-      |> stream(:featured_products, featured_products)
-      |> stream(:favorite_products, favorite_products)
 
     {:ok, socket}
   end
@@ -99,39 +99,35 @@ defmodule ArtsyNeighborWeb.HomeLive do
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-8 mt-16">
-        <%!-- Row 4: Featured Products --%>
-        <section>
-          <h2 class="text-3xl font-bold mb-6">Featured Products</h2>
-          <div
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-            id="featured-products"
-            phx-update="stream"
-          >
-            <.product_card
-              :for={{dom_id, product} <- @streams.featured_products}
-              product={product}
-              dom_id={dom_id}
-            />
-          </div>
-        </section>
+      <%!-- New works: the 8 newest works on the site, without prices
+           (the home page is a gallery, not a shop window) --%>
+      <section :if={@new_works != []} class="home-section" aria-label="New works">
+        <.section_heading>
+          New works
+          <:link>
+            <.link navigate={~p"/products?#{[sort_by: "newest"]}"}>See all new works ›</.link>
+          </:link>
+        </.section_heading>
+        <div id="new-works" class="card-grid">
+          <.artwork_card :for={work <- @new_works} product={work} show_price={false} />
+        </div>
+      </section>
 
-        <%!-- Row 5: Our favorites (placeholder) --%>
-        <section>
-          <h2 class="text-3xl font-bold mb-6">Our favorites</h2>
-          <div
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-            id="favorite-products"
-            phx-update="stream"
-          >
-            <.product_card
-              :for={{dom_id, product} <- @streams.favorite_products}
-              product={product}
-              dom_id={dom_id}
-            />
-          </div>
-        </section>
-      </div>
+      <%!-- The invitation to artists; left out for visitors who already
+           have an artist page --%>
+      <section
+        :if={!(@current_scope && @current_scope.artist)}
+        class="home-section home-invite"
+        aria-labelledby="home-invite-title"
+      >
+        <div>
+          <h2 id="home-invite-title">Are you an artist in Greater Victoria?</h2>
+          <p>
+            Offer your work to your neighbours. Setting up your page is free and takes a few minutes.
+          </p>
+        </div>
+        <.button navigate={~p"/offer-art"}>Offer your art</.button>
+      </section>
     </Layouts.artsy_main>
     """
   end
