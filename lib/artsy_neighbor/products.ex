@@ -159,7 +159,8 @@ defmodule ArtsyNeighbor.Products do
   their artist, category and photos loaded.
 
   The artist page's "Featured works" shows these until artists can
-  choose their own (NOTES.md #23). For the owner's preview, use
+  choose their own (NOTES.md #23), and so does the artist's card on the
+  home page (`Artists.list_popular_artists/1`). For the owner's preview, use
   `list_newest_artist_products_for_owner_preview/2`.
   """
   def list_newest_artist_products(artist_id, count) do
@@ -425,6 +426,19 @@ defmodule ArtsyNeighbor.Products do
     |> limit(^count)
     |> preload([:artist, product_images: ^images_by_position()])
     |> Repo.all()
+  end
+
+  @doc """
+  A query for the artists who have works for sale, one row each, with
+  when they added their newest one:
+  `%{artist_id: 50, newest_work_at: ~U[...]}`. For other queries to join
+  to, e.g. `Artists.list_popular_artists/1`.
+  """
+  def artists_with_works_for_sale_query do
+    from(p in only_available(Product),
+      group_by: p.artist_id,
+      select: %{artist_id: p.artist_id, newest_work_at: max(p.inserted_at)}
+    )
   end
 
   @doc """

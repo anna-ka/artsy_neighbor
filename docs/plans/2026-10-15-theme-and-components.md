@@ -864,3 +864,16 @@ at computer and phone width and the developer's review:
   new works" lands on a page that says how it's sorted. The old
   `product_card` and `category_card` stay for now: the all-works and
   categories pages still use them.
+- **Step 4:** the new `artist_card` sits between Popular categories and
+  New works, as in the mockup. Its banner is the artist's first
+  featured work (the first of "Featured works" on their page, for now
+  their newest; it follows their choice once #23 lets them choose); the
+  three small works are the next three, or all of them when the artist
+  has fewer than four for sale (so the banner's work may repeat; the
+  developer is fine with that, it should become rare). The link at the
+  bottom says just "Visit page ›" (long studio names made "Visit
+  <name>'s page" awkward).
+  No stars for an artist without reviews. No motto (waits for #26).
+  Tablets (up to 1100px) scroll sideways like phones, showing two cards
+  and the edge of the third, since three across was too narrow there.
+  The category bar's scroll hook became the shared `ScrollRow` hook.

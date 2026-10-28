@@ -52,6 +52,76 @@ defmodule ArtsyNeighbor.Artists do
     |> Repo.preload([:artist_images])
   end
 
+  # How many reviews an artist needs before their average counts for
+  # "Popular artists" on the home page: one 5-star review shouldn't put
+  # an artist ahead of one with twenty 4.8s.
+  @popular_min_reviews 3
+
+  @doc """
+  Returns up to `count` artists for the home page's "Popular artists",
+  each as `%{artist: artist, rating: rating, works: works}`:
+
+    * `artist` — with their photos loaded, first photo first
+    * `rating` — `%{count: 6, average: 4.2}`, from
+      `Reviews.vendor_review_summary/1` (average nil with no reviews)
+    * `works` — their featured works (up to 4), in order, with photos:
+      the same works as "Featured works" on their page
+
+  First the best-rated artists with at least #{@popular_min_reviews}
+  reviews (best average first; more reviews first when two are equal).
+  Any places left go to the artists who added a work most recently.
+  Only active artists with at least one work for sale, since the card
+  is made of their works' pictures.
+  """
+  def list_popular_artists(count) do
+    best_rated = best_rated_artists(count)
+    best_rated_ids = Enum.map(best_rated, fn artist -> artist.id end)
+    newest = artists_with_newest_works(count - length(best_rated), best_rated_ids)
+
+    for artist <- best_rated ++ newest do
+      %{
+        artist: Repo.preload(artist, artist_images: artist_images_by_position()),
+        rating: ArtsyNeighbor.Reviews.vendor_review_summary(artist.id),
+        # The same function as the Works tab's "Featured works", so the
+        # card follows the artist's choice once they can make one
+        # (NOTES.md #23).
+        works: ArtsyNeighbor.Products.list_newest_artist_products(artist.id, 4)
+      }
+    end
+  end
+
+  defp best_rated_artists(count) do
+    from(a in Artist,
+      join: selling in subquery(ArtsyNeighbor.Products.artists_with_works_for_sale_query()),
+      on: selling.artist_id == a.id,
+      join: rating in subquery(ArtsyNeighbor.Reviews.vendor_review_summaries_query()),
+      on: rating.artist_id == a.id,
+      where: a.status == :active,
+      where: rating.count >= @popular_min_reviews,
+      order_by: [desc: rating.average, desc: rating.count, asc: a.id],
+      limit: ^count
+    )
+    |> Repo.all()
+  end
+
+  # The artists who added a work for sale most recently, leaving out
+  # `left_out_ids` (the ones already chosen).
+  defp artists_with_newest_works(count, _left_out_ids) when count <= 0, do: []
+
+  defp artists_with_newest_works(count, left_out_ids) do
+    from(a in Artist,
+      join: selling in subquery(ArtsyNeighbor.Products.artists_with_works_for_sale_query()),
+      on: selling.artist_id == a.id,
+      where: a.status == :active,
+      where: a.id not in ^left_out_ids,
+      order_by: [desc: selling.newest_work_at, asc: a.id],
+      limit: ^count
+    )
+    |> Repo.all()
+  end
+
+  defp artist_images_by_position, do: from(i in ArtistImage, order_by: [asc: i.position])
+
   @doc """
   Returns all artists regardless of status, for admin use.
   Sorted active → inactive → removed, then by nickname within each group.

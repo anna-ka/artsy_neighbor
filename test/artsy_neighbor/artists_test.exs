@@ -1489,4 +1489,119 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Artists.get_images_for_artist(artist) == []
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # list_popular_artists/1 — the home page's "Popular artists"
+  # ---------------------------------------------------------------------------
+  describe "list_popular_artists/1" do
+    # An active artist with one work for sale, added `days_ago` days ago.
+    defp selling_artist(days_ago \\ 0) do
+      artist = artist_fixture()
+      product_fixture(%{artist_id: artist.id}) |> added_days_ago(days_ago)
+      artist
+    end
+
+    # Gives the artist visible reviews with these stars (orders completed
+    # 20 days ago, so past the 14 days in which reviews stay hidden).
+    defp give_reviews(artist, stars_list) do
+      for stars <- stars_list do
+        buyer = user_fixture()
+
+        order =
+          order_fixture(buyer_id: buyer.id, artist_id: artist.id)
+          |> complete_order(20)
+
+        vendor_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          artist_id: artist.id,
+          stars: stars
+        })
+      end
+    end
+
+    defp added_days_ago(product, days) do
+      added_at =
+        DateTime.utc_now()
+        |> DateTime.add(-days, :day)
+        |> DateTime.truncate(:second)
+
+      product
+      |> Ecto.Changeset.change(inserted_at: added_at)
+      |> Repo.update!()
+    end
+
+    defp popular_ids(count) do
+      Artists.list_popular_artists(count) |> Enum.map(fn popular -> popular.artist.id end)
+    end
+
+    test "best average first, among artists with at least 3 reviews" do
+      good = selling_artist()
+      give_reviews(good, [4, 4, 5])
+      best = selling_artist()
+      give_reviews(best, [5, 5, 5])
+      # A perfect average, but only 2 reviews: not counted as rated
+      too_few = selling_artist(30)
+      give_reviews(too_few, [5, 5])
+
+      assert popular_ids(2) == [best.id, good.id]
+    end
+
+    test "with equal averages, more reviews first" do
+      fewer = selling_artist()
+      give_reviews(fewer, [5, 5, 5])
+      more = selling_artist()
+      give_reviews(more, [5, 5, 5, 5])
+
+      assert popular_ids(2) == [more.id, fewer.id]
+    end
+
+    test "fills empty places with the artists who added works most recently" do
+      rated = selling_artist(30)
+      give_reviews(rated, [3, 3, 3])
+      _older = selling_artist(20)
+      newer = selling_artist(1)
+      newest = selling_artist(0)
+
+      assert popular_ids(3) == [rated.id, newest.id, newer.id]
+    end
+
+    test "leaves out artists with nothing for sale, and artists who aren't active" do
+      no_works = artist_fixture()
+      give_reviews(no_works, [5, 5, 5])
+
+      all_archived = selling_artist()
+      give_reviews(all_archived, [5, 5, 5])
+
+      for product <- Products.get_products_by_artist_all_status(all_archived.id) do
+        {:ok, _} = Products.soft_delete_product(product)
+      end
+
+      inactive = artist_fixture(%{status: :inactive})
+      product_fixture(%{artist_id: inactive.id})
+
+      shown = selling_artist()
+
+      assert popular_ids(3) == [shown.id]
+    end
+
+    # Featured works are the 4 newest for now (NOTES.md #23).
+    test "each entry has the artist's rating and their featured works" do
+      artist = artist_fixture()
+      give_reviews(artist, [5, 4, 4])
+
+      works =
+        for days <- [5, 4, 3, 2, 1] do
+          product_fixture(%{artist_id: artist.id}) |> added_days_ago(days)
+        end
+
+      [popular] = Artists.list_popular_artists(3)
+
+      assert popular.artist.id == artist.id
+      assert popular.rating == %{count: 3, average: 4.3}
+
+      newest_four = works |> Enum.reverse() |> Enum.take(4) |> Enum.map(fn work -> work.id end)
+      assert Enum.map(popular.works, fn work -> work.id end) == newest_four
+    end
+  end
 end

@@ -319,6 +319,10 @@ working on the code should keep in mind.
         shape: an optional `featured_position` (1–4) on products, a
         "Feature on my page" switch in the vendor's product list, and
         the newest works filling any places not chosen.
+      - *2026-10-28:* the home page's artist cards (Popular artists) use
+        the same works: the banner is the first featured work. Both get
+        them from `Products.list_newest_artist_products/2`, so changing
+        that function (or replacing it) changes both.
 
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 

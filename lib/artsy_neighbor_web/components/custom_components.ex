@@ -339,6 +339,91 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   end
 
   @doc """
+  Renders one artist as a card, for the home page's "Popular artists":
+  a banner from one of their works, their round photo over the banner's
+  lower edge, name, area, stars, three small works and "Visit page ›". Takes one entry of `Artists.list_popular_artists/1`. Put cards in
+  a `<div class="artist-cards">`.
+
+  The banner shows the artist's first featured work (the first of
+  "Featured works" on their page); the small works are the next three,
+  or, when the artist has fewer than four works for sale, all of them
+  (so the banner's work is among them).
+
+  ## Example
+
+      <.artist_card :for={popular <- @popular_artists} popular={popular} />
+  """
+  attr :popular, :map,
+    required: true,
+    doc: "%{artist: artist, rating: rating, works: works}, see Artists.list_popular_artists/1"
+
+  def artist_card(assigns) do
+    artist = assigns.popular.artist
+    works = assigns.popular.works
+
+    thumbnails =
+      if length(works) >= 4 do
+        Enum.drop(works, 1)
+      else
+        works
+      end
+
+    photo_path =
+      case artist.artist_images do
+        [] -> "/images/avatar-placeholder.png"
+        [first | _rest] -> first.path
+      end
+
+    banner_path =
+      case works do
+        [] -> "/images/placeholder-product.jpg"
+        [newest | _rest] -> first_image_path(newest)
+      end
+
+    assigns =
+      assign(assigns,
+        artist: artist,
+        rating: assigns.popular.rating,
+        thumbnails: thumbnails,
+        photo_path: photo_path,
+        banner_path: banner_path
+      )
+
+    # The banner repeats the link under the name, so it is skipped by
+    # the keyboard and screen readers (tabindex, aria-hidden). The small
+    # works are links with nothing but a picture, so their alt (the
+    # work's title) is what a screen reader says for the link.
+    ~H"""
+    <article class="artist-card">
+      <.link
+        navigate={~p"/artists/#{@artist}"}
+        class="artist-card-banner"
+        tabindex="-1"
+        aria-hidden="true"
+      >
+        <img src={@banner_path} alt="" />
+      </.link>
+      <div class="artist-card-body">
+        <div class="artist-card-head">
+          <img class="artist-card-photo" src={@photo_path} alt="" />
+          <h3><.link navigate={~p"/artists/#{@artist}"}>{@artist.nickname}</.link></h3>
+        </div>
+        <p class="artist-card-area">{area_label(@artist.area_code)}</p>
+        <div :if={@rating.count > 0} class="artist-card-rating">
+          <.star_rating rating={@rating.average} count={@rating.count} look="home" />
+        </div>
+        <div class="artist-card-works">
+          <.link :for={work <- @thumbnails} navigate={~p"/products/#{work}"} title={work.title}>
+            <img src={first_image_path(work)} alt={work.title} />
+          </.link>
+        </div>
+        <.link navigate={~p"/artists/#{@artist}"} class="artist-card-visit">Visit page ›</.link>
+      </div>
+    </article>
+    """
+  end
+
+  @doc """
   Renders a section's title, with an optional link (or "Show more"
   button) on the right of it. A link there has the ordinary link look,
   like every link.

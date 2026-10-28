@@ -146,6 +146,67 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
     end
   end
 
+  describe "Popular artists" do
+    # The ordering is tested in ArtistsTest (list_popular_artists/1);
+    # these check what the cards show.
+    test "shows a card per artist, with name, area, stars, works and links", %{conn: conn} do
+      artist =
+        ArtsyNeighbor.ArtistsFixtures.artist_fixture(%{
+          nickname: "Maren Holt",
+          area_code: "V8V 4P9"
+        })
+
+      work = product_fixture(%{artist_id: artist.id, title: "Otter at Dusk"})
+
+      for stars <- [5, 5, 4] do
+        buyer = ArtsyNeighbor.AccountsFixtures.user_fixture()
+
+        order =
+          ArtsyNeighbor.OrdersFixtures.order_fixture(buyer_id: buyer.id, artist_id: artist.id)
+          |> ArtsyNeighbor.OrdersFixtures.complete_order(20)
+
+        ArtsyNeighbor.ReviewsFixtures.vendor_review_fixture(%{
+          order_id: order.id,
+          reviewer_id: buyer.id,
+          artist_id: artist.id,
+          stars: stars
+        })
+      end
+
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      assert has_element?(live, "h2", "Popular artists")
+      assert has_element?(live, ~s|a[href="/artists"]|, "See all artists")
+
+      card = "#popular-artists .artist-card"
+      assert has_element?(live, ~s|#{card} h3 a[href="/artists/#{artist.id}"]|, "Maren Holt")
+      assert has_element?(live, "#{card} .artist-card-area", "V8V")
+      assert has_element?(live, "#{card} .artist-card-rating", "4.7 · 3 reviews")
+
+      assert has_element?(
+               live,
+               ~s|#{card} a[href="/products/#{work.id}"] img[alt="Otter at Dusk"]|
+             )
+
+      assert has_element?(live, "#{card} .artist-card-visit", "Visit page")
+    end
+
+    test "shows no stars for an artist without reviews", %{conn: conn} do
+      product_fixture()
+
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      assert has_element?(live, "#popular-artists .artist-card")
+      refute has_element?(live, "#popular-artists .artist-card-rating")
+    end
+
+    test "has no Popular artists section when nothing is for sale", %{conn: conn} do
+      {:ok, live, _html} = live(conn, ~p"/")
+
+      refute has_element?(live, "h2", "Popular artists")
+    end
+  end
+
   describe "New works" do
     # Makes a work with the given title, added `days` ago, so "newest
     # first" doesn't depend on the order the fixtures were made in.

@@ -1,6 +1,7 @@
 defmodule ArtsyNeighborWeb.HomeLive do
   use ArtsyNeighborWeb, :live_view
 
+  alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Categories
   alias Phoenix.LiveView.JS
@@ -8,6 +9,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
   import ArtsyNeighborWeb.CustomComponents,
     only: [
       artwork_card: 1,
+      artist_card: 1,
       collection_card: 1,
       section_heading: 1,
       show_more: 1,
@@ -19,6 +21,7 @@ defmodule ArtsyNeighborWeb.HomeLive do
       assign(socket,
         hero: hero(),
         categories: Categories.list_popular_categories(),
+        popular_artists: Artists.list_popular_artists(3),
         new_works: Products.list_newest_works(8)
       )
 
@@ -96,6 +99,42 @@ defmodule ArtsyNeighborWeb.HomeLive do
             navigate={~p"/products?#{[category_id: category.id]}"}
             hidden={index >= 4}
           />
+        </div>
+      </section>
+
+      <%!-- Popular artists: 3 cards, best-rated first (see
+           Artists.list_popular_artists/1). On phones, one row that
+           scrolls sideways, with "«" / "»" (the ScrollRow hook in
+           assets/js/app.js) --%>
+      <section :if={@popular_artists != []} class="home-section" aria-label="Popular artists">
+        <.section_heading>
+          Popular artists
+          <:link>
+            <.link navigate={~p"/artists"}>See all artists ›</.link>
+          </:link>
+        </.section_heading>
+        <div id="popular-artists" class="scroll-row" phx-hook="ScrollRow">
+          <div class="artist-cards" data-scroll-track>
+            <.artist_card :for={popular <- @popular_artists} popular={popular} />
+          </div>
+          <button
+            type="button"
+            class="scroll-row-button scroll-row-less"
+            data-scroll-less
+            aria-label="Previous artists"
+            hidden
+          >
+            «
+          </button>
+          <button
+            type="button"
+            class="scroll-row-button scroll-row-more"
+            data-scroll-more
+            aria-label="More artists"
+            hidden
+          >
+            »
+          </button>
         </div>
       </section>
 

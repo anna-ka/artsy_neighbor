@@ -186,9 +186,28 @@ defmodule ArtsyNeighbor.Reviews do
     %{count: count, average: round_average(average)}
   end
 
-  # The artist's reviews that the public may see: not removed, and either
-  # the artist has reviewed the buyer too, or the 14 days are over.
+  @doc """
+  A query for every artist's review count and average, one row per
+  artist with at least one visible review:
+  `%{artist_id: 50, count: 6, average: #Decimal<4.1666>}` (the average
+  not rounded). For other queries to join to, e.g.
+  `Artists.list_popular_artists/1`.
+  """
+  def vendor_review_summaries_query do
+    from(vr in all_visible_vendor_reviews(),
+      group_by: vr.artist_id,
+      select: %{artist_id: vr.artist_id, count: count(vr.id), average: avg(vr.stars)}
+    )
+  end
+
+  # The artist's reviews that the public may see.
   defp visible_vendor_reviews(artist_id) do
+    from(vr in all_visible_vendor_reviews(), where: vr.artist_id == ^artist_id)
+  end
+
+  # Every artist's reviews that the public may see: not removed, and
+  # either the artist has reviewed the buyer too, or the 14 days are over.
+  defp all_visible_vendor_reviews do
     window_cutoff = DateTime.add(DateTime.utc_now(), -@review_window_days, :day)
 
     from(vr in VendorReview,
@@ -196,7 +215,6 @@ defmodule ArtsyNeighbor.Reviews do
       on: br.order_id == vr.order_id and br.status == :active,
       join: o in ArtsyNeighbor.Orders.Order,
       on: o.id == vr.order_id,
-      where: vr.artist_id == ^artist_id,
       where: vr.status == :active,
       where: not is_nil(br.id) or o.completed_at <= ^window_cutoff
     )

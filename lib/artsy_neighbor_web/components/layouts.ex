@@ -83,12 +83,12 @@ defmodule ArtsyNeighborWeb.Layouts do
 
       <%!-- Category bar: starts under the site name. On phones it scrolls
          sideways, with "«" / "»" buttons that show only when there is more
-         in their direction (the CategoryBar hook in assets/js/app.js). --%>
+         in their direction (the ScrollRow hook in assets/js/app.js). --%>
       <nav
         id="category-bar"
         class="category-bar"
         aria-label="Categories"
-        phx-hook="CategoryBar"
+        phx-hook="ScrollRow"
         phx-update="ignore"
       >
         <ul class="category-bar-track" data-scroll-track>

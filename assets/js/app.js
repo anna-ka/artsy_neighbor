@@ -73,24 +73,35 @@ const BioClamp = {
   }
 }
 
-// The category bar under the header (Layouts.navlayout/1). On phones it
-// scrolls sideways, with "«" / "»" buttons: tapping scrolls the row by
-// most of its width. "»" hides at the right end, "«" at the left end, so
-// each shows only when there is more that way (as setUpScrollRow in
-// docs/design/mockups/mockup.js). On wider screens CSS hides both.
-// The bar has phx-update="ignore", so LiveView doesn't undo the
-// `hidden` this sets whenever the page updates.
-const CategoryBar = {
+// A row that scrolls sideways on phones, with "«" / "»" buttons:
+// tapping scrolls the row by most of its width. "»" hides at the right
+// end, "«" at the left end, so each shows only when there is more that
+// way (as setUpScrollRow in docs/design/mockups/mockup.js). A row that
+// fits shows neither. Used by the category bar under the header
+// (Layouts.navlayout/1) and the home page's artist cards; each marks
+// its parts with data-scroll-track, data-scroll-less, data-scroll-more.
+// On wider screens CSS hides the buttons.
+// It shows and hides the buttons with this.js(), not directly, so
+// LiveView keeps them that way when it next updates the page.
+const ScrollRow = {
   mounted() {
     const track = this.el.querySelector("[data-scroll-track]")
     const lessButton = this.el.querySelector("[data-scroll-less]")
     const moreButton = this.el.querySelector("[data-scroll-more]")
 
+    const showOrHide = (button, hide) => {
+      if (hide) {
+        this.js().setAttribute(button, "hidden", "")
+      } else {
+        this.js().removeAttribute(button, "hidden")
+      }
+    }
+
     const updateButtons = () => {
       const atStart = track.scrollLeft <= 2
       const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 2
-      lessButton.hidden = atStart
-      moreButton.hidden = atEnd
+      showOrHide(lessButton, atStart)
+      showOrHide(moreButton, atEnd)
     }
 
     moreButton.addEventListener("click", () => {
@@ -100,7 +111,7 @@ const CategoryBar = {
       track.scrollBy({ left: -track.clientWidth * 0.7, behavior: "smooth" })
     })
     track.addEventListener("scroll", updateButtons)
-    // Re-check when the window (and so the bar) changes size.
+    // Re-check when the window (and so the row) changes size.
     this.resizeObserver = new ResizeObserver(updateButtons)
     this.resizeObserver.observe(track)
     updateButtons()
@@ -230,7 +241,7 @@ const csrfToken =document.querySelector("meta[name='csrf-token']").getAttribute(
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, BioClamp, CategoryBar, ScrollToBottom},
+  hooks: {...colocatedHooks, BioClamp, ScrollRow, ScrollToBottom},
 })
 
 // The server can ask for an element to be scrolled to the top of the

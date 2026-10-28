@@ -1169,6 +1169,41 @@
     .home-section:has(#categories-toggle[aria-expanded="false"]) #popular-categories > :nth-child(4) { display: none; }
   }
 
+  /* Popular artists: one card per artist, three in a row. */
+  .artist-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .artist-card { display: flex; flex-direction: column; overflow: hidden; background: var(--color-base-100);
+                 border: 1.5px solid var(--color-base-300); border-radius: var(--radius-box); }
+  /* Banner: one of the artist's works, cropped to a wide strip. (The
+     picture is placed absolutely so it can't stretch the strip.) */
+  .artist-card-banner { display: block; position: relative; overflow: hidden; aspect-ratio: 16 / 7; }
+  .artist-card-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .artist-card-body { display: flex; flex-direction: column; flex: 1; padding: 0 20px 20px; }
+  /* Only the round photo overlaps the banner's lower edge; the name
+     sits beside it, below the banner. position + z-index: the photo is
+     drawn on top of the banner picture. */
+  .artist-card-head { display: flex; align-items: flex-start; gap: 14px; }
+  .artist-card-photo { position: relative; z-index: 1; flex: none; width: 76px; height: 76px; margin-top: -38px;
+                       border-radius: 50%; object-fit: cover; border: 3px solid var(--color-base-100);
+                       box-shadow: 0 12px 28px -10px color-mix(in srgb, var(--color-base-content) 40%, transparent),
+                                   0 2px 6px color-mix(in srgb, var(--color-base-content) 10%, transparent); }
+  .artist-card h3 { min-width: 0; font-size: 22px; padding-top: 10px; overflow-wrap: break-word; }
+  .artist-card h3 a { color: inherit; text-decoration: none; }
+  .artist-card h3 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .artist-card-area { margin-top: 12px; font-family: var(--font-label); font-size: 12px; letter-spacing: 0.08em;
+                      text-transform: uppercase; color: var(--color-muted); }
+  .artist-card-rating { margin-top: 6px; font-size: 14px; }
+  .artist-card-works { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+  .artist-card-works img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px;
+                           border: 1.5px solid var(--color-base-300); }
+  .artist-card-visit { align-self: flex-end; margin-top: auto; padding-top: 14px; color: var(--color-base-content);
+                       text-underline-offset: 3px; }
+
+  /* Rows that scroll sideways on smaller screens (the ScrollRow hook in
+     app.js), like the category bar. The "«" / "»" buttons appear only
+     there (see the media rules below). */
+  .scroll-row { position: relative; }
+  .scroll-row-button { display: none; }
+
   /* The invitation to artists: a quiet cream panel, not a banner; the
      button moves under the words when there isn't room beside them. */
   .home-invite { background: var(--color-base-200); border-radius: var(--radius-box);
@@ -1177,9 +1212,35 @@
   .home-invite h2 { font-size: 26px; }
   .home-invite p { margin-top: 6px; max-width: 60ch; }
 
-  /* Phones: the picture on top, the words under it. */
+  /* Tablets and phones: the artist cards in one line that scrolls
+     sideways (three in a row would be too narrow; two per row would
+     leave the third alone), with "«" / "»" at the ends over a fade into
+     the page colour, shown only when there is more that way. Tablets
+     show two cards and the edge of the third. */
+  @media (max-width: 1100px) {
+    .artist-cards { display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none; }
+    .artist-card { flex: none; width: 44%; }
+    .scroll-row-button {
+      display: flex; position: absolute; top: 0; bottom: 0; width: 48px; align-items: center;
+      border: 0; cursor: pointer; font-size: 22px; line-height: 1; color: var(--color-base-content);
+    }
+    .scroll-row-button[hidden] { display: none; }
+    .scroll-row-more { right: 0; justify-content: flex-end; padding-right: 12px;
+      background: linear-gradient(to right, transparent, var(--color-base-100) 40%); }
+    .scroll-row-less { left: 0; justify-content: flex-start; padding-left: 12px;
+      background: linear-gradient(to left, transparent, var(--color-base-100) 40%); }
+    .scroll-row-button:focus-visible { outline: 2px solid var(--color-secondary); outline-offset: -2px; }
+  }
+
+  /* Phones: the picture on top, the words under it. Each artist card
+     most of the screen wide, its photo and name a little smaller. */
   @media (max-width: 760px) {
     .home-invite h2 { font-size: 21px; }
+    .artist-cards { gap: 14px; }
+    .artist-card { width: 82%; }
+    .artist-card-body { padding: 0 16px 16px; }
+    .artist-card-photo { width: 64px; height: 64px; margin-top: -32px; }
+    .artist-card h3 { font-size: 19px; }
     .home-hero { grid-template-columns: 1fr; padding-top: 20px; }
     .home-hero-words { padding: 24px 0 8px; }
     .home-hero-words h1 { font-size: 30px; }
@@ -1322,7 +1383,7 @@
     .header-links .header-first { order: -1; }
     /* Category bar: room at the end for "»". The buttons sit at the two
        ends over a fade into the page colour; "«" shows once scrolled,
-       "»" while there is more (CategoryBar in app.js). */
+       "»" while there is more (ScrollRow in app.js). */
     .category-bar-track { padding-right: 48px; }
     .category-bar-button {
       display: flex; position: absolute; top: 0; bottom: 0; width: 48px; align-items: center;
