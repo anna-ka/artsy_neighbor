@@ -5,7 +5,7 @@ defmodule ArtsyNeighbor.Categories.Category do
   schema "categories" do
     field :name, :string
     field :description, :string
-    field :main_img, :string, default: "/images/placeholder-category.jpg"
+    field :main_img, :string, default: "/images/site/placeholder-category.jpg"
     field :slug, :string
     field :status, Ecto.Enum, values: [:active, :archived], default: :active
     field :status_changed_at, :utc_datetime

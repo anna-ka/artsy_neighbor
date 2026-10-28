@@ -49,6 +49,26 @@ which is mechanical and done once, up front.
    the app down and rebuilding it from the runbook. Add a GitHub Actions
    workflow running `mix precommit` around this time. No continuous
    deployment — `fly deploy` stays manual.
+   Image storage comes first (agreed 2026-10-28, see #17), in three
+   commits:
+   - **a. Cleanup** — done 2026-10-28: all of `uploads/` gitignored and
+     untracked (files kept on disk); the placeholder images and
+     `logo.svg` moved into `images/site/`; unused drafts moved out of
+     the repo to `~/Code/artsy-neighbor-design/`.
+   - **b. `Storage` module + automatic resizing (#24)**, dev still on
+     local disk. The database stores a key (e.g.
+     `products/<product id>/<random id>/large.webp`), not a URL; the
+     `Storage` module turns a key into a URL. Always keep the original
+     upload so sizes can be regenerated later (and image embeddings
+     recomputed). Includes converting existing paths in the database,
+     sorting out the images still in `priv/static/images/` that dev
+     data and `seeds.exs` use, and the missing `wall_art.jpg`.
+   - **c. Tigris** (created from Fly with `fly storage create`, no
+     separate account) as the first part of the deploy, plus backups:
+     a scheduled copy of the bucket to a second place, and database
+     backups, both in the runbook. Before signing up for Fly: decide
+     whether to use a project email address rather than a personal one
+     for service accounts (Fly, domain, later Stripe).
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -294,6 +314,12 @@ working on the code should keep in mind.
         owner preview like the artist page's `?preview=1`.
 
   17. I need some solid advice and to make decisions about how to store images. Right now everything is local on my laptop, I have no idea how to set it up so it would work on server.
+      - *Decided 2026-10-28:* uploads go to object storage (Tigris on
+        Fly; S3-compatible, so R2 or AWS work with the same code).
+        Images that are part of the site stay in git under
+        `images/site/` and `images/seed/`; working files live outside
+        the repo. Embeddings (later) go in Postgres via pgvector and
+        don't change this. Steps: "Order of work" step 2, a–c.
 
   18. I am contemplating a "testing" hosting on on Fly.io or similar service. I want it to be unaailable to public for now, only to a few selected testers. And also as a way to even see what is involved in setting it up on a server. 
 

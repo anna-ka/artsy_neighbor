@@ -170,7 +170,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
                 <div class="mask mask-squircle h-12 w-12">
                   <% img = List.first(product.product_images) %>
                   <img
-                    src={if img, do: img.path, else: "/images/avatar-placeholder.png"}
+                    src={if img, do: img.path, else: "/images/site/avatar-placeholder.png"}
                     alt={product.title}
                   />
                 </div>

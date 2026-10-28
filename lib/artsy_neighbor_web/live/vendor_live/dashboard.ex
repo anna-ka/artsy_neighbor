@@ -72,7 +72,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                 |> Enum.sort_by(& &1.position)
                 |> List.first()
                 |> case do
-                  nil -> "/images/avatar-placeholder.png"
+                  nil -> "/images/site/avatar-placeholder.png"
                   img -> img.path
                 end
               }

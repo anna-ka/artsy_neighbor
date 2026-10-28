@@ -294,7 +294,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         >
           <img
             :if={@photo_count == 0}
-            src="/images/placeholder-product.jpg"
+            src="/images/site/placeholder-product.jpg"
             alt={"#{@product.title} (no photo yet)"}
           />
           <img

@@ -158,7 +158,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
                       |> Enum.sort_by(& &1.position)
                       |> List.first()
                       |> then(fn img ->
-                        if img, do: img.path, else: "/images/avatar-placeholder.png"
+                        if img, do: img.path, else: "/images/site/avatar-placeholder.png"
                       end)
                     }
                     alt={artist.nickname}

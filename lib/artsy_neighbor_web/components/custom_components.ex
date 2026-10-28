@@ -23,7 +23,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         |> Enum.sort_by(fn img -> img.position end)
         |> List.first()
         |> case do
-          nil -> "/images/placeholder-product.jpg"
+          nil -> "/images/site/placeholder-product.jpg"
           img -> img.path
         end
       )
@@ -63,8 +63,8 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         assigns,
         :image_url,
         case assigns.category.main_img do
-          nil -> "/images/placeholder-category.jpg"
-          "" -> "/images/placeholder-category.jpg"
+          nil -> "/images/site/placeholder-category.jpg"
+          "" -> "/images/site/placeholder-category.jpg"
           url -> url
         end
       )
@@ -148,7 +148,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     images = Enum.sort_by(product.product_images, fn image -> image.position end)
 
     case images do
-      [] -> "/images/placeholder-product.jpg"
+      [] -> "/images/site/placeholder-product.jpg"
       [first | _rest] -> first.path
     end
   end
@@ -323,8 +323,8 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   def collection_card(assigns) do
     image_path =
       case assigns.image do
-        nil -> "/images/placeholder-category.jpg"
-        "" -> "/images/placeholder-category.jpg"
+        nil -> "/images/site/placeholder-category.jpg"
+        "" -> "/images/site/placeholder-category.jpg"
         path -> path
       end
 
@@ -370,13 +370,13 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
     photo_path =
       case artist.artist_images do
-        [] -> "/images/avatar-placeholder.png"
+        [] -> "/images/site/avatar-placeholder.png"
         [first | _rest] -> first.path
       end
 
     banner_path =
       case works do
-        [] -> "/images/placeholder-product.jpg"
+        [] -> "/images/site/placeholder-product.jpg"
         [newest | _rest] -> first_image_path(newest)
       end
 

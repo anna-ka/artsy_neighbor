@@ -86,7 +86,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
                 src={
-                  Enum.at(@images, @current_image_index, %{path: "/images/avatar-placeholder.png"}).path
+                  Enum.at(@images, @current_image_index, %{
+                    path: "/images/site/avatar-placeholder.png"
+                  }).path
                 }
                 alt={@product.title}
                 class="w-full h-full object-contain"
