@@ -15,6 +15,10 @@ defmodule ArtsyNeighborWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # Site-wide password for the private deployment; off unless configured.
+  # Comes before Plug.Static so images and stylesheets are covered too.
+  plug ArtsyNeighborWeb.Plugs.SitePassword
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

@@ -60,6 +60,30 @@ if config_env() == :prod do
 
   config :artsy_neighbor, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Password on the whole site while it is a private deployment (see
+  # ArtsyNeighborWeb.Plugs.SitePassword). Required on purpose: a forgotten
+  # secret must stop the app from starting, not leave the site open.
+  # Remove this block when the site launches publicly.
+  site_username =
+    System.get_env("SITE_USERNAME") ||
+      raise """
+      environment variable SITE_USERNAME is missing.
+      The private deployment needs a site-wide username and password:
+      fly secrets set SITE_USERNAME=... SITE_PASSWORD=...
+      """
+
+  site_password =
+    System.get_env("SITE_PASSWORD") ||
+      raise """
+      environment variable SITE_PASSWORD is missing.
+      The private deployment needs a site-wide username and password:
+      fly secrets set SITE_USERNAME=... SITE_PASSWORD=...
+      """
+
+  config :artsy_neighbor, :site_password,
+    username: site_username,
+    password: site_password
+
   # The home page's hero work (see config.exs): its id in this database.
   # Not set: the picture shows with no credit and no link.
   if hero_id = System.get_env("HOME_HERO_PRODUCT_ID") do

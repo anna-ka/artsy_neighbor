@@ -49,8 +49,18 @@ which is mechanical and done once, up front.
    the app down and rebuilding it from the runbook. Add a GitHub Actions
    workflow running `mix precommit` around this time. No continuous
    deployment — `fly deploy` stays manual.
-   Image storage comes first (agreed 2026-10-28, see #17), in three
-   commits:
+   *Changed 2026-10-29:* a plain Fly deploy now comes before image
+   steps b and c (uploads on the deployed site are lost on each deploy
+   until c is done; fine while only the developer uses it). Done so far:
+   release files (`mix phx.gen.release --docker`), the site-wide
+   password (`ArtsyNeighborWeb.Plugs.SitePassword`, required in prod by
+   `runtime.exs`), and patch updates of Phoenix, LiveView, Bandit and
+   Plug. Next: the full update (all libraries, LiveView 1.2, Elixir
+   1.20, Erlang 29, on the Mac and in the Dockerfile), then
+   `fly launch --no-deploy` and an unmanaged Fly Postgres (chosen
+   2026-10-28 for cost; back up with `pg_dump` via `fly proxy`).
+   Image storage was planned to come first (agreed 2026-10-28, see #17),
+   in three commits:
    - **a. Cleanup** — done 2026-10-28: all of `uploads/` gitignored and
      untracked (files kept on disk); the placeholder images and
      `logo.svg` moved into `images/site/`; unused drafts moved out of
@@ -324,6 +334,13 @@ working on the code should keep in mind.
   18. I am contemplating a "testing" hosting on on Fly.io or similar service. I want it to be unaailable to public for now, only to a few selected testers. And also as a way to even see what is involved in setting it up on a server. 
 
   19. Audit of tests: for now they are all written by Claude, most decisions are made by Claude and I only skim them. This is one of my weaker points as I have never done true deployment. But I do want good informative test covereage. So I suppose an audit of existing tests and probably extending them.
+      - *Added 2026-10-28:* also decide whether to add a small browser
+        test suite (Playwright, e.g. via `phoenix_test_playwright`) for
+        what only a real browser exercises: our JavaScript (large-view
+        modal, scroll listeners) and flows across several pages. Not
+        added during the image-storage step on purpose: the LiveView
+        tests cover uploads, and a browser suite makes every test run
+        slower and needs Node + a browser.
 
   21. A very serious and thorough security audit. I am thinking of running Claude Fable on it and later (or earlier) also askign an experienced human developper for suggestions. I have no experience in this area.
 
