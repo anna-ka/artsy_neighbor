@@ -277,7 +277,12 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
               </p>
             </div>
 
-            <form phx-submit="submit_product" phx-change="form_changed" class="flex flex-col gap-3">
+            <form
+              id={"product-review-form-#{product.id}"}
+              phx-submit="submit_product"
+              phx-change="form_changed"
+              class="flex flex-col gap-3"
+            >
               <input type="hidden" name="product_id" value={product.id} />
               <input type="hidden" name="stars" value={state.stars || ""} />
               <div>

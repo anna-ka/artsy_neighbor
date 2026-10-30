@@ -313,7 +313,8 @@ defmodule ArtsyNeighborWeb.OrderLive.Detail do
                 <div class="flex flex-col gap-1">
                   <div class="flex items-center gap-2">
                     <span class="text-warning tracking-tight">
-                      {"★" |> String.duplicate(@received_review.stars)}<span class="text-base-content/20">{"★" |> String.duplicate(5 - @received_review.stars)}</span>
+                      {"★" |> String.duplicate(@received_review.stars)}<span class="text-base-content/20">{"★"
+                      |> String.duplicate(5 - @received_review.stars)}</span>
                     </span>
                     <span class="text-xs text-base-content/50">{@received_review.stars}/5</span>
                   </div>

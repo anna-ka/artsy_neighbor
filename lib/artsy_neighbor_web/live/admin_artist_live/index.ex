@@ -186,8 +186,8 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
             <:col :let={{_dom_id, artist}} label="Middle" col_class="w-24">
               {artist.middle_name}
             </:col>
-            
-    <!-- Profile status -->
+
+            <!-- Profile status -->
             <:col :let={{_dom_id, artist}} label="Status" col_class="w-24">
               {artist.status}
             </:col>

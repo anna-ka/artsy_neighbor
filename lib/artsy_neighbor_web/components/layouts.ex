@@ -215,8 +215,7 @@ defmodule ArtsyNeighborWeb.Layouts do
             :if={@pending_reviews_as_buyer > 0}
             class="header-dot header-dot-review"
             aria-hidden="true"
-          >
-          </span>
+          ></span>
           <span :if={@pending_reviews_as_buyer > 0} class="sr-only">(a review to write)</span>
         </.link>
         <.link :if={@artist?} navigate={~p"/vendor"}>
@@ -225,8 +224,7 @@ defmodule ArtsyNeighborWeb.Layouts do
             :if={@pending_reviews_as_vendor > 0}
             class="header-dot header-dot-review"
             aria-hidden="true"
-          >
-          </span>
+          ></span>
           <span :if={@pending_reviews_as_vendor > 0} class="sr-only">(a review to write)</span>
         </.link>
         <.link :if={@admin?} navigate={~p"/admin"}>Admin</.link>

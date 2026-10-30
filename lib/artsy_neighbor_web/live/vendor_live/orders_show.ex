@@ -231,7 +231,8 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                 <%= if @artist_review do %>
                   <div class="flex items-center gap-2">
                     <span class="text-warning tracking-tight">
-                      {"★" |> String.duplicate(@artist_review.stars)}<span class="text-base-content/20">{"★" |> String.duplicate(5 - @artist_review.stars)}</span>
+                      {"★" |> String.duplicate(@artist_review.stars)}<span class="text-base-content/20">{"★"
+                      |> String.duplicate(5 - @artist_review.stars)}</span>
                     </span>
                     <span class="text-xs text-base-content/50">{@artist_review.stars}/5</span>
                   </div>
@@ -267,7 +268,8 @@ defmodule ArtsyNeighborWeb.VendorLive.OrdersShow do
                   <%= if pr do %>
                     <div class="flex items-center gap-2">
                       <span class="text-warning tracking-tight">
-                        {"★" |> String.duplicate(pr.stars)}<span class="text-base-content/20">{"★" |> String.duplicate(5 - pr.stars)}</span>
+                        {"★" |> String.duplicate(pr.stars)}<span class="text-base-content/20">{"★"
+                        |> String.duplicate(5 - pr.stars)}</span>
                       </span>
                       <span class="text-xs text-base-content/50">{pr.stars}/5</span>
                     </div>

@@ -58,21 +58,26 @@ defmodule ArtsyNeighborWeb do
       # @before_compile runs after the module body is compiled, so these clauses
       # appear LAST and only fire when no earlier clause matched.
       # LiveViews with their own logic for these messages (e.g. ConversationLive.Index)
-      # define clauses before this and match first — the fallbacks are never reached there.
+      # set `@handles_badge_messages true` to skip the fallbacks, since theirs
+      # would make them unreachable (Elixir warns about such redundant clauses).
       @before_compile {ArtsyNeighborWeb, :__inject_badge_handlers__}
     end
   end
 
   @doc false
-  defmacro __inject_badge_handlers__(_env) do
-    quote do
-      # These messages are sent to subscribed LiveViews by the :load_unread_badge
-      # on_mount hook (via {:cont, socket}) after it updates has_unread_messages.
-      # Returning {:noreply, socket} completes the handle_info cycle so Phoenix
-      # LiveView pushes the diff to the client.
-      def handle_info({:conversation_updated, _}, socket), do: {:noreply, socket}
-      def handle_info({:marked_read, _}, socket), do: {:noreply, socket}
-      def handle_info({:new_conversation, _}, socket), do: {:noreply, socket}
+  defmacro __inject_badge_handlers__(env) do
+    if Module.get_attribute(env.module, :handles_badge_messages) do
+      nil
+    else
+      quote do
+        # These messages are sent to subscribed LiveViews by the :load_unread_badge
+        # on_mount hook (via {:cont, socket}) after it updates has_unread_messages.
+        # Returning {:noreply, socket} completes the handle_info cycle so Phoenix
+        # LiveView pushes the diff to the client.
+        def handle_info({:conversation_updated, _}, socket), do: {:noreply, socket}
+        def handle_info({:marked_read, _}, socket), do: {:noreply, socket}
+        def handle_info({:new_conversation, _}, socket), do: {:noreply, socket}
+      end
     end
   end
 

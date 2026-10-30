@@ -55,8 +55,9 @@ which is mechanical and done once, up front.
    release files (`mix phx.gen.release --docker`), the site-wide
    password (`ArtsyNeighborWeb.Plugs.SitePassword`, required in prod by
    `runtime.exs`), and patch updates of Phoenix, LiveView, Bandit and
-   Plug. Next: the full update (all libraries, LiveView 1.2, Elixir
-   1.20, Erlang 29, on the Mac and in the Dockerfile), then
+   Plug. Then the full update, also 2026-10-29: all libraries at their
+   latest, LiveView 1.2, Elixir 1.20.4 and Erlang 29.1.2 (Homebrew on
+   the Mac; the same versions in the Dockerfile). Next:
    `fly launch --no-deploy` and an unmanaged Fly Postgres (chosen
    2026-10-28 for cost; back up with `pg_dump` via `fly proxy`).
    Image storage was planned to come first (agreed 2026-10-28, see #17),
@@ -140,6 +141,42 @@ working on the code should keep in mind.
   while only we use the site; needed before testers.
 
 ## Deferred follow-ups (small, scoped)
+
+- **Check form recovery on every form** (added 2026-10-30). When the
+  LiveView connection drops (Wi-Fi blink, phone asleep, **every
+  deploy**, Fly auto-stop), the browser reconnects and the server
+  starts the page over from `mount`, so anything kept only in assigns
+  is lost. LiveView's "form recovery" puts typed text back: on
+  reconnect it re-sends each form's current fields as a `phx-change`
+  event. It only works for a form that (1) has a `phx-change` handler,
+  (2) has an `id` (LiveView 1.2 warns in tests when missing; ids were
+  added to four forms 2026-10-29), and (3) keeps the state in the
+  form's own fields. A form that doesn't qualify silently loses what
+  the person typed, which matters most for long texts typed slowly on
+  phones. To do:
+  - **Stars in the buyer and vendor review forms** (`ReviewLive.OfBuyerStep`,
+    `OfVendorStep`): the rating lives in `@stars`, set by the star
+    buttons outside the form, so after a reconnect the comment comes
+    back but the stars are blank. Fix as in `OfProductsStep`: a hidden
+    `<input name="stars">` inside the form, and read it in the
+    `form_changed` handler.
+  - **Pickup scheduling form** (`ConversationLive.Show`, `phx-submit=
+    "submit_schedule"`): no `phx-change`, so no recovery. Add one if
+    people type more than a date there.
+  - **New collection modal** (`VendorLive.ProductForm`,
+    `phx-submit="save_new_collection"`): no `phx-change`, no `id`.
+    Short field, low priority, but the modal also closes on reconnect.
+  - **Uploads can't be recovered** (browsers don't allow refilling a
+    file field): a photo chosen but not yet saved is lost on
+    reconnect. Consider a plain message when that happens, at least
+    on the vendor product form.
+  - **Then go through all the rest** (about 30 `<form>`/`<.form>` tags
+    in `lib/`; list them with a search for `<form` and `<.form`) and
+    check each against points 1–3. Forms that only hold buttons
+    (`method="dialog"` closers on the product page) don't need it.
+  - Test it by hand: type into a form, restart `mix phx.server`, and
+    see what comes back. Whether LiveView tests can check recovery
+    automatically is a question for the test audit (#19).
 
 - **No PubSub broadcast when a message is soft-deleted.** `ConversationLive.Show`'s
   `delete_message` handler (`show.ex`) updates the DB and the deleting
@@ -477,6 +514,28 @@ working on the code should keep in mind.
 
 
 ## Tech debt
+
+- **Test emails reach the LiveView that sent them** (noted 2026-10-29,
+  after updating Swoosh). Swoosh's test adapter now sends `{:email, ...}`
+  to the sending process too, so the settings page tests log a
+  `FunctionClauseError` from `UserLive.Settings.handle_info/2`. Tests
+  pass and real mail never goes through this adapter. Fix when touching
+  the settings page: e.g. a `handle_info({:email, _}, socket)` that does
+  nothing, only in test, or a shared test helper.
+- **Clustering before running more than one Fly Machine** (noted
+  2026-10-30). PubSub (live messages, order updates, the unread dot)
+  only reaches pages on the same running copy of the app. The private
+  deploy runs one Machine (`fly deploy --ha=false`; Fly's default is
+  two, for when the server under one fails). Before going to two or
+  more (`fly scale count`), connect the Machines into a cluster:
+  `DNSCluster` is already in `application.ex` but off until
+  `DNS_CLUSTER_QUERY` is set, and the release needs node naming in
+  `rel/env.sh.eex`. Otherwise a buyer and an artist on different
+  Machines only see each other's messages after a reload.
+- **Keep Elixir, Erlang and the libraries current** (noted 2026-10-29).
+  The Mac (Homebrew) and the `Dockerfile` must use the same Elixir and
+  Erlang versions; check both when updating. `mix hex.outdated` lists
+  library updates; Docker Hub's `hexpm/elixir` tags list the images.
 
 - **Flag-cleanup delete paths have a narrow race** — every hard delete
   that cleans up `Flag` rows goes through `ArtsyNeighbor.HardDelete`

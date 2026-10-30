@@ -1,6 +1,10 @@
 defmodule ArtsyNeighborWeb.ConversationLive.Index do
   use ArtsyNeighborWeb, :live_view
 
+  # This page handles the inbox badge messages itself (see handle_info
+  # below), so it doesn't need the shared fallbacks from ArtsyNeighborWeb.
+  @handles_badge_messages true
+
   alias ArtsyNeighbor.Conversations
 
   def mount(_params, _session, socket) do
@@ -175,8 +179,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 <span
                   :if={MapSet.member?(@convs_with_new, conversation.id)}
                   class="badge badge-error badge-xs"
-                >
-                </span>
+                ></span>
               </.link>
             </li>
           </ul>
@@ -211,8 +214,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 <span
                   :if={MapSet.member?(@convs_with_new, conversation.id)}
                   class="badge badge-error badge-xs"
-                >
-                </span>
+                ></span>
               </.link>
             </li>
           </ul>
@@ -254,8 +256,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 <span
                   :if={MapSet.member?(@convs_with_new, conversation.id)}
                   class="badge badge-error badge-xs"
-                >
-                </span>
+                ></span>
               </.link>
               <%= if Mix.env() != :prod do %>
                 <button

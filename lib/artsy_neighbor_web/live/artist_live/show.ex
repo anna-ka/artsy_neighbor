@@ -527,8 +527,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
           <span
             :for={index <- 0..(@photo_count - 1)}
             class={index == @photo_index && "current"}
-          >
-          </span>
+          ></span>
         </div>
       <% end %>
     </div>

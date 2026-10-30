@@ -172,7 +172,12 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfBuyerStep do
             <p :if={@stars} class="text-xs text-base-content/50 mt-1">{star_label(@stars)}</p>
           </div>
 
-          <form phx-submit="submit" phx-change="form_changed" class="flex flex-col gap-4">
+          <form
+            id="buyer-review-form"
+            phx-submit="submit"
+            phx-change="form_changed"
+            class="flex flex-col gap-4"
+          >
             <div>
               <label class="text-sm font-medium text-base-content block mb-2">
                 Comments <span class="text-base-content/40 font-normal">(optional)</span>

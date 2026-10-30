@@ -58,7 +58,7 @@ Router: `lib/artsy_neighbor_web/router.ex`
 
 ## Stack
 
-Phoenix 1.8 + LiveView 1.1, Postgres (`ecto_sql`), Tailwind + esbuild for assets,
+Elixir 1.20 / Erlang 29, Phoenix 1.8 + LiveView 1.2, Postgres (`ecto_sql`), Tailwind + esbuild for assets,
 Swoosh for mail (not yet sending anything real), Argon2 for password hashing,
 Bandit as the web server. No JS framework — LiveView + a little JS hooks where
 needed.

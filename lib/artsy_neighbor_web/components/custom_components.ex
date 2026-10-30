@@ -738,8 +738,10 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         <.stars rating={@stars} />
         <span class="sr-only">{@stars} out of 5 stars.</span>
         <span>
-          {@name} · {Calendar.strftime(@date, "%B %Y")}<span :if={@bought != []}>
-            · bought {render_slot(@bought)}</span>
+          {@name} · {Calendar.strftime(@date, "%B %Y")}
+          <span :if={@bought != []}>
+            · bought {render_slot(@bought)}
+          </span>
         </span>
       </div>
       <p :if={@text not in [nil, ""]} class="review-text">{@text}</p>

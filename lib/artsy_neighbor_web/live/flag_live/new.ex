@@ -153,6 +153,7 @@ defmodule ArtsyNeighborWeb.FlagLive.New do
 
           <form
             :if={!@pending_flag}
+            id="flag-form"
             phx-submit="submit"
             phx-change="form_changed"
             class="flex flex-col gap-4"
