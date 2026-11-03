@@ -60,6 +60,11 @@ which is mechanical and done once, up front.
    the Mac; the same versions in the Dockerfile). Next:
    `fly launch --no-deploy` and an unmanaged Fly Postgres (chosen
    2026-10-28 for cost; back up with `pg_dump` via `fly proxy`).
+   Region: San Jose (`sjc`), chosen 2026-10-30. Fly no longer offers
+   Seattle; Toronto (`yyz`) would keep data in Canada but is about
+   twice as far (~60–80 ms per round trip vs ~25–40), and payments will
+   go through the US anyway. The database must be in the same region
+   as the app.
    Image storage was planned to come first (agreed 2026-10-28, see #17),
    in three commits:
    - **a. Cleanup** — done 2026-10-28: all of `uploads/` gitignored and
@@ -141,6 +146,15 @@ working on the code should keep in mind.
   while only we use the site; needed before testers.
 
 ## Deferred follow-ups (small, scoped)
+
+- **"Show password" option on every password field** (added 2026-11-02,
+  after the developer typed a long password on the live site unsure of
+  what she had typed). A plainly labelled checkbox or button with words
+  ("Show password"), not just an eye icon, on log-in, registration,
+  settings (new password) and reset. Fits the older audience (see
+  "Order of work" step 1 principles). Small JS hook or a few lines in
+  `app.js` toggling the input's `type` between `password` and `text`;
+  keep it off by default.
 
 - **Check form recovery on every form** (added 2026-10-30). When the
   LiveView connection drops (Wi-Fi blink, phone asleep, **every
@@ -528,10 +542,20 @@ working on the code should keep in mind.
   deploy runs one Machine (`fly deploy --ha=false`; Fly's default is
   two, for when the server under one fails). Before going to two or
   more (`fly scale count`), connect the Machines into a cluster:
-  `DNSCluster` is already in `application.ex` but off until
-  `DNS_CLUSTER_QUERY` is set, and the release needs node naming in
-  `rel/env.sh.eex`. Otherwise a buyer and an artist on different
+  `DNSCluster` is in `application.ex`, and `fly launch` (2026-11-02)
+  generated `rel/env.sh.eex`, which names each Machine and sets
+  `DNS_CLUSTER_QUERY`, so Machines should find each other. Still to
+  check when adding a second Machine: that they really connect, and
+  that both share the same Erlang cookie. Otherwise a buyer and an artist on different
   Machines only see each other's messages after a reload.
+- **Postgres 17 → 18, on the Mac and the server together** (noted
+  2026-11-02). Both run 17 (Postgres.app 17.6; Fly image
+  `flyio/postgres-flex:17`), supported until Nov 2029, so no hurry.
+  Upgrade both at once so `pg_dump` can still back up the server:
+  install Postgres.app 18, move the dev database across with a dump and
+  restore (it holds hand-made data — back it up first), then dump the
+  Fly database, create a new one on `flyio/postgres-flex:18`, restore,
+  and re-attach it to the app.
 - **Keep Elixir, Erlang and the libraries current** (noted 2026-10-29).
   The Mac (Homebrew) and the `Dockerfile` must use the same Elixir and
   Erlang versions; check both when updating. `mix hex.outdated` lists
