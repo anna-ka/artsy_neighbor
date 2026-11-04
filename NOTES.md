@@ -548,14 +548,23 @@ working on the code should keep in mind.
   check when adding a second Machine: that they really connect, and
   that both share the same Erlang cookie. Otherwise a buyer and an artist on different
   Machines only see each other's messages after a reload.
-- **Postgres 17 → 18, on the Mac and the server together** (noted
-  2026-11-02). Both run 17 (Postgres.app 17.6; Fly image
-  `flyio/postgres-flex:17`), supported until Nov 2029, so no hurry.
-  Upgrade both at once so `pg_dump` can still back up the server:
-  install Postgres.app 18, move the dev database across with a dump and
-  restore (it holds hand-made data — back it up first), then dump the
-  Fly database, create a new one on `flyio/postgres-flex:18`, restore,
-  and re-attach it to the app.
+- **Postgres 17 → 18: the Mac first, then the server** (noted
+  2026-11-02; the developer wants it done soon, in a session of its
+  own). Today: Postgres.app 2.8.5 with only 17.6 on the Mac; Fly runs
+  `flyio/postgres-flex:17` (17.7). `pg_dump` backs up servers of its
+  own version or older, so a Mac on 18 can still back up the 17
+  server; the server can follow later.
+  - Mac (~30–45 min): back up the dev database with the current
+    `pg_dump` (hand-made data, about 10 MB; keep a second copy), install
+    the Postgres.app download with several versions (check it supports
+    macOS 14), add an 18 server, create `artsy_neighbor_dev` and
+    restore, run the tests, keep the 17 server stopped for a few weeks.
+  - Server: dump the Fly database, create a new one on
+    `flyio/postgres-flex:18`, restore, re-attach (see `docs/deploy.md`).
+  - Meanwhile, security fixes come in minor releases (17.6 → 17.7):
+    update Postgres.app regularly, and update the database Machine to
+    the newest 17.x image with `fly image update -a <app>-db` (restarts
+    the database briefly; not yet tried).
 - **Keep Elixir, Erlang and the libraries current** (noted 2026-10-29).
   The Mac (Homebrew) and the `Dockerfile` must use the same Elixir and
   Erlang versions; check both when updating. `mix hex.outdated` lists
