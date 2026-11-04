@@ -390,36 +390,126 @@ migrations.
 
 ---
 
-## 7. Backups *(to do; not yet tried)*
+## 7. Backups
+
+First done for real on 2026-11-03: a dump taken and restored into a
+scratch database on the Mac, with every table, all 46 migrations, the
+admin user and a test category present. The database was nearly empty
+then, so repeat it once there is real data.
 
 Two layers:
 
-1. **Fly's daily volume snapshots** of the database disk, automatic
-   (the first 10 GB a month are free). Check with
-   `fly volumes snapshots list <volume-id>` (the volume id comes from
-   `fly volumes list -a $APP-db`).
-2. **Our own `pg_dump`** to the Mac, through a private tunnel:
+### 7.1 Fly's automatic snapshots (nothing to do)
 
-   ```
-   fly proxy 15432:5432 -a $APP-db     # leave running in one terminal
-   ```
-   This opens a private tunnel: `localhost:15432` on the Mac leads to
-   port 5432 on the database at Fly (which is not reachable from the
-   internet otherwise). The Mac side uses 15432 because Postgres.app
-   already uses 5432 for the dev database, so `localhost:5432` = dev
-   and `localhost:15432` = live. The tunnel lasts only while this
-   command runs; Ctrl+C closes it.
-   In another terminal. The database is named after the app with
-   underscores (`an_preview_wm0upn`, checked 2026-11-02 with
-   `select current_database()`; `fly postgres attach` also named the
-   app's database user the same):
-   ```
-   pg_dump "postgres://postgres:<admin-password>@localhost:15432/<db_name>" \
-     -Fc -f artsy-neighbor-$(date +%F).dump
-   ```
+Fly takes a daily snapshot of the database disk (a "volume") by
+itself and keeps each one for **5 days** (the first 10 GB a month
+are free). To look at them:
 
-**Test a restore once** (into a scratch database on the Mac, with
-`pg_restore`) before relying on it. Decide where dumps are kept.
+```
+fly volumes list -a $APP-db                              # shows the volume id (vol_...)
+fly volumes snapshots list <volume-id> -a $APP-db
+```
+
+The `-a $APP-db` on the second command matters: without it, `fly`
+uses the app from `fly.toml` (the web app, not the database) and
+says the volume "does not belong to app".
+
+These snapshots live at Fly, in the same place as the database. They
+protect against mistakes, not against losing the Fly account. That's
+what our own copy is for.
+
+### 7.2 Our own copy on the Mac (`pg_dump`)
+
+Dumps are kept in **`~/Backups/artsy-neighbor/`** on the Mac: outside
+the repo, so a dump can never be committed by accident, and covered
+by Time Machine once that is set up. The admin password comes from
+the developer's Passwords app.
+
+**Terminal 1: open a private tunnel and leave it running.**
+```
+fly proxy 15432:5432 -a $APP-db
+```
+`localhost:15432` on the Mac now leads to port 5432 on the database
+at Fly (which is not reachable from the internet otherwise). The Mac
+side uses 15432 because Postgres.app already uses 5432 for the dev
+database, so `localhost:5432` = dev and `localhost:15432` = live. The
+tunnel lasts only while this command runs; Ctrl+C closes it. Wait for
+`Proxying local port 15432` before going on.
+
+**Terminal 2: take the dump.**
+```
+mkdir -p ~/Backups/artsy-neighbor
+cd ~/Backups/artsy-neighbor
+pg_dump -h localhost -p 15432 -U postgres -d an_preview_wm0upn -Fc -f artsy-neighbor-$(date +%F).dump
+```
+It asks `Password:`. Paste the admin password; nothing shows while
+typing, which is normal. Keeping the password out of the command
+line keeps it out of the shell history too.
+
+What each piece means:
+
+| Piece | Meaning |
+|---|---|
+| `mkdir -p ~/Backups/artsy-neighbor` | Creates the folder (and `~/Backups` above it). `-p` = no error if it already exists. |
+| `cd ~/Backups/artsy-neighbor` | Moves into it, so the dump file lands there. |
+| `pg_dump` | Postgres's backup tool (from Postgres.app). Reads a whole database and writes it to one file. |
+| `-h localhost` | **Host**: connect to this Mac. |
+| `-p 15432` | **Port 15432**: the tunnel's end, which `fly proxy` forwards to the real database at Fly. (5432 would be the dev database.) |
+| `-U postgres` | **User**: log in as `postgres`, the database admin. This is why it asks for the admin password. |
+| `-d an_preview_wm0upn` | **Database** name on the server: the app name with underscores (checked 2026-11-02 with `select current_database()`; `fly postgres attach` also named the app's database user the same). |
+| `-Fc` | **Format: custom**. A compressed file that `pg_restore` can read, and it can restore just parts if needed. Without it you get a large plain-text SQL file. |
+| `-f artsy-neighbor-….dump` | **File** to write to. |
+| `$(date +%F)` | The shell runs `date +%F` first and puts its output in place: today's date, e.g. `2026-11-03`. Each day's backup gets its own name. |
+
+Then check the file and close the tunnel:
+```
+ls -lh                                   # the new .dump file and its size
+pg_restore --list artsy-neighbor-<date>.dump | head -12    # header: which database, which versions
+```
+Ctrl+C in Terminal 1 closes the tunnel.
+
+The Mac's `pg_dump` must be the **same major version as the server
+or newer** (2026-11-03: Postgres.app 17.6, server 17.11; see
+section 9).
+
+### 7.3 Checking a backup by restoring it
+
+A backup only counts once it has been restored. Into a throwaway
+database on the Mac (Postgres.app needs no password locally; the dev
+database `artsy_neighbor_dev` isn't touched):
+
+```
+createdb an_restore_test
+pg_restore --no-owner --no-privileges -d an_restore_test ~/Backups/artsy-neighbor/artsy-neighbor-<date>.dump
+```
+
+`--no-owner --no-privileges` skip the "who owns / who may use this
+table" lines. The live database's user (`an_preview_wm0upn`) doesn't
+exist on the Mac, and without these flags the restore prints a page
+of harmless but alarming errors.
+
+Then compare with the repo:
+```
+psql -d an_restore_test -c "select count(*), max(version) from schema_migrations;"
+ls priv/repo/migrations | wc -l          # same count? latest file = max(version)?
+psql -d an_restore_test -c "select email, status from users;"
+```
+Something recognisable made on the live site just before the dump
+(e.g. a test category) should be there too.
+
+Finally, delete the throwaway database. `dropdb` doesn't ask for
+confirmation, so type the name carefully:
+```
+dropdb an_restore_test
+psql -l                                  # an_restore_test is no longer listed
+```
+
+**For now:** no regular schedule. While the preview holds no real
+data, Fly's snapshots are enough, plus a manual dump before anything
+risky (a migration, the Postgres 18 move). Where regular backups
+should live (probably not only the laptop), how often, and how many
+to keep gets decided together with Neon vs. our own Postgres and with
+image storage on Tigris (`NOTES.md`, "Order of work" step 2 c).
 
 ---
 
@@ -453,7 +543,7 @@ Then check `fly apps list` and the Billing page. Rebuilding = section
 ## 10. Before inviting testers (pointers to NOTES.md)
 
 - Real email (step 5), image storage on Tigris (step 2 b–c), backups
-  tested (section 7 above).
+  repeated with real data and a schedule decided (section 7 above).
 - Decide on one or two Machines (two needs clustering).
 - Managed Postgres or Neon instead of unmanaged, if worth the cost.
 - The form-recovery check, since every deploy drops open connections.
