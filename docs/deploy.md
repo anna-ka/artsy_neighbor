@@ -5,8 +5,10 @@ how to deploy changes, how to look at it, and how to tear it down and
 rebuild it. Written so that someone who has never deployed anything
 can follow it top to bottom.
 
-**Status:** draft, written right after the first deploy. Sections
-marked *(not yet tried)* still need a real run-through.
+**Status:** written right after the first deploy; teardown and
+rebuild (sections 8 and 4) tried for real on 2026-11-04, which
+created the current app `an-preview-g3ukxp`. Sections marked
+*(not yet tried)* still need a real run-through.
 
 Never put a password or connection string in this file. Secrets live
 in Fly (and in the developer's Passwords app), nowhere in the repo.
@@ -16,19 +18,19 @@ in Fly (and in the developer's Passwords app), nowhere in the repo.
 ## 1. What runs where
 
 ```
-Browser ──HTTPS──▶ Fly proxy ──▶ app Machine (an-preview-wm0upn, San Jose)
+Browser ──HTTPS──▶ Fly proxy ──▶ app Machine (an-preview-g3ukxp, San Jose)
                                    │  Phoenix release, 512 MB, sleeps when idle
                                    │
                                    └─private network─▶ database Machine
-                                                       (an-preview-wm0upn-db, San Jose)
+                                                       (an-preview-g3ukxp-db, San Jose)
                                                        Postgres 17 + 1 GB volume
 ```
 
 | Piece | Name | Notes |
 |---|---|---|
 | Fly organization | `personal` | account anna@anna-kazantseva.com (signs in via GitHub) |
-| Web app | `an-preview-wm0upn` | address https://an-preview-wm0upn.fly.dev |
-| Database app | `an-preview-wm0upn-db` | unmanaged Fly Postgres, image `flyio/postgres-flex:17` |
+| Web app | `an-preview-g3ukxp` | address https://an-preview-g3ukxp.fly.dev |
+| Database app | `an-preview-g3ukxp-db` | unmanaged Fly Postgres, image `flyio/postgres-flex:17` |
 | Region | `sjc` (San Jose) | Fly no longer offers Seattle; the database must be in the same region as the app |
 
 **Why these choices** (details in `NOTES.md`, "Order of work" step 2):
@@ -107,7 +109,7 @@ it again from `fly.toml` (which records the name once the app exists):
 
 ```
 APP=$(grep "^app = " fly.toml | cut -d"'" -f2)
-echo $APP        # should print the app's name, e.g. an-preview-wm0upn
+echo $APP        # should print the app's name, e.g. an-preview-g3ukxp
 ```
 
 (`grep` finds the line `app = '...'`; `cut -d"'" -f2` keeps the text
@@ -198,8 +200,8 @@ It sets:
 `git diff` afterwards: it should not have changed the Dockerfile or
 any config.
 
-**Rebuilding when `fly.toml` is already in the repo** *(not yet
-tried)*: delete it first, with `rm fly.toml`. It's in git, so nothing
+**Rebuilding when `fly.toml` is already in the repo** (tried
+2026-11-04): delete it first, with `rm fly.toml`. It's in git, so nothing
 is lost. Run `fly launch` exactly as above, and it writes a fresh
 `fly.toml` with the new name. Then run `git diff fly.toml`: the only
 differences should be the app name, `PHX_HOST` and the date on the
@@ -263,8 +265,10 @@ fly postgres attach $APP-db -a $APP
 ```
 
 This creates a database and a limited database user for the app, and
-sets the `DATABASE_URL` secret. It prints the connection string, but
-there's no need to save it: Fly keeps it in the secret, and the admin
+sets the `DATABASE_URL` secret. It prints the connection string,
+**including that user's password**: don't paste this output anywhere
+(if it happens, change the password, section 6). There's no need to
+save it: Fly keeps it in the secret, and the admin
 login can always reset it. `fly secrets list` should now show four
 secrets: `SECRET_KEY_BASE`, `SITE_USERNAME`, `SITE_PASSWORD`,
 `DATABASE_URL`.
@@ -336,6 +340,21 @@ Repo.insert!(%Admin{user_id: user.id})
 
 Leave with Ctrl+C twice, then `exit`.
 
+**If the account already exists** because you registered on the site
+first: registration saves the user but then crashes on the
+confirmation email (see `NOTES.md`, Known bugs), so the user stays
+unconfirmed and has no password. Instead of the `Repo.insert!` line
+above, finish that account (find its id with the check below):
+
+```elixir
+user = Repo.get!(User, <id>)
+```
+```elixir
+user = user |> User.password_changeset(%{password: "<password>"}) |> User.confirm_changeset() |> Repo.update!()
+```
+then `Repo.insert!(%Admin{user_id: user.id})` as above. (Done this
+way on 2026-11-04.)
+
 Check it from the Mac (read-only):
 
 ```
@@ -381,6 +400,27 @@ and open `/admin`.
 `-a <name>` picks the app; without it, `fly` uses the one in
 `fly.toml`. The `$APP-db` commands need `$APP` set in that terminal
 first (see the start of section 4).
+
+### Changing the app's database password (done 2026-11-04)
+
+For the limited user the app connects as (`an_preview_g3ukxp`), e.g.
+after its connection string was pasted somewhere. The `postgres`
+admin password is a different one and doesn't change. The app can't
+reach the database between steps 2 and 3, which is fine on the
+preview.
+
+1. New password, letters and digits only (safe inside the URL):
+   `LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24; echo`.
+   No need to save it: Fly keeps it in the secret.
+2. `fly postgres connect -a $APP-db`, then at the `postgres=#` prompt
+   `\password an_preview_g3ukxp` (paste twice; `\password` sends it
+   already scrambled, so it stays out of any history), then `\q`.
+3. `fly secrets import`, paste one line
+   `DATABASE_URL=postgres://an_preview_g3ukxp:<NEW>@an-preview-g3ukxp-db.flycast:5432/an_preview_g3ukxp?sslmode=disable`,
+   Enter, then Ctrl+D. Typed this way, the password stays out of the
+   shell history. Fly restarts the app.
+4. `fly logs --no-tail | tail -20` (no database errors) and reload
+   the site.
 
 ### Rolling back *(not yet tried)*
 
@@ -440,7 +480,7 @@ tunnel lasts only while this command runs; Ctrl+C closes it. Wait for
 ```
 mkdir -p ~/Backups/artsy-neighbor
 cd ~/Backups/artsy-neighbor
-pg_dump -h localhost -p 15432 -U postgres -d an_preview_wm0upn -Fc -f artsy-neighbor-$(date +%F).dump
+pg_dump -h localhost -p 15432 -U postgres -d an_preview_g3ukxp -Fc -f artsy-neighbor-$(date +%F).dump
 ```
 It asks `Password:`. Paste the admin password; nothing shows while
 typing, which is normal. Keeping the password out of the command
@@ -456,7 +496,7 @@ What each piece means:
 | `-h localhost` | **Host**: connect to this Mac. |
 | `-p 15432` | **Port 15432**: the tunnel's end, which `fly proxy` forwards to the real database at Fly. (5432 would be the dev database.) |
 | `-U postgres` | **User**: log in as `postgres`, the database admin. This is why it asks for the admin password. |
-| `-d an_preview_wm0upn` | **Database** name on the server: the app name with underscores (checked 2026-11-02 with `select current_database()`; `fly postgres attach` also named the app's database user the same). |
+| `-d an_preview_g3ukxp` | **Database** name on the server: the app name with underscores (checked 2026-11-02 with `select current_database()`; `fly postgres attach` also named the app's database user the same). |
 | `-Fc` | **Format: custom**. A compressed file that `pg_restore` can read, and it can restore just parts if needed. Without it you get a large plain-text SQL file. |
 | `-f artsy-neighbor-….dump` | **File** to write to. |
 | `$(date +%F)` | The shell runs `date +%F` first and puts its output in place: today's date, e.g. `2026-11-03`. Each day's backup gets its own name. |
@@ -469,7 +509,7 @@ pg_restore --list artsy-neighbor-<date>.dump | head -12    # header: which datab
 Ctrl+C in Terminal 1 closes the tunnel.
 
 The Mac's `pg_dump` must be the **same major version as the server
-or newer** (2026-11-03: Postgres.app 17.6, server 17.11; see
+or newer** (2026-11-04: Postgres.app 17.6, server 17.7; see
 section 9).
 
 ### 7.3 Checking a backup by restoring it
@@ -484,7 +524,7 @@ pg_restore --no-owner --no-privileges -d an_restore_test ~/Backups/artsy-neighbo
 ```
 
 `--no-owner --no-privileges` skip the "who owns / who may use this
-table" lines. The live database's user (`an_preview_wm0upn`) doesn't
+table" lines. The live database's user (`an_preview_g3ukxp`) doesn't
 exist on the Mac, and without these flags the restore prints a page
 of harmless but alarming errors.
 
@@ -513,7 +553,7 @@ image storage on Tigris (`NOTES.md`, "Order of work" step 2 c).
 
 ---
 
-## 8. Tearing it down *(not yet tried)*
+## 8. Tearing it down (done 2026-11-04)
 
 **Destroys all data. Take a backup first** if anything is worth
 keeping.

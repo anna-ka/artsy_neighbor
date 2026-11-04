@@ -57,14 +57,37 @@ which is mechanical and done once, up front.
    `runtime.exs`), and patch updates of Phoenix, LiveView, Bandit and
    Plug. Then the full update, also 2026-10-29: all libraries at their
    latest, LiveView 1.2, Elixir 1.20.4 and Erlang 29.1.2 (Homebrew on
-   the Mac; the same versions in the Dockerfile). Next:
-   `fly launch --no-deploy` and an unmanaged Fly Postgres (chosen
-   2026-10-28 for cost; back up with `pg_dump` via `fly proxy`).
+   the Mac; the same versions in the Dockerfile). Deployed 2026-11-02
+   with an unmanaged Fly Postgres 17 (chosen 2026-10-28 for cost);
+   runbook written 2026-11-03; first `pg_dump` backup taken and
+   restored 2026-11-03.
    Region: San Jose (`sjc`), chosen 2026-10-30. Fly no longer offers
    Seattle; Toronto (`yyz`) would keep data in Canada but is about
    twice as far (~60–80 ms per round trip vs ~25–40), and payments will
    go through the US anyway. The database must be in the same region
    as the app.
+   **Done 2026-11-04:** a practice teardown + rebuild from the runbook,
+   still on Postgres 17 (new app `an-preview-g3ukxp`, the old
+   `an-preview-wm0upn` destroyed). Also the Mac backup: no second
+   drive; the 2 TB Kingston drive reformatted as APFS with a `Backup`
+   volume (Carbon Copy Cloner, home folder) and a `TimeMachine`
+   volume, plus a checked `pg_dump` of the dev database.
+   **Next, in this order (agreed 2026-11-03, updated 2026-11-04)**, one
+   change at a time so a problem is easy to trace back:
+   1. Update `ecto` and `phoenix_html` for the two security advisories
+      (see Known bugs), `mix precommit`, deploy: the first "deploying a
+      change" run.
+   2. macOS upgrade from Sonoma 14.7.7, after a fresh CCC copy that
+      has been spot-checked.
+   3. Check the dev setup still works (Homebrew/Xcode command-line
+      tools, `mix phx.server`, `mix test`, Postgres.app).
+   4. Postgres.app 17 → 18 on the Mac (see Tech debt), restoring the
+      dev data.
+   5. Tear down the Fly preview again and rebuild it, this time with
+      the new database created directly on Postgres 18.
+   Until step 5, the Fly database stays on Postgres 17. Meanwhile, work
+   that doesn't touch the Mac's setup (e.g. planning image storage b–c,
+   the Neon question).
    Image storage was planned to come first (agreed 2026-10-28, see #17),
    in three commits:
    - **a. Cleanup** — done 2026-10-28: all of `uploads/` gitignored and
@@ -113,7 +136,32 @@ on how the test suite is organized is a good first step.
 
 ## Known bugs
 
-- None currently known.
+- **Registration crashes on the preview (prod)** (found 2026-11-04).
+  The user is saved, then sending the confirmation email crashes the
+  LiveView: prod still uses `Swoosh.Adapters.Local`, whose storage
+  process doesn't run in a release (`no process ...
+  Swoosh.Adapters.Local.Storage.Memory`). The form comes back blank,
+  so it looks as if nothing happened, and a second try says the email
+  is already taken. The account stays unconfirmed. Fixed properly by
+  real email (step 5); before any tester registers, at least make a
+  mail failure not crash the page. Workaround used: confirm the user
+  and set a password from the remote console (`docs/deploy.md`
+  section 5).
+- **Password login gives no visible clue when the username is typed
+  instead of the email** (found 2026-11-04 on the preview). Several
+  failed tries, no message seen. To check: whether the browser's own
+  `type="email"` check blocks the submit with a small, easy-to-miss
+  popup, or whether the "Invalid email or password" flash
+  (`UserSessionController`) doesn't show up. Fix: a clear message
+  right under the field, e.g. "Please enter your email address, not
+  your username." Matters for older users.
+- **Security advisories, 2026-11-04** (shown by `mix deps.get` during
+  `fly launch`): `ecto` 3.14.2 (EEF-CVE-2026-118391, HIGH: unbounded
+  query cache growth from interpolated JSON paths and splice lists)
+  and `phoenix_html` 4.3.0 (EEF-CVE-2026-117645, MEDIUM: attribute
+  injection via unvalidated attribute names in
+  `attributes_escape/1`). Fix: `mix deps.update ecto phoenix_html`,
+  `mix precommit`, deploy. Step 2, item 1 of "Order of work".
 
 ## Known limitations / deliberately deferred
 
@@ -551,16 +599,19 @@ working on the code should keep in mind.
 - **Postgres 17 → 18: the Mac first, then the server** (noted
   2026-11-02; the developer wants it done soon, in a session of its
   own). Today: Postgres.app 2.8.5 with only 17.6 on the Mac; Fly runs
-  `flyio/postgres-flex:17` (17.7). `pg_dump` backs up servers of its
-  own version or older, so a Mac on 18 can still back up the 17
-  server; the server can follow later.
+  `flyio/postgres-flex:17` (17.11 on 2026-11-03). `pg_dump` backs up
+  servers of its own version or older, so a Mac on 18 can still back
+  up the 17 server; the server can follow later. *2026-11-03:* the Mac
+  part now waits until after the macOS upgrade, and the server part
+  becomes the teardown + rebuild — see step 2 of "Order of work".
   - Mac (~30–45 min): back up the dev database with the current
     `pg_dump` (hand-made data, about 10 MB; keep a second copy), install
     the Postgres.app download with several versions (check it supports
-    macOS 14), add an 18 server, create `artsy_neighbor_dev` and
+    the new macOS), add an 18 server, create `artsy_neighbor_dev` and
     restore, run the tests, keep the 17 server stopped for a few weeks.
-  - Server: dump the Fly database, create a new one on
-    `flyio/postgres-flex:18`, restore, re-attach (see `docs/deploy.md`).
+  - Server: create the new database on `flyio/postgres-flex:18` during
+    the rebuild from `docs/deploy.md` (section 4.4 with the image tag
+    changed to 18), instead of a separate dump / restore / re-attach.
   - Meanwhile, security fixes come in minor releases (17.6 → 17.7):
     update Postgres.app regularly, and update the database Machine to
     the newest 17.x image with `fly image update -a <app>-db` (restarts
