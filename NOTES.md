@@ -76,7 +76,8 @@ which is mechanical and done once, up front.
    change at a time so a problem is easy to trace back:
    1. Update `ecto` and `phoenix_html` for the two security advisories
       (see Known bugs), `mix precommit`, deploy: the first "deploying a
-      change" run.
+      change" run. **Update + precommit done 2026-11-04** (781 tests
+      pass); the deploy is still to do.
    2. macOS upgrade from Sonoma 14.7.7, after a fresh CCC copy that
       has been spot-checked.
    3. Check the dev setup still works (Homebrew/Xcode command-line
@@ -162,6 +163,9 @@ on how the test suite is organized is a good first step.
   injection via unvalidated attribute names in
   `attributes_escape/1`). Fix: `mix deps.update ecto phoenix_html`,
   `mix precommit`, deploy. Step 2, item 1 of "Order of work".
+  **Fixed locally 2026-11-04** (`ecto` 3.14.3, `phoenix_html` 4.4.0;
+  `mix hex.audit` clean). Delete this entry once the preview is
+  redeployed with it.
 
 ## Known limitations / deliberately deferred
 
@@ -194,6 +198,19 @@ working on the code should keep in mind.
   while only we use the site; needed before testers.
 
 ## Deferred follow-ups (small, scoped)
+
+- **Two pieces of noise in the `mix test` output** (noticed
+  2026-11-04; both already there before the ecto/phoenix_html update,
+  all tests still pass):
+  - A red `GenServer terminating ... FunctionClauseError` from
+    `UserLive.Settings`. In tests, Swoosh's test adapter sends each
+    email as an `{:email, ...}` message to the sending process, here
+    the settings LiveView, which has no `handle_info/2` clause for it.
+    Test-only (prod uses a real mailer). Fix: a catch-all
+    `handle_info/2` clause that ignores unexpected messages.
+  - An "unused default value" warning for `insert_conversation/3` in
+    `test/artsy_neighbor_web/live/conversation_live/index_test.exs`:
+    drop the `\\ %{}`.
 
 - **"Show password" option on every password field** (added 2026-11-02,
   after the developer typed a long password on the live site unsure of
