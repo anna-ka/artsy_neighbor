@@ -74,10 +74,10 @@ which is mechanical and done once, up front.
    volume, plus a checked `pg_dump` of the dev database.
    **Next, in this order (agreed 2026-11-03, updated 2026-11-04)**, one
    change at a time so a problem is easy to trace back:
-   1. Update `ecto` and `phoenix_html` for the two security advisories
-      (see Known bugs), `mix precommit`, deploy: the first "deploying a
-      change" run. **Update + precommit done 2026-11-04** (781 tests
-      pass); the deploy is still to do.
+   1. ~~Update `ecto` and `phoenix_html` for the two security
+      advisories, `mix precommit`, deploy.~~ **Done 2026-11-04**
+      (`52f8ce1`: `ecto` 3.14.3, `phoenix_html` 4.4.0; deployed to the
+      preview, the first "deploying a change" run, all good).
    2. macOS upgrade from Sonoma 14.7.7, after a fresh CCC copy that
       has been spot-checked.
    3. Check the dev setup still works (Homebrew/Xcode command-line
@@ -86,6 +86,16 @@ which is mechanical and done once, up front.
       dev data.
    5. Tear down the Fly preview again and rebuild it, this time with
       the new database created directly on Postgres 18.
+   **Changed 2026-11-04 (developer's choice):** before items 2–5, do
+   (i) image storage b–c below (plan:
+   `docs/plans/2026-10-28-image-storage-and-resizing.md`; Tigris is
+   c), then (ii) a script that fills the Fly preview database with the
+   seed data. Points to settle for (ii): `seeds.exs` starts with
+   `Repo.delete_all(...)` on every table, so it would also wipe the
+   preview's admin account; a release has no `mix`, so it has to run
+   another way (e.g. `bin/artsy_neighbor eval` or a function in
+   `ArtsyNeighbor.Release`); and the seed images must go into Tigris,
+   which is why (i) comes first.
    Until step 5, the Fly database stays on Postgres 17. Meanwhile, work
    that doesn't touch the Mac's setup (e.g. planning image storage b–c,
    the Neon question).
@@ -156,16 +166,6 @@ on how the test suite is organized is a good first step.
   (`UserSessionController`) doesn't show up. Fix: a clear message
   right under the field, e.g. "Please enter your email address, not
   your username." Matters for older users.
-- **Security advisories, 2026-11-04** (shown by `mix deps.get` during
-  `fly launch`): `ecto` 3.14.2 (EEF-CVE-2026-118391, HIGH: unbounded
-  query cache growth from interpolated JSON paths and splice lists)
-  and `phoenix_html` 4.3.0 (EEF-CVE-2026-117645, MEDIUM: attribute
-  injection via unvalidated attribute names in
-  `attributes_escape/1`). Fix: `mix deps.update ecto phoenix_html`,
-  `mix precommit`, deploy. Step 2, item 1 of "Order of work".
-  **Fixed locally 2026-11-04** (`ecto` 3.14.3, `phoenix_html` 4.4.0;
-  `mix hex.audit` clean). Delete this entry once the preview is
-  redeployed with it.
 
 ## Known limitations / deliberately deferred
 
