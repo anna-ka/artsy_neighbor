@@ -124,9 +124,11 @@ which is mechanical and done once, up front.
    - **b. `Storage` module + automatic resizing (#24)**, dev still on
      local disk. The database stores a key (e.g.
      `products/<product id>/<random id>/large.webp`), not a URL; the
-     `Storage` module turns a key into a URL. Always keep the original
-     upload so sizes can be regenerated later (and image embeddings
-     recomputed). Includes converting existing paths in the database,
+     `Storage` module turns a key into a URL. Always keep a
+     full-resolution copy so sizes can be regenerated later (and image
+     embeddings recomputed) — but with all metadata stripped, never the
+     raw upload, since phone photos carry GPS location (decided
+     2026-11-06; see the plan). Includes converting existing paths in the database,
      sorting out the images still in `priv/static/images/` that dev
      data and `seeds.exs` use, and the missing `wall_art.jpg`.
    - **c. Tigris** (created from Fly with `fly storage create`, no

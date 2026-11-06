@@ -69,7 +69,11 @@ defmodule ArtsyNeighbor.MixProject do
       {:bandit, "~> 1.5"},
       {:tidewave, "~> 0.5", only: [:dev]},
       {:argon2_elixir, "~> 4.0"},
-      {:tzdata, "~> 1.1"}
+      {:tzdata, "~> 1.1"},
+      # Image checking, resizing and conversion (wraps libvips through vix).
+      # vix must be compiled against Homebrew's libvips so HEIC works:
+      # needs VIX_COMPILATION_MODE=PLATFORM_PROVIDED_LIBVIPS (see NOTES.md).
+      {:image, "~> 0.73.0"}
     ]
   end
 
