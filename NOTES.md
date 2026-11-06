@@ -78,10 +78,26 @@ which is mechanical and done once, up front.
       advisories, `mix precommit`, deploy.~~ **Done 2026-11-04**
       (`52f8ce1`: `ecto` 3.14.3, `phoenix_html` 4.4.0; deployed to the
       preview, the first "deploying a change" run, all good).
-   2. macOS upgrade from Sonoma 14.7.7, after a fresh CCC copy that
-      has been spot-checked.
+   2. ~~macOS upgrade from Sonoma 14.7.7, after a fresh CCC copy that
+      has been spot-checked.~~ **Done 2026-11-05** (to macOS 27.2,
+      ahead of image storage after all — developer's choice).
    3. Check the dev setup still works (Homebrew/Xcode command-line
       tools, `mix phx.server`, `mix test`, Postgres.app).
+      **2026-11-06:** `mix test` (781 pass), `mix phx.server`,
+      Postgres.app 17 and the dev data all fine. One breakage, fixed:
+      the downloaded Tailwind binary has an invalid code signature,
+      which macOS 27 refuses (killed on start, exit 137; see Known
+      limitations). Also done the same day: Xcode command-line tools
+      updated (clang 21), `pkgconf` reinstalled, `node` 24.5 → 26.13,
+      old `icu4c@77` removed, and the two compromised root
+      certificates removed from `/etc/ssl/cert.pem` with Homebrew's
+      script (tested first: GitHub, Fly and Hex still connect).
+      `brew doctor` is clean. Homebrew installs ready-made packages
+      again: `brew install vips` (8.18.7, with libheif 1.23.7 +
+      libde265) worked in minutes, and it reads HEIC (tested with a
+      file made by `sips`). So the Mac can use system libvips with
+      HEIC like the server — the image plan's "Mac (dev): no HEIC"
+      section needs updating at the start of step b.
    4. Postgres.app 17 → 18 on the Mac (see Tech debt), restoring the
       dev data.
    5. Tear down the Fly preview again and rebuild it, this time with
@@ -172,6 +188,15 @@ on how the test suite is organized is a good first step.
 Things that are knowingly incomplete by design (not bugs), and that anyone
 working on the code should keep in mind.
 
+- **Tailwind binary needs re-signing on macOS 27** (found 2026-11-06).
+  The binary that `mix tailwind.install` downloads into `_build/` has
+  an invalid ad-hoc code signature; macOS 27 kills it on start (exit
+  137), so the stylesheet silently stops rebuilding while pages still
+  load with the old `app.css`. Fix after every fresh download (e.g. a
+  Tailwind version bump, or a deleted `_build/`):
+  `codesign --force -s - _build/tailwind-macos-arm64*`. Check with
+  `codesign -v _build/tailwind-macos-arm64`. Not an issue on Fly
+  (Linux).
 - **Upload storage is dev-only.** Files land in `priv/static/uploads/`, which is
   wiped on deploy. Needs S3/ex_aws, Tigris, or Cloudinary before shipping —
   Waffle is a good fit for the upload-handling layer.
