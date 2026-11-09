@@ -26,6 +26,7 @@ docs/
 
 # Dev uploads stay on this Mac; production stores its own images
 /priv/static/uploads/
+/priv/private_uploads/
 
 # Ignore git, but keep git HEAD and refs to access current commit hash if needed:
 #

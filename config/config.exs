@@ -24,6 +24,10 @@ config :artsy_neighbor,
   ecto_repos: [ArtsyNeighbor.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Where uploaded images are stored (see ArtsyNeighbor.Storage).
+# Step c of the image-storage plan switches prod to Tigris.
+config :artsy_neighbor, ArtsyNeighbor.Storage, backend: ArtsyNeighbor.Storage.Local
+
 # Configure the endpoint
 config :artsy_neighbor, ArtsyNeighborWeb.Endpoint,
   url: [host: "localhost"],

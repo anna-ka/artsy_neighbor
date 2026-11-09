@@ -125,9 +125,9 @@ which is mechanical and done once, up front.
      local disk. The database stores a key (e.g.
      `products/<product id>/<random id>/large.webp`), not a URL; the
      `Storage` module turns a key into a URL. Always keep a
-     full-resolution copy so sizes can be regenerated later (and image
-     embeddings recomputed) — but with all metadata stripped, never the
-     raw upload, since phone photos carry GPS location (decided
+     large private copy (`source.webp`, ≤4096px) so sizes can be
+     regenerated later (and image embeddings recomputed) — but with all
+     metadata stripped, never the raw upload, since phone photos carry GPS location (decided
      2026-11-06; see the plan). Includes converting existing paths in the database,
      sorting out the images still in `priv/static/images/` that dev
      data and `seeds.exs` use, and the missing `wall_art.jpg`.
@@ -137,6 +137,16 @@ which is mechanical and done once, up front.
      backups, both in the runbook. Before signing up for Fly: decide
      whether to use a project email address rather than a personal one
      for service accounts (Fly, domain, later Stripe).
+     - **Reconsider image-processing memory before inviting testers**
+       (added 2026-11-09). Processing a photo needs a lot of memory
+       (measured on the Mac 2026-11-09: ~370 MB peak for a 12 MP photo,
+       ~520 MB for the worst case still allowed, a 52 MP 16-bit TIFF),
+       and the Fly machine has 512 MB. Step b adds an adjustable limit
+       of N photos processed at a time per machine (config, starting at
+       N = 2). Measure on the real server, then decide together: the
+       machine's memory (1 GB is ~$3/month more than 512 MB) and N.
+       One-at-a-time was rejected: it becomes a hidden queue when many
+       artists upload at once.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -613,6 +623,35 @@ working on the code should keep in mind.
       or sales). A small stopgap if needed sooner: at most 2 works per
       artist. Swapping it in means changing that one function (and the
       section's name and "See all" link, if it stops being "new").
+
+  32. **Let artists rotate their photos** (added 2026-11-06), as part
+      of adding photos in the product and artist-profile forms. Uploads
+      are already turned upright automatically using the photo's own
+      orientation note (EXIF), so they look the way they did on the
+      artist's phone. But a photo that was *taken* sideways (phone
+      tilted while shooting a painting) looks sideways on the phone
+      too, and only the artist can tell. A simple "rotate left / right"
+      button next to each photo, re-making the stored sizes from the
+      private `source.webp` (see the step b plan,
+      `docs/plans/2026-10-28-image-storage-and-resizing.md`).
+
+  33. **Help artists whose photo is "too large"** (added 2026-11-09).
+      Uploads over ~52 MP are refused (memory on the server; see step
+      2c). Normal phone photos (12–24 MP, or 48–50 MP modes) pass, but
+      a Samsung 200 MP mode photo, a big scan or a stitched panorama
+      won't, and many of our artists are older and won't know how to
+      make a photo smaller. Options, possibly together:
+      - next to the "too large" message, a short plain-words guide
+        (link or expandable) per device: iPhone (share by Mail and
+        pick "Medium"/"Large", or set the camera back to 24/12 MP),
+        Samsung (switch the camera out of 50/200 MP mode), Mac
+        (Preview → Tools → Adjust Size), Windows (Photos → Resize);
+      - a general "Photo tips" help page (also good for lighting,
+        backgrounds, cropping);
+      - accept big JPEGs anyway by reading them at ½ / ¼ / ⅛ size
+        (libvips "shrink-on-load", cheap in memory), so only big
+        HEIC/PNG/TIFF files would still be refused. More code; only
+        if artists actually hit the limit.
 
 
 

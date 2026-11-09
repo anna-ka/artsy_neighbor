@@ -47,6 +47,9 @@ npm-debug.log
 /priv/static/uploads/products/*
 !/priv/static/uploads/products/.gitkeep
 
+# Private uploaded files (e.g. full-resolution full.webp), never served.
+/priv/private_uploads/
+
 # Static images checked in during development (not for production).
 # Exceptions, in git: images/site/ holds images that are part of the
 # site's look (logo, water photos); images/seed/ holds the photos the

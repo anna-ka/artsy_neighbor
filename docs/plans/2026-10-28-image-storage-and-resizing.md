@@ -59,7 +59,7 @@ migration). It holds either:
 - an old-style web path starting with `/` (seed images, today's dev
   uploads, site images) — shown as-is, so **no data conversion needed**;
 - or a new storage key like `products/<product_id>/<uuid>` — a folder
-  holding `full.webp` (the upload at full resolution, see below),
+  holding `source.webp` (the kept copy, ≤4096px, see below),
   `large.webp` (≤2500px long side), `medium.webp` (≤1600px), `thumb.webp`
   (≤600px).
 
@@ -67,11 +67,12 @@ migration). It holds either:
 location (the spike's iPhone photo had 15 GPS fields), and stored files
 are reachable by URL (`priv/static/uploads/` in dev, possibly a public
 bucket in step c), so a raw original could publish an artist's home
-location. Instead of `original.<ext>`, we keep `full.webp`: the upload
-upright, at full resolution, WebP quality 95, with all metadata removed.
-It serves the same purposes (regenerating sizes, image embeddings later)
-at the cost of one invisible re-encode. WebP's size limit is 16383px per
-side; anything bigger is scaled down to that.
+location. Instead of `original.<ext>`, we keep `source.webp`: the upload
+upright, WebP quality 95, with all metadata removed, and at most 4096px
+on the long side (see "Memory" below; first planned as a full-resolution
+`full.webp`, changed 2026-11-09). It serves the same purposes
+(regenerating sizes up to 2500px, image embeddings later) at the cost
+of one invisible re-encode.
 
 **Public vs private storage** (decided 2026-11-06). In a *public* bucket
 anyone can read a file at its plain address (writing and deleting always
@@ -80,12 +81,12 @@ with the keys, so browsers can only fetch files through expiring signed
 links that our server generates. Signed links for every image on every
 page would mean broken images on stale pages, poor caching, and no
 stable images for link previews when artist pages are shared. But
-`full.webp` is a print-quality copy of an artist's work and never needs
+`source.webp` is a high-quality copy of an artist's work and never needs
 to be shown. So the split is by purpose:
 - **public:** `large.webp`, `medium.webp`, `thumb.webp` (stripped,
   meant to be seen; keys contain a random part, so nothing can be
   guessed);
-- **private:** `full.webp`, read only by our server (regenerating
+- **private:** `source.webp`, read only by our server (regenerating
   sizes, embeddings later). Never served, so no signed links needed.
 
 `Storage` therefore takes a visibility (`:public` / `:private`) on
@@ -103,20 +104,44 @@ product is hard-deleted.
     refuses if the long side < 800px with the plain-words message from
     NOTES #24, auto-rotates using the photo's orientation tag, strips
     all metadata (GPS location from phones) *before* writing anything,
-    writes `full.webp` + 3 sizes, returns `{:ok, key}` or
+    writes `source.webp` + 3 sizes, returns `{:ok, key}` or
     `{:error, message}`. The temporary upload file is never copied into
     storage.
   - `Images.url(path_or_key, size)` → old `/...` path unchanged; a key →
     `Storage.url("<key>/<size>.webp")`.
 - `Storage` — behaviour with `put(local_file, key, visibility)`,
   `url(key)` (public files only), `read(key, visibility)` (for the
-  server's own use of `full.webp`), `delete_prefix(key)`; backend
+  server's own use of `source.webp`), `delete_prefix(key)` (deletes
+  everything *inside the folder* `key`, i.e. keys starting with
+  `key <> "/"`, and only one image's folder, ending in a UUID); backend
   chosen in config. See "Public vs private storage" above.
   - `Storage.Local` — public files under `priv/static/uploads/<key>`,
     URL `/uploads/<key>`; private files under
     `priv/private_uploads/<key>`, never served (dev). Test env points
     both at a tmp folder.
   - (`Storage.S3` comes in step c.)
+
+**Memory** (measured 2026-11-06, decided 2026-11-09). Processing a
+photo needs much more memory than its file size; the Fly machine has
+512 MB. Peak memory of a fresh process on the Mac (about 110 MB of it
+is the process itself; Linux and a release will differ, so these are
+relative sizes):
+
+| Upload | First version (full-res `full.webp`, ≤100 MP) | Now (`source.webp` ≤4096px, ≤52 MP) |
+|---|---|---|
+| 12 MP JPEG | ~375 MB, 1 s | ~370 MB, 1 s |
+| 48 MP JPEG | ~790 MB, 2.7 s | ~420–460 MB, 1.2 s |
+| 52 MP 16-bit TIFF (worst case allowed) | — | ~520 MB, 2 s |
+| 100 MP JPEG | ~1.4 GB, 13 s | refused in 70 ms |
+
+Encoding the full-resolution WebP was the main cost; libvips' thread
+count and cache made no difference. Decided: keep `source.webp` at
+≤4096px, refuse uploads over 52 MP (phones: 12–24 MP by default, 48–50
+MP in optional modes; a Pixel's 50 MP is 50.1 MP), and in step 2 limit
+how many photos one machine processes at a time (N, in config,
+starting at 2 — not 1, which would become a hidden queue). The
+machine's memory and N get decided on the real server before testers
+(NOTES, step 2c). Helping artists with too-large photos: NOTES #33.
 
 **Forms** (vendor product, vendor profile, admin product, admin artist):
 replace the copy-a-file blocks (`File.cp!` sites, e.g.
@@ -175,7 +200,10 @@ world; note in NOTES), the dead `first.html.heex` template, `wall_art.jpg`
      or libvips installed.) Test images are never made from the
      developer's own photos: they carry GPS.
 1. `Storage` + `Storage.Local` + `Images` with tests.
-2. Switch the four upload forms.
+2. Switch the four upload forms. Add the limit on how many photos one
+   machine processes at the same time: N in config (starting at 2),
+   with a plain "We're busy processing photos — please try again in a
+   moment" message if an upload waits too long (see "Memory" above).
 3. Switch the display sites.
 4. NOTES: mark #24 and step b done, add the libvips setup to the step c
    notes; update CLAUDE.md "Key file paths"/conventions (images go through
@@ -185,7 +213,7 @@ world; note in NOTES), the dead `first.html.heex` template, `wall_art.jpg`
 
 - Unit tests for `Images`: JPEG, PNG, HEIC, TIFF and AVIF fixtures (small
   ones made with `sips`/libvips), too-small image refused, a non-image renamed to
-  `.jpg` refused, EXIF-rotated photo comes out upright, `full.webp` + 3
+  `.jpg` refused, EXIF-rotated photo comes out upright, `source.webp` + 3
   sizes written. **GPS test:** a fixture with fake GPS coordinates (made
   from a site image, e.g. position 0,0 — never a real location) goes
   through `process_upload`, and every stored file is checked to have no

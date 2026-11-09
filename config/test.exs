@@ -23,6 +23,11 @@ config :artsy_neighbor, ArtsyNeighborWeb.Endpoint,
   secret_key_base: "+d6MZ8BSHBBRWBMSwQvOH+pfXkrYMwMAhD7NQatAla8zE6mchz4oHdSxeFWlPO1K",
   server: false
 
+# Uploaded images go to a temporary folder in tests, not priv/.
+config :artsy_neighbor, ArtsyNeighbor.Storage.Local,
+  public_dir: Path.join(System.tmp_dir!(), "artsy_neighbor_test/uploads"),
+  private_dir: Path.join(System.tmp_dir!(), "artsy_neighbor_test/private_uploads")
+
 # In test we don't send emails
 config :artsy_neighbor, ArtsyNeighbor.Mailer, adapter: Swoosh.Adapters.Test
 
