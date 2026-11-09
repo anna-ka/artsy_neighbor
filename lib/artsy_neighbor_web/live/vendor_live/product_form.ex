@@ -1,35 +1,34 @@
 defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   use ArtsyNeighborWeb, :live_view
 
-  require Logger
-
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Categories
+  alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
   @impl true
   def mount(params, _session, socket) do
-    # allow_upload MUST be called in mount, before the page is rendered.
-    # It registers the upload slot on the socket so LiveView knows to
-    # accept file chunks over the websocket connection.
-    # We name the slot :images — this name is used everywhere else:
-    #   consume_uploaded_entries(socket, :images, ...)
-    #   @uploads.images  in the template
+    # The upload slot must be set up in mount, before the page is
+    # rendered. We name it :images; the template uses @uploads.images.
+    # PhotoUploads.allow_photos/2 also sets the accepted formats and
+    # size limits shared by all photo forms.
     socket =
       socket
-      |> allow_upload(:images,
-        accept: ~w(.jpg .jpeg .png .webp),
-        max_entries: 5,
-        # 5 MB per file
-        max_file_size: 5_000_000
-      )
+      |> PhotoUploads.allow_photos(:images)
       |> apply_action(socket.assigns.live_action, params)
 
     {:ok, socket}
   end
+
+  # Needed because, after the first save of a new product whose photo
+  # was refused, the page switches its address to the product's edit
+  # page with push_patch/2 (see handle_async/3), which calls this. Nothing
+  # to do: the socket already holds the saved product.
+  @impl true
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   defp apply_action(socket, :new, _params) do
     artist = socket.assigns.current_scope.artist
@@ -101,6 +100,12 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   # pressed arrives as "save_action": "draft", "preview", "publish", or
   # "save" (the single button of a product that isn't a draft).
   @impl true
+  # Ignore a second press while photos are still being saved (the
+  # buttons are disabled then, but a fast double click can still arrive).
+  def handle_event("save", _params, %{assigns: %{saving_photos: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("save", %{"product" => product_params} = params, socket) do
     save_action = Map.get(params, "save_action", "save")
     save_product(socket, socket.assigns.live_action, product_params, save_action)
@@ -194,7 +199,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   # The user can cancel a file before submitting the form.
   @impl true
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
-    {:noreply, cancel_upload(socket, :images, ref)}
+    {:noreply, PhotoUploads.cancel_photo(socket, :images, ref)}
   end
 
   @impl true
@@ -243,10 +248,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
     case Products.create_product(product_params) do
       {:ok, product} ->
-        # Photos are added AFTER the product is saved, because their rows
-        # need product.id.
-        socket = save_uploaded_images(socket, product, 1)
-        after_save(socket, product, save_action)
+        save_photos(socket, product, save_action)
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
@@ -256,93 +258,90 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   defp save_product(socket, :edit, product_params, save_action) do
     case Products.update_product(socket.assigns.product, product_params) do
       {:ok, product} ->
-        # New images are appended after the existing ones.
-        existing_count = length(socket.assigns.existing_images)
-        socket = save_uploaded_images(socket, product, existing_count + 1)
-        after_save(socket, product, save_action)
+        save_photos(socket, product, save_action)
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
     end
   end
 
-  # Stores the files the artist picked and creates one ProductImage row
-  # per file, with positions starting at `first_position`. Returns the
-  # socket, with an error message if a photo couldn't be saved.
-  #
-  # (Still a plain copy into priv/static/uploads; image storage step 2b
-  # switches this to Images.process_upload/3.)
-  defp save_uploaded_images(socket, product, first_position) do
-    # For each uploaded file, the callback receives:
-    #   %{path: tmp_path} — the temp file path where LiveView buffered the upload
-    #   entry             — metadata struct (client_name, size, content_type, etc.)
-    # The callback must return {:ok, result}. The list of all results
-    # becomes the return value of consume_uploaded_entries.
-    image_paths =
-      consume_uploaded_entries(socket, :images, fn %{path: tmp_path}, entry ->
-        ext = Path.extname(entry.client_name)
-        # System.unique_integer gives a collision-free number for the filename
-        filename = "#{System.unique_integer([:positive])}#{ext}"
+  # The text is saved; now the photos. They are processed in the
+  # background (see ArtsyNeighborWeb.PhotoUploads), and handle_async/3
+  # below carries on when that's done. Photos come after the product
+  # because they are stored in the product's folder, products/<id>/.
+  defp save_photos(socket, product, save_action) do
+    socket = assign(socket, product: product, save_action: save_action)
+    folder = "products/#{product.id}"
+    # New photos go after the ones already there.
+    first_position = length(socket.assigns.existing_images) + 1
 
-        dest =
-          Path.join([
-            # :code.priv_dir/1 returns the absolute path to priv/ at runtime
-            :code.priv_dir(:artsy_neighbor),
-            "static",
-            "uploads",
-            "products",
-            filename
-          ])
+    create_row = fn key, position ->
+      Products.create_product_image(%{path: key, position: position, product_id: product.id})
+    end
 
-        File.cp!(tmp_path, dest)
-        # The web-accessible URL path (relative to priv/static/)
-        {:ok, "/uploads/products/#{filename}"}
-      end)
+    case PhotoUploads.start_processing(socket, :images, folder, first_position, create_row) do
+      {:no_photos, socket} ->
+        after_save(socket, product, save_action, nil)
 
-    # Enum.with_index(first_position) pairs each path with a position.
-    results =
-      for {path, position} <- Enum.with_index(image_paths, first_position) do
-        save_image_row(product, path, position)
-      end
+      {:started, socket} ->
+        {:noreply, socket}
 
-    if :error in results do
-      put_flash(
-        socket,
-        :error,
-        "One of your photos couldn't be saved. Please try adding it again."
-      )
-    else
-      socket
+      {:not_ready, socket} ->
+        stay_with_photo_problem(socket, Products.get_product_with_associations!(product.id))
     end
   end
 
-  # Creates one photo's row. Returns :ok, or :error after removing the
-  # copied file, which no row points to.
-  defp save_image_row(product, path, position) do
-    case Products.create_product_image(%{path: path, position: position, product_id: product.id}) do
-      {:ok, _image} ->
-        :ok
+  # The background photo processing is done.
+  @impl true
+  def handle_async(:process_photos, result, socket) do
+    {socket, outcome} = PhotoUploads.finish_processing(socket, :images, result)
+    product = Products.get_product_with_associations!(socket.assigns.product.id)
 
-      {:error, changeset} ->
-        Logger.error(
-          "Saving a photo of product #{product.id} failed: #{inspect(changeset.errors)}"
-        )
+    if outcome.failed > 0 do
+      stay_with_photo_problem(socket, product)
+    else
+      after_save(socket, product, socket.assigns.save_action, outcome)
+    end
+  end
 
-        File.rm(Path.join([:code.priv_dir(:artsy_neighbor), "static", path]))
-        :error
+  # A photo was refused. Stay on this page, so the refused photos stay
+  # visible in the upload box with their messages. The text and the
+  # good photos are saved; the button's own action (publish, preview,
+  # ...) is not carried out, so nothing happens that the artist doesn't
+  # see. `product` must have its photos loaded.
+  defp stay_with_photo_problem(socket, product) do
+    socket =
+      socket
+      |> assign(:page_title, "Edit Product")
+      |> assign(:product, product)
+      |> assign(:existing_images, product.product_images)
+      |> assign(:form, to_form(Products.change_product(product)))
+      |> put_flash(:error, PhotoUploads.problem_flash(socket, "Your work is saved."))
+
+    # A new product now exists: switch to its edit page's address, so
+    # saving again (or reloading) doesn't create a second product.
+    if socket.assigns.live_action == :new do
+      {:noreply, push_patch(socket, to: edit_path(product))}
+    else
+      {:noreply, socket}
     end
   end
 
   # What happens after the product (and its photos) are saved depends on
-  # the button pressed.
-  defp after_save(socket, product, "draft") do
+  # the button pressed. `photo_outcome` is nil if no photos were added,
+  # otherwise PhotoUploads' %{stored: ..., failed: 0}. When photos were
+  # added and there are now several, the artist is reminded to check
+  # their order — on the edit page, where the arrow buttons are.
+  defp after_save(socket, product, "draft", photo_outcome) do
+    message = join_messages("Saved as a draft. Buyers can't see it yet.", photo_outcome, product)
+
     {:noreply,
      socket
-     |> put_flash(:info, "Saved as a draft. Buyers can't see it yet.")
+     |> put_flash(:info, message)
      |> push_navigate(to: edit_path(product))}
   end
 
-  defp after_save(socket, product, "preview") do
+  defp after_save(socket, product, "preview", _photo_outcome) do
     preview_params = [
       preview: "1",
       return_to: edit_path(product),
@@ -352,13 +351,10 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     {:noreply, push_navigate(socket, to: ~p"/products/#{product.id}?#{preview_params}")}
   end
 
-  defp after_save(socket, product, "publish") do
+  defp after_save(socket, product, "publish", photo_outcome) do
     case Products.publish_product(product) do
       {:ok, _published} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, published_message(product))
-         |> push_navigate(to: ~p"/vendor")}
+        finish_on_dashboard_or_edit(socket, product, published_message(product), photo_outcome)
 
       {:error, :no_photos} ->
         {:noreply,
@@ -379,11 +375,39 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   # "save": the single button of a product that isn't a draft. Its
   # status stays as it was.
-  defp after_save(socket, _product, _save_action) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "Product saved.")
-     |> push_navigate(to: ~p"/vendor")}
+  defp after_save(socket, product, _save_action, photo_outcome) do
+    finish_on_dashboard_or_edit(socket, product, "Product saved.", photo_outcome)
+  end
+
+  # Back to the dashboard, unless the artist should check the order of
+  # newly added photos: then to the edit page, with the reminder.
+  defp finish_on_dashboard_or_edit(socket, product, message, photo_outcome) do
+    case order_reminder(photo_outcome, product) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:info, message)
+         |> push_navigate(to: ~p"/vendor")}
+
+      reminder ->
+        {:noreply,
+         socket
+         |> put_flash(:info, message <> " " <> reminder)
+         |> push_navigate(to: edit_path(product))}
+    end
+  end
+
+  defp join_messages(message, photo_outcome, product) do
+    case order_reminder(photo_outcome, product) do
+      nil -> message
+      reminder -> message <> " " <> reminder
+    end
+  end
+
+  defp order_reminder(nil, _product), do: nil
+
+  defp order_reminder(photo_outcome, product) do
+    PhotoUploads.order_reminder(photo_outcome, length(product.product_images))
   end
 
   defp edit_path(product), do: ~p"/vendor/products/#{product.id}/edit"
@@ -400,11 +424,6 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     end
   end
 
-  # Translates LiveView upload error atoms into readable messages
-  defp error_to_string(:too_large), do: "File too large (max 3 MB)"
-  defp error_to_string(:too_many_files), do: "Too many files (max 5)"
-  defp error_to_string(:not_accepted), do: "File type not accepted (jpg, png, webp only)"
-
   # A new product (not saved yet) counts as a draft too.
   defp draft?(product), do: product.id == nil or product.status == :draft
 
@@ -416,15 +435,28 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   # Temporary, until the vendor dashboard lets artists change each
   # work's status (NOTES #16).
   attr :product, :any, required: true
+  attr :saving_photos, :boolean, required: true
 
   defp save_buttons(assigns) do
     ~H"""
     <div :if={draft?(@product)} class="space-y-3">
       <div class="flex flex-wrap gap-3">
-        <.button_artsy variant="outline" name="save_action" value="draft" disable_with="Saving...">
+        <.button_artsy
+          variant="outline"
+          name="save_action"
+          value="draft"
+          disable_with="Saving..."
+          disabled={@saving_photos}
+        >
           Save draft
         </.button_artsy>
-        <.button_artsy variant="outline" name="save_action" value="preview" disable_with="Saving...">
+        <.button_artsy
+          variant="outline"
+          name="save_action"
+          value="preview"
+          disable_with="Saving..."
+          disabled={@saving_photos}
+        >
           Preview
         </.button_artsy>
         <.button_artsy
@@ -432,6 +464,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
           name="save_action"
           value="publish"
           disable_with="Publishing..."
+          disabled={@saving_photos}
         >
           Publish
         </.button_artsy>
@@ -463,6 +496,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
       name="save_action"
       value="save"
       disable_with="Saving..."
+      disabled={@saving_photos}
     >
       Save
     </.button_artsy>
@@ -507,6 +541,35 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             placeholder="Product title"
             phx-debounce="blur"
           />
+
+          <%!-- ============================================================
+               IMAGE UPLOAD SECTION
+               ============================================================ --%>
+          <div class="space-y-4 py-4">
+            <div class="label">
+              <span class="label-text font-semibold">
+                Images
+                <span class="font-normal text-base-content/60">
+                  (at least one is needed to publish)
+                </span>
+              </span>
+            </div>
+            <p class="text-sm text-base-content/60 -mt-2">
+              <PhotoUploads.accepted_help />
+            </p>
+
+            <%!-- Photos already stored, with ↑ ↓ and Remove buttons --%>
+            <PhotoUploads.stored_photos images={@existing_images} saving_photos={@saving_photos} />
+
+            <%!-- The file picker and the list of picked photos, shared by
+                 all photo forms (ArtsyNeighborWeb.PhotoUploads). --%>
+            <PhotoUploads.photo_picker
+              upload={@uploads.images}
+              photo_errors={@photo_errors}
+              saving_photos={@saving_photos}
+            />
+          </div>
+          <%!-- ============================================================ --%>
 
           <%!-- Description --%>
           <.input
@@ -603,131 +666,8 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
             phx-debounce="blur"
           />
 
-          <%!-- ============================================================
-               IMAGE UPLOAD SECTION
-               ============================================================ --%>
-          <div class="space-y-4 py-4">
-            <div class="label">
-              <span class="label-text font-semibold">
-                Images
-                <span class="font-normal text-base-content/60">
-                  (at least one is needed to publish)
-                </span>
-              </span>
-              <span class="label-text-alt text-base-content/60">
-                Up to 5 files · jpg, png, webp · max 5 MB each
-              </span>
-            </div>
-
-            <%!-- Existing images shown on the edit form, with up/down reorder buttons --%>
-            <div :if={@existing_images != []}>
-              <p class="text-sm text-base-content/60 mb-2">Already uploaded:</p>
-              <div class="flex flex-col gap-3">
-                <div
-                  :for={{img, index} <- Enum.with_index(@existing_images)}
-                  class="flex items-center gap-3"
-                >
-                  <img
-                    src={img.path}
-                    class="w-24 h-24 object-cover rounded-lg border border-base-300"
-                  />
-                  <div
-                    class="flex flex-col gap-1 tooltip tooltip-right"
-                    data-tip="Use arrows to change the ordering of images"
-                  >
-                    <%!-- ↑ hidden on the first image --%>
-                    <button
-                      :if={index > 0}
-                      type="button"
-                      phx-click="move_image_up"
-                      phx-value-imageid={img.id}
-                      class="btn btn-ghost btn-xs"
-                    >
-                      ↑
-                    </button>
-                    <%!-- ↓ hidden on the last image --%>
-                    <button
-                      :if={index < length(@existing_images) - 1}
-                      type="button"
-                      phx-click="move_image_down"
-                      phx-value-imageid={img.id}
-                      class="btn btn-ghost btn-xs"
-                    >
-                      ↓
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    phx-click="delete_image"
-                    phx-value-imageid={img.id}
-                    data-confirm="Remove this photo? This can't be undone."
-                    class="btn btn-ghost btn-sm text-error"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <%!-- live_file_input is the LiveView-aware file picker.
-                 Unlike a regular <input type="file">, it uploads the file
-                 over the websocket in chunks as soon as it is selected —
-                 before the form is even submitted. Without this component,
-                 file uploads do not work in LiveView. --%>
-            <.live_file_input
-              upload={@uploads.images}
-              class="file-input file-input-bordered w-full"
-            />
-
-            <%!-- Preview list: one row per selected file.
-                 @uploads.images.entries is populated the moment the user
-                 picks files, before they submit the form. --%>
-            <div class="space-y-3">
-              <div :for={entry <- @uploads.images.entries} class="flex items-center gap-3">
-                <%!-- live_img_preview renders a thumbnail from the local file
-                     immediately — no server round-trip needed. --%>
-                <.live_img_preview
-                  entry={entry}
-                  class="w-16 h-16 object-cover rounded-lg border border-base-300"
-                />
-
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm truncate">{entry.client_name}</p>
-                  <%!-- entry.progress goes 0→100 as the file uploads to the
-                       server temp location over the websocket --%>
-                  <progress
-                    value={entry.progress}
-                    max="100"
-                    class="progress progress-primary w-full"
-                  />
-                </div>
-
-                <%!-- Sends "cancel_upload" event with the entry's unique ref,
-                     which removes it from the queue without submitting the form --%>
-                <button
-                  type="button"
-                  phx-click="cancel_upload"
-                  phx-value-ref={entry.ref}
-                  class="btn btn-ghost btn-xs text-error"
-                >
-                  ✕
-                </button>
-
-                <%!-- Per-file errors, e.g. this specific file is too large --%>
-                <p :for={err <- upload_errors(@uploads.images, entry)} class="text-error text-xs">
-                  {error_to_string(err)}
-                </p>
-              </div>
-            </div>
-
-            <%!-- Upload-level errors, e.g. too many files selected at once --%>
-            <p :for={err <- upload_errors(@uploads.images)} class="text-error text-sm">
-              {error_to_string(err)}
-            </p>
-          </div>
-          <%!-- ============================================================ --%>
-
-          <.save_buttons product={@product} />
+          <.save_buttons product={@product} saving_photos={@saving_photos} />
+          <PhotoUploads.photo_status saving_photos={@saving_photos} photo_problem={@photo_problem} />
         </.form>
 
         <.back navigate={~p"/vendor"}>

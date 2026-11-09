@@ -28,6 +28,15 @@ config :artsy_neighbor,
 # Step c of the image-storage plan switches prod to Tigris.
 config :artsy_neighbor, ArtsyNeighbor.Storage, backend: ArtsyNeighbor.Storage.Local
 
+# How many photos one machine processes at the same time, and how long
+# (milliseconds) a photo waits for its turn before the artist is told
+# the site is busy (see ArtsyNeighbor.Images.Limiter). Processing a
+# photo takes a lot of memory; decide the final numbers on the real
+# server (NOTES, step 2c).
+config :artsy_neighbor, ArtsyNeighbor.Images.Limiter,
+  max_concurrent: 2,
+  wait_ms: 30_000
+
 # Configure the endpoint
 config :artsy_neighbor, ArtsyNeighborWeb.Endpoint,
   url: [host: "localhost"],

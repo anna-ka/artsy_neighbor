@@ -24,6 +24,7 @@ defmodule ArtsyNeighbor.Images do
   require Logger
 
   alias ArtsyNeighbor.Storage
+  alias ArtsyNeighbor.Images.Limiter
 
   # Display sizes: name => longest side in pixels. Order matters only
   # for readability.
@@ -60,6 +61,7 @@ defmodule ArtsyNeighbor.Images do
   @msg_heic_unsupported "We can't read this iPhone photo format (HEIC) right now. " <>
                           "Please save it as a JPEG and upload that."
   @msg_save_failed "Something went wrong while saving your photo. Please try again."
+  @msg_busy "The site is busy — please try again in a moment."
 
   @doc "The display size names: `[:large, :medium, :thumb]`."
   def sizes, do: @size_names
@@ -75,6 +77,13 @@ defmodule ArtsyNeighbor.Images do
   Returns `{:ok, key}`, or `{:error, message}` where `message` is a
   plain-words sentence to show the artist.
 
+  Only a few photos are processed at the same time (see
+  `ArtsyNeighbor.Images.Limiter`); this waits for its turn, and if the
+  wait is too long it returns the "site is busy" message without
+  processing anything. So it can take a while: don't call it while a
+  page waits for an answer (the forms call it in a background task,
+  see `ArtsyNeighborWeb.PhotoUploads`).
+
   `folder` is built by our own code from database ids, never from
   what a user typed, so an invalid folder is a programming bug: it
   raises `ArgumentError` (see `Storage.validate_key!/1`) rather than
@@ -84,6 +93,18 @@ defmodule ArtsyNeighbor.Images do
     key = folder <> "/" <> Ecto.UUID.generate()
     Storage.validate_key!(key)
 
+    result =
+      Limiter.run(fn ->
+        process_and_store(tmp_path, client_name, key)
+      end)
+
+    case result do
+      {:error, :busy} -> {:error, @msg_busy}
+      other -> other
+    end
+  end
+
+  defp process_and_store(tmp_path, client_name, key) do
     work_dir = Path.join(System.tmp_dir!(), "artsy_neighbor_image_" <> Ecto.UUID.generate())
 
     try do

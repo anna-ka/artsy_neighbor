@@ -4,6 +4,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Accounts
+  alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
@@ -11,14 +12,15 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   def mount(params, _session, socket) do
     socket =
       socket
-      |> allow_upload(:profile_images,
-        accept: ~w(.jpg .jpeg .png .webp),
-        max_entries: 5,
-        max_file_size: 5_000_000
-      )
+      |> PhotoUploads.allow_photos(:profile_images)
 
     {:ok, apply_action(socket, socket.assigns.live_action, params)}
   end
+
+  # Needed for the push_patch/2 to the edit page after a new artist's
+  # photo was refused (see handle_async/3). Nothing to do here.
+  @impl true
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   defp apply_action(socket, :edit, %{"id" => id}) do
     artist = Artists.get_artist!(id)
@@ -56,7 +58,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
   @impl true
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
-    {:noreply, cancel_upload(socket, :profile_images, ref)}
+    {:noreply, PhotoUploads.cancel_photo(socket, :profile_images, ref)}
   end
 
   @impl true
@@ -120,6 +122,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   @impl true
+  # Ignore a second press while photos are still being saved.
+  def handle_event("save", _params, %{assigns: %{saving_photos: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("save", %{"artist" => artist_params}, socket) do
     artist_params = parse_medium_field(artist_params)
     save_artist(socket, socket.assigns.live_action, artist_params)
@@ -153,17 +160,15 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   # Saving happens in three steps, in this order:
   #   1. the profile fields (update_artist/2 or create_artist/1, which
   #      never change the status; a new profile starts :inactive);
-  #   2. the uploaded photos;
+  #   2. the uploaded photos, processed in the background (see
+  #      ArtsyNeighborWeb.PhotoUploads; handle_async/3 carries on);
   #   3. the status, if the dropdown asks for a different one, through
   #      Artists.change_status/2, which applies the rules (e.g. a public
   #      profile needs a photo, so the photos must be saved first).
   defp save_artist(socket, :edit, artist_params) do
     case Artists.update_artist(socket.assigns.artist, artist_params) do
       {:ok, artist} ->
-        existing_count = length(socket.assigns.existing_profile_images)
-        save_uploaded_images(socket, artist, existing_count + 1)
-
-        finish_save(
+        save_photos(
           socket,
           artist,
           artist_params["status"],
@@ -178,9 +183,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   defp save_artist(socket, :new, artist_params) do
     case Artists.create_artist(artist_params) do
       {:ok, artist} ->
-        save_uploaded_images(socket, artist, 1)
-
-        finish_save(
+        save_photos(
           socket,
           artist,
           artist_params["status"],
@@ -192,28 +195,77 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     end
   end
 
-  # Copies the uploaded photos and creates their rows, with positions
-  # starting at `first_position`. (Image storage step 2b switches this
-  # to Images.process_upload/3.)
-  defp save_uploaded_images(socket, artist, first_position) do
-    upload_dir =
-      Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+  # Step 2. What step 3 needs is kept in assigns until the photos are done.
+  defp save_photos(socket, artist, requested_status, success_message) do
+    socket =
+      assign(socket,
+        artist: artist,
+        requested_status: requested_status,
+        success_message: success_message
+      )
 
-    File.mkdir_p!(upload_dir)
+    folder = "artists/#{artist.id}"
+    # New photos go after the ones already there.
+    first_position = length(socket.assigns.existing_profile_images) + 1
 
-    image_paths =
-      consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-        ext = Path.extname(entry.client_name)
-        filename = "#{Ecto.UUID.generate()}#{ext}"
-        File.cp!(tmp_path, Path.join(upload_dir, filename))
-        {:ok, "/uploads/artist_profiles/#{filename}"}
-      end)
+    create_row = fn key, position ->
+      Artists.create_artist_image(artist, %{path: key, position: position})
+    end
 
-    image_paths
-    |> Enum.with_index(first_position)
-    |> Enum.each(fn {path, position} ->
-      Artists.create_artist_image(artist, %{path: path, position: position})
-    end)
+    case PhotoUploads.start_processing(
+           socket,
+           :profile_images,
+           folder,
+           first_position,
+           create_row
+         ) do
+      {:no_photos, socket} -> finish_save(socket, artist, requested_status, success_message)
+      {:started, socket} -> {:noreply, socket}
+      {:not_ready, socket} -> stay_with_photo_problem(socket, artist)
+    end
+  end
+
+  @impl true
+  def handle_async(:process_photos, result, socket) do
+    artist = socket.assigns.artist
+    {socket, outcome} = PhotoUploads.finish_processing(socket, :profile_images, result)
+
+    if outcome.failed > 0 do
+      stay_with_photo_problem(socket, artist)
+    else
+      finish_save(
+        socket,
+        artist,
+        socket.assigns.requested_status,
+        socket.assigns.success_message
+      )
+    end
+  end
+
+  # A photo was refused: stay, so it stays visible with its message.
+  # The status isn't changed: the admin should see the photo problem
+  # first (a public profile needs a photo).
+  defp stay_with_photo_problem(socket, artist) do
+    artist = Artists.get_artist!(artist.id)
+
+    socket =
+      socket
+      |> assign(:page_title, "Edit Artist Profile")
+      |> assign(:artist, artist)
+      |> reload_existing_images()
+
+    message =
+      PhotoUploads.problem_flash(socket, "The profile is saved, but its status wasn't changed.")
+
+    socket = put_flash(socket, :error, message)
+
+    # Switch a new artist's page to its edit address, so saving again
+    # doesn't create a second artist.
+    if socket.assigns.live_action == :new do
+      {:noreply, push_patch(socket, to: ~p"/admin/artists/#{artist.id}/edit")}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Step 3 (see save_artist/3). The profile and photos are already saved,
@@ -262,10 +314,6 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
         {:error, inspect(other)}
     end
   end
-
-  defp error_to_string(:too_large), do: "File too large (max 5 MB)"
-  defp error_to_string(:too_many_files), do: "Too many files (max 5)"
-  defp error_to_string(:not_accepted), do: "File type not accepted (jpg, png, webp only)"
 
   defp parse_medium_field(params) do
     case params["medium"] do
@@ -343,6 +391,32 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
                 phx-debounce="blur"
               />
             </div>
+          </div>
+
+          <%!-- ===== IMAGES ===== --%>
+          <div class="bg-base-200 rounded-xl p-5 mb-4">
+            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+              Images
+            </h3>
+            <p class="text-sm text-base-content/60 mb-4">
+              <PhotoUploads.accepted_help />
+            </p>
+
+            <%!-- Photos already stored, with ↑ ↓ and Remove buttons --%>
+            <PhotoUploads.stored_photos
+              images={@existing_profile_images}
+              saving_photos={@saving_photos}
+            />
+
+            <%!-- Upload new images --%>
+            <p class="text-xs text-base-content/50 mb-2">
+              New images are appended after existing ones. Save first, then reorder.
+            </p>
+            <PhotoUploads.photo_picker
+              upload={@uploads.profile_images}
+              photo_errors={@photo_errors}
+              saving_photos={@saving_photos}
+            />
           </div>
 
           <%!-- ===== CONTACT ===== --%>
@@ -441,103 +515,6 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
             />
           </div>
 
-          <%!-- ===== IMAGES ===== --%>
-          <div class="bg-base-200 rounded-xl p-5 mb-4">
-            <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
-              Images
-            </h3>
-            <p class="text-sm text-base-content/60 mb-4">
-              Accepted formats: jpg, png, webp · max 5 MB each · up to 5 images total.
-            </p>
-
-            <%!-- Existing images with up/down reorder buttons --%>
-            <div :if={@existing_profile_images != []} class="mb-4">
-              <p class="text-sm text-base-content/60 mb-2">Current images:</p>
-              <div class="flex flex-col gap-3">
-                <div
-                  :for={{img, index} <- Enum.with_index(@existing_profile_images)}
-                  class="flex items-center gap-3"
-                >
-                  <img
-                    src={img.path}
-                    class="w-24 h-24 object-cover rounded-lg border border-base-300"
-                  />
-                  <div
-                    class="flex flex-col gap-1 tooltip tooltip-right"
-                    data-tip="Use arrows to reorder images"
-                  >
-                    <button
-                      :if={index > 0}
-                      type="button"
-                      phx-click="move_image_up"
-                      phx-value-imageid={img.id}
-                      class="btn btn-ghost btn-xs"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      :if={index < length(@existing_profile_images) - 1}
-                      type="button"
-                      phx-click="move_image_down"
-                      phx-value-imageid={img.id}
-                      class="btn btn-ghost btn-xs"
-                    >
-                      ↓
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    phx-click="delete_image"
-                    phx-value-imageid={img.id}
-                    class="btn btn-ghost btn-xs text-error"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <%!-- Upload new images --%>
-            <.live_file_input
-              upload={@uploads.profile_images}
-              class="file-input file-input-bordered w-full"
-            />
-            <p class="text-xs text-base-content/50 mt-1">
-              New images are appended after existing ones. Save first, then reorder.
-            </p>
-
-            <div class="space-y-3 mt-3">
-              <div :for={entry <- @uploads.profile_images.entries} class="flex items-center gap-3">
-                <.live_img_preview
-                  entry={entry}
-                  class="w-16 h-16 object-cover rounded-lg border border-base-300"
-                />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm truncate">{entry.client_name}</p>
-                  <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
-                </div>
-                <button
-                  type="button"
-                  phx-click="cancel_upload"
-                  phx-value-ref={entry.ref}
-                  class="btn btn-ghost btn-xs text-error"
-                >
-                  ✕
-                </button>
-                <p
-                  :for={err <- upload_errors(@uploads.profile_images, entry)}
-                  class="text-error text-xs"
-                >
-                  {error_to_string(err)}
-                </p>
-              </div>
-            </div>
-
-            <p :for={err <- upload_errors(@uploads.profile_images)} class="text-error text-sm mt-2">
-              {error_to_string(err)}
-            </p>
-          </div>
-
           <%!-- ===== ONLINE PRESENCE ===== --%>
           <div class="bg-base-200 rounded-xl p-5 mb-4">
             <h3 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
@@ -575,9 +552,10 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
           </div>
 
           <div class="mt-6">
-            <.button_artsy variant="primary" disable_with="Submitting...">
+            <.button_artsy variant="primary" disable_with="Submitting..." disabled={@saving_photos}>
               Save Artist
             </.button_artsy>
+            <PhotoUploads.photo_status saving_photos={@saving_photos} photo_problem={@photo_problem} />
           </div>
         </.form>
 

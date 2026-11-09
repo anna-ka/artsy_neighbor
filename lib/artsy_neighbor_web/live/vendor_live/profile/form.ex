@@ -3,6 +3,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
 
@@ -14,12 +15,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
       socket =
         socket
         |> assign(return_to: nil, return_label: nil)
-        |> allow_upload(:profile_images,
-          accept: ~w(.jpg .jpeg .png .webp),
-          max_entries: 5,
-          max_file_size: 5_000_000,
-          auto_upload: true
-        )
+        |> PhotoUploads.allow_photos(:profile_images)
 
       {:ok, apply_action(socket, socket.assigns.live_action, params)}
     end
@@ -116,7 +112,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   @impl true
   def handle_event("cancel_upload", %{"ref" => ref}, socket) do
-    {:noreply, cancel_upload(socket, :profile_images, ref)}
+    {:noreply, PhotoUploads.cancel_photo(socket, :profile_images, ref)}
   end
 
   @impl true
@@ -182,17 +178,42 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
   end
 
   @impl true
+  # Ignore a second press while photos are still being saved.
+  def handle_event("next_step", _params, %{assigns: %{saving_photos: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("next_step", _params, socket) do
     save_and_advance(socket)
   end
 
   @impl true
+  # While step 2's photos are being saved, stay on step 2 (the Previous
+  # button is disabled then too): when they're done, the form moves on
+  # from step 2.
+  def handle_event("prev_step", _params, %{assigns: %{saving_photos: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("prev_step", _params, socket) do
     new_step = if socket.assigns.step in [-1, 1], do: 1, else: socket.assigns.step - 1
     {:noreply, assign(socket, step: new_step)}
   end
 
   @impl true
+  # Ignore saving while photos are being saved: leaving the page would
+  # stop the photos half-way.
+  def handle_event("save", _params, %{assigns: %{saving_photos: true}} = socket) do
+    {:noreply, socket}
+  end
+
+  # Pressing Enter in a one-line field submits the form ("save") on any
+  # step. Before the last step that means "Next", so step 2's photos are
+  # saved the same way as with the Next button, not skipped.
+  def handle_event("save", _params, %{assigns: %{step: step}} = socket) when step in [-1, 1, 2] do
+    save_and_advance(socket)
+  end
+
   def handle_event("save", params, socket) do
     artist_params = params |> Map.get("artist", %{}) |> parse_medium_field()
 
@@ -255,8 +276,11 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
             |> assign(:artist, artist)
             |> reinit_form_for_next_step(artist, current_step)
 
-          socket = if current_step == 2, do: do_upload_images(socket, artist), else: socket
-          {:noreply, assign(socket, step: new_step)}
+          if current_step == 2 do
+            save_photos(socket, artist)
+          else
+            {:noreply, assign(socket, step: new_step)}
+          end
         end
 
       {:error, changeset} ->
@@ -291,62 +315,64 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   defp reinit_form_for_next_step(socket, _artist, _step), do: socket
 
-  defp do_upload_images(socket, artist) do
-    upload_dir =
-      Path.join([
-        :code.priv_dir(:artsy_neighbor),
-        "static",
-        "uploads",
-        "artist_profiles"
-      ])
+  # Step 2's photos. They are processed in the background (see
+  # ArtsyNeighborWeb.PhotoUploads); handle_async/3 then moves on to
+  # step 3, or stays on step 2 if a photo was refused or the artist
+  # should check the order of the photos.
+  defp save_photos(socket, artist) do
+    folder = "artists/#{artist.id}"
+    # New photos go after the ones already there.
+    first_position = length(socket.assigns.existing_profile_images) + 1
 
-    File.mkdir_p!(upload_dir)
+    create_row = fn key, position ->
+      Artists.create_artist_image(artist, %{path: key, position: position})
+    end
 
-    existing_count = length(socket.assigns.existing_profile_images)
+    case PhotoUploads.start_processing(
+           socket,
+           :profile_images,
+           folder,
+           first_position,
+           create_row
+         ) do
+      {:no_photos, socket} ->
+        {:noreply, assign(socket, step: 3)}
 
-    image_paths =
-      consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-        ext = Path.extname(entry.client_name)
-        filename = "#{Ecto.UUID.generate()}#{ext}"
-        File.cp!(tmp_path, Path.join(upload_dir, filename))
-        {:ok, "/uploads/artist_profiles/#{filename}"}
-      end)
+      {:started, socket} ->
+        {:noreply, socket}
 
-    image_paths
-    |> Enum.with_index(existing_count + 1)
-    |> Enum.each(fn {path, position} ->
-      Artists.create_artist_image(artist, %{path: path, position: position})
-    end)
+      {:not_ready, socket} ->
+        {:noreply,
+         put_flash(socket, :error, PhotoUploads.problem_flash(socket, "Your profile is saved."))}
+    end
+  end
 
-    reload_existing_images(socket)
+  @impl true
+  def handle_async(:process_photos, result, socket) do
+    {socket, outcome} = PhotoUploads.finish_processing(socket, :profile_images, result)
+
+    socket = reload_existing_images(socket)
+    total_photos = length(socket.assigns.existing_profile_images)
+
+    cond do
+      outcome.failed > 0 ->
+        {:noreply,
+         put_flash(socket, :error, PhotoUploads.problem_flash(socket, "Your profile is saved."))}
+
+      reminder = PhotoUploads.order_reminder(outcome, total_photos) ->
+        {:noreply, put_flash(socket, :info, reminder <> " Then press Next.")}
+
+      true ->
+        {:noreply, assign(socket, step: 3)}
+    end
   end
 
   defp save_artist(socket, :edit, artist_params) do
     artist_params = Map.put(artist_params, "onboarding_complete", true)
 
     case Artists.update_artist(socket.assigns.artist, artist_params) do
-      {:ok, artist} ->
-        existing_count = length(socket.assigns.existing_profile_images)
-
-        upload_dir =
-          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
-
-        File.mkdir_p!(upload_dir)
-
-        image_paths =
-          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-            ext = Path.extname(entry.client_name)
-            filename = "#{Ecto.UUID.generate()}#{ext}"
-            File.cp!(tmp_path, Path.join(upload_dir, filename))
-            {:ok, "/uploads/artist_profiles/#{filename}"}
-          end)
-
-        image_paths
-        |> Enum.with_index(existing_count + 1)
-        |> Enum.each(fn {path, position} ->
-          Artists.create_artist_image(artist, %{path: path, position: position})
-        end)
-
+      {:ok, _artist} ->
+        # Photos were already saved on step 2 (save_photos/2).
         {:noreply,
          socket
          |> put_flash(:info, "Artist profile is updated successfully.")
@@ -368,28 +394,8 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
       end
 
     case result do
-      {:ok, artist} ->
-        existing_count = length(socket.assigns.existing_profile_images)
-
-        upload_dir =
-          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
-
-        File.mkdir_p!(upload_dir)
-
-        image_paths =
-          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-            ext = Path.extname(entry.client_name)
-            filename = "#{Ecto.UUID.generate()}#{ext}"
-            File.cp!(tmp_path, Path.join(upload_dir, filename))
-            {:ok, "/uploads/artist_profiles/#{filename}"}
-          end)
-
-        image_paths
-        |> Enum.with_index(existing_count + 1)
-        |> Enum.each(fn {path, position} ->
-          Artists.create_artist_image(artist, %{path: path, position: position})
-        end)
-
+      {:ok, _artist} ->
+        # Photos were already saved on step 2 (save_photos/2).
         {:noreply,
          socket
          |> put_flash(:info, "Artist profile is created successfully.")
@@ -399,10 +405,6 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
-
-  defp error_to_string(:too_large), do: "File too large (max 5 MB)"
-  defp error_to_string(:too_many_files), do: "Too many files (max 5)"
-  defp error_to_string(:not_accepted), do: "File type not accepted (jpg, png, webp only)"
 
   @impl true
   def render(assigns) do
@@ -536,7 +538,35 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
                   phx-debounce="blur"
                 />
               <% 2 -> %>
-                <%!-- Step 2 form fields: bio, images --%>
+                <%!-- Step 2 form fields: images first (so they upload while
+                     the artist fills in the rest), then bio --%>
+                <%!-- ============================================================
+             PROFILE IMAGE UPLOADS
+             ============================================================ --%>
+                <div class="divider">Profile Images</div>
+                <p class="text-sm text-base-content/60 mb-4">
+                  <PhotoUploads.accepted_help />. Visible to customers.
+                  The first image is your main profile photo.
+                  You need at least one photo before you can make your profile public.
+                </p>
+
+                <%!-- Photos already stored, with ↑ ↓ and Remove buttons --%>
+                <PhotoUploads.stored_photos
+                  images={@existing_profile_images}
+                  saving_photos={@saving_photos}
+                />
+
+                <%!-- Upload new images --%>
+                <p class="text-xs text-base-content/50 mb-2">
+                  New images are appended after existing ones. Save first, then reorder.
+                </p>
+                <PhotoUploads.photo_picker
+                  upload={@uploads.profile_images}
+                  photo_errors={@photo_errors}
+                  saving_photos={@saving_photos}
+                />
+                <%!-- ============================================================ --%>
+
                 <%!-- Bio --%>
                 <.input
                   field={@form[:bio]}
@@ -585,111 +615,6 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
                   type="checkbox"
                   label="Show this announcement on my public pages"
                 />
-
-                <%!-- ============================================================
-             PROFILE IMAGE UPLOADS
-             ============================================================ --%>
-                <div class="divider mt-6">Profile Images</div>
-                <p class="text-sm text-base-content/60 mb-4">
-                  Accepted formats: jpg, png, webp · max 5 MB each · up to 5 images total. Visible to customers.
-                  The first image is your main profile photo.
-                  You need at least one photo before you can make your profile public.
-                </p>
-
-                <%!-- Existing images with reorder/delete --%>
-                <div :if={@existing_profile_images != []} class="mb-4">
-                  <p class="text-sm text-base-content/60 mb-2">Current images:</p>
-                  <div class="flex flex-col gap-3">
-                    <div
-                      :for={{img, index} <- Enum.with_index(@existing_profile_images)}
-                      class="flex items-center gap-3"
-                    >
-                      <img
-                        src={img.path}
-                        class="w-24 h-24 object-cover rounded-lg border border-base-300"
-                      />
-                      <div
-                        class="flex flex-col gap-1 tooltip tooltip-right"
-                        data-tip="Use arrows to reorder images"
-                      >
-                        <button
-                          :if={index > 0}
-                          type="button"
-                          phx-click="move_image_up"
-                          phx-value-imageid={img.id}
-                          class="btn btn-ghost btn-xs"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          :if={index < length(@existing_profile_images) - 1}
-                          type="button"
-                          phx-click="move_image_down"
-                          phx-value-imageid={img.id}
-                          class="btn btn-ghost btn-xs"
-                        >
-                          ↓
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        phx-click="delete_image"
-                        phx-value-imageid={img.id}
-                        class="btn btn-ghost btn-xs text-error"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <%!-- Upload new images --%>
-                <.live_file_input
-                  upload={@uploads.profile_images}
-                  class="file-input file-input-bordered w-full"
-                />
-                <p class="text-xs text-base-content/50 mt-1">
-                  New images are appended after existing ones. Save first, then reorder.
-                </p>
-
-                <div class="space-y-3 mt-3">
-                  <div :for={entry <- @uploads.profile_images.entries} class="flex items-center gap-3">
-                    <.live_img_preview
-                      entry={entry}
-                      class="w-16 h-16 object-cover rounded-lg border border-base-300"
-                    />
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm truncate">{entry.client_name}</p>
-                      <progress
-                        value={entry.progress}
-                        max="100"
-                        class="progress progress-primary w-full"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      phx-click="cancel_upload"
-                      phx-value-ref={entry.ref}
-                      class="btn btn-ghost btn-xs text-error"
-                    >
-                      ✕
-                    </button>
-                    <p
-                      :for={err <- upload_errors(@uploads.profile_images, entry)}
-                      class="text-error text-xs"
-                    >
-                      {error_to_string(err)}
-                    </p>
-                  </div>
-                </div>
-
-                <p
-                  :for={err <- upload_errors(@uploads.profile_images)}
-                  class="text-error text-sm mt-2"
-                >
-                  {error_to_string(err)}
-                </p>
-                <%!-- ============================================================ --%>
               <% 3 -> %>
                 <%!-- Step 3: payment placeholder --%>
                 <div>
@@ -704,10 +629,22 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
           <%!-- Navigation buttons --%>
           <div class="flex justify-between mt-6">
-            <button :if={@step > 1} type="button" phx-click="prev_step" class="btn btn-primary">
+            <button
+              :if={@step > 1}
+              type="button"
+              phx-click="prev_step"
+              class="btn btn-primary"
+              disabled={@saving_photos}
+            >
               Previous
             </button>
-            <button :if={@step < 3} type="button" phx-click="next_step" class="btn btn-primary">
+            <button
+              :if={@step < 3}
+              type="button"
+              phx-click="next_step"
+              class="btn btn-primary"
+              disabled={@saving_photos}
+            >
               Next
             </button>
             <%!-- <button :if={@step == 3} type="submit" class="btn btn-primary">
@@ -717,6 +654,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
               Save Artist
             </.button_artsy>
           </div>
+          <PhotoUploads.photo_status saving_photos={@saving_photos} photo_problem={@photo_problem} />
         </.form>
 
         <.back navigate={~p"/vendor"}>

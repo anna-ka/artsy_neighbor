@@ -39,18 +39,13 @@ defmodule ArtsyNeighborWeb.AdminArtistFormTest do
 
     render_upload(photo, "cat.jpg")
 
-    result =
-      view
-      |> form("#artist_form", artist: %{status: "active"})
-      |> render_submit()
+    view
+    |> form("#artist_form", artist: %{status: "active"})
+    |> render_submit()
 
-    # Until image storage step 2b the form copies the file into
-    # priv/static/uploads; remove it again.
-    for image <- Artists.get_images_for_artist(artist) do
-      File.rm(Path.join(["priv/static", image.path]))
-    end
-
-    assert {:error, {:live_redirect, %{to: "/admin/artists"}}} = result
+    # The photo is processed in the background; the page moves on when
+    # it's done.
+    assert_redirect(view, "/admin/artists", 10_000)
     assert Artists.get_artist!(artist.id).status == :active
   end
 

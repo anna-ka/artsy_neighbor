@@ -274,6 +274,38 @@ world; note in NOTES), the dead `first.html.heex` template, `wall_art.jpg`
      your photos…" while processing. Accept list gains HEIC/HEIF/TIFF/
      AVIF; size limit 25 MB; messages and help texts fixed. LiveView
      upload tests with real files.
+     **Changed while implementing (2026-11-09, agreed):** photos are
+     processed in a **background task** (`start_async`) after the text
+     is saved, not during the button press: LiveView's browser side
+     waits at most 30 s for a reply and then reloads the page, which
+     would empty the upload box. Shared code:
+     `ArtsyNeighborWeb.PhotoUploads`; limiter:
+     `ArtsyNeighbor.Images.Limiter` (one slot per photo, freed if the
+     page crashes). If a photo is refused, the page stays (a new
+     product/artist switches to its edit address), the photo stays in
+     the upload box with "Not saved: …", and a red box next to the
+     save button repeats it (the flash alone is easy to miss); the
+     button's own action (publish, preview, status change, next step)
+     isn't carried out. When photos were added and there are now two
+     or more, the artist lands on the page with the arrow buttons and
+     is asked to check their order. Files refused by the browser check
+     (too large, wrong type) or still uploading also keep the page
+     open with the red box (before, saving with one would crash the
+     page).
+     Also (developer's request): the photo sections moved near the top
+     of the forms (right after the title; top of the profile form's
+     step 2; after Identity in the admin artist form), and photos are
+     sent to the server as soon as they are picked (`auto_upload`), so
+     the sending happens while the artist fills in the rest.
+     Processing still starts at Save (it needs the saved product's id).
+     After the code review (2026-11-09): each photo's database row is
+     made in the background task right after its files are stored (so
+     a closed page can't leave stored files without a row); the flash
+     repeats the red box's full reason; the picker, ✕, Previous and
+     the stored photos' buttons are disabled while photos are saved;
+     Enter on the profile form's steps 1–2 acts like Next; the stored
+     photos list is one shared component (`stored_photos`). The
+     processing bottleneck itself is NOTES #34.
 3. Switch the display sites.
 4. NOTES: mark #24 and step b done, add the libvips setup to the step c
    notes; update CLAUDE.md "Key file paths"/conventions (images go through

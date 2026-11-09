@@ -5,8 +5,9 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
   "Remove" on stored photos. See
   `docs/plans/2026-10-28-image-storage-and-resizing.md`.
 
-  These tests don't upload files: until step 2b the form still copies
-  uploads into `priv/static/uploads`. Photos are added as rows instead.
+  Most tests add photos as rows directly; the "uploading photos" tests
+  (step 2b) upload real files, which are processed in the background
+  (`ArtsyNeighborWeb.PhotoUploads`).
   """
   use ArtsyNeighborWeb.ConnCase
 
@@ -14,9 +15,11 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.CategoriesFixtures
   import ArtsyNeighbor.ProductsFixtures
+  import ArtsyNeighborWeb.PhotoUploadHelpers
 
   alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Storage.Local
 
   setup %{conn: conn} do
     artist = artist_fixture()
@@ -279,6 +282,149 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
 
       assert html =~ "Your profile is now visible to the public."
       assert ArtsyNeighbor.Artists.get_artist!(artist.id).status == :active
+    end
+  end
+
+  describe "uploading photos" do
+    # Processing a photo takes about a second; leave plenty of time.
+    @wait 10_000
+
+    defp images_of(product_id) do
+      Products.get_product_with_associations!(product_id).product_images
+    end
+
+    # The one product of `artist` (made by the form in the test).
+    defp only_product_of(artist) do
+      product = ArtsyNeighbor.Repo.get_by!(ArtsyNeighbor.Products.Product, artist_id: artist.id)
+      remove_stored_files_on_exit(product)
+      product
+    end
+
+    # The stored photos live in a temporary test folder; remove this
+    # product's folder after the test.
+    defp remove_stored_files_on_exit(product) do
+      on_exit(fn ->
+        File.rm_rf(Local.path_for("products/#{product.id}", :public))
+        File.rm_rf(Local.path_for("products/#{product.id}", :private))
+      end)
+    end
+
+    test "a new draft with a photo: the photo is processed and stored in the product's folder",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+      pick_photos(view, "#product-form", :images, [good_photo()])
+
+      press(view, "draft", new_product_params(category))
+      # The page says it's busy while the photo is processed.
+      assert has_element?(view, "#saving-photos", "Saving your photos")
+
+      product = only_product_of(artist)
+      flash = assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert flash["info"] =~ "Saved as a draft"
+      # Only one photo, so nothing to put in order.
+      refute flash["info"] =~ "check their order"
+
+      [image] = images_of(product.id)
+      assert String.starts_with?(image.path, "products/#{product.id}/")
+      assert File.exists?(Local.path_for(image.path <> "/thumb.webp", :public))
+      assert File.exists?(Local.path_for(image.path <> "/source.webp", :private))
+    end
+
+    test "after adding a second photo, the artist is asked to check the order, on the edit page",
+         %{conn: conn, artist: artist, category: category} do
+      product = draft_product(artist, category, 1)
+      remove_stored_files_on_exit(product)
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
+      pick_photos(view, "#product-form", :images, [good_photo()])
+
+      press(view, "publish")
+
+      flash = assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert flash["info"] =~ "Published!"
+      assert flash["info"] =~ "check their order"
+      assert Products.get_product!(product.id).status == :available
+
+      # The new photo comes after the existing one.
+      assert [%{position: 1}, %{position: 2, path: "products/" <> _}] = images_of(product.id)
+    end
+
+    test "a refused photo stays in the upload box with its message, loudly; the text is saved",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+      pick_photos(view, "#product-form", :images, [small_photo()])
+
+      press(view, "publish", new_product_params(category))
+
+      # The page stays, but switches to the new product's edit address,
+      # so saving again doesn't make a second product.
+      product = only_product_of(artist)
+      assert_patch(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+
+      html = render(view)
+      assert html =~ "Not saved: This photo is too small to look good."
+      assert has_element?(view, "#photo-problem", "small.jpg was NOT saved")
+      # The flash gives the full reason too, not just a pointer to the
+      # red box (it's the same text, so it appears twice on the page).
+      assert html =~
+               "Your work is saved. Your photo small.jpg was NOT saved: " <>
+                 "This photo is too small to look good."
+
+      assert has_element?(view, "#photo-problem", "This photo is too small to look good.")
+
+      # Nothing stored, and not published: it has no photo.
+      assert images_of(product.id) == []
+      assert Products.get_product!(product.id).status == :draft
+      assert Products.get_product!(product.id).title == "Heron at dusk"
+    end
+
+    test "with one good and one refused photo, the good one is stored; removing the bad one lets the save finish",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+      pick_photos(view, "#product-form", :images, [good_photo(), small_photo()])
+
+      press(view, "draft", new_product_params(category))
+      product = only_product_of(artist)
+      assert_patch(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+
+      assert [_stored] = images_of(product.id)
+      # Only the refused photo is left in the upload box.
+      html = render(view)
+      refute html =~ "cat.jpg"
+      assert html =~ "small.jpg"
+
+      view |> element("button[aria-label='Remove small.jpg']") |> render_click()
+      press(view, "draft")
+
+      assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert [_stored] = images_of(product.id)
+    end
+
+    test "a file of a kind we don't accept is refused in plain words, and saving stays on the page",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      file_input(view, "#product-form", :images, [
+        %{name: "drawing.gif", content: "GIF89a", type: "image/gif"}
+      ])
+      |> render_upload("drawing.gif")
+
+      assert render(view) =~ "This kind of file isn&#39;t accepted."
+
+      press(view, "draft", new_product_params(category))
+      product = only_product_of(artist)
+      assert_patch(view, ~p"/vendor/products/#{product.id}/edit")
+      assert has_element?(view, "#photo-problem", "drawing.gif was NOT saved")
+    end
+
+    @tag :heic
+    test "an iPhone HEIC photo is accepted", %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+      pick_photos(view, "#product-form", :images, [heic_photo()])
+
+      press(view, "draft", new_product_params(category))
+      product = only_product_of(artist)
+      assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert [_stored] = images_of(product.id)
     end
   end
 end

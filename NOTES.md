@@ -667,6 +667,31 @@ working on the code should keep in mind.
         HEIC/PNG/TIFF files would still be refused. More code; only
         if artists actually hit the limit.
 
+  34. **Photo processing is a bottleneck — rethink it systematically
+      before the site gets busy** (added 2026-11-09, code review of
+      step 2b). Each server machine processes at most N photos at once
+      (`ArtsyNeighbor.Images.Limiter`, N = 2, set in `config.exs`); a
+      photo waits up to 30 s for its turn, then gets "The site is busy
+      — please try again in a moment". Photos of one save are
+      processed one after another, each waiting on its own, so 5
+      photos on a busy server can take minutes, or all end up "busy".
+      The "Saving your photos…" box now says it usually takes a few
+      seconds per photo (it used to promise "up to a minute"). Fine
+      for testing and the first months. Later, decide together:
+      - more memory / more machines, and the right N (step 2c);
+      - a real job queue (e.g. Oban, with jobs kept in Postgres) so
+        photos are processed after the page has moved on, survive
+        restarts, and the artist is told when they're done;
+      - processing as soon as a photo is picked (errors show while
+        the artist is still typing; needs a temporary area for photos
+        of a product that isn't saved yet);
+      - a progress line per photo ("2 of 5 saved").
+      Related: a photo can still leave stored files with no row if the
+      server stops *while* that one photo is being written (a split
+      second; the row is made right after). A periodic clean-up of
+      folders that no row points to would catch these; it fits step c
+      (Tigris), where listing a bucket is easy.
+
 
 
 

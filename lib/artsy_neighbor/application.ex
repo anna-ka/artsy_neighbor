@@ -12,6 +12,8 @@ defmodule ArtsyNeighbor.Application do
       ArtsyNeighbor.Repo,
       {DNSCluster, query: Application.get_env(:artsy_neighbor, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ArtsyNeighbor.PubSub},
+      # Limits how many photos are processed at the same time.
+      ArtsyNeighbor.Images.Limiter,
       # Start a worker by calling: ArtsyNeighbor.Worker.start_link(arg)
       # {ArtsyNeighbor.Worker, arg},
       # Start to serve requests, typically the last entry
