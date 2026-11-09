@@ -154,8 +154,28 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
     image = Enum.find(images, fn img -> img.id == id end)
 
     if image do
-      Artists.delete_artist_image(image)
-      {:noreply, reload_existing_images(socket)}
+      case Artists.delete_artist_image(image) do
+        {:ok, _} ->
+          {:noreply, reload_existing_images(socket)}
+
+        # e.g. already removed in another browser tab
+        {:error, :not_found} ->
+          {:noreply,
+           socket
+           |> reload_existing_images()
+           |> put_flash(:info, "That photo had already been removed.")}
+
+        {:error, :last_photo_of_active_profile} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Your profile is public, so it must have at least one photo. " <>
+               "Please upload another photo before removing this one. " <>
+               "If you'd like to hide your profile from the public instead, " <>
+               "use the \"De-activate profile\" button on your dashboard."
+           )}
+      end
     else
       {:noreply, socket}
     end
@@ -176,13 +196,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
   def handle_event("save", params, socket) do
     artist_params = params |> Map.get("artist", %{}) |> parse_medium_field()
 
-    if socket.assigns.live_action == :new &&
-         Enum.empty?(socket.assigns.uploads.profile_images.entries) &&
-         Enum.empty?(socket.assigns.existing_profile_images) do
-      {:noreply, put_flash(socket, :error, "Please upload at least one profile image.")}
-    else
-      save_artist(socket, socket.assigns.live_action, artist_params)
-    end
+    # A profile photo isn't required to save: the profile just can't be
+    # made public (activated) without one — see Artists.update_artist/2.
+    save_artist(socket, socket.assigns.live_action, artist_params)
   end
 
   @impl true
@@ -577,6 +593,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
                 <p class="text-sm text-base-content/60 mb-4">
                   Accepted formats: jpg, png, webp · max 5 MB each · up to 5 images total. Visible to customers.
                   The first image is your main profile photo.
+                  You need at least one photo before you can make your profile public.
                 </p>
 
                 <%!-- Existing images with reorder/delete --%>

@@ -94,8 +94,26 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     image = Enum.find(images, fn img -> img.id == id end)
 
     if image do
-      Artists.delete_artist_image(image)
-      {:noreply, reload_existing_images(socket)}
+      case Artists.delete_artist_image(image) do
+        {:ok, _} ->
+          {:noreply, reload_existing_images(socket)}
+
+        # e.g. already removed in another browser tab
+        {:error, :not_found} ->
+          {:noreply,
+           socket
+           |> reload_existing_images()
+           |> put_flash(:info, "That photo had already been removed.")}
+
+        {:error, :last_photo_of_active_profile} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "An active profile must have at least one photo. Upload another photo " <>
+               "before removing this one, or set the profile to inactive first."
+           )}
+      end
     else
       {:noreply, socket}
     end
@@ -132,34 +150,25 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
     assign(socket, :existing_profile_images, artist.artist_images)
   end
 
+  # Saving happens in three steps, in this order:
+  #   1. the profile fields (update_artist/2 or create_artist/1, which
+  #      never change the status; a new profile starts :inactive);
+  #   2. the uploaded photos;
+  #   3. the status, if the dropdown asks for a different one, through
+  #      Artists.change_status/2, which applies the rules (e.g. a public
+  #      profile needs a photo, so the photos must be saved first).
   defp save_artist(socket, :edit, artist_params) do
     case Artists.update_artist(socket.assigns.artist, artist_params) do
       {:ok, artist} ->
         existing_count = length(socket.assigns.existing_profile_images)
+        save_uploaded_images(socket, artist, existing_count + 1)
 
-        upload_dir =
-          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
-
-        File.mkdir_p!(upload_dir)
-
-        image_paths =
-          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-            ext = Path.extname(entry.client_name)
-            filename = "#{Ecto.UUID.generate()}#{ext}"
-            File.cp!(tmp_path, Path.join(upload_dir, filename))
-            {:ok, "/uploads/artist_profiles/#{filename}"}
-          end)
-
-        image_paths
-        |> Enum.with_index(existing_count + 1)
-        |> Enum.each(fn {path, position} ->
-          Artists.create_artist_image(artist, %{path: path, position: position})
-        end)
-
-        {:noreply,
-         socket
-         |> put_flash(:info, "Artist profile is updated successfully.")
-         |> push_navigate(to: ~p"/admin/artists")}
+        finish_save(
+          socket,
+          artist,
+          artist_params["status"],
+          "Artist profile is updated successfully."
+        )
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
@@ -169,32 +178,88 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   defp save_artist(socket, :new, artist_params) do
     case Artists.create_artist(artist_params) do
       {:ok, artist} ->
-        upload_dir =
-          Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+        save_uploaded_images(socket, artist, 1)
 
-        File.mkdir_p!(upload_dir)
-
-        image_paths =
-          consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
-            ext = Path.extname(entry.client_name)
-            filename = "#{Ecto.UUID.generate()}#{ext}"
-            File.cp!(tmp_path, Path.join(upload_dir, filename))
-            {:ok, "/uploads/artist_profiles/#{filename}"}
-          end)
-
-        image_paths
-        |> Enum.with_index(1)
-        |> Enum.each(fn {path, position} ->
-          Artists.create_artist_image(artist, %{path: path, position: position})
-        end)
-
-        {:noreply,
-         socket
-         |> put_flash(:info, "Artist profile is created successfully.")
-         |> push_navigate(to: ~p"/admin/artists")}
+        finish_save(
+          socket,
+          artist,
+          artist_params["status"],
+          "Artist profile is created successfully."
+        )
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
+    end
+  end
+
+  # Copies the uploaded photos and creates their rows, with positions
+  # starting at `first_position`. (Image storage step 2b switches this
+  # to Images.process_upload/3.)
+  defp save_uploaded_images(socket, artist, first_position) do
+    upload_dir =
+      Path.join([:code.priv_dir(:artsy_neighbor), "static", "uploads", "artist_profiles"])
+
+    File.mkdir_p!(upload_dir)
+
+    image_paths =
+      consume_uploaded_entries(socket, :profile_images, fn %{path: tmp_path}, entry ->
+        ext = Path.extname(entry.client_name)
+        filename = "#{Ecto.UUID.generate()}#{ext}"
+        File.cp!(tmp_path, Path.join(upload_dir, filename))
+        {:ok, "/uploads/artist_profiles/#{filename}"}
+      end)
+
+    image_paths
+    |> Enum.with_index(first_position)
+    |> Enum.each(fn {path, position} ->
+      Artists.create_artist_image(artist, %{path: path, position: position})
+    end)
+  end
+
+  # Step 3 (see save_artist/3). The profile and photos are already saved,
+  # so if the status change is refused, the admin is taken to the
+  # artist's edit page with the reason.
+  defp finish_save(socket, artist, requested_status, success_message) do
+    case change_requested_status(artist, requested_status) do
+      :ok ->
+        {:noreply,
+         socket
+         |> put_flash(:info, success_message)
+         |> push_navigate(to: ~p"/admin/artists")}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "The profile is saved, but its status wasn't changed: " <> reason)
+         |> push_navigate(to: ~p"/admin/artists/#{artist.id}/edit")}
+    end
+  end
+
+  # Returns :ok, or {:error, reason} with the reason in words.
+  defp change_requested_status(_artist, nil), do: :ok
+  defp change_requested_status(_artist, ""), do: :ok
+
+  defp change_requested_status(artist, requested_status) do
+    case Artists.change_status(artist, requested_status) do
+      {:ok, _artist} ->
+        :ok
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        messages =
+          for {_field, {message, _details}} <- changeset.errors do
+            message
+          end
+
+        {:error, Enum.join(messages, " ")}
+
+      {:error, :user_missing} ->
+        {:error, "the artist's user account no longer exists."}
+
+      {:error, :invalid_status} ->
+        {:error, "unknown status #{inspect(requested_status)}."}
+
+      {:error, other} ->
+        {:error, inspect(other)}
     end
   end
 

@@ -152,6 +152,64 @@ them anyway) and fix the mismatched "max 3 MB" message. Product images
 stored under `products/<product_id>/`, artist images under
 `artists/<artist_id>/`.
 
+**Saving with photos that fail** (decided 2026-11-09). A photo can now
+be refused (too small, too large, wrong format, site busy). Retyping a
+whole form because of one photo is annoying, and an artist should be
+able to save a half-finished product and finish it later, e.g. fix the
+problem photo on another computer. So:
+- Saving always keeps the text fields (if they're valid). Then each
+  photo is processed: photos that pass are stored and get a row;
+  a photo that fails is **never stored** — it stays only in the upload
+  box on the screen where it was tried, with its plain-words message.
+  (LiveView's temporary copy is deleted when the page closes.) The
+  Edit form, on any computer, lists only the stored photos.
+- Because the product/artist is saved before its photos, it always has
+  an id, so the folder layout above (`products/<product_id>/<uuid>`,
+  `artists/<artist_id>/<uuid>`) stays.
+- After the first save of a new product, the page becomes that
+  product's edit page, so saving again doesn't create a duplicate.
+
+**Product `:draft` status** (decided 2026-11-09, temporary until the
+dashboard revamp lets artists change product status themselves —
+NOTES). Products get a fourth status, `:draft` (the column is a plain
+string: no migration). Rules, enforced in `Products` (not only in the
+forms, so the admin form and future code follow them too):
+- a product with no photos can't be `:available`; it stays `:draft`;
+- removing the last photo of an `:available` product moves it back to
+  `:draft`, with a message saying so;
+- drafts are hidden from the public automatically (`only_available/1`
+  requires `:available`); the artist-deactivation cascade only touches
+  `:available` products, so it leaves drafts alone.
+
+Vendor product form, for a new or draft product, has three buttons
+(an `:available` product keeps its single Save button):
+- **Save draft** — saves text and the photos that pass; stays hidden;
+- **Preview** — saves the same way, then opens the owner's preview of
+  the product page, `/products/:id?preview=1`, following the artist
+  page's existing `?preview=1` (works only for the logged-in artist who
+  owns the product; anyone else gets the normal public behaviour): the
+  page as a buyer would see it, with a "Preview — buyers can't see this
+  yet" banner, a "Back to editing" link and the Buy button turned off.
+  This also covers NOTES #16's 2026-10-23 item (an artist can't see
+  their own unavailable work's page);
+- **Publish** — saves and makes the product `:available` if it has at
+  least one photo; otherwise it stays a draft with "Add at least one
+  photo to publish this product."
+Under them, a small clickable "What do these buttons do?" box explains
+the difference (not hover tooltips: they don't work on phones and
+tablets).
+
+**Artist profile without a photo** (decided 2026-11-09). Onboarding
+step 2 no longer blocks on a missing photo; it saves and moves on.
+Instead, activation is checked in `Artists`: the dashboard's "Activate
+profile" and the admin form refuse to make an artist `:active` without
+a profile photo, and say why. Removing the last photo of an `:active`
+profile is refused (`Artists.delete_artist_image/1`), with a message
+to upload another photo first or, to hide the profile, to use the
+dashboard's "De-activate profile" button. Not hidden automatically, on
+purpose: deactivating also makes all the artist's products unavailable,
+and they don't come back on their own.
+
 **Display** (~30 `src={img.path}`-style sites, e.g.
 `components/custom_components.ex`, `product_live/show.ex`,
 `artist_live/show.ex`, `order_formatters.ex`): go through
@@ -200,10 +258,22 @@ world; note in NOTES), the dead `first.html.heex` template, `wall_art.jpg`
      or libvips installed.) Test images are never made from the
      developer's own photos: they carry GPS.
 1. `Storage` + `Storage.Local` + `Images` with tests.
-2. Switch the four upload forms. Add the limit on how many photos one
-   machine processes at the same time: N in config (starting at 2),
-   with a plain "We're busy processing photos — please try again in a
-   moment" message if an upload waits too long (see "Memory" above).
+2. Split into two commits (decided 2026-11-09):
+   - **2a.** Product `:draft` status and the "needs a photo" rules for
+     products and artists (see "Product `:draft` status" and "Artist
+     profile without a photo" above), with tests. The vendor product
+     form's Save draft / Preview / Publish buttons, the info box and
+     the preview page.
+   - **2b.** Switch the four upload forms to `Images.process_upload/3`
+     (see "Saving with photos that fail" above), sharing one helper.
+     Add the limit on how many photos one machine processes at the
+     same time: N in config (starting at 2); a photo waits up to 30 s
+     (config) for a free slot, then gets "The site is busy — please
+     try again in a moment" (see "Memory" above). A slot is freed
+     automatically if the page crashes. The Save button says "Saving
+     your photos…" while processing. Accept list gains HEIC/HEIF/TIFF/
+     AVIF; size limit 25 MB; messages and help texts fixed. LiveView
+     upload tests with real files.
 3. Switch the display sites.
 4. NOTES: mark #24 and step b done, add the libvips setup to the step c
    notes; update CLAUDE.md "Key file paths"/conventions (images go through

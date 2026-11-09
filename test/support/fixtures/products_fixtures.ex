@@ -4,13 +4,26 @@ defmodule ArtsyNeighbor.ProductsFixtures do
   entities via the `ArtsyNeighbor.Products` context.
   """
 
+  @doc """
+  A product, `:available` unless `attrs` says otherwise.
+
+  Inserted directly (like the seeds), not through
+  `Products.create_product/1`: that always makes a draft, and
+  publishing needs a photo, but most tests just need an existing
+  product for sale. Tests of the photo rule itself use
+  `create_product/1`, `publish_product/1` etc.
+  """
   def product_fixture(attrs \\ %{}) do
     artist = ArtsyNeighbor.ArtistsFixtures.artist_fixture()
     category = ArtsyNeighbor.CategoriesFixtures.category_fixture()
 
-    {:ok, product} =
-      attrs
-      |> Enum.into(%{
+    attrs = Map.new(attrs)
+    # Product.changeset/2 doesn't take a status, so it's set on the
+    # struct instead.
+    status = Map.get(attrs, :status, :available)
+
+    full_attrs =
+      Enum.into(Map.delete(attrs, :status), %{
         descr: "some descr",
         details: "some details",
         price: "120.5",
@@ -18,9 +31,10 @@ defmodule ArtsyNeighbor.ProductsFixtures do
         artist_id: artist.id,
         category_id: category.id
       })
-      |> ArtsyNeighbor.Products.create_product()
 
-    product
+    %ArtsyNeighbor.Products.Product{status: status}
+    |> ArtsyNeighbor.Products.Product.changeset(full_attrs)
+    |> ArtsyNeighbor.Repo.insert!()
   end
 
   def product_image_fixture(attrs \\ %{}) do

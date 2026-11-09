@@ -58,7 +58,10 @@ defmodule ArtsyNeighbor.Artists.Artist do
       :delivery_info,
       :onboarding_step,
       :onboarding_complete,
-      :status,
+      # Not :status: the forms send their fields straight here, so a
+      # hand-made request could otherwise set any status. Status changes
+      # only through Artists.change_status/2 (and the functions it
+      # uses), which apply the rules — see status_changeset/2.
       :homepage,
       :instagram,
       :facebook,
@@ -85,8 +88,6 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_phone()
     |> validate_canadian_postal_code()
     |> assoc_constraint(:user)
-    |> validate_status_transition()
-    |> maybe_set_status_changed_at()
     |> maybe_validate_delivery_options()
     |> validate_url(:homepage)
     |> validate_url(:instagram)
@@ -148,14 +149,10 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> maybe_set_status_changed_at()
   end
 
-  # Refuses a :removed -> :active transition in one step, from any
-  # changeset that casts :status — both activation_changeset/2 (used by
-  # Artists.update_artist/2, itself used by the admin edit form's raw
-  # status dropdown AND the vendor dashboard's own "activate profile"
-  # toggle) and status_changeset/2 (belt-and-suspenders; none of its own
-  # callers currently attempt this transition, since soft_delete_artist/1,
-  # deactivate_artist/1, and restore_artist/1 each only ever set a single,
-  # known-safe target status).
+  # Refuses a :removed -> :active transition in one step. status_changeset/2
+  # is the only changeset that casts :status, so every status change
+  # (Artists.change_status/2, activate_artist/1, the admin form's status
+  # dropdown, the vendor dashboard's "Activate profile") passes here.
   #
   # Restoring a removed artist is meant to be two deliberate steps:
   # restore_artist/1 (:removed -> :inactive, admin-initiated) and then the

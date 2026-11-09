@@ -56,14 +56,15 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   end
 
   # Reverses "archive" — see Products.restore_product/1. Lands on
-  # :unavailable, not :available: there is no "mark available" action yet
-  # (see that function's own doc comment), so restoring here is a real but
-  # incomplete step, not a full undo of "archive".
+  # :unavailable, not :available: making it available again is a separate
+  # step (Products.publish_product/1) with no admin button yet, so
+  # restoring here is a real but incomplete step, not a full undo of
+  # "archive".
   #
   # restore_product/1 can return {:error, :artist_not_active} (the owning
   # artist isn't currently :active — only_available/1 would hide the
   # product regardless, so restoring it would leave a product with an
-  # unreachable seller once "mark available" exists) or
+  # unreachable seller once it's published again) or
   # {:error, :category_missing} (its category was deleted out from under
   # it — can't actually happen from this view today, since
   # filter_products_all_status/1 inner-joins :category, but the guard
@@ -77,7 +78,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
       case Products.restore_product(product) do
         {:ok, updated_product} ->
           message =
-            "Product \"#{product.title}\" has been restored to unavailable — marking it available again isn't built yet."
+            "Product \"#{product.title}\" has been restored to unavailable. There's no admin button yet to publish it again."
 
           socket
           |> stream_insert(:products, updated_product)
@@ -208,11 +209,11 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
                 id={product.id}
                 view_path={~p"/admin/products/#{product}"}
                 edit_path={~p"/admin/products/#{product}/edit"}
-                show_restore={product.status != :available}
-                restore_confirm={"Restore \"#{product.title}\"? Its status will change to unavailable — marking it available again isn't built yet, so it still won't be publicly purchasable after this."}
+                show_restore={product.status not in [:available, :draft]}
+                restore_confirm={"Restore \"#{product.title}\"? Its status will change to unavailable, so it still won't be for sale: there's no admin button yet to publish it again."}
                 soft_delete_event="archive"
                 soft_delete_label="archive"
-                soft_delete_confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This can be reversed using the restore action, though restoring only brings it back to unavailable — a separate step to mark it available again isn't built yet."}
+                soft_delete_confirm={"Archive \"#{product.title}\"? It will be hidden from the public site. This can be reversed using the restore action, though restoring only brings it back to unavailable — publishing it again is a separate step with no admin button yet."}
                 hard_delete_confirm={"Permanently delete \"#{product.title}\"? This cannot be undone."}
               />
             </:col>

@@ -275,13 +275,13 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "succeeds (landing on :unavailable) once the vendor has actively re-activated to :active" do
       artist = artist_fixture(%{status: :active})
+      artist_image_fixture(artist)
       product = product_fixture(%{artist_id: artist.id})
 
       {:ok, _} = Artists.soft_delete_artist(artist)
       {:ok, _} = Artists.restore_artist(Artists.get_artist!(artist.id))
-      # Simulates the vendor's own dashboard active/inactive toggle, which
-      # goes through Artists.update_artist/2, not status_changeset directly.
-      {:ok, _} = Artists.update_artist(Artists.get_artist!(artist.id), %{status: :active})
+      # The vendor's own dashboard "Activate profile".
+      {:ok, _} = Artists.activate_artist(Artists.get_artist!(artist.id))
 
       archived_product = Products.get_product!(product.id)
       assert {:ok, restored_product} = Products.restore_product(archived_product)
@@ -600,8 +600,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
 
     test "returns nil for an unavailable product" do
-      product = product_fixture()
-      {:ok, product} = Products.update_product(product, %{status: :unavailable})
+      product = product_fixture(%{status: :unavailable})
       refute Products.get_product_with_associations(product.id)
     end
 
@@ -950,7 +949,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     end
 
     test "excludes an unavailable product", %{artist: artist, p1: p1} do
-      {:ok, _} = Products.update_product(p1, %{status: :unavailable})
+      {:ok, _} = p1 |> Product.status_changeset(%{status: :unavailable}) |> Repo.update()
 
       results = Products.filter_artist_products(artist.id, %{})
       refute p1.id in Enum.map(results, & &1.id)
@@ -1049,6 +1048,214 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "create_product_image/1 with invalid data returns error changeset" do
       assert {:error, %Ecto.Changeset{}} = Products.create_product_image(@invalid_attrs)
+    end
+  end
+
+  # ============================================================
+  # Publishing and photos: a product can only be :available while
+  # it has at least one photo.
+  # ============================================================
+
+  describe "publishing and photos" do
+    # A product made the way the forms make it: through create_product/1,
+    # so it starts as :draft.
+    defp draft_product do
+      artist = artist_fixture()
+      category = category_fixture()
+
+      {:ok, product} =
+        Products.create_product(%{
+          title: "Draft work",
+          descr: "A work that isn't finished yet",
+          details: "Details",
+          price: "50",
+          artist_id: artist.id,
+          category_id: category.id
+        })
+
+      product
+    end
+
+    defp add_photo(product, position \\ 1) do
+      {:ok, image} =
+        Products.create_product_image(%{
+          path: "/photo-#{position}.jpg",
+          position: position,
+          product_id: product.id
+        })
+
+      image
+    end
+
+    test "a new product starts as :draft" do
+      assert draft_product().status == :draft
+    end
+
+    test "create_product/1 ignores a status: a new product is always a draft" do
+      artist = artist_fixture()
+      category = category_fixture()
+
+      assert {:ok, product} =
+               Products.create_product(%{
+                 title: "Eager work",
+                 descr: "Wants to be for sale at once",
+                 details: "Details",
+                 price: "50",
+                 artist_id: artist.id,
+                 category_id: category.id,
+                 status: :available
+               })
+
+      assert product.status == :draft
+    end
+
+    test "publish_product/1 refuses a product without photos" do
+      product = draft_product()
+
+      assert {:error, :no_photos} = Products.publish_product(product)
+      assert Products.get_product!(product.id).status == :draft
+    end
+
+    test "publish_product/1 makes a draft with a photo :available" do
+      product = draft_product()
+      add_photo(product)
+
+      assert {:ok, published} = Products.publish_product(product)
+      assert published.status == :available
+    end
+
+    test "publish_product/1 also works from :unavailable" do
+      product = product_fixture(%{status: :unavailable})
+      add_photo(product)
+
+      assert {:ok, %Product{status: :available}} = Products.publish_product(product)
+    end
+
+    test "publish_product/1 refuses an archived product" do
+      product = product_fixture(%{status: :archived})
+      add_photo(product)
+
+      assert {:error, :archived} = Products.publish_product(product)
+    end
+
+    test "publish_product/1 reads the current status, not the given struct's" do
+      product = draft_product()
+      add_photo(product)
+      {:ok, _} = Products.soft_delete_product(product)
+
+      # `product` still says :draft, but the database says :archived.
+      assert {:error, :archived} = Products.publish_product(product)
+    end
+
+    test "update_product/2 ignores a status, so it can't skip publish_product/1" do
+      # e.g. a hand-made request from the edit form, for an archived
+      # product with photos: it must not come back as :available.
+      product = product_fixture(%{status: :archived})
+      add_photo(product)
+
+      assert {:ok, updated} =
+               Products.update_product(product, %{status: :available, title: "New title"})
+
+      assert updated.title == "New title"
+      assert Products.get_product!(product.id).status == :archived
+    end
+
+    test "delete_product_image/1 of an already removed photo returns :not_found" do
+      product = draft_product()
+      image = add_photo(product)
+      {:ok, _} = Products.delete_product_image(image)
+
+      assert {:error, :not_found} = Products.delete_product_image(image)
+    end
+
+    test "removing the last photo of an :available product makes it :draft" do
+      product = draft_product()
+      image = add_photo(product)
+      {:ok, product} = Products.publish_product(product)
+
+      assert {:ok, %ProductImage{}} = Products.delete_product_image(image)
+      assert Products.get_product!(product.id).status == :draft
+    end
+
+    test "removing one of several photos leaves the product :available" do
+      product = draft_product()
+      first = add_photo(product, 1)
+      add_photo(product, 2)
+      {:ok, product} = Products.publish_product(product)
+
+      assert {:ok, _} = Products.delete_product_image(first)
+      assert Products.get_product!(product.id).status == :available
+    end
+
+    test "removing the last photo of an :unavailable product leaves it :unavailable" do
+      product = product_fixture(%{status: :unavailable})
+      image = add_photo(product)
+
+      assert {:ok, _} = Products.delete_product_image(image)
+      assert Products.get_product!(product.id).status == :unavailable
+    end
+
+    test "a draft is not shown to the public" do
+      product = draft_product()
+      add_photo(product)
+
+      assert Products.get_product_with_associations(product.id) == nil
+    end
+
+    test "deactivating the artist leaves drafts alone" do
+      product = draft_product()
+      artist = Artists.get_artist!(product.artist_id)
+
+      {:ok, _} = Artists.deactivate_artist(artist)
+      assert Products.get_product!(product.id).status == :draft
+    end
+  end
+
+  describe "products without a collection" do
+    # The vendor dashboard lists products by collection, so a product
+    # without one would be missing there.
+    test "create_product/1 puts it in the artist's \"Uncategorized\" collection" do
+      artist = artist_fixture()
+      category = category_fixture()
+      [default_collection] = Products.list_collections_for_artist(artist.id)
+
+      {:ok, product} =
+        Products.create_product(%{
+          title: "No collection",
+          descr: "A work without a collection",
+          details: "Details",
+          price: "50",
+          artist_id: artist.id,
+          category_id: category.id
+        })
+
+      assert default_collection.name == "Uncategorized"
+      assert product.collection_id == default_collection.id
+    end
+
+    test "update_product/2 puts it back there when the collection is cleared" do
+      artist = artist_fixture()
+      [default_collection] = Products.list_collections_for_artist(artist.id)
+
+      {:ok, other} =
+        Products.create_collection(%{name: "Watercolours", position: 2, artist_id: artist.id})
+
+      product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
+
+      {:ok, updated} = Products.update_product(product, %{collection_id: nil})
+      assert updated.collection_id == default_collection.id
+    end
+
+    test "a chosen collection is kept" do
+      artist = artist_fixture()
+
+      {:ok, other} =
+        Products.create_collection(%{name: "Watercolours", position: 2, artist_id: artist.id})
+
+      product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
+
+      {:ok, updated} = Products.update_product(product, %{title: "Renamed"})
+      assert updated.collection_id == other.id
     end
   end
 

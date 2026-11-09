@@ -155,6 +155,12 @@ which is mechanical and done once, up front.
    or soft-delete any user/artist/product/order/review (part of #1).
    Includes the restore-button no-op and the missing `/admin/reviews`.
    Full flag moderation is NOT in this step (see 7).
+   *Added 2026-11-09 (image storage step 2a):* admins can't publish a
+   product. The admin "new product" form publishes it straight away if
+   it has a photo, but a product created without one stays `:draft`,
+   and neither the admin edit form nor the admin list can publish it
+   (or a restored, `:unavailable` one) afterwards. Needs a Publish
+   action (`Products.publish_product/1`) in the admin product pages.
 5. **Email + focused security check** — real outgoing mail (#2, #10);
    basic authorization checks (can a vendor touch another vendor's data,
    can a buyer see another buyer's orders, upload safety) — part of #21.
@@ -475,6 +481,14 @@ working on the code should keep in mind.
         available works and otherwise sends them to `/products` with
         "Product not found". With the toggles, the product page needs an
         owner preview like the artist page's `?preview=1`.
+      - *Added 2026-11-09:* image storage step 2a adds a temporary
+        product `:draft` status (a product without photos can't be
+        available) with Save draft / Preview / Publish buttons on the
+        vendor product form, and the product page's owner preview
+        (`/products/:id?preview=1`). This pass should replace that with
+        the real thing: artists switching each work between draft,
+        available, unavailable and archived from the dashboard. See
+        `docs/plans/2026-10-28-image-storage-and-resizing.md`.
 
   17. I need some solid advice and to make decisions about how to store images. Right now everything is local on my laptop, I have no idea how to set it up so it would work on server.
       - *Decided 2026-10-28:* uploads go to object storage (Tigris on

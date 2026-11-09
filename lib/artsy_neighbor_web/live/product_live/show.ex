@@ -10,6 +10,12 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   Only works that are for sale (see `Products.only_available/1`) have a
   page; any other address goes back to `/products` with "Product not
   found".
+
+  The one exception is the owner's preview: the artist who made the
+  work can open `/products/:id?preview=1` whatever its status (e.g. a
+  draft), to see the page as buyers will. Same idea as the artist
+  page's `?preview=1`. Their own Buy and Message buttons are disabled
+  as always (see `own_work?/2`).
   """
   use ArtsyNeighborWeb, :live_view
 
@@ -41,18 +47,19 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   end
 
   def handle_params(%{"id" => id} = params, _uri, socket) do
-    case Products.get_product_with_associations(id) do
+    case find_product(id, params, socket) do
       nil ->
         {:noreply,
          socket
          |> put_flash(:error, "Product not found.")
          |> push_navigate(to: ~p"/products")}
 
-      product ->
+      {product, audience} ->
         images = Products.list_images_for_product(product.id)
 
         socket =
           socket
+          |> maybe_flash_preview(audience)
           |> assign(:return_to, Map.get(params, "return_to"))
           |> assign(:return_label, Map.get(params, "return_label"))
           |> assign(:product, product)
@@ -68,6 +75,40 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         {:noreply, socket}
     end
   end
+
+  # Returns {product, :public} for a work for sale, {product, :owner_preview}
+  # when its own artist previews it with ?preview=1 (any status), or nil.
+  defp find_product(id, params, socket) do
+    case Products.get_product_with_associations(id) do
+      nil ->
+        find_for_owner_preview(id, params, socket)
+
+      product ->
+        {product, :public}
+    end
+  end
+
+  defp find_for_owner_preview(id, params, socket) do
+    scope = socket.assigns.current_scope
+
+    # Each step must match, or it's "Product not found" as for anyone
+    # else: asked for a preview, logged in as an artist, the product
+    # exists, and it's theirs.
+    with "1" <- Map.get(params, "preview"),
+         %{} = viewer_artist <- scope && scope.artist,
+         %{} = product <- Products.get_product_with_associations_all_status(id),
+         true <- product.artist_id == viewer_artist.id do
+      {product, :owner_preview}
+    else
+      _ -> nil
+    end
+  end
+
+  defp maybe_flash_preview(socket, :owner_preview) do
+    put_flash(socket, :info, "Preview — buyers can't see this work yet.")
+  end
+
+  defp maybe_flash_preview(socket, :public), do: socket
 
   # True when the logged-in vendor is looking at one of their own works.
   # They can't buy from or message themselves, so both buttons are

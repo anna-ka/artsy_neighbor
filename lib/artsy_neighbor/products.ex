@@ -500,8 +500,11 @@ defmodule ArtsyNeighbor.Products do
 
   """
   def create_product(attrs) do
+    # New products always start as :draft (Product.changeset/2 doesn't
+    # take a status); see "Publishing and photos" below.
     %Product{}
     |> Product.changeset(attrs)
+    |> put_default_collection()
     |> Repo.insert()
   end
 
@@ -518,9 +521,101 @@ defmodule ArtsyNeighbor.Products do
 
   """
   def update_product(%Product{} = product, attrs) do
+    # Doesn't change the status (Product.changeset/2 doesn't take one).
     product
     |> Product.changeset(attrs)
+    |> put_default_collection()
     |> Repo.update()
+  end
+
+  # A product with no collection chosen goes into its artist's default
+  # "Uncategorized" collection (Artists.default_collection_name/0), which
+  # every artist gets when their profile is created. Without this it
+  # would be missing from the vendor dashboard, which lists products by
+  # collection. Left as it is if the artist has no such collection.
+  defp put_default_collection(changeset) do
+    collection_id = Ecto.Changeset.get_field(changeset, :collection_id)
+    artist_id = Ecto.Changeset.get_field(changeset, :artist_id)
+
+    if is_nil(collection_id) and not is_nil(artist_id) do
+      default_id =
+        ProductCollection
+        |> where([c], c.artist_id == ^artist_id)
+        |> where([c], c.name == ^Artists.default_collection_name())
+        |> order_by([c], asc: c.id)
+        |> limit(1)
+        |> select([c], c.id)
+        |> Repo.one()
+
+      Ecto.Changeset.put_change(changeset, :collection_id, default_id)
+    else
+      changeset
+    end
+  end
+
+  # --- Publishing and photos ------------------------------------------
+  #
+  # The rule: a product can only be :available (for sale, shown to the
+  # public) while it has at least one photo. Kept here, in the context,
+  # so every form and any future code follows it:
+  #   * the general create_product/1 and update_product/2 can't change
+  #     the status at all; new products start as :draft;
+  #   * publish_product/1 is the only way to :available, and refuses a
+  #     product without a photo;
+  #   * delete_product_image/1 moves an :available product back to
+  #     :draft when its last photo is removed.
+  # (Seeds and test fixtures insert published products directly, as
+  # stand-ins for existing data.)
+  #
+  # Temporary until the vendor dashboard lets artists switch each work
+  # between draft / available / unavailable / archived (NOTES #16).
+
+  @doc """
+  Makes a product :available (for sale), if it has at least one photo.
+
+  Works from :draft and :unavailable. Returns `{:ok, product}`, or
+  `{:error, :no_photos}`, or `{:error, :archived}` for an archived
+  product (that one needs restore_product/1 first). An already
+  :available product is returned unchanged.
+  """
+  def publish_product(%Product{} = product) do
+    Repo.transact(fn ->
+      # Re-read under the lock: the struct we were given may be stale.
+      locked = lock_product(product.id)
+
+      cond do
+        locked.status == :available ->
+          {:ok, locked}
+
+        locked.status == :archived ->
+          {:error, :archived}
+
+        count_photos(locked.id) == 0 ->
+          {:error, :no_photos}
+
+        true ->
+          locked
+          |> Product.status_changeset(%{status: :available})
+          |> Repo.update()
+      end
+    end)
+  end
+
+  defp count_photos(product_id) do
+    ProductImage
+    |> where([i], i.product_id == ^product_id)
+    |> Repo.aggregate(:count)
+  end
+
+  # Locks the product's row until the surrounding transaction ends and
+  # returns the product as it is now. Publishing a product and removing
+  # its photos both take this lock first, so they can't overlap (e.g.
+  # the last photo removed while the product is being published).
+  defp lock_product(product_id) do
+    Product
+    |> where([p], p.id == ^product_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one!()
   end
 
   @doc """
@@ -553,9 +648,12 @@ defmodule ArtsyNeighbor.Products do
   an "un-archived, not yet republished" state, mirroring
   Artists.restore_artist/1 landing on :inactive.
 
-  Known gap: nothing yet — vendor or admin — moves a product from
-  :unavailable to :available, so restoring alone does not make a product
-  purchasable again. A "mark available" action still needs to be built.
+  Restoring alone does not make a product purchasable again: that is a
+  separate step, publish_product/1 (:unavailable -> :available, needs a
+  photo). publish_product/1 refuses :archived products on purpose, so
+  coming back from archive always goes through the checks below first.
+  Neither vendors nor admins have a button for that second step yet
+  (NOTES #16).
 
   Refuses (returns {:error, :artist_not_active}) unless the owning artist
   is currently :active. only_available/1 also checks this at query time;
@@ -718,19 +816,44 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Deletes a product_image.
+  Deletes a product_image. If it was the last photo of an :available
+  product, the product goes back to :draft (it can't be for sale
+  without a photo); callers can re-read the product to tell the artist.
 
-  ## Examples
-
-      iex> delete_product_image(product_image)
-      {:ok, %ProductImage{}}
-
-      iex> delete_product_image(product_image)
-      {:error, %Ecto.Changeset{}}
+  Returns `{:ok, %ProductImage{}}`, or `{:error, :not_found}` if the
+  photo was already removed (e.g. in another browser tab).
 
   """
   def delete_product_image(%ProductImage{} = product_image) do
-    Repo.delete(product_image)
+    Repo.transact(fn ->
+      product = lock_product(product_image.product_id)
+
+      # Read the photo again under the lock: it may already be gone, e.g.
+      # removed in another browser tab. (Deleting a row that no longer
+      # exists would raise.)
+      case Repo.get(ProductImage, product_image.id) do
+        nil ->
+          {:error, :not_found}
+
+        current_image ->
+          with {:ok, deleted} <- Repo.delete(current_image),
+               {:ok, _product} <- draft_if_no_photos_left(product) do
+            {:ok, deleted}
+          end
+      end
+    end)
+  end
+
+  # After a photo is removed: an :available product with no photos left
+  # goes back to :draft (see "Publishing and photos" above).
+  defp draft_if_no_photos_left(product) do
+    if product.status == :available and count_photos(product.id) == 0 do
+      product
+      |> Product.status_changeset(%{status: :draft})
+      |> Repo.update()
+    else
+      {:ok, product}
+    end
   end
 
   @doc """

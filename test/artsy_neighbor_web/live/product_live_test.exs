@@ -42,8 +42,7 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
     end
 
     test "redirects instead of rendering an unavailable product", %{conn: conn} do
-      product = product_fixture()
-      {:ok, product} = ArtsyNeighbor.Products.update_product(product, %{status: :unavailable})
+      product = product_fixture(%{status: :unavailable})
 
       assert {:error, {:live_redirect, %{to: "/products"}}} = live(conn, ~p"/products/#{product}")
     end

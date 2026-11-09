@@ -297,8 +297,12 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                       <td>${product.price}</td>
                       <td>
                         <div class="flex gap-2 justify-end">
+                          <%!-- preview=1: the artist's own preview, so a draft or
+                               hidden work opens too (a work for sale looks as usual) --%>
                           <.link
-                            navigate={~p"/products/#{product.id}" <> "?" <> create_return_to_params()}
+                            navigate={
+                              ~p"/products/#{product.id}" <> "?preview=1&" <> create_return_to_params()
+                            }
                             class="btn btn-ghost btn-xs"
                           >
                             View
@@ -413,13 +417,13 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     # Deactivating goes through Artists.deactivate_artist/1, which also
     # cascades the artist's :available products to :unavailable — without
     # this, de-activating hid the profile but left products fully visible
-    # in public search. Re-activating has no cascade to make (see that
-    # function's own doc comment), so it stays a plain status update.
+    # in public search. Activating goes through activate_artist/1, which
+    # needs a profile photo.
     result =
       if new_status == :inactive do
         ArtsyNeighbor.Artists.deactivate_artist(artist)
       else
-        ArtsyNeighbor.Artists.update_artist(artist, %{status: :active})
+        ArtsyNeighbor.Artists.activate_artist(artist)
       end
 
     case result do
@@ -435,11 +439,11 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
          |> assign(:confirming_status, false)
          |> put_flash(:info, message)}
 
-      {:error, _changeset} ->
+      {:error, error} ->
         {:noreply,
          socket
          |> assign(:confirming_status, false)
-         |> put_flash(:error, "Something went wrong. Please try again.")}
+         |> put_flash(:error, activation_error_message(error))}
     end
   end
 
@@ -544,4 +548,24 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
       {:noreply, put_flash(socket, :error, "You are not authorized to archive this product.")}
     end
   end
+
+  # A profile can't go public without a profile photo
+  # (Artists.update_artist/2); say so, and where to add one. Anything
+  # else is unexpected.
+  defp activation_error_message(%Ecto.Changeset{} = changeset) do
+    photo_message = ArtsyNeighbor.Artists.needs_profile_photo_message()
+
+    status_errors =
+      for {:status, {message, _details}} <- changeset.errors do
+        message
+      end
+
+    if photo_message in status_errors do
+      photo_message <> " You can add one under Edit profile."
+    else
+      "Something went wrong. Please try again."
+    end
+  end
+
+  defp activation_error_message(_other), do: "Something went wrong. Please try again."
 end

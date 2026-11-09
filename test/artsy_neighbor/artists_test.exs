@@ -287,21 +287,17 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # update_artist/2 — general-purpose profile update, used by the vendor's
-  # own profile form AND the admin edit form (which has a raw status
-  # dropdown that can set :inactive directly, bypassing
-  # deactivate_artist/1 entirely). This general path must cascade the same
-  # way deactivate_artist/1 does on an :active -> :inactive transition, so
-  # the invariant holds regardless of which form performed the edit.
+  # change_status/2 — the one entry point for a form that offers a status
+  # choice (the admin artist form's dropdown). It goes through the
+  # dedicated function for each change, so the cascades and checks hold
+  # whichever way a status is changed.
   # ---------------------------------------------------------------------------
-  describe "update_artist/2 — status transition cascade" do
-    test "cascades :available products to :unavailable on an :active -> :inactive transition, even outside deactivate_artist/1" do
+  describe "change_status/2" do
+    test ":active -> :inactive cascades :available products to :unavailable" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
 
-      # Simulates the admin edit form: a plain update_artist/2 call with
-      # status among the attrs, not a call to deactivate_artist/1.
-      assert {:ok, updated} = Artists.update_artist(artist, %{status: :inactive})
+      assert {:ok, updated} = Artists.change_status(artist, :inactive)
       assert updated.status == :inactive
       assert Products.get_product!(product.id).status == :unavailable
     end
@@ -311,40 +307,90 @@ defmodule ArtsyNeighbor.ArtistsTest do
       product = product_fixture(%{artist_id: artist.id})
       {:ok, _} = Products.soft_delete_product(product)
 
-      {:ok, _} = Artists.update_artist(artist, %{status: :inactive})
+      {:ok, _} = Artists.change_status(artist, :inactive)
 
       assert Products.get_product!(product.id).status == :archived
     end
 
-    # Unlike deactivate_artist/1, this does NOT refuse the update just
-    # because the artist wasn't already :active — a general profile edit
-    # bundling other field changes shouldn't fail outright over that.
-    test "does not refuse the update when the artist isn't already :active — it just skips the cascade" do
+    test "accepts the status as a string, as a form sends it" do
+      artist = artist_fixture(%{status: :active})
+
+      assert {:ok, %Artist{status: :inactive}} = Artists.change_status(artist, "inactive")
+    end
+
+    test "refuses a status that doesn't exist" do
+      artist = artist_fixture(%{status: :active})
+
+      assert {:error, :invalid_status} = Artists.change_status(artist, "deleted")
+      assert Artists.get_artist!(artist.id).status == :active
+    end
+
+    test "the same status is a no-op" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, %Artist{status: :active}} = Artists.change_status(artist, :active)
+      assert Products.get_product!(product.id).status == :available
+    end
+
+    test ":inactive -> :active needs a profile photo, and leaves products alone" do
       artist = artist_fixture(%{status: :inactive})
       product = product_fixture(%{artist_id: artist.id})
 
-      assert {:ok, updated} = Artists.update_artist(artist, %{status: :active})
-      assert updated.status == :active
-      # No cascade needed here — :active isn't the transition this cascade
-      # is for — and the product was never touched to begin with.
+      assert {:error, changeset} = Artists.change_status(artist, :active)
+      assert Artists.needs_profile_photo_message() in errors_on(changeset).status
+
+      artist_image_fixture(artist)
+      assert {:ok, %Artist{status: :active}} = Artists.change_status(artist, :active)
       assert Products.get_product!(product.id).status == :available
     end
 
-    test "does not cascade when status isn't part of the update at all" do
+    test "-> :removed archives all their products, like soft_delete_artist/1" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
 
-      assert {:ok, updated} = Artists.update_artist(artist, %{bio: String.duplicate("x", 100)})
+      assert {:ok, %Artist{status: :removed}} = Artists.change_status(artist, :removed)
+      assert Products.get_product!(product.id).status == :archived
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # The general profile update never changes the status: the profile
+  # changeset doesn't take one. Otherwise a hand-made request from the
+  # vendor's profile form could set any status, skipping the rules.
+  # ---------------------------------------------------------------------------
+  describe "update_artist/2 ignores a status" do
+    test "a status among the attrs is ignored, other fields are saved" do
+      artist = artist_fixture(%{status: :active})
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:ok, updated} =
+               Artists.update_artist(artist, %{status: :removed, bio: String.duplicate("x", 100)})
+
       assert updated.status == :active
+      assert updated.bio == String.duplicate("x", 100)
       assert Products.get_product!(product.id).status == :available
     end
 
-    test "does not cascade when status is included but unchanged" do
-      artist = artist_fixture(%{status: :active})
-      product = product_fixture(%{artist_id: artist.id})
+    test "a new profile is always :inactive, whatever status is sent" do
+      user = ArtsyNeighbor.AccountsFixtures.user_fixture()
 
-      assert {:ok, _updated} = Artists.update_artist(artist, %{status: :active})
-      assert Products.get_product!(product.id).status == :available
+      assert {:ok, artist} =
+               Artists.create_artist(%{
+                 nickname: "eager-artist",
+                 first_name: "Eager",
+                 last_name: "Artist",
+                 phone: "416-555-1234",
+                 bio: String.duplicate("b", 80),
+                 email: "eager@example.com",
+                 street_address: "1 Test Street",
+                 area_code: "V8W 1A1",
+                 medium: ["Oil painting"],
+                 status: :active,
+                 user_id: user.id
+               })
+
+      assert artist.status == :inactive
     end
   end
 
@@ -353,16 +399,16 @@ defmodule ArtsyNeighbor.ArtistsTest do
   # /vendor (on_mount(:require_vendor, ...) doesn't check artist status),
   # and used to be able to self-resurrect straight to :active via the
   # dashboard's "activate profile" toggle, or via the admin edit form's
-  # status dropdown. The refusal lives in the changesets
-  # (Artist.activation_changeset/2 and status_changeset/2), so every entry
-  # point gets it and callers see an ordinary invalid changeset.
+  # status dropdown. The refusal lives in Artist.status_changeset/2, the
+  # only changeset that takes a status, so every entry point gets it.
   # ---------------------------------------------------------------------------
-  describe "update_artist/2 — refuses :removed -> :active in one step" do
-    test "refuses, returning an invalid changeset with a status error" do
+  describe "refuses :removed -> :active in one step" do
+    test "change_status/2 refuses, returning an invalid changeset with a status error" do
       artist = artist_fixture(%{status: :active})
+      artist_image_fixture(artist)
       {:ok, removed} = Artists.soft_delete_artist(artist)
 
-      assert {:error, changeset} = Artists.update_artist(removed, %{status: :active})
+      assert {:error, changeset} = Artists.change_status(removed, :active)
       refute changeset.valid?
 
       assert "cannot go directly from removed to active — restore the artist first (sets status to inactive), then activate separately" in errors_on(
@@ -372,7 +418,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert Artists.get_artist!(artist.id).status == :removed
     end
 
-    test "does not refuse other fields being edited on a :removed artist, as long as status isn't also set to :active" do
+    test "other fields can still be edited on a :removed artist" do
       artist = artist_fixture(%{status: :active})
       {:ok, removed} = Artists.soft_delete_artist(artist)
 
@@ -380,18 +426,19 @@ defmodule ArtsyNeighbor.ArtistsTest do
       assert updated.status == :removed
     end
 
-    test "still allows :removed -> :inactive (the real restore_artist/1 path)" do
+    test "still allows :removed -> :inactive (through restore_artist/1)" do
       artist = artist_fixture(%{status: :active})
       {:ok, removed} = Artists.soft_delete_artist(artist)
 
-      assert {:ok, updated} = Artists.update_artist(removed, %{status: :inactive})
+      assert {:ok, updated} = Artists.change_status(removed, :inactive)
       assert updated.status == :inactive
     end
 
     test "still allows :inactive -> :active (the legitimate second step, after restore)" do
       artist = artist_fixture(%{status: :inactive})
+      artist_image_fixture(artist)
 
-      assert {:ok, updated} = Artists.update_artist(artist, %{status: :active})
+      assert {:ok, updated} = Artists.change_status(artist, :active)
       assert updated.status == :active
     end
   end
@@ -1248,10 +1295,11 @@ defmodule ArtsyNeighbor.ArtistsTest do
       end
     end
 
-    test "sets status_changed_at when status changes" do
+    test "doesn't take a status (status changes go through Artists.change_status/2)" do
       artist = artist_fixture(%{status: :inactive})
       changeset = Artist.activation_changeset(artist, %{status: :active})
-      assert Ecto.Changeset.get_change(changeset, :status_changed_at) != nil
+      assert Ecto.Changeset.get_change(changeset, :status) == nil
+      assert Ecto.Changeset.get_change(changeset, :status_changed_at) == nil
     end
 
     test "does not update status_changed_at when status is unchanged" do
@@ -1480,7 +1528,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
     end
 
     test "delete_artist_image/1 removes the image" do
-      artist = artist_fixture()
+      artist = artist_fixture(%{status: :inactive})
 
       {:ok, image} =
         Artists.create_artist_image(artist, %{path: "/uploads/gone.jpg", position: 1})
@@ -1602,6 +1650,68 @@ defmodule ArtsyNeighbor.ArtistsTest do
 
       newest_four = works |> Enum.reverse() |> Enum.take(4) |> Enum.map(fn work -> work.id end)
       assert Enum.map(popular.works, fn work -> work.id end) == newest_four
+    end
+  end
+
+  # ============================================================
+  # Activation and profile photos: a profile can only become
+  # :active (public) while it has at least one profile photo.
+  # ============================================================
+
+  describe "activation and profile photos" do
+    test "activate_artist/1 refuses a profile without a photo" do
+      artist = artist_fixture(%{status: :inactive})
+
+      assert {:error, changeset} = Artists.activate_artist(artist)
+
+      assert Artists.needs_profile_photo_message() in errors_on(changeset).status
+      assert Artists.get_artist!(artist.id).status == :inactive
+    end
+
+    test "activate_artist/1 activates a profile that has a photo" do
+      artist = artist_fixture(%{status: :inactive})
+      artist_image_fixture(artist)
+
+      assert {:ok, %Artist{status: :active}} = Artists.activate_artist(artist)
+    end
+
+    test "other edits of an :active profile without photos still work" do
+      # e.g. older data, from before the rule
+      artist = artist_fixture(%{status: :active})
+
+      assert {:ok, %Artist{status: :active}} =
+               Artists.update_artist(artist, %{bio: String.duplicate("z", 100)})
+    end
+
+    test "delete_artist_image/1 refuses the last photo of an :active profile" do
+      artist = artist_fixture(%{status: :active})
+      image = artist_image_fixture(artist)
+
+      assert {:error, :last_photo_of_active_profile} = Artists.delete_artist_image(image)
+      assert length(Artists.get_images_for_artist(artist)) == 1
+    end
+
+    test "delete_artist_image/1 removes one of several photos of an :active profile" do
+      artist = artist_fixture(%{status: :active})
+      first = artist_image_fixture(artist, %{position: 1})
+      artist_image_fixture(artist, %{position: 2, path: "/second.jpg"})
+
+      assert {:ok, _} = Artists.delete_artist_image(first)
+      assert length(Artists.get_images_for_artist(artist)) == 1
+    end
+
+    test "delete_artist_image/1 removes the last photo of an :inactive profile" do
+      artist = artist_fixture(%{status: :inactive})
+      image = artist_image_fixture(artist)
+
+      assert {:ok, _} = Artists.delete_artist_image(image)
+      assert Artists.get_images_for_artist(artist) == []
+    end
+
+    test "deactivating doesn't need a photo" do
+      artist = artist_fixture(%{status: :active})
+
+      assert {:ok, %Artist{status: :inactive}} = Artists.deactivate_artist(artist)
     end
   end
 end

@@ -43,7 +43,7 @@ Repo.delete_all(User)
 # ============================================================
 
 elena =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "Elena_Oils",
     first_name: "Elena",
@@ -57,7 +57,6 @@ elena =
     bio:
       "Contemporary oil painter specializing in vibrant landscapes and abstract compositions. My work explores the relationship between color, light, and emotion.",
     medium: ["Oil painting", "Acrylic painting", "Mixed media"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -83,7 +82,7 @@ Enum.each(
 )
 
 tom =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "TomSculpts",
     first_name: "Thomas",
@@ -97,7 +96,6 @@ tom =
     bio:
       "Sculptor working primarily with clay and wood. I create organic forms inspired by nature and the human experience.",
     medium: ["Clay sculpture", "Wood carving", "Bronze casting"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -122,7 +120,7 @@ Enum.each(
 )
 
 sarah =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "SarahInks",
     first_name: "Sarah",
@@ -136,7 +134,6 @@ sarah =
     bio:
       "Watercolor artist and illustrator. I specialize in botanical illustrations and dreamy landscapes with a focus on delicate details.",
     medium: ["Watercolor", "Ink drawing", "Digital illustration"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -163,7 +160,7 @@ Enum.each(
 )
 
 raj =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "Raj_Ceramics",
     first_name: "Rajesh",
@@ -177,7 +174,6 @@ raj =
     bio:
       "Ceramic artist creating functional pottery and decorative pieces. My work combines traditional techniques with contemporary design.",
     medium: ["Ceramics", "Pottery", "Porcelain"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -203,7 +199,7 @@ Enum.each(
 )
 
 maria =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "MariaFiber",
     first_name: "Maria",
@@ -217,7 +213,6 @@ maria =
     bio:
       "Textile artist and weaver. I create intricate wall hangings and fiber art pieces using natural dyes and traditional weaving techniques.",
     medium: ["Textile art", "Weaving", "Fiber sculpture"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -245,7 +240,7 @@ Enum.each(
 )
 
 david =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "David_Photos",
     first_name: "David",
@@ -259,7 +254,6 @@ david =
     bio:
       "Fine art photographer focusing on urban landscapes and street photography. I capture the beauty in everyday moments.",
     medium: ["Photography", "Digital art", "Printmaking"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -284,7 +278,7 @@ Enum.each(
 )
 
 anna =
-  %Artist{}
+  %Artist{status: :active}
   |> Artist.activation_changeset(%{
     nickname: "Anna's Magnificent Art Studio",
     first_name: "Anna",
@@ -298,7 +292,6 @@ anna =
     bio:
       "I am mostly an oil painter though sometimes I work in watercolor and do some fiber art. I capture the beauty in everyday moments.",
     medium: ["Oil painting", "Acrylic painting", "Mixed media"],
-    status: "active",
     status_changed_at: ~U[2026-03-25 19:00:00Z],
     delivery_options: ["pickup"],
     delivery_info: %{}
@@ -473,7 +466,7 @@ IO.puts("Seeded 7 categories successfully!")
 # ============================================================
 
 abstract_sunset =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Abstract Sunset",
     descr: "Abstract painting",
@@ -515,7 +508,7 @@ abstract_sunset =
 |> Repo.insert!()
 
 mountain_serenity =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Mountain Serenity",
     descr: "Landscape painting",
@@ -557,7 +550,7 @@ mountain_serenity =
 |> Repo.insert!()
 
 urban_dreams =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Urban Dreams",
     descr: "Modern painting",
@@ -583,7 +576,7 @@ urban_dreams =
 |> Repo.insert!()
 
 silver_necklace =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Handcrafted Silver Necklace",
     descr: "Handcrafted necklace",
@@ -624,7 +617,7 @@ silver_necklace =
 |> Repo.insert!()
 
 turquoise_piece =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Turquoise Statement Piece",
     descr: "Statement necklace",
@@ -646,7 +639,7 @@ turquoise_piece =
 |> Repo.insert!()
 
 beaded_necklace =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Artisan Beaded Necklace",
     descr: "Artisan necklace",
@@ -668,7 +661,7 @@ beaded_necklace =
 |> Repo.insert!()
 
 ceramic_mug =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Handmade Ceramic Mug",
     descr: "Ceramic drinkware",
@@ -702,7 +695,7 @@ ceramic_mug =
 |> Repo.insert!()
 
 rustic_mug =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Rustic Coffee Mug",
     descr: "Rustic drinkware",
@@ -720,7 +713,7 @@ rustic_mug =
 |> Repo.insert!()
 
 ceramic_cat =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Ceramic Cat Sculpture",
     descr: "Ceramic figurine",
@@ -742,7 +735,7 @@ ceramic_cat =
 |> Repo.insert!()
 
 wool_sweater =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Hand-Knit Wool Sweater",
     descr: "Hand-knit sweater",
@@ -764,7 +757,7 @@ wool_sweater =
 |> Repo.insert!()
 
 cable_knit =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Cozy Cable Knit",
     descr: "Cable-knit sweater",
@@ -782,7 +775,7 @@ cable_knit =
 |> Repo.insert!()
 
 artisan_cardigan =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Artisan Cardigan",
     descr: "Woven wearable art",
@@ -820,7 +813,7 @@ artisan_cardigan =
 |> Repo.insert!()
 
 sunset_reflection =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Sunset Reflection",
     descr: "Impressionist",
@@ -842,7 +835,7 @@ sunset_reflection =
 |> Repo.insert!()
 
 silver_moon =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Silver Moon Necklace",
     descr: "Silver moon pendant",
@@ -864,7 +857,7 @@ silver_moon =
 |> Repo.insert!()
 
 mug_set =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Morning Brew Mug Set",
     descr: "Mug set, drinkware",
@@ -882,7 +875,7 @@ mug_set =
 |> Repo.insert!()
 
 handwoven_pullover =
-  %Product{}
+  %Product{status: :available}
   |> Product.changeset(%{
     title: "Handwoven Pullover",
     descr: "Handwoven pullover",
@@ -977,7 +970,7 @@ anna_works = [
 
 for work <- anna_works do
   product =
-    %Product{}
+    %Product{status: :available}
     |> Product.changeset(
       work
       |> Map.delete(:photos)

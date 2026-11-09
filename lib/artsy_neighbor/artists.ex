@@ -282,7 +282,8 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Creates a new artist and atomically inserts a default "Uncategorized" collection.
-  Returns {:ok, artist} or {:error, changeset}.
+  Returns {:ok, artist} or {:error, changeset}. The new artist is always
+  :inactive (the changesets don't take a status); see change_status/2.
 
   Two calling conventions:
   - create_artist(attrs) — builds the changeset using activation_changeset (full validation).
@@ -347,67 +348,141 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Updates an existing artist with the given attributes.
+  Updates an artist's profile fields.
 
-  If this update includes a status transition from :active to :inactive —
-  from any caller, not just deactivate_artist/1's own dedicated vendor
-  self-service path — also cascades the artist's currently-:available
-  products to :unavailable, the same way deactivate_artist/1 does. This
-  matters because :status is just one field among many on this general
-  update (e.g. the admin edit form's status dropdown, or a future one),
-  and without it, an admin changing an artist to :inactive here wouldn't
-  hide their products the way the vendor's own dashboard toggle does —
-  same class of gap only_available/1's own artist-status check exists to
-  catch at the query layer, but the cascade keeps product rows themselves
-  consistent too, not just query results.
-
-  Unlike deactivate_artist/1, this does NOT refuse the update when the
-  artist isn't already :active — a general profile edit (bio, address,
-  etc., possibly bundled with an unrelated status change) shouldn't fail
-  outright over that; it just means no cascade applies for other
-  transitions (:removed -> :inactive, e.g., already has no :available
-  products left to cascade, since soft_delete_artist/1 already archived
-  them all).
+  Never changes the status: the profile changeset
+  (`Artist.activation_changeset/2`) doesn't take one, so a status sent
+  along with a form is ignored. Status changes go through
+  `change_status/2` and the functions it uses.
   """
   def update_artist(%Ecto.Changeset{} = changeset) do
-    do_update_artist(changeset)
+    Repo.update(changeset)
   end
 
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
-    do_update_artist(change_artist(artist, attrs))
+    artist
+    |> change_artist(attrs)
+    |> Repo.update()
   end
 
-  # changeset.data is always the pre-change struct — true whether the
-  # changeset arrived pre-built (update_artist/1) or was just built here
-  # from an %Artist{} + attrs (update_artist/2) — so there's no need for a
-  # separate "original status" argument computed differently per call site.
-  defp do_update_artist(changeset) do
-    original_status = changeset.data.status
+  # --- Status changes -------------------------------------------------
+  #
+  # Every status change goes through one of the functions below, each
+  # applying its own rules:
+  #   * activate_artist/1    — :inactive -> :active; needs a profile photo
+  #                            (and refuses :removed -> :active);
+  #   * deactivate_artist/1  — :active -> :inactive; hides their
+  #                            :available products (-> :unavailable);
+  #   * soft_delete_artist/1 — -> :removed; archives all their products;
+  #   * restore_artist/1     — :removed -> :inactive.
+  # change_status/2 picks the right one, for a form that offers a status
+  # choice (the admin artist form).
 
-    if original_status == :active and Ecto.Changeset.get_change(changeset, :status) == :inactive do
-      Repo.transaction(fn ->
-        case Repo.update(changeset) do
-          {:ok, updated} ->
-            cascade_available_products_to_unavailable(updated.id)
-            updated
+  @doc """
+  Moves an artist to `new_status` (an atom, or its string form from a
+  form, e.g. `"active"`) through the function for that change — see
+  "Status changes" above. Returns `{:ok, artist}` (also when the status
+  is already `new_status`), or the error of the function used:
+  `{:error, changeset}` (e.g. no profile photo), `{:error, :not_active}`,
+  `{:error, :already_active}`, `{:error, :user_missing}`, or
+  `{:error, :invalid_status}` for a status that doesn't exist.
+  """
+  def change_status(%Artist{} = artist, new_status) when is_binary(new_status) do
+    # Ecto.Enum.mappings/2 lists the schema's own statuses, e.g.
+    # [active: "active", ...], so only a real status is turned into an atom.
+    mappings = Ecto.Enum.mappings(Artist, :status)
 
-          {:error, changeset} ->
-            Repo.rollback(changeset)
-        end
-      end)
-    else
-      Repo.update(changeset)
+    case Enum.find(mappings, fn {_atom, string} -> string == new_status end) do
+      {status_atom, _string} -> change_status(artist, status_atom)
+      nil -> {:error, :invalid_status}
     end
   end
 
-  # Shared by deactivate_artist/1 and update_artist/2's own transition
-  # detection above, so "an artist leaving :active hides their available
-  # products" holds the same way regardless of which function performed
-  # the transition. A thin, readably-named wrapper around
+  def change_status(%Artist{status: status} = artist, status), do: {:ok, artist}
+
+  def change_status(%Artist{} = artist, :active), do: activate_artist(artist)
+
+  def change_status(%Artist{status: :active} = artist, :inactive),
+    do: deactivate_artist(artist)
+
+  def change_status(%Artist{status: :removed} = artist, :inactive),
+    do: restore_artist(artist)
+
+  def change_status(%Artist{} = artist, :removed), do: soft_delete_artist(artist)
+
+  def change_status(%Artist{}, _other), do: {:error, :invalid_status}
+
+  @doc """
+  Makes an artist's profile public (:active).
+
+  Refuses, with a changeset whose `:status` error says why, when the
+  profile has no photo (`needs_profile_photo_message/0`) or is :removed
+  (restore_artist/1 first). Doesn't bring back products hidden when
+  the profile was deactivated: each is published again on its own
+  (Products.publish_product/1).
+  """
+  def activate_artist(%Artist{} = artist) do
+    Repo.transact(fn ->
+      # Re-read under the lock: the struct we were given may be stale,
+      # and a photo can't be removed while we check (see
+      # delete_artist_image/1, which takes the same lock).
+      locked = lock_artist(artist.id)
+
+      result =
+        locked
+        |> Artist.status_changeset(%{status: :active})
+        |> refuse_active_without_photos(count_profile_photos(locked.id))
+        |> Repo.update()
+
+      # With its photos loaded, as soft_delete_artist/1 and
+      # restore_artist/1 return it: the pages showing it need them.
+      case result do
+        {:ok, updated} -> {:ok, Repo.preload(updated, [:artist_images])}
+        error -> error
+      end
+    end)
+  end
+
+  # --- Activation and profile photos ----------------------------------
+  #
+  # The rule: an artist profile can only be :active (public) while it has
+  # at least one profile photo. activate_artist/1 checks it, and
+  # delete_artist_image/1 refuses to remove the last photo of an :active
+  # profile. New profiles always start as :inactive (the profile
+  # changeset doesn't take a status).
+
+  @msg_needs_profile_photo "Add a profile photo before making your profile public."
+
+  @doc "The message shown when a profile can't go public without a photo."
+  def needs_profile_photo_message, do: @msg_needs_profile_photo
+
+  defp refuse_active_without_photos(changeset, photo_count) do
+    if photo_count == 0 do
+      Ecto.Changeset.add_error(changeset, :status, @msg_needs_profile_photo)
+    else
+      changeset
+    end
+  end
+
+  defp count_profile_photos(artist_id) do
+    ArtistImage
+    |> where([i], i.artist_id == ^artist_id)
+    |> Repo.aggregate(:count)
+  end
+
+  # Locks the artist's row until the surrounding transaction ends.
+  defp lock_artist(artist_id) do
+    Artist
+    |> where([a], a.id == ^artist_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one!()
+  end
+
+  # Used by deactivate_artist/1: "an artist leaving :active hides their
+  # available products". A thin, readably-named wrapper around
   # cascade_products_status/3 below, which also backs soft_delete_artist/1
-  # — one implementation of "bulk-update an artist's products' status" for
-  # every entry point, not two independently-maintained copies of the same
-  # Repo.update_all.
+  # — one implementation of "bulk-update an artist's products' status",
+  # not two independently-maintained copies of the same Repo.update_all.
   defp cascade_available_products_to_unavailable(artist_id) do
     cascade_products_status(artist_id, :available, :unavailable)
   end
@@ -471,16 +546,14 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Vendor self-service: deactivates an artist's own profile (:active ->
-  :inactive) and cascades their currently-:available products to
-  :unavailable. This same cascade also happens automatically from the
-  general update_artist/2 for any :active -> :inactive transition (e.g.
-  the admin edit form's own status dropdown) — see that function's own
-  doc comment — so the invariant holds regardless of entry point, not
-  just this vendor-facing one. Also independently backed by
-  only_available/1's own artist-status check at the query layer — cascade
-  and query-layer check are defense in depth for the same problem, not a
-  substitute for one another.
+  Deactivates an artist's profile (:active -> :inactive) and cascades
+  their currently-:available products to :unavailable. Used by the
+  vendor dashboard's "De-activate profile" and, through change_status/2,
+  by the admin form's status dropdown, so the cascade holds whichever
+  way the profile is hidden. Also independently backed by
+  only_available/1's own artist-status check at the query layer —
+  cascade and query-layer check are defense in depth for the same
+  problem, not a substitute for one another.
 
   Only touches :available products, not :archived ones — a product the
   vendor already archived themselves stays archived; this is a pause, not
@@ -492,26 +565,19 @@ defmodule ArtsyNeighbor.Artists do
   :active — deactivating only means something as a transition away from
   active; calling this on an already-:inactive or :removed artist would be
   meaningless at best, or (for :removed) actively wrong, since it would
-  silently move a removed artist to :inactive as a side effect. Unlike
-  this function, update_artist/2's version of the same cascade does NOT
-  refuse the whole update on this same precondition — see its own doc
-  comment for why.
+  silently move a removed artist to :inactive as a side effect.
 
-  Does not cascade back on reactivation — re-activating (:inactive ->
-  :active, via the same dashboard toggle, calling update_artist/2 directly
-  since no cascade is needed for that direction) does not automatically
-  restore any product's status. A vendor's products stay :unavailable
-  until they're brought back individually; that "mark available" action
-  doesn't exist yet (see restore_product/1's own doc comment).
+  Does not cascade back on reactivation (activate_artist/1): a vendor's
+  products stay :unavailable until each is published again
+  (Products.publish_product/1; no button for it yet, NOTES #16).
   """
   def deactivate_artist(%Artist{status: :active} = artist) do
-    Repo.transaction(fn ->
+    Repo.transact(fn ->
       cascade_available_products_to_unavailable(artist.id)
 
-      case artist |> Artist.status_changeset(%{status: :inactive}) |> Repo.update() do
-        {:ok, updated} -> updated
-        {:error, changeset} -> Repo.rollback(changeset)
-      end
+      artist
+      |> Artist.status_changeset(%{status: :inactive})
+      |> Repo.update()
     end)
   end
 
@@ -658,8 +724,36 @@ defmodule ArtsyNeighbor.Artists do
 
   @doc """
   Deletes an ArtistImage record.
+
+  Refuses with `{:error, :last_photo_of_active_profile}` when it is the
+  only photo of an :active (public) profile: a public profile must
+  have a photo (see "Activation and profile photos" above). The artist
+  uploads another photo first, or hides their profile from the
+  dashboard. Hiding it automatically isn't done on purpose: that also
+  makes all their products unavailable (deactivate_artist/1).
+
+  Also returns `{:error, :not_found}` if the photo was already removed
+  (e.g. in another browser tab).
   """
   def delete_artist_image(%ArtistImage{} = artist_image) do
-    Repo.delete(artist_image)
+    Repo.transact(fn ->
+      # Locked, so the profile can't be activated while its last photo
+      # is being removed (activate_artist/1 takes the same lock).
+      artist = lock_artist(artist_image.artist_id)
+
+      # Read the photo again under the lock: it may already be gone.
+      current_image = Repo.get(ArtistImage, artist_image.id)
+
+      cond do
+        current_image == nil ->
+          {:error, :not_found}
+
+        artist.status == :active and count_profile_photos(artist.id) <= 1 ->
+          {:error, :last_photo_of_active_profile}
+
+        true ->
+          Repo.delete(current_image)
+      end
+    end)
   end
 end

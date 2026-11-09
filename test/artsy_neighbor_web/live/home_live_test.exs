@@ -59,8 +59,7 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
     test "keeps the picture and credit, without a link, when the work isn't for sale", %{
       conn: conn
     } do
-      product = product_fixture(%{title: "Crow with Stones"})
-      {:ok, _} = Products.update_product(product, %{status: :unavailable})
+      product = product_fixture(%{title: "Crow with Stones", status: :unavailable})
       use_hero_work(product.id)
 
       {:ok, live, _html} = live(conn, ~p"/")

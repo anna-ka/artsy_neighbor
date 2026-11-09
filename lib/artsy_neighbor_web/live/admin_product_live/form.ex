@@ -126,9 +126,21 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
       {:ok, product} ->
         upload_images(socket, product, 1)
 
+        # New products start as :draft (Products.create_product/1). An
+        # admin-created product is published straight away, as before —
+        # unless it has no photo, which publishing requires.
+        message =
+          case Products.publish_product(product) do
+            {:ok, _published} ->
+              "Product created successfully."
+
+            {:error, :no_photos} ->
+              "Product created as a draft: it needs at least one photo to be published."
+          end
+
         {:noreply,
          socket
-         |> put_flash(:info, "Product created successfully.")
+         |> put_flash(:info, message)
          |> push_navigate(to: ~p"/admin/products")}
 
       {:error, %Ecto.Changeset{} = changeset} ->

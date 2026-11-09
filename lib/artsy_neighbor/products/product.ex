@@ -16,7 +16,12 @@ defmodule ArtsyNeighbor.Products.Product do
 
     field :position, :integer
     field :unique_work, :boolean, default: false
-    field :status, Ecto.Enum, values: [:available, :unavailable, :archived], default: :available
+    # :draft — not finished yet (e.g. no photo); hidden from the public.
+    # New products start here. Only Products.publish_product/1 makes a
+    # product :available, and it refuses while it has no photos.
+    field :status, Ecto.Enum,
+      values: [:draft, :available, :unavailable, :archived],
+      default: :draft
 
     belongs_to :category, ArtsyNeighbor.Categories.Category
     belongs_to :artist, ArtsyNeighbor.Artists.Artist
@@ -44,8 +49,12 @@ defmodule ArtsyNeighbor.Products.Product do
       :height,
       :units,
       :materials,
-      :unique_work,
-      :status
+      :unique_work
+      # Not :status: the forms send their fields straight here, so a
+      # hand-made request could otherwise set any status. Status changes
+      # only through Products.publish_product/1, soft_delete_product/1,
+      # restore_product/1 and delete_product_image/1, which apply the
+      # rules (see status_changeset/2).
     ])
     |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
     |> validate_length(:title,

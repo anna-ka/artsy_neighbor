@@ -62,9 +62,9 @@ defmodule DemoData do
       end
 
     artist =
-      %Artist{}
+      %Artist{status: :active}
       |> Artist.activation_changeset(
-        Map.merge(demo.artist, %{user_id: user.id, status: "active", onboarding_complete: true})
+        Map.merge(demo.artist, %{user_id: user.id, onboarding_complete: true})
       )
       |> Repo.insert!()
 
@@ -108,8 +108,10 @@ defmodule DemoData do
         position: position
       })
 
+    # Each demo work comes with photos (added below), so it can be for
+    # sale straight away; new products otherwise start as :draft.
     product =
-      %Product{}
+      %Product{status: :available}
       |> Product.changeset(attrs)
       |> Repo.insert!()
 
