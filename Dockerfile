@@ -21,9 +21,15 @@ ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
+# libvips-dev + pkg-config: the `vix` library (behind `image`) compiles
+# against Debian's libvips, which can read HEIC, instead of its own
+# bundled copy, which can't (see VIX_COMPILATION_MODE below and the
+# README's "Machine setup (Mac)" for the same thing on the Mac).
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends build-essential git \
+  && apt-get install -y --no-install-recommends build-essential git pkg-config libvips-dev \
   && rm -rf /var/lib/apt/lists/*
+
+ENV VIX_COMPILATION_MODE="PLATFORM_PROVIDED_LIBVIPS"
 
 # prepare build dir
 WORKDIR /app
@@ -70,8 +76,13 @@ RUN mix release
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE} AS final
 
+# libvips42t64: the image library itself (photo checking and resizing).
+# libheif-plugin-libde265: the HEVC decoder that iPhone HEIC photos need;
+# without it libvips opens a HEIC file but can't decode its pixels.
+# Check on the live machine: ArtsyNeighbor.Release.image_support/0.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses6 locales ca-certificates \
+     libvips42t64 libheif-plugin-libde265 \
   && rm -rf /var/lib/apt/lists/*
 
 # Set the locale

@@ -187,6 +187,9 @@ which is mechanical and done once, up front.
    as it comes, so a crafted link could send a visitor to another site.
    Accept only paths on our own site (starting with one `/`, not `//`),
    in one shared check.
+   *Added 2026-11-14:* account security for every outside service
+   (#36) — not urgent for the private preview, but done meticulously
+   before testers and again before launch.
 6. **Developer's own rehearsal** on the deployed site, as vendor, buyer,
    and admin; fix what turns up. Then **invite testers**.
 7. **Before public launch** — full flag moderation pass (rest of #1),
@@ -710,6 +713,30 @@ working on the code should keep in mind.
       second; the row is made right after). A periodic clean-up of
       folders that no row points to would catch these; it fits step c
       (Tigris), where listing a bucket is easy.
+
+  35. Artist cards on the home page. The artists to show are selected automatically and the banners are one of their works. However, most works do not display well in this wide landscape format and are cropped off. This needs fixing, likely by offering artists to upload a banner. This likely needs a separate UI page on Artists dashboard.
+
+  36. **Protect the service accounts; limit what a break-in can cost**
+      (added 2026-11-14). Fly has no spending cap and no billing alerts
+      (checked 2026-11-14: "there's no soft ceiling"; prepaid credits
+      don't stop service either, the rest goes on the card). So the
+      real protection is the accounts themselves. Low priority for the
+      private preview; do it meticulously before testers (step 5) and
+      review before launch:
+      - **GitHub** (Fly signs in through it, so it's the real door):
+        two-factor with a passkey or authenticator app, not SMS;
+        unique password in Passwords; check recovery codes are saved.
+      - **Fly**: its own two-factor if offered for GitHub logins;
+        review `fly tokens list`; CI (GitHub Actions) gets a deploy
+        token for one app only, never an account-wide token.
+      - **Card**: a separate (virtual) card with a low limit for online
+        services, so its limit is the only hard ceiling. Ask the bank.
+      - **Bill check**: glance at "current month to date bill" in the
+        Fly dashboard weekly while things run (~US$6–8/month expected).
+      - Same review for any later service (domain registrar, email
+        provider, Stripe): two-factor, who has access, project email
+        address vs personal (see step 2 c).
+
 
 
 
