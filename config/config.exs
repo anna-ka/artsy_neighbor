@@ -24,9 +24,14 @@ config :artsy_neighbor,
   ecto_repos: [ArtsyNeighbor.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-# Where uploaded images are stored (see ArtsyNeighbor.Storage).
-# Step c of the image-storage plan switches prod to Tigris.
+# Where uploaded images are stored (see ArtsyNeighbor.Storage): on this
+# computer's disk in dev and test; prod switches to Tigris in
+# config/runtime.exs (ArtsyNeighbor.Storage.S3, docs/tigris.md).
 config :artsy_neighbor, ArtsyNeighbor.Storage, backend: ArtsyNeighbor.Storage.Local
+
+# The S3 library (used by Storage.S3) sends its requests with Req, which
+# the app already uses, rather than its default HTTP library.
+config :ex_aws, http_client: ExAws.Request.Req
 
 # How many photos one machine processes at the same time, and how long
 # (milliseconds) a photo waits for its turn before the artist is told

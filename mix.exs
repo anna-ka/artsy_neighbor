@@ -73,7 +73,12 @@ defmodule ArtsyNeighbor.MixProject do
       # Image checking, resizing and conversion (wraps libvips through vix).
       # vix must be compiled against Homebrew's libvips so HEIC works:
       # needs VIX_COMPILATION_MODE=PLATFORM_PROVIDED_LIBVIPS (see NOTES.md).
-      {:image, "~> 0.73.0"}
+      {:image, "~> 0.73.0"},
+      # Photo storage on Tigris (S3-compatible), see ArtsyNeighbor.Storage.S3.
+      # sweet_xml reads S3's XML replies (e.g. the list of files to delete).
+      {:ex_aws, "~> 2.7"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:sweet_xml, "~> 0.7"}
     ]
   end
 

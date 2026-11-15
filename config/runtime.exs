@@ -84,6 +84,46 @@ if config_env() == :prod do
     username: site_username,
     password: site_password
 
+  # Photo storage on Tigris (ArtsyNeighbor.Storage.S3, docs/tigris.md).
+  # `fly storage create` sets BUCKET_NAME (our public bucket),
+  # AWS_ENDPOINT_URL_S3 and the key (AWS_ACCESS_KEY_ID,
+  # AWS_SECRET_ACCESS_KEY); we set PRIVATE_BUCKET_NAME ourselves.
+  # All required: without them photos would silently go to the
+  # machine's disk and vanish on the next deploy.
+  require_env = fn name ->
+    System.get_env(name) ||
+      raise """
+      environment variable #{name} is missing.
+      Photo storage on Tigris needs it: see docs/tigris.md.
+      """
+  end
+
+  public_bucket = require_env.("BUCKET_NAME")
+  private_bucket = require_env.("PRIVATE_BUCKET_NAME")
+  endpoint = URI.parse(require_env.("AWS_ENDPOINT_URL_S3"))
+
+  config :ex_aws,
+    access_key_id: require_env.("AWS_ACCESS_KEY_ID"),
+    secret_access_key: require_env.("AWS_SECRET_ACCESS_KEY")
+
+  # "auto" is Tigris' region (it's global). virtual_host: requests go to
+  # https://<bucket>.t3.storage.dev/..., the style Tigris uses now.
+  config :ex_aws, :s3,
+    scheme: endpoint.scheme <> "://",
+    host: endpoint.host,
+    region: "auto",
+    virtual_host: true
+
+  config :artsy_neighbor, ArtsyNeighbor.Storage, backend: ArtsyNeighbor.Storage.S3
+
+  # Where browsers load public photos from. PHOTOS_BASE_URL is for a
+  # custom domain later (e.g. https://photos.<our domain>).
+  config :artsy_neighbor, ArtsyNeighbor.Storage.S3,
+    public_bucket: public_bucket,
+    private_bucket: private_bucket,
+    public_base_url:
+      System.get_env("PHOTOS_BASE_URL") || "https://#{public_bucket}.t3.tigrisfiles.io"
+
   # The home page's hero work (see config.exs): its id in this database.
   # Not set: the picture shows with no credit and no link.
   if hero_id = System.get_env("HOME_HERO_PRODUCT_ID") do
