@@ -124,10 +124,10 @@ defmodule ArtsyNeighbor.ImagesTest do
       assert long_side.("source.webp", :private) == 1487
       assert long_side.("large.webp", :public) == 1487
       assert long_side.("medium.webp", :public) == 1487
-      assert long_side.("thumb.webp", :public) == 600
+      assert long_side.("thumb.webp", :public) == 800
     end
 
-    test "shrinks a big photo to 4096 (kept copy) and 2500 / 1600 / 600 (shown)",
+    test "shrinks a big photo to 4096 (kept copy) and 2500 / 1600 / 800 (shown)",
          %{dir: dir, folder: folder} do
       # 1487 × 3 = 4461px wide.
       path =
@@ -144,7 +144,7 @@ defmodule ArtsyNeighbor.ImagesTest do
           Image.width(Image.open!(stored_path(key, file_name, :public)))
         end
 
-      assert sizes == [2500, 1600, 600]
+      assert sizes == [2500, 1600, 800]
     end
   end
 
@@ -280,6 +280,84 @@ defmodule ArtsyNeighbor.ImagesTest do
 
     test "nil stays nil" do
       assert Images.url(nil, :thumb) == nil
+    end
+  end
+
+  describe "placeholder/1" do
+    test "each placeholder is a file that exists in priv/static" do
+      for kind <- [:artist, :product, :category] do
+        web_path = Images.placeholder(kind)
+        # app_dir finds the app's priv folder wherever the tests run from.
+        file = Path.join(Application.app_dir(:artsy_neighbor, "priv/static"), web_path)
+
+        assert File.exists?(file), "placeholder for #{kind} is missing: #{file}"
+      end
+    end
+
+    test "an unknown kind raises instead of giving a broken image" do
+      assert_raise KeyError, fn -> Images.placeholder(:artsit) end
+    end
+  end
+
+  describe "or_placeholder/2" do
+    test "gives the path itself when there is one" do
+      assert Images.or_placeholder("/images/cat-painting.jpg", :category) ==
+               "/images/cat-painting.jpg"
+    end
+
+    test "gives the placeholder for nil or an empty path" do
+      assert Images.or_placeholder(nil, :category) == Images.placeholder(:category)
+      assert Images.or_placeholder("", :category) == Images.placeholder(:category)
+    end
+  end
+
+  describe "first_url/3" do
+    test "uses the photo with the lowest position, whatever the list order" do
+      # Plain maps stand in for ProductImage / ArtistImage rows: only
+      # :path and :position are used.
+      images = [
+        %{path: "/images/second.jpg", position: 2},
+        %{path: "/images/cover.jpg", position: 1},
+        %{path: "/images/third.jpg", position: 3}
+      ]
+
+      assert Images.first_url(images, :thumb) == "/images/cover.jpg"
+    end
+
+    test "gives the address of the chosen size for a key" do
+      key = "products/12/0b6c5e1a-6b8e-4c43-9a43-3c1f2b7e8d90"
+
+      assert Images.first_url([%{path: key, position: 1}], :medium) ==
+               "/uploads/#{key}/medium.webp"
+    end
+
+    test "no photos (empty list or nil) gives the placeholder, or nil without one" do
+      assert Images.first_url([], :thumb, "/images/site/placeholder.jpg") ==
+               "/images/site/placeholder.jpg"
+
+      assert Images.first_url(nil, :thumb, "/images/site/placeholder.jpg") ==
+               "/images/site/placeholder.jpg"
+
+      assert Images.first_url([], :thumb) == nil
+    end
+
+    test "photos that weren't loaded give the placeholder and a warning, not a crash" do
+      # What a product's product_images holds when the query forgot
+      # to preload them.
+      not_loaded = %Ecto.Association.NotLoaded{
+        __field__: :product_images,
+        __owner__: ArtsyNeighbor.Products.Product,
+        __cardinality__: :many
+      }
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert Images.first_url(not_loaded, :thumb, "/images/site/placeholder.jpg") ==
+                   "/images/site/placeholder.jpg"
+        end)
+
+      assert log =~ "weren't loaded"
+      assert log =~ "product_images"
     end
   end
 

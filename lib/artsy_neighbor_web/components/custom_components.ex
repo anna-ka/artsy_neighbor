@@ -1,6 +1,8 @@
 defmodule ArtsyNeighborWeb.CustomComponents do
   use ArtsyNeighborWeb, :html
 
+  alias ArtsyNeighbor.Images
+
   @doc """
   Renders a product card displaying product details.
 
@@ -16,17 +18,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
 
   def product_card(assigns) do
     assigns =
-      assign(
-        assigns,
-        :image_path,
-        assigns.product.product_images
-        |> Enum.sort_by(fn img -> img.position end)
-        |> List.first()
-        |> case do
-          nil -> "/images/site/placeholder-product.jpg"
-          img -> img.path
-        end
-      )
+      assign(assigns, :image_path, first_image_path(assigns.product, :thumb))
 
     ~H"""
     <.link navigate={~p"/products/#{@product}"} id={@dom_id} class="no-underline">
@@ -62,11 +54,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       assign(
         assigns,
         :image_url,
-        case assigns.category.main_img do
-          nil -> "/images/site/placeholder-category.jpg"
-          "" -> "/images/site/placeholder-category.jpg"
-          url -> url
-        end
+        Images.or_placeholder(assigns.category.main_img, :category)
       )
 
     ~H"""
@@ -126,7 +114,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   def artwork_card(assigns) do
     assigns =
       assign(assigns,
-        image_path: first_image_path(assigns.product),
+        image_path: first_image_path(assigns.product, :thumb),
         details: artwork_details(assigns)
       )
 
@@ -142,15 +130,27 @@ defmodule ArtsyNeighborWeb.CustomComponents do
     """
   end
 
-  # The path of the product's first photo (lowest position), or the
-  # placeholder picture when it has none.
-  defp first_image_path(product) do
-    images = Enum.sort_by(product.product_images, fn image -> image.position end)
+  @doc """
+  The `loading` attribute for photo number `index` of a carousel that
+  shows only the photo at `current_index` (product page, artist page).
 
-    case images do
-      [] -> "/images/site/placeholder-product.jpg"
-      [first | _rest] -> first.path
-    end
+  All the photos are on the page, but the hidden ones are "lazy": the
+  browser fetches each only when it is shown (arrow click), so a
+  product with 6 photos doesn't download all 6 when the page opens.
+
+      <img :for={{image, index} <- Enum.with_index(@images)}
+           hidden={index != @photo_index}
+           loading={carousel_loading(index, @photo_index)} ... />
+  """
+  def carousel_loading(index, current_index) do
+    if index == current_index, do: "eager", else: "lazy"
+  end
+
+  # The web address of the product's first photo (lowest position) in
+  # the given size (:large, :medium or :thumb, see Images.url/2), or the
+  # placeholder picture when it has none.
+  defp first_image_path(product, size) do
+    Images.first_url(product.product_images, size, Images.placeholder(:product))
   end
 
   # "Maren Holt · Fernwood · Oil on canvas, 70 × 50 cm", from the card's
@@ -321,14 +321,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
   attr :rest, :global, doc: "e.g. id"
 
   def collection_card(assigns) do
-    image_path =
-      case assigns.image do
-        nil -> "/images/site/placeholder-category.jpg"
-        "" -> "/images/site/placeholder-category.jpg"
-        path -> path
-      end
-
-    assigns = assign(assigns, :image_path, image_path)
+    assigns = assign(assigns, :image_path, Images.or_placeholder(assigns.image, :category))
 
     ~H"""
     <.link navigate={@navigate} class="collection-card" {@rest}>
@@ -369,15 +362,15 @@ defmodule ArtsyNeighborWeb.CustomComponents do
       end
 
     photo_path =
-      case artist.artist_images do
-        [] -> "/images/site/avatar-placeholder.png"
-        [first | _rest] -> first.path
-      end
+      Images.first_url(artist.artist_images, :thumb, Images.placeholder(:artist))
 
+    # The banner is about 380px wide; sharp ("retina") screens need
+    # twice that, which the 800px :thumb covers (:medium would be ~5×
+    # the download for no visible gain).
     banner_path =
       case works do
-        [] -> "/images/site/placeholder-product.jpg"
-        [newest | _rest] -> first_image_path(newest)
+        [] -> Images.placeholder(:product)
+        [newest | _rest] -> first_image_path(newest, :thumb)
       end
 
     assigns =
@@ -414,7 +407,7 @@ defmodule ArtsyNeighborWeb.CustomComponents do
         </div>
         <div class="artist-card-works">
           <.link :for={work <- @thumbnails} navigate={~p"/products/#{work}"} title={work.title}>
-            <img src={first_image_path(work)} alt={work.title} />
+            <img src={first_image_path(work, :thumb)} alt={work.title} />
           </.link>
         </div>
         <.link navigate={~p"/artists/#{@artist}"} class="artist-card-visit">Visit page ›</.link>

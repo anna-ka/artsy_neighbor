@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.HardDelete
 
@@ -169,9 +170,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
             <:col :let={{_dom_id, product}} label="Image" col_class="w-20">
               <div class="avatar">
                 <div class="mask mask-squircle h-12 w-12">
-                  <% img = List.first(product.product_images) %>
                   <img
-                    src={if img, do: img.path, else: "/images/site/avatar-placeholder.png"}
+                    src={
+                      Images.first_url(
+                        product.product_images,
+                        :thumb,
+                        Images.placeholder(:product)
+                      )
+                    }
                     alt={product.title}
                   />
                 </div>

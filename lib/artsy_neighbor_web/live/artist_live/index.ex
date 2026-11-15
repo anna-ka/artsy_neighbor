@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
+  alias ArtsyNeighbor.Images
 
   def mount(_params, _session, socket) do
     {:ok, socket}
@@ -128,13 +129,11 @@ defmodule ArtsyNeighborWeb.ArtistLive.Index do
         <figure class="aspect-square">
           <img
             src={
-              @artist.artist_images
-              |> Enum.sort_by(& &1.position)
-              |> List.first()
-              |> case do
-                nil -> "/images/site/avatar-placeholder.png"
-                img -> img.path
-              end
+              Images.first_url(
+                @artist.artist_images,
+                :thumb,
+                Images.placeholder(:artist)
+              )
             }
             alt={@artist.nickname}
             class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"

@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Images
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
 
   @impl true
@@ -85,11 +86,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
             <%!-- Main Image --%>
             <div class="relative aspect-square w-full rounded-lg overflow-hidden bg-base-300 flex items-center justify-center mb-4 group">
               <img
-                src={
-                  Enum.at(@images, @current_image_index, %{
-                    path: "/images/site/avatar-placeholder.png"
-                  }).path
-                }
+                src={main_image_url(@images, @current_image_index)}
                 alt={@product.title}
                 class="w-full h-full object-contain"
               />
@@ -154,7 +151,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
                   ]}
                 >
                   <img
-                    src={image.path}
+                    src={Images.url(image.path, :thumb)}
                     alt={"#{@product.title} - thumbnail #{idx + 1}"}
                     class="w-full h-full object-contain"
                   />
@@ -233,5 +230,14 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Show do
       </div>
     </Layouts.artsy_main>
     """
+  end
+
+  # The big photo: the one at `index` in medium size, or the placeholder
+  # when the product has no photos.
+  defp main_image_url(images, index) do
+    case Enum.at(images, index) do
+      nil -> Images.placeholder(:product)
+      image -> Images.url(image.path, :medium)
+    end
   end
 end

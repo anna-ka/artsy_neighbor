@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Reviews
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
@@ -68,13 +69,11 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
           <figure class="w-32 shrink-0">
             <img
               src={
-                @artist.artist_images
-                |> Enum.sort_by(& &1.position)
-                |> List.first()
-                |> case do
-                  nil -> "/images/site/avatar-placeholder.png"
-                  img -> img.path
-                end
+                Images.first_url(
+                  @artist.artist_images,
+                  :thumb,
+                  Images.placeholder(:artist)
+                )
               }
               alt={@artist.nickname}
               class="h-full w-full object-cover"
@@ -273,9 +272,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                       </td>
                       <td>
                         <div class="flex items-center gap-3">
-                          <%= if img = List.first(product.product_images) do %>
+                          <%= if thumb_url = Images.first_url(product.product_images, :thumb) do %>
                             <img
-                              src={img.path}
+                              src={thumb_url}
                               alt={product.title}
                               class="w-12 h-12 object-cover rounded"
                             />

@@ -20,6 +20,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Reviews
@@ -36,7 +37,8 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
       paragraphs: 1,
       star_rating: 1,
       review: 1,
-      quiet_link: 1
+      quiet_link: 1,
+      carousel_loading: 2
     ]
 
   # How many works "More by <artist>" and "You may also like" show.
@@ -335,14 +337,15 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
         >
           <img
             :if={@photo_count == 0}
-            src="/images/site/placeholder-product.jpg"
+            src={Images.placeholder(:product)}
             alt={"#{@product.title} (no photo yet)"}
           />
           <img
             :for={{image, index} <- Enum.with_index(@images)}
-            src={image.path}
+            src={Images.url(image.path, :medium)}
             alt={"#{@product.title}, photo #{index + 1} of #{@photo_count}"}
             hidden={index != @photo_index}
+            loading={carousel_loading(index, @photo_index)}
             class="work-enlargeable"
             phx-click={open_viewer()}
           />
@@ -391,7 +394,7 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
           aria-label={"Show photo #{index + 1}"}
           aria-pressed={to_string(index == @photo_index)}
         >
-          <img src={image.path} alt="" />
+          <img src={Images.url(image.path, :thumb)} alt="" />
         </button>
       </div>
 
@@ -441,9 +444,27 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
            normal size" button sits in the photo's own corner, where the
            "enlarge" button was. --%>
       <div class="work-viewer-frame">
+        <%!-- Two copies of the same photo, stacked:
+             * underneath, the :medium size, which the page has already
+               downloaded, so it shows at once and gives the frame its
+               size (the "back to normal size" button stays put);
+             * on top, the :large size, covering it exactly (same
+               proportions) once it has arrived. loading="lazy": the
+               dialog is on the page even while closed, and lazy images
+               that aren't shown are only fetched once it opens, so the
+               big file isn't downloaded on every visit.
+             The large one has an empty alt and aria-hidden, so a screen
+             reader describes the photo only once. --%>
         <img
-          src={@image.path}
+          src={Images.url(@image.path, :medium)}
           alt={"#{@product.title}, photo #{@photo_index + 1} of #{@photo_count}"}
+        />
+        <img
+          class="work-viewer-large"
+          src={Images.url(@image.path, :large)}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
         />
         <form method="dialog">
           <button

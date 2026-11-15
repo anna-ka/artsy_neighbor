@@ -85,7 +85,15 @@ mix phx.server           # dev server
 - Buyer order history: `lib/artsy_neighbor_web/live/order_live/index.ex`, `detail.ex`
 - Admin artist management: `lib/artsy_neighbor_web/live/admin_artist_live/index.ex`
 - Layouts: `lib/artsy_neighbor_web/components/layouts.ex`
-- Uploads (dev only — see `NOTES.md`): `priv/static/uploads/{products,artist_profiles}/`
+- Photos: `lib/artsy_neighbor/images.ex` (check, resize, store; `Images.url/2`),
+  `lib/artsy_neighbor/storage.ex` + `storage/local.ex`,
+  `lib/artsy_neighbor/images/limiter.ex`; form side:
+  `lib/artsy_neighbor_web/photo_uploads.ex`. Plan:
+  `docs/plans/2026-10-28-image-storage-and-resizing.md`
+- Uploads (dev only — see `NOTES.md`): public sizes in
+  `priv/static/uploads/{products,artists}/`, private `source.webp` in
+  `priv/private_uploads/`; older uploads/seed images in
+  `priv/static/uploads/` and `priv/static/images/`
 
 ## Conventions
 
@@ -117,7 +125,23 @@ doesn't cost real efficiency.
   composable `with_status(query, status)` filter (`nil` = no filter).
 - Back navigation uses `return_to` + `return_label` query params rather than
   browser history.
-- `ProductImage` field is `path`, not `url`.
+- `ProductImage` / `ArtistImage` field is `path`, not `url`. It holds either an
+  old-style web path starting with `/` or a storage key (a folder of sizes).
+  Never put it in `src=` directly: always `Images.url(image.path, size)` with
+  `:thumb` (cards, lists, small photos), `:medium` (product page photo) or
+  `:large` (large view) — see step 3 of the image plan for which size where.
+  For "the cover photo" of a product or artist use
+  `Images.first_url(images, size, placeholder)` (sorts by `position`), not
+  `List.first`. A test (`image_display_test.exs`) fails on any `.path` in
+  `lib/artsy_neighbor_web` without `Images.url(`.
+- **Placeholders are a display choice, not data.** When something has no
+  picture, store `nil` (or no image row), never the placeholder's path. Pages
+  pick the placeholder when they draw the picture, with
+  `Images.placeholder(:artist | :product | :category)` or
+  `Images.or_placeholder(path, kind)`; never write a placeholder path in a
+  page. That way changing a placeholder never needs a database update.
+  New photos only go in through `Images.process_upload/3` (via
+  `PhotoUploads` in the forms), never by copying the uploaded file.
 
 ## Git and GitHub
 
@@ -167,13 +191,22 @@ NOTES.md:
 - `onboarding_complete` — bool, set true on final profile save
 - `homepage`, `instagram`, `facebook` — optional URL strings
 - Three changesets: `registration_changeset` (step 1 only), `activation_changeset`
-  (full profile), `status_changeset` (status only)
+  (full profile, does NOT cast `status`), `status_changeset` (status only)
+- Status changes go through `Artists` functions, not `update_artist/2`:
+  `activate_artist/1` (refused without a profile photo),
+  `deactivate_artist/1`, `soft_delete_artist/1`, or the dispatcher
+  `change_status/2` (used by the admin form). Removing the last photo of an
+  `:active` artist is refused.
 - `filter_artists/1` and `list_artists/0` always scope to `status: :active`;
   `list_artists_all_status/0` is the admin-only escape hatch — all statuses,
   sorted active → inactive → removed, then nickname
 
 **Product** (`lib/artsy_neighbor/products/product.ex`)
-- `status` — `:available` | `:unavailable` | `:archived`, default `:available`
+- `status` — `:draft` | `:available` | `:unavailable` | `:archived`, default
+  `:draft`. `Product.changeset` does NOT cast `status`; only
+  `publish_product/1`, `soft_delete_product/1`, `restore_product/1` and
+  `delete_product_image/1` change it. A product needs at least one photo to be
+  `:available`; removing its last photo moves it back to `:draft`.
 - When an artist is soft-deleted (`Artists.soft_delete_artist/1`), all their
   products go `:archived` — not deleted, and unconditionally (even ones
   already `:archived` individually). When an artist transitions from

@@ -121,22 +121,40 @@ which is mechanical and done once, up front.
      untracked (files kept on disk); the placeholder images and
      `logo.svg` moved into `images/site/`; unused drafts moved out of
      the repo to `~/Code/artsy-neighbor-design/`.
-   - **b. `Storage` module + automatic resizing (#24)**, dev still on
-     local disk. The database stores a key (e.g.
-     `products/<product id>/<random id>/large.webp`), not a URL; the
-     `Storage` module turns a key into a URL. Always keep a
-     large private copy (`source.webp`, ≤4096px) so sizes can be
-     regenerated later (and image embeddings recomputed) — but with all
-     metadata stripped, never the raw upload, since phone photos carry GPS location (decided
-     2026-11-06; see the plan). Includes converting existing paths in the database,
-     sorting out the images still in `priv/static/images/` that dev
-     data and `seeds.exs` use, and the missing `wall_art.jpg`.
+   - **b. `Storage` module + automatic resizing (#24)** — **done
+     2026-11-09** (commits `b565be3`, `a935172`, `60a59b7`, `973fa3d`
+     and the display-sites commit), dev still on local disk. The
+     database's `path` column holds either an old-style web path
+     starting with `/` (shown as-is, so no data conversion was needed)
+     or a key (`products/<product id>/<random id>`, a folder holding
+     `source.webp` + `large`/`medium`/`thumb.webp`); pages always show
+     photos through `Images.url(path, size)`. A large private copy
+     (`source.webp`, ≤4096px) is kept so sizes can be regenerated
+     later (and image embeddings recomputed) — with all metadata
+     stripped, never the raw upload, since phone photos carry GPS
+     location. Also came with it: product `:draft` status, "needs a
+     photo" rules, background photo processing with a limit of N at a
+     time. Details and decisions: the plan doc. Left over: the missing
+     `wall_art.jpg` in dev data (fix by hand).
    - **c. Tigris** (created from Fly with `fly storage create`, no
      separate account) as the first part of the deploy, plus backups:
      a scheduled copy of the bucket to a second place, and database
      backups, both in the runbook. Before signing up for Fly: decide
      whether to use a project email address rather than a personal one
      for service accounts (Fly, domain, later Stripe).
+     - **libvips on the server** (added 2026-11-09). The `image`
+       library needs libvips with HEIC support (libheif + an HEVC
+       decoder). On the Mac it is Homebrew's (`brew install vips` plus
+       `VIX_COMPILATION_MODE=PLATFORM_PROVIDED_LIBVIPS`, see README).
+       The `Dockerfile` doesn't install it yet: the build stage needs
+       libvips' development package and the same setting before `vix`
+       compiles, the runtime stage the libvips library. Check that
+       `test/artsy_neighbor/image_setup_test.exs` (decodes a HEIC)
+       passes in that image, or iPhone photos get the "can't read
+       HEIC" message on the real site.
+     - **Storage.S3** (Tigris): two buckets, public for the display
+       sizes and private for `source.webp` (see the plan's "Public vs
+       private storage").
      - **Reconsider image-processing memory before inviting testers**
        (added 2026-11-09). Processing a photo needs a lot of memory
        (measured on the Mac 2026-11-09: ~370 MB peak for a 12 MP photo,
@@ -215,12 +233,11 @@ working on the code should keep in mind.
   `codesign --force -s - _build/tailwind-macos-arm64*`. Check with
   `codesign -v _build/tailwind-macos-arm64`. Not an issue on Fly
   (Linux).
-- **Upload storage is dev-only.** Files land in `priv/static/uploads/`, which is
-  wiped on deploy. Needs S3/ex_aws, Tigris, or Cloudinary before shipping —
-  Waffle is a good fit for the upload-handling layer.
-- **Upload filenames** use `System.unique_integer` in
-  `vendor_live/product_form.ex`, which resets across restarts — fine for dev,
-  should become `Ecto.UUID.generate()` before this matters.
+- **Upload storage is dev-only.** Photos go through `ArtsyNeighbor.Storage`,
+  whose only backend so far is `Storage.Local`: public sizes in
+  `priv/static/uploads/`, which is wiped on deploy, and the private
+  `source.webp` in `priv/private_uploads/`. `Storage.S3` (Tigris) is
+  step 2c of the order of work.
 - **Delivery as a fulfillment method is schema-only.** `delivery_options` can
   contain `"delivery"` but nothing in the UI lets a buyer choose it, and
   `complete_pickup/2` has no delivery clause. Not planned for initial launch.
@@ -537,7 +554,9 @@ working on the code should keep in mind.
   22. Small issue in messages/id route: basically showing a conversation. Both Chorime and Firefox remember and keep suggesting what you had previously typed in it. Because this is a free form text this is odd. It's not an address/name or other reocurring field. Not sure if this is an issue witha browser or my code. But not too big of a deal.
 
   24. **Check and process uploaded images automatically** (added
-      2026-10-07). Image sizes are mystifying to most people, so artists
+      2026-10-07). **Done 2026-11-09** for product and artist photos
+      (step 2b of the order of work; collection covers don't exist
+      yet). Image sizes are mystifying to most people, so artists
       should never have to think about pixels or file sizes. On upload
       (product photos, collection covers, artist photos): accept any
       ordinary photo; refuse only ones that are genuinely too small, in
@@ -763,3 +782,4 @@ working on the code should keep in mind.
   revisiting eventually. Do NOT refactor until explicitly asked.
 - **Nav UI** — top strip cuts off on small screens; arrow visibility needs
   a JS scroll listener. Deferred until closer to deployment.
+

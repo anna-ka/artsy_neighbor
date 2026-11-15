@@ -5,7 +5,9 @@ defmodule ArtsyNeighbor.Categories.Category do
   schema "categories" do
     field :name, :string
     field :description, :string
-    field :main_img, :string, default: "/images/site/placeholder-category.jpg"
+    # nil when the category has no picture; pages show the placeholder
+    # (Images.or_placeholder/2). Never store the placeholder's path here.
+    field :main_img, :string
     field :slug, :string
     field :status, Ecto.Enum, values: [:active, :archived], default: :active
     field :status_changed_at, :utc_datetime

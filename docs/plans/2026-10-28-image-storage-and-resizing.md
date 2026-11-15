@@ -61,7 +61,7 @@ migration). It holds either:
 - or a new storage key like `products/<product_id>/<uuid>` — a folder
   holding `source.webp` (the kept copy, ≤4096px, see below),
   `large.webp` (≤2500px long side), `medium.webp` (≤1600px), `thumb.webp`
-  (≤600px).
+  (≤800px; 600px until the step 3 code review).
 
 **No raw uploads are kept** (decided 2026-11-06). Phone photos carry GPS
 location (the spike's iPhone photo had 15 GPS fields), and stored files
@@ -306,10 +306,79 @@ world; note in NOTES), the dead `first.html.heex` template, `wall_art.jpg`
      Enter on the profile form's steps 1–2 acts like Next; the stored
      photos list is one shared component (`stored_photos`). The
      processing bottleneck itself is NOTES #34.
-3. Switch the display sites.
+3. Switch the display sites. Sizes chosen from how big each picture is
+   shown (CSS), doubled for sharp "retina" screens (agreed 2026-11-09):
+
+   | Where | Shown at about | Size |
+   |---|---|---|
+   | Product page, main photo | up to 720px tall | `:medium` (hidden carousel photos `loading="lazy"`) |
+   | Product page, large view | the whole window | `:large` (with `loading="lazy"`, so it's only fetched when opened) |
+   | Admin product page, main photo | ~500px | `:medium` |
+   | Home page artist card, banner | ~380px wide, cropped | `:medium` |
+   | Artwork/product cards, collection cards | up to ~400px | `:thumb` |
+   | Artist page photo | 280px (110px on phones) | `:thumb` |
+   | Artist card: round photo, 3 small works | 76px / ~110px | `:thumb` |
+   | Product page row of small photos, dashboard, admin lists, order / conversation / review rows | 48–64px | `:thumb` |
+
+   Not changed: the home page hero (a site image named in config),
+   category pictures, the logo.
+
+   After the code review (2026-11-09):
+   - `:thumb` raised from 600 to **800px** on the long side. By the 2×
+     rule above, the artist page photo (280×400) and the widest cards
+     (~400px) need ~800px; 600 looked soft on sharp screens. Cards
+     weren't switched to `:medium` instead (~480 KB each, too heavy
+     for a page of 20 cards); an 800px thumb is ~75 KB instead of ~43.
+     Applies to new uploads only. A portrait photo on the widest card
+     is still 600px wide (1.5×), which is acceptable.
+   - New `Images.first_url(images, size, placeholder)`: the cover
+     photo (lowest `position`) in a size, or the placeholder. Used
+     everywhere a page shows "the first photo", so all pages show the
+     same cover (before, some took the first in load order), and the
+     placeholders are consistent (one pointed at a missing file).
+   - A test reads `lib/artsy_neighbor_web` and fails if a line uses a
+     photo's `.path` without `Images.url(` (in
+     `image_display_test.exs`).
+   - (2026-11-14, developer's suggestion) The three "no photo" pictures
+     are named in one place, `Images.placeholder(:artist | :product |
+     :category)`, instead of their paths being written out in 15
+     places. A test checks that each file exists.
+
+   After a second code review (2026-11-14):
+   - **Placeholders are shown, never stored** (now a CLAUDE.md
+     convention). The Category schema's `main_img` default was the
+     placeholder's path, so it got saved into new rows and couldn't be
+     changed in one place later; it is now `nil`, and every page that
+     shows `main_img` uses the new `Images.or_placeholder(path, kind)`
+     (the category page and admin category list had no fallback at
+     all). No migration: the column has no database default, and no
+     dev row held the placeholder.
+   - Large view: the `:medium` photo (already downloaded) shows at
+     once and sets the frame's size; the `:large` one lies exactly on
+     top (`.work-viewer-large`, still `loading="lazy"`) and covers it
+     once it arrives. Before, the dialog opened empty until the ~1 MB
+     file came, and the "back to normal size" button jumped.
+   - Artist card banner back to `:thumb`: with 800px thumbs it covers
+     the ~380px banner at 2×, at ~1/5 of the download.
+   - `first_url` uses `Enum.min_by` (one pass, no sorting), and photos
+     that weren't loaded (a query without the preload) give the
+     placeholder plus a logged warning instead of crashing the page.
+   - The carousels' eager/lazy rule is one shared function,
+     `CustomComponents.carousel_loading/2`.
+
+   Checked with a real painting photo (2026-11-09): at the size the
+   product page shows it, `:medium`, `:large` and `source.webp` look
+   the same; zoomed in twice, `:medium` is very slightly smoother
+   (fine canvas texture). Mostly the phone photo's own softness.
+   Decided: leave as is. If it bothers us with real artists' photos,
+   the cheap fix is a higher WebP quality for the display sizes
+   (`@display_quality` 82 → 88–90 in `Images`, new uploads only), not
+   showing `:large` on the product page.
 4. NOTES: mark #24 and step b done, add the libvips setup to the step c
    notes; update CLAUDE.md "Key file paths"/conventions (images go through
-   `Images`).
+   `Images`). Done 2026-11-09 in the same commit as step 3; CLAUDE.md
+   also caught up with step 2a (product `:draft`, status changes only
+   through the context functions).
 
 ## Verification
 

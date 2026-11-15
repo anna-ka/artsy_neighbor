@@ -6,6 +6,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
   @handles_badge_messages true
 
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Images
 
   def mount(_params, _session, socket) do
     user = socket.assigns.current_scope.user
@@ -199,7 +200,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
                 <div class="avatar">
                   <div class="w-12 h-12 rounded-full">
                     <img src={
-                      List.first(conversation.artist.artist_images, %{path: "/images/placeholder.jpg"}).path
+                      Images.first_url(
+                        conversation.artist.artist_images,
+                        :thumb,
+                        Images.placeholder(:artist)
+                      )
                     } />
                   </div>
                 </div>

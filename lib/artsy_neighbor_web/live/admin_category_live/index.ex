@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Admin.AdminCategories
+  alias ArtsyNeighbor.Images
 
   import ArtsyNeighborWeb.CustomComponents,
     only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
@@ -152,7 +153,7 @@ defmodule ArtsyNeighborWeb.AdminCategoryLive.Index do
             <:col :let={{_dom_id, category}} label="Image" col_class="w-20">
               <div class="avatar">
                 <div class="mask mask-squircle h-12 w-12 bg-gray-200">
-                  <img src={category.main_img} alt={category.name} />
+                  <img src={Images.or_placeholder(category.main_img, :category)} alt={category.name} />
                 </div>
               </div>
             </:col>

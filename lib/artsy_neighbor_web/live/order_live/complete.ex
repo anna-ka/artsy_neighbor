@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Orders
+  alias ArtsyNeighbor.Images
 
   def mount(%{"id" => id, "token" => token} = _params, _session, socket) do
     order = Orders.get_order!(id)
@@ -87,8 +88,12 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
             <%= for item <- @order.items do %>
               <li class="flex items-center gap-3">
                 <div class="w-14 h-14 rounded-lg overflow-hidden bg-base-300 shrink-0">
-                  <%= if thumb = List.first(item.product && item.product.product_images) do %>
-                    <img src={thumb.path} alt={item.product_title} class="w-full h-full object-cover" />
+                  <%= if thumb_url = Images.first_url(item.product && item.product.product_images, :thumb) do %>
+                    <img
+                      src={thumb_url}
+                      alt={item.product_title}
+                      class="w-full h-full object-cover"
+                    />
                   <% else %>
                     <div class="w-full h-full flex items-center justify-center text-base-content/30 text-xs">
                       ?

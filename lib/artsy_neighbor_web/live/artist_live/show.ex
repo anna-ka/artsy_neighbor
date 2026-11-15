@@ -26,6 +26,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Artists
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Reviews
@@ -41,6 +42,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
       chip: 1,
       show_more: 1,
       placeholder: 1,
+      carousel_loading: 2,
       star_rating: 1,
       review: 1,
       delivery_options: 1,
@@ -499,9 +501,10 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     >
       <img
         :for={{image, index} <- Enum.with_index(@images)}
-        src={image.path}
+        src={Images.url(image.path, :thumb)}
         alt={"#{@artist.nickname}, photo #{index + 1} of #{@photo_count}"}
         hidden={index != @photo_index}
+        loading={carousel_loading(index, @photo_index)}
       />
 
       <%= if @controls && @photo_count > 1 do %>
@@ -587,13 +590,12 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     """
   end
 
-  # The first photo of a collection's first work, or nil.
+  # The web address of the first photo of a collection's first work
+  # (small size), or nil.
   defp collection_image(collection) do
-    with %{} = product <- List.first(collection.products),
-         %{} = image <- List.first(product.product_images) do
-      image.path
-    else
-      _ -> nil
+    case List.first(collection.products) do
+      nil -> nil
+      product -> Images.first_url(product.product_images, :thumb)
     end
   end
 

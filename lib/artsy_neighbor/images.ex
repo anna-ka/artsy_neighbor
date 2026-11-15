@@ -12,7 +12,7 @@ defmodule ArtsyNeighbor.Images do
                       shown);
     * `large.webp`  — at most 2500px on the long side, public;
     * `medium.webp` — at most 1600px, public;
-    * `thumb.webp`  — at most 600px, public.
+    * `thumb.webp`  — at most 800px, public.
 
   The `path` column of `product_images` / `artist_images` holds either
   such a key or an old-style web path starting with `/` (seed images,
@@ -28,7 +28,7 @@ defmodule ArtsyNeighbor.Images do
 
   # Display sizes: name => longest side in pixels. Order matters only
   # for readability.
-  @sizes [large: 2500, medium: 1600, thumb: 600]
+  @sizes [large: 2500, medium: 1600, thumb: 800]
   @size_names Keyword.keys(@sizes)
 
   # Smaller than this on the long side looks poor on the product page.
@@ -62,6 +62,14 @@ defmodule ArtsyNeighbor.Images do
                           "Please save it as a JPEG and upload that."
   @msg_save_failed "Something went wrong while saving your photo. Please try again."
   @msg_busy "The site is busy — please try again in a moment."
+
+  # The pictures shown when there is no photo. Site images, kept in
+  # git under priv/static/images/site/. See placeholder/1.
+  @placeholders %{
+    artist: "/images/site/avatar-placeholder.png",
+    product: "/images/site/placeholder-product.jpg",
+    category: "/images/site/placeholder-category.jpg"
+  }
 
   @doc "The display size names: `[:large, :medium, :thumb]`."
   def sizes, do: @size_names
@@ -135,6 +143,96 @@ defmodule ArtsyNeighbor.Images do
   def url(key, size) when size in @size_names do
     Storage.url(key <> "/" <> Atom.to_string(size) <> ".webp")
   end
+
+  @doc """
+  The web address of the first photo in `images` (the one with the
+  lowest `position`, i.e. the cover photo the artist chose) in `size`,
+  or `placeholder` when there are no photos.
+
+  `images` is a list of `ProductImage` or `ArtistImage` rows; `nil` is
+  accepted too and counts as "no photos" (e.g. an order item whose
+  product was deleted). Picking the lowest position here (rather than
+  trusting the list's order) means every page shows the same cover
+  photo, whatever order the photos were loaded in.
+
+  If the photos weren't loaded from the database at all (a query
+  without the preload: a programming slip), this shows the placeholder
+  and logs a warning, rather than crashing the page.
+
+  ## Examples
+
+      Images.first_url(product.product_images, :thumb, Images.placeholder(:product))
+      Images.first_url(artist.artist_images, :thumb)   # nil when no photo
+  """
+  def first_url(images, size, placeholder \\ nil)
+
+  def first_url(nil, _size, placeholder), do: placeholder
+
+  def first_url(%Ecto.Association.NotLoaded{} = not_loaded, _size, placeholder) do
+    Logger.warning(
+      "Images.first_url/3 got photos that weren't loaded " <>
+        "(#{inspect(not_loaded.__owner__)}.#{not_loaded.__field__}); " <>
+        "showing the placeholder. Add the preload to the query."
+    )
+
+    placeholder
+  end
+
+  def first_url(images, size, placeholder) when is_list(images) do
+    # Enum.min_by goes through the list once, keeping the photo with the
+    # lowest position; the last argument is what to return for an empty
+    # list.
+    cover = Enum.min_by(images, fn image -> image.position end, fn -> nil end)
+
+    case cover do
+      nil -> placeholder
+      image -> url(image.path, size)
+    end
+  end
+
+  @doc """
+  The web address of the picture to show when there is no photo:
+
+    * `:artist`   — an artist without a profile photo;
+    * `:product`  — a product without photos;
+    * `:category` — a category without a picture.
+
+  Every page uses this rather than writing the path itself, so a
+  placeholder can be changed in one place (`@placeholders` above).
+  Any other `kind` raises an error, so a misspelling shows up the first
+  time the page is shown (or in a test) instead of as a broken image.
+
+  Placeholders are a display choice, not data: something without a
+  picture stores `nil` (or has no image rows), never this path, and
+  pages pick the placeholder when they draw it. Otherwise changing a
+  placeholder would need a database update.
+
+  ## Examples
+
+      Images.placeholder(:artist)
+      #=> "/images/site/avatar-placeholder.png"
+
+      Images.first_url(artist.artist_images, :thumb, Images.placeholder(:artist))
+  """
+  def placeholder(kind), do: Map.fetch!(@placeholders, kind)
+
+  @doc """
+  `path` itself if there is one, otherwise the placeholder for `kind`
+  (see `placeholder/1`). For pictures stored as a plain path in a
+  column, e.g. a category's `main_img`, which is `nil` (or `""` if an
+  admin cleared the field) when there is no picture.
+
+  ## Examples
+
+      Images.or_placeholder("/images/cat-painting.jpg", :category)
+      #=> "/images/cat-painting.jpg"
+
+      Images.or_placeholder(nil, :category)
+      #=> "/images/site/placeholder-category.jpg"
+  """
+  def or_placeholder(nil, kind), do: placeholder(kind)
+  def or_placeholder("", kind), do: placeholder(kind)
+  def or_placeholder(path, _kind) when is_binary(path), do: path
 
   # --- Steps of process_upload ---------------------------------------
 

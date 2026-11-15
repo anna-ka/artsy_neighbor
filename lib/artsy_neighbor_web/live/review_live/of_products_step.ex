@@ -11,6 +11,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Orders
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Reviews
 
   def mount(%{"id" => id}, _session, socket) do
@@ -55,7 +56,7 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
             %{
               id: item.product_id,
               title: item.product_title,
-              thumb: item.product && List.first(item.product.product_images)
+              thumb_url: Images.first_url(item.product && item.product.product_images, :thumb)
             }
           end)
 
@@ -219,8 +220,12 @@ defmodule ArtsyNeighborWeb.ReviewLive.OfProductsStep do
 
           <div class="flex items-center gap-3">
             <div class="w-12 h-12 rounded-lg overflow-hidden bg-base-300 shrink-0">
-              <%= if product.thumb do %>
-                <img src={product.thumb.path} alt={product.title} class="w-full h-full object-cover" />
+              <%= if product.thumb_url do %>
+                <img
+                  src={product.thumb_url}
+                  alt={product.title}
+                  class="w-full h-full object-cover"
+                />
               <% else %>
                 <div class="w-full h-full flex items-center justify-center text-base-content/20 text-xs">
                   ?

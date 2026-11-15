@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.CategoryLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Categories
+  alias ArtsyNeighbor.Images
 
   @impl true
   def render(assigns) do
@@ -23,7 +24,11 @@ defmodule ArtsyNeighborWeb.CategoryLive.Show do
       <%!-- Category header: two-column layout --%>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
         <div class="rounded-xl overflow-hidden bg-gray-200">
-          <img src={@category.main_img} alt={@category.name} class="w-full h-full object-contain" />
+          <img
+            src={Images.or_placeholder(@category.main_img, :category)}
+            alt={@category.name}
+            class="w-full h-full object-contain"
+          />
         </div>
         <div class="flex flex-col justify-center">
           <h1 class="text-4xl font-bold mb-4">{@category.name}</h1>

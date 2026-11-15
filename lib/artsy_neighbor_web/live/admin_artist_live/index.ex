@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Admin.AdminArtists
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.HardDelete
 
   import ArtsyNeighborWeb.CustomComponents,
@@ -154,12 +155,11 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
                 <div class="mask mask-squircle h-12 w-12">
                   <img
                     src={
-                      artist.artist_images
-                      |> Enum.sort_by(& &1.position)
-                      |> List.first()
-                      |> then(fn img ->
-                        if img, do: img.path, else: "/images/site/avatar-placeholder.png"
-                      end)
+                      Images.first_url(
+                        artist.artist_images,
+                        :thumb,
+                        Images.placeholder(:artist)
+                      )
                     }
                     alt={artist.nickname}
                   />

@@ -2,6 +2,8 @@ defmodule ArtsyNeighborWeb.OrderFormatters do
   # Shared view helpers for all order-related LiveViews.
   # Import this module instead of copy-pasting these functions.
 
+  alias ArtsyNeighbor.Images
+
   def order_badge(:requested), do: "badge-warning"
   def order_badge(:confirmed), do: "badge-success"
   def order_badge(:completed), do: "badge-info"
@@ -28,13 +30,12 @@ defmodule ArtsyNeighborWeb.OrderFormatters do
     Calendar.strftime(local, "%B %-d, %Y at %-I:%M %p")
   end
 
-  # First product image path for an order item, or nil if none.
+  # Web address of the small (thumb) size of the order item's first
+  # product photo, or nil if none (or if the product is gone).
   def thumb_path(item) do
-    with product when not is_nil(product) <- item.product,
-         [first | _] <- product.product_images do
-      first.path
-    else
-      _ -> nil
+    case item.product do
+      nil -> nil
+      product -> Images.first_url(product.product_images, :thumb)
     end
   end
 end

@@ -2,6 +2,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   use ArtsyNeighborWeb, :live_view
 
   alias ArtsyNeighbor.Conversations
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Products
@@ -51,7 +52,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
               {name, thumb} =
                 if role == :buyer do
                   {conversation.artist.nickname,
-                   List.first(conversation.artist.artist_images, %{path: nil}).path}
+                   Images.first_url(conversation.artist.artist_images, :thumb)}
                 else
                   buyer = conversation.buyer
                   {buyer.username || buyer.email, nil}
@@ -250,9 +251,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                     <%= for item <- order.items do %>
                       <li class="flex items-center gap-3">
                         <div class="w-12 h-12 rounded-lg overflow-hidden bg-base-300 shrink-0">
-                          <%= if thumb = List.first(item.product && item.product.product_images) do %>
+                          <%= if thumb_url = Images.first_url(item.product && item.product.product_images, :thumb) do %>
                             <img
-                              src={thumb.path}
+                              src={thumb_url}
                               alt={item.product_title}
                               class="w-full h-full object-cover"
                             />
@@ -468,8 +469,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                             >
                               <div class="w-8 h-8 rounded overflow-hidden bg-base-300 shrink-0 flex items-center justify-center">
                                 <img
-                                  :if={thumb = List.first(product.product_images)}
-                                  src={thumb.path}
+                                  :if={thumb_url = Images.first_url(product.product_images, :thumb)}
+                                  src={thumb_url}
                                   class="w-full h-full object-cover"
                                 />
                               </div>
