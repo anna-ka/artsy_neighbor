@@ -174,16 +174,25 @@ which is mechanical and done once, up front.
        than turning into slowness. On 1 GB two photos worked. Fly's
        memory graph is too coarse to show the processing peak (no bump
        during the save; ~383 MB "used" at rest; details in
-       `docs/tigris.md` §3.5). Saving also felt slow (a few seconds);
-       next: log each photo's processing and storing time (and memory),
-       then decide. A more
-       fundamental fix is still needed before testers (#34: a queue,
-       processing photos as soon as they're picked).
+       `docs/tigris.md` §3.5). Saving also felt slow (a few seconds).
+       **2026-11-16, measured with the timing log lines** (table in
+       `docs/tigris.md` §3.5 check 7): a 12 MP phone photo takes ~5 s
+       to process on Fly and <1 s to store; a 9 MP painting 4.6 s, so
+       the time barely depends on the photo's size (making the three
+       display sizes costs about the same for any big photo, and both
+       fit under 4096px, so `source.webp` is encoded at full size, q95).
+       Photos of one save go one after another: 2 photos ~11 s, 5 ~30 s.
+       Memory: ~470 MB peak for one photo, ~310 MB at rest, so 1 GB is
+       enough for N = 2. The iPhone sent JPEG, not HEIC. To try with
+       step 3 (browser shrinking), measuring each on the Mac first:
+       the WebP encoder's `effort` setting (lower = faster, slightly
+       bigger files), and making the three display sizes in one pass
+       instead of re-reading `source.webp` three times. A more
+       fundamental fix is still needed before testers (#34).
      - **Next, in this order (agreed 2026-11-16):**
-       1. Photo timing logs (processing and storing time, memory,
-          original pixel size and file size, one line per photo) and
-          #39 (deleting a photo deletes its files), one commit; then
-          re-run `docs/tigris.md` check 6 on Fly.
+       1. ~~Photo timing logs and #39 (deleting a photo deletes its
+          files)~~ — **done 2026-11-16** (`d00cb11`), deployed; check 6
+          passed and timings measured on Fly (above).
        2. The script that fills the preview database (item (ii)
           above), so the developer's daughter (illustrator, helping
           with looks and logo) can see the site with content.
@@ -815,43 +824,11 @@ working on the code should keep in mind.
       under the title. Check the other tables artists use on a phone at
       the same time (sales/orders list), and admin tables less urgently.
 
-  39. **Deleting a photo leaves its files in storage** (found
-      2026-11-15 on the Fly preview, `docs/tigris.md` §3.5 check 6).
-      Deleting a product photo removes its database row, so it
-      vanishes from the site with no error, but its folder
-      (`thumb`/`medium`/`large.webp` in the public bucket, `source.webp`
-      in the private one) stays in Tigris, and on the Mac in dev. The
-      step b plan left this out of scope ("soft-delete world; note in
-      NOTES"), but the note was never written. Why it matters: an
-      artist who deletes a photo (a wrong one, something personal in
-      the background) expects it gone, yet its public address keeps
-      working for anyone who has it (a copied link, a search engine).
-      The cost of the leftover files is negligible.
-      **To do (agreed 2026-11-15, its own small commit after the Tigris
-      commit, together with the photo timing logs):** after the row is
-      deleted (and the transaction has committed), call
-      `Storage.delete_prefix(key)` for that photo; if deleting the
-      files fails, log it and leave it to the periodic clean-up of
-      folders no row points to (#34). Cover every path that removes
-      image rows:
-      - `Products.delete_product_image/1`, `Artists.delete_artist_image/1`;
-      - `Products.hard_delete_product/1`, `Artists.hard_delete_artist/1`
-        and `AdminArtists.hard_delete_artist/1` (their image rows go
-        with them; check whether by cascade);
-      - not soft deletes (`soft_delete_product/1` etc.): the product
-        can be restored, so its photos stay.
-      Skip old-style paths starting with `/` (seed images in
-      `priv/static`, not ours to delete). Then re-run check 6.
-      **Done 2026-11-16** (`Images.delete_files/1`, in a background
-      task, called by the two photo deletes and, through
-      `HardDelete.delete_with_flags/2`, by both hard deletes; tests in
-      `photo_file_deletion_test.exs`). Known limit, accepted: public
-      photos are sent with "keep for a year, never changes"
-      (`Cache-Control: immutable`), so a browser that already showed a
-      deleted photo may keep its own copy; new visitors and search
-      engines get "not found". Still to do: re-run check 6 on Fly after
-      the deploy (it checks exactly that with a fresh `curl`), then
-      remove this item.
+  39. **Deleting a photo leaves its files in storage** — **fixed
+      2026-11-16** (`d00cb11`): deleting a photo row, or hard-deleting
+      a product or artist, deletes the files too (soft deletes keep
+      them). Checked on Fly (`docs/tigris.md` §3.5 check 6). Leftovers
+      in rare cases: #42; browser caches: `docs/tigris.md` §2.
 
   40. **The admin category form needs serious re-working** (added
       2026-11-15; not urgent). It was one of the first pages written

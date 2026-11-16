@@ -6,8 +6,8 @@ companion to `docs/deploy.md` (the app and database); read that first.
 Plan and reasons: `docs/plans/2026-11-14-tigris-image-storage.md`.
 
 **Status:** set up 2026-11-15 (release v5), following §3 step by
-step and correcting it along the way. All checks pass except deleting
-(§3.5 check 6: a deleted photo's files stay; `NOTES.md` #39).
+step and correcting it along the way. All checks pass; deleting
+(§3.5 check 6) passes since the fix of 2026-11-16 (`d00cb11`).
 
 Never put a key or secret in this file. They live in Fly (and the
 secret access key in the developer's Passwords app), nowhere in the
@@ -53,6 +53,17 @@ that, $0.02 per GB per month. Checked 2026-11-14.
   random code (`products/12/0b6c5e1a-…/medium.webp`), so they can't be
   guessed; someone would have to be sent one. `source.webp` is in the
   private bucket and never reachable this way.
+- **A deleted photo can live on in browsers that already showed it.**
+  Public photos are sent as "keep for a year, never changes"
+  (`Cache-Control: immutable`), so a browser that loaded one keeps its
+  own copy; nothing on our side can take that back. Everyone else (new
+  visitors, search engines) gets "not found" once the files are
+  deleted (§3.5 check 6). Accepted: those viewers had already seen it.
+- **Visitors' security software may block photo addresses.** The
+  developer's Malwarebytes blocked both `*.t3.tigrisfiles.io` addresses
+  as unsafe (a shared domain; nothing wrong in our setup) until they
+  were added to its Allow list. Fix before testers: our own photo
+  domain (`NOTES.md` #41).
 - **No backup of the buckets yet.** A manual copy to the Mac and a
   schedule come later (`NOTES.md`, step 2c).
 - **Photos uploaded before Tigris are gone** (they were on the
@@ -241,6 +252,18 @@ Then:
    only deletes the database row; the step b plan had left deleting
    files for later). To be fixed: `NOTES.md` #39. Re-run this check
    after the fix.*
+   ***Passed 2026-11-16** after the fix (`d00cb11`).* Hard-deleted
+   product 1 (two phone photos) in admin. The log showed `Deleted photo
+   files products/1/<uuid>` for both, 0.2 s apart. The `large.webp`
+   address, loaded fresh (after clearing the browser's cache), gave
+   Tigris' `NoSuchKey` error, so Tigris doesn't keep serving it from a
+   cache; `curl -I` on it gave `HTTP/1.1 404 Not Found` with
+   `Server-Timing: ... cache;desc=miss` (Tigris' cache didn't have it
+   and the bucket said "not found"); the product's folder was gone from
+   the dashboard. Before
+   clearing the cache, the browser still showed its own copy (see §2).
+   How to check: copy the photo's address, delete it, then
+   `curl -I <address>` (curl keeps no cache) must not show `200`.
 7. **Memory:** while uploading, watch the Machine's memory on the
    app's Metrics page (`fly dashboard` → Metrics). Write the peak here
    and in `NOTES.md` step 2c; decide 512 MB vs 1 GB together.
@@ -255,6 +278,22 @@ Then:
    showed **no bump** during the two-photo save (~7:18 pm local). Its
    samples are too far apart to catch a peak of a second or two, so
    it can't tell us the processing peak; that needs log lines.
+   *2026-11-16, with the timing log lines (`d00cb11`; `fly logs`, look
+   for `Photo stored`):*
+
+   | Photo | Size | Processing | Storing | Memory after / peak |
+   |---|---|---|---|---|
+   | iPhone, from the phone | 4032×3024 (12.2 MP), 4.3 MB JPEG | 4987 ms | 819 ms | 309 / 456 MB |
+   | iPhone, from the phone | 4032×3024 (12.2 MP), 3.8 MB JPEG | 5040 ms | 614 ms | 319 / 471 MB |
+   | painting, from the Mac | 2977×3049 (9.1 MP), 3.0 MB JPEG | 4578 ms | 827 ms | 342 / 471 MB |
+
+   The two phone photos were one save: processed one after the other
+   (~11 s in all), none waited for a slot. The iPhone sent JPEG, not
+   HEIC (it converts when a web page asks for a photo). Processing is
+   ~2× the Mac's time (one shared CPU) and barely depends on the
+   photo's size; storing is under a second. One 12 MP photo needs
+   ~150–170 MB above the ~310 MB at rest. Conclusions in `NOTES.md`
+   step 2c.
 
 ## 4. Look-only commands
 
