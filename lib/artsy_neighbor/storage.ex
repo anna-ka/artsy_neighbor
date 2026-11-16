@@ -71,18 +71,29 @@ defmodule ArtsyNeighbor.Storage do
   """
   def delete_prefix(prefix) do
     validate_key!(prefix)
-    last_part = prefix |> String.split("/") |> List.last()
 
-    case Ecto.UUID.cast(last_part) do
-      {:ok, _uuid} ->
-        backend().delete_prefix(prefix)
-
-      :error ->
-        raise ArgumentError,
-              "delete_prefix only deletes one image's folder (ending in a UUID), " <>
-                "got: #{inspect(prefix)}"
+    if image_folder?(prefix) do
+      backend().delete_prefix(prefix)
+    else
+      raise ArgumentError,
+            "delete_prefix only deletes one image's folder (ending in a UUID), " <>
+              "got: #{inspect(prefix)}"
     end
   end
+
+  @doc """
+  True if `key` is a safe key (see `validate_key!/1`) that ends in a
+  UUID, i.e. one image's folder such as `"products/12/0b6c5e1a-…"`.
+  Never raises; used to check a value from the database before
+  deleting it.
+  """
+  def image_folder?(key) when is_binary(key) do
+    last_part = key |> String.split("/") |> List.last()
+
+    safe_key?(key) and Ecto.UUID.cast(last_part) != :error
+  end
+
+  def image_folder?(_not_a_string), do: false
 
   defp backend do
     config = Application.fetch_env!(:artsy_neighbor, __MODULE__)
@@ -98,18 +109,20 @@ defmodule ArtsyNeighbor.Storage do
   storage folder (e.g. `"../../config/prod.exs"`).
   """
   def validate_key!(key) when is_binary(key) do
-    parts = String.split(key, "/")
-
-    valid? =
-      key != "" and
-        String.match?(key, ~r{\A[A-Za-z0-9_\-./]+\z}) and
-        not String.starts_with?(key, "/") and
-        not Enum.any?(parts, fn part -> part in ["", ".", ".."] end)
-
-    if valid? do
+    if safe_key?(key) do
       :ok
     else
       raise ArgumentError, "invalid storage key: #{inspect(key)}"
     end
+  end
+
+  # The rules of validate_key!/1, as a true/false answer.
+  defp safe_key?(key) do
+    parts = String.split(key, "/")
+
+    key != "" and
+      String.match?(key, ~r{\A[A-Za-z0-9_\-./]+\z}) and
+      not String.starts_with?(key, "/") and
+      not Enum.any?(parts, fn part -> part in ["", ".", ".."] end)
   end
 end

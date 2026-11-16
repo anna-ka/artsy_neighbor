@@ -652,7 +652,7 @@ defmodule ArtsyNeighbor.Reviews do
 
   defp delete_review_with_flags(review, subject_type) do
     HardDelete.delete_with_flags(review, fn _repo, locked_review ->
-      %{subject_type => [locked_review.id]}
+      %{flag_subjects: %{subject_type => [locked_review.id]}}
     end)
   end
 

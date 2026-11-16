@@ -393,3 +393,39 @@ defmodule ArtsyNeighbor.ImagesTest do
     end
   end
 end
+
+defmodule ArtsyNeighbor.ImagesTimingLogTest do
+  @moduledoc """
+  The timing line `Images.process_upload/3` logs for each stored photo.
+
+  The test config only logs warnings, and a single test process can't
+  ask for more, so this test turns on info logging for the whole app
+  for a moment. That's why it's in its own module with `async: false`:
+  no other test runs at the same time.
+  """
+  use ExUnit.Case, async: false
+
+  alias ArtsyNeighbor.Images
+  alias ArtsyNeighbor.Storage
+
+  # 1487 × 998 pixels, a JPEG.
+  @site_image "priv/static/images/cat-sculpture.jpg"
+
+  test "logs one timing line per stored photo" do
+    folder = "test/" <> Ecto.UUID.generate()
+    on_exit(fn -> Storage.delete_prefix(folder) end)
+
+    previous_level = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: previous_level) end)
+
+    log =
+      ExUnit.CaptureLog.capture_log([level: :info], fn ->
+        {:ok, _key} = Images.process_upload(@site_image, "photo.jpg", folder)
+      end)
+
+    assert log =~ ~s(Photo stored #{folder}/)
+    assert log =~ ~s("photo.jpg", jpeg 1487×998 \(1.5 MP,)
+    assert log =~ ~r/waited \d+ ms, processing \d+ ms, storing \d+ ms; memory/
+  end
+end

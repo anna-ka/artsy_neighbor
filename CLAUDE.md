@@ -40,7 +40,11 @@ This shapes a few things worth keeping in mind while working on it:
   `restore_<entity>/1`) and, where a hard path is kept at all,
   `hard_delete_<entity>/1` (rare, admin/testing-only, irreversible). Hard
   deletes that must also clean up polymorphic `Flag` rows go through the shared
-  `ArtsyNeighbor.HardDelete.delete_with_flags/2` (`lib/artsy_neighbor/hard_delete.ex`).
+  `ArtsyNeighbor.HardDelete.delete_with_flags/2` (`lib/artsy_neighbor/hard_delete.ex`),
+  which also deletes the photo files of image rows that go with it.
+  Anything that deletes an image row must delete its files after the
+  commit (`Images.delete_files/1`, or `Images.delete_files_of_deleted_row/1`
+  on a single delete's result); soft deletes keep the files.
   User is the exception so far: it has a status field but no removal functions
   (see the User schema note below).
 - **Payments aren't live yet.** Right now this is cash/Interac-at-pickup in design;

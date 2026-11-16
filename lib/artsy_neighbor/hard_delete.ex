@@ -17,17 +17,26 @@ defmodule ArtsyNeighbor.HardDelete do
     1. Re-read the row with `SELECT ... FOR UPDATE`, which locks it until
        the transaction ends. Postgres takes a `FOR KEY SHARE` lock on the
        referenced row for every FK-checked insert, so holding `FOR UPDATE`
-       makes any concurrent insert of a row that references this one (an
-       order, a review, an order item, ...) wait until we're done. It also
-       means we delete the current DB row, not whatever the caller's
-       possibly-stale struct says.
-    2. Ask the caller which flag subjects disappear along with this row.
+       makes any concurrent insert of a row that references this one
+       directly (an order, a review, an order item, a photo of this
+       product, ...) wait until we're done. It also means we delete the
+       current DB row, not whatever the caller's possibly-stale struct
+       says. Rows that reference it only *indirectly* (a photo of one of
+       an artist's products) aren't held up by this lock; the caller
+       locks those parents itself in step 2 if it needs to.
+    2. Ask the caller what goes away along with this row: the flag
+       subjects, and the `path`s of photo rows (whose files must go too).
        This runs against the locked row and *before* the delete, because
        after the DB-level `on_delete` cascades run, the dependent ids (e.g.
        an artist's product ids) can no longer be looked up.
     3. Delete the flags for those subjects.
     4. Delete the row itself. DB-level cascades handle everything with a
-       real foreign key.
+       real foreign key, photo rows included.
+
+  Then, only once the transaction has committed, the photos' files are
+  deleted from storage (`Images.delete_files/1`, in the background).
+  Storage isn't part of the database transaction, so doing it earlier
+  could delete files of rows that a rollback brings back.
 
   Known, accepted gap: the lock in step 1 does *not* block a concurrent
   `Flag` insert, since Flag has no foreign key for Postgres to lock
@@ -36,6 +45,7 @@ defmodule ArtsyNeighbor.HardDelete do
   """
 
   import Ecto.Query, warn: false
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Repo
   alias ArtsyNeighbor.Reviews.Flag
   alias Ecto.Multi
@@ -44,9 +54,15 @@ defmodule ArtsyNeighbor.HardDelete do
   Deletes `record` and every `Flag` reporting a subject that goes away with
   it, in one transaction (see the moduledoc for the steps).
 
-  `flag_subjects_fun` receives the repo and the locked, freshly-read row,
-  and returns a map from `Flag.subject_type` to the list of subject ids
-  being removed, e.g. `%{"vendor" => [artist.id], "product" => [4, 5]}`.
+  `going_away_fun` receives the repo and the locked, freshly-read row,
+  and returns a map with:
+
+    * `:flag_subjects` — a map from `Flag.subject_type` to the list of
+      subject ids being removed, e.g.
+      `%{"vendor" => [artist.id], "product" => [4, 5]}`;
+    * `:photo_paths` (optional, default none) — the `path` values of the
+      photo rows removed with it; their files are deleted after the
+      commit. Records without photos (reviews) leave it out.
 
   Returns `{:ok, deleted_row}`, or `{:error, reason}` where `reason` is:
 
@@ -63,7 +79,7 @@ defmodule ArtsyNeighbor.HardDelete do
 
   `error_message/1` turns any of these into text for an admin flash.
   """
-  def delete_with_flags(record, flag_subjects_fun) do
+  def delete_with_flags(record, going_away_fun) do
     schema = record.__struct__
 
     Multi.new()
@@ -73,8 +89,11 @@ defmodule ArtsyNeighbor.HardDelete do
         locked -> {:ok, locked}
       end
     end)
-    |> Multi.run(:deleted_flags, fn repo, %{locked: locked} ->
-      flag_subjects = flag_subjects_fun.(repo, locked)
+    |> Multi.run(:going_away, fn repo, %{locked: locked} ->
+      {:ok, going_away_fun.(repo, locked)}
+    end)
+    |> Multi.run(:deleted_flags, fn repo, %{going_away: going_away} ->
+      flag_subjects = Map.fetch!(going_away, :flag_subjects)
       {count, _} = repo.delete_all(from(f in Flag, where: ^flags_matching(flag_subjects)))
       {:ok, count}
     end)
@@ -83,8 +102,13 @@ defmodule ArtsyNeighbor.HardDelete do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{deleted: deleted}} -> {:ok, deleted}
-      {:error, _failed_step, reason, _changes_so_far} -> {:error, reason}
+      {:ok, %{deleted: deleted, going_away: going_away}} ->
+        # Committed: now the files can go too.
+        Images.delete_files(Map.get(going_away, :photo_paths, []))
+        {:ok, deleted}
+
+      {:error, _failed_step, reason, _changes_so_far} ->
+        {:error, reason}
     end
   rescue
     error in [Ecto.ConstraintError, Postgrex.Error] ->

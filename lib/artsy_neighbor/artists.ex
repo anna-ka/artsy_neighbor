@@ -9,10 +9,12 @@ defmodule ArtsyNeighbor.Artists do
 
   alias ArtsyNeighbor.Accounts
   alias ArtsyNeighbor.HardDelete
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Artists.ArtistImage
   alias ArtsyNeighbor.Products.ProductCollection
   alias ArtsyNeighbor.Products.Product
+  alias ArtsyNeighbor.Products.ProductImage
   alias ArtsyNeighbor.Orders.Order
   alias ArtsyNeighbor.Reviews.VendorReview
   alias ArtsyNeighbor.Reviews.BuyerReview
@@ -644,20 +646,48 @@ defmodule ArtsyNeighbor.Artists do
   """
   def hard_delete_artist(%Artist{} = artist) do
     HardDelete.delete_with_flags(artist, fn repo, locked_artist ->
-      artist_flag_subjects(repo, locked_artist)
+      # Locked like the artist row: a photo being added to one of their
+      # products right now references the product, not the artist, so
+      # only a lock on the product makes it wait. Without this, such a
+      # photo could slip in unseen, cascade away with the artist, and
+      # leave its files behind. (A new product can't slip in: it
+      # references the artist, whose row is already locked.)
+      product_ids =
+        repo.all(
+          from(p in Product,
+            where: p.artist_id == ^locked_artist.id,
+            select: p.id,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      %{
+        flag_subjects: artist_flag_subjects(repo, locked_artist, product_ids),
+        photo_paths: artist_photo_paths(repo, locked_artist, product_ids)
+      }
     end)
+  end
+
+  # Their profile photos and all their products' photos: the rows
+  # cascade away with the artist, and HardDelete deletes the files after
+  # the commit.
+  defp artist_photo_paths(repo, artist, product_ids) do
+    profile_photo_paths =
+      repo.all(from(i in ArtistImage, where: i.artist_id == ^artist.id, select: i.path))
+
+    product_photo_paths =
+      repo.all(from(i in ProductImage, where: i.product_id in ^product_ids, select: i.path))
+
+    profile_photo_paths ++ product_photo_paths
   end
 
   # Every flaggable thing that disappears when this artist is deleted: the
   # artist themselves, their products, and all three kinds of review tied to
   # their orders/products. Computed before the delete (HardDelete runs this
   # first), since once the DB cascades run these ids can't be looked up.
-  defp artist_flag_subjects(repo, artist) do
+  defp artist_flag_subjects(repo, artist, product_ids) do
     order_ids =
       repo.all(from(o in Order, where: o.artist_id == ^artist.id, select: o.id))
-
-    product_ids =
-      repo.all(from(p in Product, where: p.artist_id == ^artist.id, select: p.id))
 
     vendor_review_ids =
       repo.all(from(vr in VendorReview, where: vr.artist_id == ^artist.id, select: vr.id))
@@ -734,8 +764,19 @@ defmodule ArtsyNeighbor.Artists do
 
   Also returns `{:error, :not_found}` if the photo was already removed
   (e.g. in another browser tab).
+
+  Once the row is deleted, the photo's files are deleted from storage
+  too, in the background (`Images.delete_files_of_deleted_row/1`):
+  new visitors then get "not found" at its address, though a browser
+  that already showed it may keep its own copy for a while.
   """
   def delete_artist_image(%ArtistImage{} = artist_image) do
+    artist_image
+    |> delete_artist_image_row()
+    |> Images.delete_files_of_deleted_row()
+  end
+
+  defp delete_artist_image_row(artist_image) do
     Repo.transact(fn ->
       # Locked, so the profile can't be activated while its last photo
       # is being removed (activate_artist/1 takes the same lock).

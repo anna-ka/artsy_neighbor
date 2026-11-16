@@ -101,9 +101,12 @@ defmodule ArtsyNeighbor.Images do
     key = folder <> "/" <> Ecto.UUID.generate()
     Storage.validate_key!(key)
 
+    asked_at = now_ms()
+
     result =
       Limiter.run(fn ->
-        process_and_store(tmp_path, client_name, key)
+        waited_ms = now_ms() - asked_at
+        process_and_store(tmp_path, client_name, key, waited_ms)
       end)
 
     case result do
@@ -112,21 +115,159 @@ defmodule ArtsyNeighbor.Images do
     end
   end
 
-  defp process_and_store(tmp_path, client_name, key) do
+  defp process_and_store(tmp_path, client_name, key, waited_ms) do
     work_dir = Path.join(System.tmp_dir!(), "artsy_neighbor_image_" <> Ecto.UUID.generate())
 
     try do
+      # The two slow steps are wrapped in `timed/1`, which returns
+      # {milliseconds, result}; the `else` below unwraps their errors.
       with :ok <- make_work_dir(work_dir),
            {:ok, image} <- open_image(tmp_path, client_name),
-           :ok <- check_format(image, client_name),
+           {:ok, loader} <- check_format(image, client_name),
            :ok <- check_dimensions(image),
-           {:ok, files} <- make_webp_files(tmp_path, work_dir, client_name),
-           :ok <- store_files(files, key) do
+           {processing_ms, {:ok, files}} <-
+             timed(fn -> make_webp_files(tmp_path, work_dir, client_name) end),
+           {storing_ms, :ok} <- timed(fn -> store_files(files, key) end) do
+        log_timing(%{
+          key: key,
+          client_name: client_name,
+          tmp_path: tmp_path,
+          image: image,
+          loader: loader,
+          waited_ms: waited_ms,
+          processing_ms: processing_ms,
+          storing_ms: storing_ms
+        })
+
         {:ok, key}
+      else
+        {_ms, {:error, message}} -> {:error, message}
+        {:error, message} -> {:error, message}
       end
     after
       File.rm_rf(work_dir)
     end
+  end
+
+  # How many photos' files are deleted at the same time, e.g. when an
+  # artist with many products is hard-deleted.
+  @delete_concurrency 4
+
+  @doc """
+  Deletes the files of photos whose database rows have been deleted.
+  Takes one `path` (a row's `path` value) or a list of them.
+
+    * A key (an image folder such as `"products/12/0b6c5e1a-…"`): its
+      folder is deleted, public sizes and private `source.webp` alike.
+    * An old-style path starting with `/` (seed images, older uploads
+      under `priv/static`): left alone; those files are part of the app
+      or the dev data, not ours to delete.
+    * Anything else (`nil`, a malformed value): left alone, with a
+      warning in the log.
+
+  The deleting happens **in the background** (a task under
+  `ArtsyNeighbor.TaskSupervisor`), a few photos at a time: on Tigris each
+  photo takes a few requests, and the page that asked shouldn't wait
+  for them. This returns `:ok` straight away and never raises.
+
+  If deleting fails (storage can't be reached, or even raises), it is
+  logged and the files stay behind: the database delete has already
+  happened and the photo is gone from the site, so there is nothing
+  useful to tell the artist. A periodic clean-up of folders no row
+  points to would catch these (NOTES #42).
+
+  Call it only after the transaction that deleted the rows has
+  committed: if the transaction were rolled back, the rows would come
+  back but their files would be gone. For a single row,
+  `delete_files_of_deleted_row/1` does this for you.
+  """
+  def delete_files(paths) when is_list(paths) do
+    # Sorting out which paths to delete happens here, right away; only
+    # the slow storage requests go to the background.
+    image_folders = Enum.filter(paths, fn path -> image_folder_to_delete?(path) end)
+
+    if image_folders != [] do
+      Task.Supervisor.start_child(ArtsyNeighbor.TaskSupervisor, fn ->
+        delete_image_folders(image_folders)
+      end)
+    end
+
+    :ok
+  end
+
+  def delete_files(path), do: delete_files([path])
+
+  @doc """
+  For a context function that deletes one photo row in a transaction:
+  pass it the transaction's result. On `{:ok, row}` (the delete has
+  committed) it deletes that photo's files with `delete_files/1`; an
+  `{:error, reason}` means nothing was deleted, so the files stay. It
+  returns the result unchanged either way, so it can sit at the end of
+  a pipeline:
+
+      product_image
+      |> delete_product_image_row()
+      |> Images.delete_files_of_deleted_row()
+  """
+  def delete_files_of_deleted_row({:ok, deleted_row} = result) do
+    delete_files(deleted_row.path)
+    result
+  end
+
+  def delete_files_of_deleted_row({:error, _reason} = result), do: result
+
+  defp image_folder_to_delete?("/" <> _old_style_path), do: false
+
+  defp image_folder_to_delete?(path) do
+    if Storage.image_folder?(path) do
+      true
+    else
+      Logger.warning("Not deleting photo files for unexpected path #{inspect(path)}")
+      false
+    end
+  end
+
+  # Runs in the background task. Task.async_stream runs up to
+  # @delete_concurrency deletes at once; a delete that takes over a
+  # minute is stopped and logged rather than holding up the rest.
+  defp delete_image_folders(image_folders) do
+    image_folders
+    |> Task.async_stream(
+      fn image_folder -> delete_image_folder(image_folder) end,
+      max_concurrency: @delete_concurrency,
+      timeout: 60_000,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    )
+    |> Enum.each(fn
+      {:ok, :ok} ->
+        :ok
+
+      {:exit, {image_folder, reason}} ->
+        Logger.error("Deleting photo files #{image_folder} stopped: #{inspect(reason)}")
+    end)
+  end
+
+  defp delete_image_folder(image_folder) do
+    case Storage.delete_prefix(image_folder) do
+      :ok ->
+        Logger.info("Deleted photo files #{image_folder}")
+
+      {:error, reason} ->
+        Logger.error("Deleting photo files #{image_folder} failed: #{inspect(reason)}")
+    end
+
+    :ok
+  rescue
+    # A crash in the storage library (e.g. a missing setting) is logged
+    # like any other failure, and the other folders still get deleted.
+    exception ->
+      Logger.error(
+        "Deleting photo files #{image_folder} crashed: " <>
+          Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      :ok
   end
 
   @doc """
@@ -273,7 +414,7 @@ defmodule ArtsyNeighbor.Images do
       end
 
     if loader in @allowed_loaders do
-      :ok
+      {:ok, loader}
     else
       Logger.info("Image upload #{inspect(client_name)} refused, format #{inspect(loader)}")
       {:error, @msg_not_an_image}
@@ -411,6 +552,78 @@ defmodule ArtsyNeighbor.Images do
         end
 
         {:error, @msg_save_failed}
+    end
+  end
+
+  # --- Timing log ------------------------------------------------------
+  #
+  # One line per stored photo, so we can see where the time goes on the
+  # real server (NOTES step 2c), e.g.
+  #
+  #   Photo stored products/12/0b6c…: "IMG_6457.HEIC", heif 4032×3024
+  #   (12.2 MP, 2.3 MB); waited 0 ms, processing 2140 ms, storing 380 ms;
+  #   memory 412 MB, peak 690 MB
+  #
+  # "waited" is the time spent waiting for a free slot in the Limiter.
+  # "processing" is checking + making the four WebP files; "storing" is
+  # writing them to storage (Tigris on Fly, a folder in dev).
+
+  defp now_ms, do: System.monotonic_time(:millisecond)
+
+  # Runs `fun` and returns {milliseconds it took, its result}.
+  defp timed(fun) do
+    started_at = now_ms()
+    result = fun.()
+    {now_ms() - started_at, result}
+  end
+
+  defp log_timing(facts) do
+    width = Image.width(facts.image)
+    height = Image.height(facts.image)
+    megapixels = Float.round(width * height / 1_000_000, 1)
+    format = String.replace_suffix(facts.loader, "load", "")
+
+    file_size =
+      case File.stat(facts.tmp_path) do
+        {:ok, stat} -> format_mb(stat.size)
+        {:error, _} -> "size unknown"
+      end
+
+    Logger.info(
+      "Photo stored #{facts.key}: #{inspect(facts.client_name)}, " <>
+        "#{format} #{width}×#{height} (#{megapixels} MP, #{file_size}); " <>
+        "waited #{facts.waited_ms} ms, processing #{facts.processing_ms} ms, " <>
+        "storing #{facts.storing_ms} ms; #{memory_text()}"
+    )
+  end
+
+  defp format_mb(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MB"
+
+  # The whole server process's memory, as the operating system sees it.
+  # (The BEAM's own count, :erlang.memory/0, would miss libvips, which
+  # allocates its memory outside the BEAM.) Linux (the Fly server)
+  # reports it in /proc/self/status:
+  #   VmRSS — memory in use right now;
+  #   VmHWM — the highest it has been since the server started ("high
+  #           water mark"). If a photo pushes this up, that photo set a
+  #           new peak. With two photos processed at once, a peak can
+  #           come from both together.
+  # Other systems (macOS in dev) don't have this file.
+  defp memory_text do
+    case File.read("/proc/self/status") do
+      {:ok, status} ->
+        "memory #{proc_status_mb(status, "VmRSS")}, peak #{proc_status_mb(status, "VmHWM")}"
+
+      {:error, _} ->
+        "memory not measured on this system"
+    end
+  end
+
+  # Finds a line like "VmRSS:    421888 kB" and returns "412 MB".
+  defp proc_status_mb(status, field) do
+    case Regex.run(~r/^#{field}:\s+(\d+) kB/m, status) do
+      [_line, kilobytes] -> "#{div(String.to_integer(kilobytes), 1024)} MB"
+      nil -> "?"
     end
   end
 

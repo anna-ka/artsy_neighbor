@@ -14,6 +14,9 @@ defmodule ArtsyNeighbor.Application do
       {Phoenix.PubSub, name: ArtsyNeighbor.PubSub},
       # Limits how many photos are processed at the same time.
       ArtsyNeighbor.Images.Limiter,
+      # Runs small background jobs that no page waits for, e.g. deleting
+      # the files of deleted photos (Images.delete_files/1).
+      {Task.Supervisor, name: ArtsyNeighbor.TaskSupervisor},
       # Start a worker by calling: ArtsyNeighbor.Worker.start_link(arg)
       # {ArtsyNeighbor.Worker, arg},
       # Start to serve requests, typically the last entry

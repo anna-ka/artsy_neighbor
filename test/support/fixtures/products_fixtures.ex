@@ -43,7 +43,9 @@ defmodule ArtsyNeighbor.ProductsFixtures do
     {:ok, product_image} =
       attrs
       |> Enum.into(%{
-        path: "some path",
+        # An old-style path (starts with "/"), so deleting the row doesn't
+        # try to delete files (see Images.delete_files/1).
+        path: "/images/some-photo.jpg",
         position: 42,
         product_id: product.id
       })

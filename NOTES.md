@@ -179,6 +179,20 @@ which is mechanical and done once, up front.
        then decide. A more
        fundamental fix is still needed before testers (#34: a queue,
        processing photos as soon as they're picked).
+     - **Next, in this order (agreed 2026-11-16):**
+       1. Photo timing logs (processing and storing time, memory,
+          original pixel size and file size, one line per photo) and
+          #39 (deleting a photo deletes its files), one commit; then
+          re-run `docs/tigris.md` check 6 on Fly.
+       2. The script that fills the preview database (item (ii)
+          above), so the developer's daughter (illustrator, helping
+          with looks and logo) can see the site with content.
+       3. Shrinking photos in the browser before upload (#34): a quick
+          trial on an iPhone and the Mac first, then the hook, then a
+          measurement on Fly with the timing logs from 1.
+       The audit of 2026-11-15
+       (`docs/code-reviews/2026-11-15-security-correctness-efficiency-audit.md`)
+       is to be addressed after these.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -721,12 +735,26 @@ working on the code should keep in mind.
       - processing as soon as a photo is picked (errors show while
         the artist is still typing; needs a temporary area for photos
         of a product that isn't saved yet);
-      - a progress line per photo ("2 of 5 saved").
+      - a progress line per photo ("2 of 5 saved");
+      - **shrinking photos in the browser before upload** (suggested
+        2026-11-16 by the developer's husband, a senior developer;
+        agreed as step 2c item 3). Most of the server's memory and
+        time goes into decoding the full-size original (12–48 MP). A
+        small JavaScript hook would redraw the photo at about
+        2500–3000px (dropping its metadata, so GPS never leaves the
+        phone) and upload that instead: faster uploads, much less
+        server work. The server keeps its whole pipeline unchanged,
+        because a browser can't be trusted; if the browser can't
+        shrink a photo (HEIC on Windows, very large photos on older
+        iPhones, no JavaScript), the original goes up as today. It
+        lowers the usual load, not the worst case: someone bypassing
+        the hook can still send a large original, so the limiter and
+        size limits stay. Open: how large `source.webp` can still be
+        (it can't exceed what the browser sends). May make the queue
+        and pick-time processing above unnecessary.
       Related: a photo can still leave stored files with no row if the
       server stops *while* that one photo is being written (a split
-      second; the row is made right after). A periodic clean-up of
-      folders that no row points to would catch these; it fits step c
-      (Tigris), where listing a bucket is easy.
+      second; the row is made right after). See #42.
 
   35. Artist cards on the home page. The artists to show are selected automatically and the banners are one of their works. However, most works do not display well in this wide landscape format and are cropped off. This needs fixing, likely by offering artists to upload a banner. This likely needs a separate UI page on Artists dashboard.
 
@@ -814,6 +842,16 @@ working on the code should keep in mind.
         can be restored, so its photos stay.
       Skip old-style paths starting with `/` (seed images in
       `priv/static`, not ours to delete). Then re-run check 6.
+      **Done 2026-11-16** (`Images.delete_files/1`, in a background
+      task, called by the two photo deletes and, through
+      `HardDelete.delete_with_flags/2`, by both hard deletes; tests in
+      `photo_file_deletion_test.exs`). Known limit, accepted: public
+      photos are sent with "keep for a year, never changes"
+      (`Cache-Control: immutable`), so a browser that already showed a
+      deleted photo may keep its own copy; new visitors and search
+      engines get "not found". Still to do: re-run check 6 on Fly after
+      the deploy (it checks exactly that with a fresh `curl`), then
+      remove this item.
 
   40. **The admin category form needs serious re-working** (added
       2026-11-15; not urgent). It was one of the first pages written
@@ -827,6 +865,40 @@ working on the code should keep in mind.
       the rest of the form (slug by hand, layout, wording) at the same
       time. Until then, leave "Main img" empty: categories then show
       the placeholder.
+
+  41. **Serve photos from our own domain before inviting testers**
+      (added 2026-11-16). On the Fly preview, the developer's
+      Malwarebytes (web protection) blocked both buckets'
+      `*.t3.tigrisfiles.io` addresses as unsafe, and she had to add
+      them to its Allow list. Nothing is wrong with our setup (valid
+      Let's Encrypt certificate, plain HTTPS): security tools judge
+      shared file-hosting domains by reputation, and attackers also
+      host files on them. Similar blocks have been reported for other
+      Tigris domains. For visitors with such a tool, photos would
+      quietly not load. Fix: once we have our domain, point e.g.
+      `photos.<our domain>` at the public bucket (a CNAME record plus
+      `fly storage update ... --custom-domain`; check Tigris' current
+      docs on whether the bucket name must match) and set the
+      `PHOTOS_BASE_URL` secret, which `config/runtime.exs` already
+      reads. The private bucket needs nothing: browsers never load
+      from it. Fits with buying the domain (step 2 above / deploy
+      runbook).
+
+  42. **Periodic clean-up of photo files no row points to** (added
+      2026-11-16, from the code review of #39; before real launch, not
+      urgent). Deleting a photo row deletes its files (#39), but a few
+      cases can still leave files behind: the server stops between the
+      commit and the file delete, storage is unreachable then (logged
+      as "Deleting photo files ... failed/crashed"), the server stops
+      while a new photo is being written, or a future delete path
+      forgets `Images.delete_files/1`. A scheduled job would list the
+      image folders in storage, compare them with the `path` values in
+      `product_images` and `artist_images`, and delete folders no row
+      points to. Careful points: only folders older than a day (a photo
+      being processed right now has files but no row yet); log what it
+      deletes; try it in "report only" mode first. Cost of waiting:
+      only storage space (negligible), plus the public address of an
+      orphaned photo keeps working for anyone who has it.
 
 
 

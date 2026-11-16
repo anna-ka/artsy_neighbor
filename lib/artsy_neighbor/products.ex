@@ -9,6 +9,7 @@ defmodule ArtsyNeighbor.Products do
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.HardDelete
+  alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Products.ProductOption
   alias ArtsyNeighbor.Products.ProductImage
@@ -705,7 +706,7 @@ defmodule ArtsyNeighbor.Products do
   `order_items.product_id` is `on_delete: :nothing`, so a product that
   appears in any order can't be hard-deleted — that fails with
   `{:error, {:database_error, message}}`. See
-  `HardDelete.delete_with_flags/2` for the full list of error reasons.
+  `HardDelete.delete_with_flags/3` for the full list of error reasons.
 
   ## Examples
 
@@ -723,7 +724,21 @@ defmodule ArtsyNeighbor.Products do
           from(pr in ProductReview, where: pr.product_id == ^locked_product.id, select: pr.id)
         )
 
-      %{"product" => [locked_product.id], "product_review_of" => product_review_ids}
+      # The photo rows cascade away with the product; their files are
+      # deleted after the commit. (The product's row lock already makes
+      # a photo being added at this moment wait.)
+      photo_paths =
+        repo.all(
+          from(i in ProductImage, where: i.product_id == ^locked_product.id, select: i.path)
+        )
+
+      %{
+        flag_subjects: %{
+          "product" => [locked_product.id],
+          "product_review_of" => product_review_ids
+        },
+        photo_paths: photo_paths
+      }
     end)
   end
 
@@ -823,8 +838,19 @@ defmodule ArtsyNeighbor.Products do
   Returns `{:ok, %ProductImage{}}`, or `{:error, :not_found}` if the
   photo was already removed (e.g. in another browser tab).
 
+  Once the row is deleted, the photo's files are deleted from storage
+  too, in the background (`Images.delete_files_of_deleted_row/1`):
+  new visitors then get "not found" at its address, though a browser
+  that already showed it may keep its own copy for a while.
+
   """
   def delete_product_image(%ProductImage{} = product_image) do
+    product_image
+    |> delete_product_image_row()
+    |> Images.delete_files_of_deleted_row()
+  end
+
+  defp delete_product_image_row(product_image) do
     Repo.transact(fn ->
       product = lock_product(product_image.product_id)
 
