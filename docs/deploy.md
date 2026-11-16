@@ -19,7 +19,7 @@ in Fly (and in the developer's Passwords app), nowhere in the repo.
 
 ```
 Browser ──HTTPS──▶ Fly proxy ──▶ app Machine (an-preview-g3ukxp, San Jose)
-                                   │  Phoenix release, 512 MB, sleeps when idle
+                                   │  Phoenix release, 1 GB, sleeps when idle
                                    │
                                    └─private network─▶ database Machine
                                                        (an-preview-g3ukxp-db, San Jose)
@@ -47,8 +47,13 @@ Browser ──HTTPS──▶ Fly proxy ──▶ app Machine (an-preview-g3ukxp,
 - **Postgres 17, pinned.** The Mac has Postgres.app 17, and `pg_dump`
   can't back up a newer server. Fly's default may be 18.
 
-**Rough cost:** about US$6–8/month in total, less while the app
-Machine sleeps. The database Machine runs all the time.
+**Rough cost:** about US$9–11/month in total (since the app Machine
+went from 512 MB to 1 GB on 2026-11-15, about $3 more), less while
+the app Machine sleeps. The database Machine runs all the time.
+
+**Photos** are stored on Tigris (two buckets, `$APP-photos` and
+`$APP-originals`): set up, checked and undone as described in the
+separate runbook **`docs/tigris.md`**.
 
 ## 2. Known limitations of the preview
 
@@ -56,9 +61,9 @@ Machine sleeps. The database Machine runs all the time.
   off in production. Registering, email log-in links and anything else
   that sends mail fails. Log in with email + password. (Real email:
   "Order of work" step 5.)
-- **Uploaded photos are lost on every deploy and restart.** The app
-  Machine's disk is rebuilt from the image each time. Fixed by image
-  storage on Tigris ("Order of work" step 2 b–c).
+- **Uploaded photos were lost on every deploy and restart** until
+  photos moved to Tigris (`docs/tigris.md`, 2026-11). The app
+  Machine's disk is rebuilt from the image each time.
 - **The database starts empty.** `seeds.exs` is dev-only on purpose.
   Users, categories and artists are created by hand (section 5).
 - `HOME_HERO_PRODUCT_ID` isn't set, so the home page picture shows
@@ -115,6 +120,9 @@ echo $APP        # should print the app's name, e.g. an-preview-g3ukxp
 (`grep` finds the line `app = '...'`; `cut -d"'" -f2` keeps the text
 between the first pair of single quotes.)
 
+**Photos:** before the first deploy (4.5), set up photo storage as in
+`docs/tigris.md` §3. The app refuses to start without its settings.
+
 ### 4.1 Code that must already be in the repo
 
 Done in commits `68cb39f`, `7a41159` and `bddd52c`; listed here so a
@@ -164,7 +172,7 @@ Then:
 
 ```
 fly launch --no-deploy --name $APP --region sjc --org personal \
-  --ha=false --vm-memory 512 \
+  --ha=false --vm-memory 1024 \
   --no-db --no-redis --no-object-storage --no-github-workflow --yes
 ```
 
@@ -172,7 +180,7 @@ fly launch --no-deploy --name $APP --region sjc --org personal \
 |---|---|
 | `--no-deploy` | only set things up; nothing is built or started |
 | `--ha=false` | one Machine, not two |
-| `--vm-memory 512` | 512 MB; 256 is too tight for a Phoenix release |
+| `--vm-memory 1024` | 1 GB. Was 512 MB until 2026-11-15, when processing two phone photos at once ran out of memory (`docs/tigris.md` §3.5); 256 is too tight even without photos |
 | `--no-db` | **important**: otherwise it may create Managed Postgres ($38/month) |
 | `--no-redis --no-object-storage` | not needed yet |
 | `--no-github-workflow` | no automatic deploy on every push; deploys stay manual |
@@ -563,6 +571,9 @@ fly apps destroy $APP
 fly apps destroy $APP-db     # removes the database and its volume
 ```
 
+Also remove the photo buckets (`docs/tigris.md` §6) and check
+`fly storage list`.
+
 Then check `fly apps list` and the Billing page. Rebuilding = section
 4 again with a new name.
 
@@ -582,7 +593,7 @@ Then check `fly apps list` and the Billing page. Rebuilding = section
 
 ## 10. Before inviting testers (pointers to NOTES.md)
 
-- Real email (step 5), image storage on Tigris (step 2 b–c), backups
+- Real email (step 5), backups of the photo buckets (`docs/tigris.md`), backups
   repeated with real data and a schedule decided (section 7 above).
 - Decide on one or two Machines (two needs clustering).
 - Managed Postgres or Neon instead of unmanaged, if worth the cost.

@@ -165,6 +165,20 @@ which is mechanical and done once, up front.
        machine's memory (1 GB is ~$3/month more than 512 MB) and N.
        One-at-a-time was rejected: it becomes a hidden queue when many
        artists upload at once.
+       **2026-11-15, first real test:** uploading two iPhone photos at
+       once from the phone got the app killed for lack of memory on the
+       512 MB machine ("Out of memory: Killed process ... beam.smp"; the
+       phone showed "no internet connection"). One photo worked.
+       Developer's choice: 1 GB machine (`fly.toml`), N stays 2, no swap,
+       so that running out of memory stays visible in the logs rather
+       than turning into slowness. On 1 GB two photos worked. Fly's
+       memory graph is too coarse to show the processing peak (no bump
+       during the save; ~383 MB "used" at rest; details in
+       `docs/tigris.md` §3.5). Saving also felt slow (a few seconds);
+       next: log each photo's processing and storing time (and memory),
+       then decide. A more
+       fundamental fix is still needed before testers (#34: a queue,
+       processing photos as soon as they're picked).
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -732,10 +746,87 @@ working on the code should keep in mind.
       - **Card**: a separate (virtual) card with a low limit for online
         services, so its limit is the only hard ceiling. Ask the bank.
       - **Bill check**: glance at "current month to date bill" in the
-        Fly dashboard weekly while things run (~US$6–8/month expected).
+        Fly dashboard weekly while things run (~US$9–11/month expected
+        since the 1 GB app Machine).
       - Same review for any later service (domain registrar, email
         provider, Stripe): two-factor, who has access, project email
         address vs personal (see step 2 c).
+
+  37. **Work cards crop photos** (added 2026-11-15, seen on the Fly
+      preview). A portrait iPhone photo shows whole on the product page,
+      but is cut off on the product card in the artist's shop and in
+      the home page's "New works". Cause: the card picture box is a
+      fixed landscape 4:3 (`.artwork-card-pic` in `assets/css/app.css`,
+      `aspect-ratio: 4 / 3` + `object-fit: cover`), so a 3:4 portrait
+      photo loses almost half its height. For art this matters: the
+      buyer may never see the whole work on a card. Developer's leaning:
+      scale the whole image to fit instead of cropping. Options to
+      weigh (with mockups/screenshots):
+      - `object-fit: contain` in the same box, with a calm background
+        colour around the photo (simplest; cards stay in neat rows,
+        but portrait works look small);
+      - a box that follows each photo's own shape (cards of different
+        heights, a "masonry"-style grid);
+      - a square box + `contain` as a middle way;
+      - later, let the artist choose the crop for cards.
+      Same family as #35 (artist banners crop works), and the same
+      `object-cover` choice appears in smaller places (artist cards'
+      three-work strip, order and conversation thumbnails), which are
+      less critical but worth a look in the same pass.
+
+  38. **Vendor dashboard's product table doesn't fit on a phone**
+      (added 2026-11-15, seen on the Fly preview). Held upright, the
+      table is cut off on the right, so the View / Edit / Archive links
+      (the last column) can't be seen; they only show with the phone
+      turned sideways. The table (`vendor_live/dashboard.ex`, ~line
+      227) is a 5-column daisyUI `table` inside `overflow-x-auto`, so it
+      scrolls sideways, but nothing hints at that, and older users
+      won't think to swipe the table. Fix ideas: on narrow screens show
+      each product as a small card (photo, title, price, then the three
+      actions as buttons below), or at least put the actions first or
+      under the title. Check the other tables artists use on a phone at
+      the same time (sales/orders list), and admin tables less urgently.
+
+  39. **Deleting a photo leaves its files in storage** (found
+      2026-11-15 on the Fly preview, `docs/tigris.md` §3.5 check 6).
+      Deleting a product photo removes its database row, so it
+      vanishes from the site with no error, but its folder
+      (`thumb`/`medium`/`large.webp` in the public bucket, `source.webp`
+      in the private one) stays in Tigris, and on the Mac in dev. The
+      step b plan left this out of scope ("soft-delete world; note in
+      NOTES"), but the note was never written. Why it matters: an
+      artist who deletes a photo (a wrong one, something personal in
+      the background) expects it gone, yet its public address keeps
+      working for anyone who has it (a copied link, a search engine).
+      The cost of the leftover files is negligible.
+      **To do (agreed 2026-11-15, its own small commit after the Tigris
+      commit, together with the photo timing logs):** after the row is
+      deleted (and the transaction has committed), call
+      `Storage.delete_prefix(key)` for that photo; if deleting the
+      files fails, log it and leave it to the periodic clean-up of
+      folders no row points to (#34). Cover every path that removes
+      image rows:
+      - `Products.delete_product_image/1`, `Artists.delete_artist_image/1`;
+      - `Products.hard_delete_product/1`, `Artists.hard_delete_artist/1`
+        and `AdminArtists.hard_delete_artist/1` (their image rows go
+        with them; check whether by cascade);
+      - not soft deletes (`soft_delete_product/1` etc.): the product
+        can be restored, so its photos stay.
+      Skip old-style paths starting with `/` (seed images in
+      `priv/static`, not ours to delete). Then re-run check 6.
+
+  40. **The admin category form needs serious re-working** (added
+      2026-11-15; not urgent). It was one of the first pages written
+      and predates the current conventions. Most visibly, its picture
+      ("Main img") is a text box for a typed path, not an upload: the
+      only photo field that skips `Images.process_upload` (via
+      `PhotoUploads`), and the form shows the typed path straight in
+      `src=` (`admin_category_live/form.ex` ~line 27–30; the
+      `image_display_test` guard only looks for `.path`, so it doesn't
+      catch it). Rework it like the other four photo forms, and review
+      the rest of the form (slug by hand, layout, wording) at the same
+      time. Until then, leave "Main img" empty: categories then show
+      the placeholder.
 
 
 
