@@ -196,9 +196,30 @@ which is mechanical and done once, up front.
        2. The script that fills the preview database (item (ii)
           above), so the developer's daughter (illustrator, helping
           with looks and logo) can see the site with content.
-       3. Shrinking photos in the browser before upload (#34): a quick
-          trial on an iPhone and the Mac first, then the hook, then a
-          measurement on Fly with the timing logs from 1.
+       3. **Photo speed** (#34; order agreed 2026-11-16 after measuring
+          on the Mac where the time goes: for a 12 MP photo, decoding
+          47 ms, shrinking to the three sizes 23 ms, encoding
+          `source.webp` at full size q95 988 ms, encoding the three
+          display sizes 490 ms, i.e. ~95% is WebP encoding; Fly is ~3×
+          slower). Measure on Fly with the timing logs after each:
+          a. Server tuning, no JavaScript: a lower WebP `effort` (on
+             the Mac, 2500px: effort 4 = 335 ms / 1113 KB, effort 2 =
+             171 ms / 1119 KB, effort 0 = 99 ms / 1143 KB), and make
+             `source.webp` *after* the display sizes, in the
+             background, so the artist only waits for the sizes. Also
+             consider making the sizes in one pass. Guess: ~5 s → 1–1.5
+             s per photo on Fly.
+          b. Process each photo as soon as it's picked, in the
+             background, so most of the work is done before Save.
+          c. Shrink photos in the browser before upload (smaller
+             uploads on slow connections, less server work): quick
+             trial on an iPhone and the Mac, then the hook.
+          Decided: the browser only shrinks; it never makes the
+          display sizes. The server must encode every file it serves
+          itself: a crafted image can attack visitors' browsers (e.g.
+          the 2023 WebP flaw CVE-2023-4863, used in real attacks), and
+          encoding is the expensive part anyway, so making the sizes in
+          the browser would save only the cheap shrinking.
        The audit of 2026-11-15
        (`docs/code-reviews/2026-11-15-security-correctness-efficiency-audit.md`)
        is to be addressed after these.
@@ -747,11 +768,14 @@ working on the code should keep in mind.
       - a progress line per photo ("2 of 5 saved");
       - **shrinking photos in the browser before upload** (suggested
         2026-11-16 by the developer's husband, a senior developer;
-        agreed as step 2c item 3). Most of the server's memory and
-        time goes into decoding the full-size original (12–48 MP). A
+        now step 2c item 3c). Measured later that day: most of the
+        server's *time* goes into encoding the WebP files, not decoding
+        (see step 2c item 3), so this helps mainly through smaller
+        uploads and a smaller `source.webp`; decoding a full-size
+        original still costs *memory*. A
         small JavaScript hook would redraw the photo at about
         2500–3000px (dropping its metadata, so GPS never leaves the
-        phone) and upload that instead: faster uploads, much less
+        phone) and upload that instead: faster uploads, less
         server work. The server keeps its whole pipeline unchanged,
         because a browser can't be trusted; if the browser can't
         shrink a photo (HEIC on Windows, very large photos on older
