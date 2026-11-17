@@ -135,7 +135,8 @@ which is mechanical and done once, up front.
      location. Also came with it: product `:draft` status, "needs a
      photo" rules, background photo processing with a limit of N at a
      time. Details and decisions: the plan doc. Left over: the missing
-     `wall_art.jpg` in dev data (fix by hand).
+     `wall_art.jpg` in dev data (fix by hand; the sample data now gives
+     "Other Art" no picture, so the placeholder shows).
    - **c. Tigris** (created from Fly with `fly storage create`, no
      separate account) as the first part of the deploy, plus backups:
      a scheduled copy of the bucket to a second place, and database
@@ -196,6 +197,27 @@ which is mechanical and done once, up front.
        2. The script that fills the preview database (item (ii)
           above), so the developer's daughter (illustrator, helping
           with looks and logo) can see the site with content.
+          **Written 2026-11-16, not yet run on Fly** (after a code
+          review: goes in through the site's own activate/publish
+          rules, one failing artist is removed again and doesn't stop
+          the rest; plus `Release.remove_sample_data/0` and
+          `Release.check_before_launch/0`):
+          `ArtsyNeighbor.SampleData` + data files in
+          `priv/repo/sample_data/`; on Fly
+          `Release.add_sample_data/0` via `rpc` (`docs/deploy.md`
+          §5.1). Add-only; all 13 artists (the six original seed
+          artists got generated initials avatars: their old photos
+          were dev-only and too small),
+          photos through `Images.process_upload/3` into Tigris, the
+          developer's studio linked to the admin account. `seeds.exs`
+          and `demo_data.exs` now use the same module, so on the Mac
+          their photos go into storage too. Password `DevPassword1!`
+          kept (developer's choice 2026-11-16: private repo + site
+          password; audit item "Seed accounts have a published
+          password"), so the sample accounts must go before testers
+          (`docs/deploy.md` §10: `remove_sample_data`, then
+          `check_before_launch`). The developer plans to start the
+          preview's database over before testers anyway.
        3. **Photo speed** (#34; order agreed 2026-11-16 after measuring
           on the Mac where the time goes: for a 12 MP photo, decoding
           47 ms, shrinking to the three sizes 23 ms, encoding
@@ -525,6 +547,17 @@ working on the code should keep in mind.
    `docs/plans/2026-09-17-entity-removal-consistency.md`. True hard
    delete of users stays dev/testing-only (or for accounts with no
    history at all).
+   **Before testers (added 2026-11-16, from the review of the sample
+   data script): make User `status` actually work.** Today nothing
+   reads it: a `:suspended` or `:removed` user can still log in, and
+   there is no way to suspend or remove an account. Needed: log-in
+   (password and email link) and every page load refuse non-`:active`
+   users and end their sessions; an admin "suspend user" button
+   (moderation, e.g. a spammer); then this anonymization. Fits the
+   "admin support tools" step. Until then,
+   `SampleData.remove_all/0` locks sample accounts the only way that
+   works now: a random password nobody knows plus deleting their
+   sessions (it also sets `:removed`, ready for when status counts).
 10. **Test real outgoing mail** — dev uses `Swoosh.Adapters.Local`
     (`/dev/mailbox`), so no mail has ever actually been delivered. Once a
     real adapter/staging exists, verify registration, login, and
@@ -900,6 +933,13 @@ working on the code should keep in mind.
       deletes; try it in "report only" mode first. Cost of waiting:
       only storage space (negligible), plus the public address of an
       orphaned photo keeps working for anyone who has it.
+      **The big case (added 2026-11-16):** the developer plans to start
+      the preview's database over before inviting testers. Then *every*
+      photo in the buckets belongs to the old database, so empty both
+      buckets at the same time (or destroy and re-create them, as in
+      the full teardown): `docs/deploy.md` §8, "Starting the database
+      over". Removing just the sample data needs nothing extra:
+      `Release.remove_sample_data/0` deletes their photos too.
 
 
 

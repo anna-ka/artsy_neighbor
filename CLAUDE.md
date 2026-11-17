@@ -94,6 +94,12 @@ mix phx.server           # dev server
   `lib/artsy_neighbor/images/limiter.ex`; form side:
   `lib/artsy_neighbor_web/photo_uploads.ex`. Plan:
   `docs/plans/2026-10-28-image-storage-and-resizing.md`
+- Sample data (dev seeds and the Fly preview): `lib/artsy_neighbor/sample_data.ex`
+  (add-only, photos through `Images.process_upload/3`), the data in
+  `priv/repo/sample_data/*.exs`; `seeds.exs` wipes first and then uses it,
+  `demo_data.exs` adds only the demo artists, on Fly
+  `Release.add_sample_data/0`; `remove_sample_data/0` and
+  `check_before_launch/0` take it away again (`docs/deploy.md` §5.1)
 - Uploads (dev only — see `NOTES.md`): public sizes in
   `priv/static/uploads/{products,artists}/`, private `source.webp` in
   `priv/private_uploads/`; older uploads/seed images in

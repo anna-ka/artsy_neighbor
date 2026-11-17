@@ -64,8 +64,10 @@ separate runbook **`docs/tigris.md`**.
 - **Uploaded photos were lost on every deploy and restart** until
   photos moved to Tigris (`docs/tigris.md`, 2026-11). The app
   Machine's disk is rebuilt from the image each time.
-- **The database starts empty.** `seeds.exs` is dev-only on purpose.
-  Users, categories and artists are created by hand (section 5).
+- **The database starts empty.** `seeds.exs` is dev-only on purpose
+  (it deletes everything first). The admin account is created by hand
+  (section 5); sample categories, artists and works can then be added
+  with one command (section 5.1).
 - `HOME_HERO_PRODUCT_ID` isn't set, so the home page picture shows
   without a credit or link. Set it once the hero work exists in this
   database: `fly secrets set HOME_HERO_PRODUCT_ID=<id>`.
@@ -372,6 +374,76 @@ fly ssh console -C "/app/bin/artsy_neighbor rpc 'import Ecto.Query; IO.inspect(A
 Then log in on the site with email + **password** (not the email link)
 and open `/admin`.
 
+### 5.1 Filling the preview with sample data (optional)
+
+To give the preview something to look at (e.g. for people helping
+with the site's looks), add the sample data: the 7 categories, 13
+made-up artists (the six original seed artists, the developer's own
+studio and the six demo artists) and their 81 works with photos. It
+is `ArtsyNeighbor.SampleData`, the same data `seeds.exs` puts on the
+Mac. Do this after section 5, so the studio can be linked to the admin
+account.
+
+```
+fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.add_sample_data()'"
+```
+
+What to expect:
+
+- **It only adds.** Nothing existing is changed or deleted; the admin
+  account and anything made by hand stay. A category or artist that's
+  already there is skipped, so running it again is safe.
+- **It takes a few minutes.** All 105 photos go through the normal
+  photo processing into Tigris (30 seconds on the Mac; slower on the
+  preview's shared CPU). It prints a line or two per artist; wait for
+  the last line, "Sample artists log in with ...". Each photo also
+  writes a "Photo stored" line to `fly logs`. While it runs, photo
+  uploads on the site wait their turn.
+- **If an artist fails** (e.g. a photo can't be processed, or the
+  site is busy), whatever was added of that artist is removed again,
+  photos included, and it goes on with the next one. The end of the
+  output then lists them under "NOT ADDED", with the reasons above it;
+  running the command again retries them. Also if the terminal
+  connection drops: run it again.
+- **Logins.** Each sample artist logs in with their email (in
+  `priv/repo/sample_data/`) and the password `DevPassword1!`. That
+  password is in the repository, which is fine only while the repo is
+  private and the site password keeps everyone else out. They must be
+  removed before anyone else is invited (below, and section 10).
+- **The developer's studio** ("Anna's Magnificent Art Studio") is
+  linked to the admin account, so logging in as admin shows its vendor
+  dashboard. If the admin account already has an artist profile, the
+  studio gets its own login instead, `anna.demo@example.com`; the output
+  says which.
+- **It refuses on a real site**: it only runs on an app whose name
+  contains "preview". And it needs `rpc` (inside the running site, which
+  has the photo limiter and the Tigris settings), not `eval`.
+
+**Removing the sample data again** (e.g. before testers, if the
+database isn't started over):
+
+```
+fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.remove_sample_data()'"
+```
+
+It hard-deletes every sample artist (also one that was renamed) with
+their works, orders, conversations and reviews, and their photos from
+Tigris, and **locks** every sample account: its password is replaced by
+a random one nobody knows and it is logged out everywhere. (Locked, not
+deleted: the site can't delete accounts yet; see `NOTES.md`, item 9 of
+"Features".) The admin account and the categories stay. Then check:
+
+```
+fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.check_before_launch()'"
+```
+
+It prints "OK: no sample data left", or lists what's left and stops
+with "NOT READY".
+
+Hard-deleting a single sample artist in `/admin` is not enough on its
+own: it removes the artist and their photos, but their login keeps
+working.
+
 ---
 
 ## 6. Everyday use
@@ -577,6 +649,16 @@ Also remove the photo buckets (`docs/tigris.md` §6) and check
 Then check `fly apps list` and the Billing page. Rebuilding = section
 4 again with a new name.
 
+### Starting the database over, keeping the app *(not yet done)*
+
+Planned before inviting testers, so they start on a clean site. Every
+photo in the buckets belongs to the old database, so the buckets must
+be emptied at the same time, or their files stay there forever with no
+row pointing to them (`NOTES.md` #42). The simplest safe way: destroy
+both buckets and create them again as in `docs/tigris.md` §3.2–3.3,
+along with the new database (section 4.4). Write the exact steps here
+when it's done.
+
 ---
 
 ## 9. Keeping things current
@@ -598,3 +680,7 @@ Then check `fly apps list` and the Billing page. Rebuilding = section
 - Decide on one or two Machines (two needs clustering).
 - Managed Postgres or Neon instead of unmanaged, if worth the cost.
 - The form-recovery check, since every deploy drops open connections.
+- Sample data (section 5.1): before the site password comes off or
+  the repo stops being private, start the database over (section 8), or
+  run `remove_sample_data()`; then `check_before_launch()` must say
+  "OK". The sample accounts' password is in the repository.

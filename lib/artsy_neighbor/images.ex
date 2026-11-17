@@ -115,6 +115,22 @@ defmodule ArtsyNeighbor.Images do
     end
   end
 
+  @doc """
+  Checks, without processing or storing anything, that the photo file
+  at `path` would get past `process_upload/3`'s checks: a format we
+  take, not too small, not too large. Returns `:ok` or
+  `{:error, message}`. Used by the sample data's tests, so a sample
+  photo can't fail halfway through filling the preview.
+  """
+  def check_file(path) do
+    name = Path.basename(path)
+
+    with {:ok, image} <- open_image(path, name),
+         {:ok, _loader} <- check_format(image, name) do
+      check_dimensions(image)
+    end
+  end
+
   defp process_and_store(tmp_path, client_name, key, waited_ms) do
     work_dir = Path.join(System.tmp_dir!(), "artsy_neighbor_image_" <> Ecto.UUID.generate())
 
