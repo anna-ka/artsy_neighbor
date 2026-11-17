@@ -197,7 +197,13 @@ which is mechanical and done once, up front.
        2. The script that fills the preview database (item (ii)
           above), so the developer's daughter (illustrator, helping
           with looks and logo) can see the site with content.
-          **Written 2026-11-16, not yet run on Fly** (after a code
+          **Done: run on Fly 2026-11-17** (`fcb57c7`, plus `db38e13`:
+          a hand-made "Paintings" with another slug clashed on the
+          unique name, so categories are now skipped by slug or name).
+          All 13 artists, 81 works and 105 photos in about 10 minutes;
+          the studio got its own login (`anna.demo@example.com`, the
+          admin already has an artist profile). Written 2026-11-16
+          (after a code
           review: goes in through the site's own activate/publish
           rules, one failing artist is removed again and doesn't stop
           the rest; plus `Release.remove_sample_data/0` and
@@ -223,7 +229,19 @@ which is mechanical and done once, up front.
           47 ms, shrinking to the three sizes 23 ms, encoding
           `source.webp` at full size q95 988 ms, encoding the three
           display sizes 490 ms, i.e. ~95% is WebP encoding; Fly is ~3×
-          slower). Measure on Fly with the timing logs after each:
+          slower). **Seen on Fly 2026-11-17 (the sample-data run, 105
+          photos of 1–2.5 MP in a row):** for the first ~80 s each photo
+          took ~1 s to process, then 5–17 s for the rest of the 10
+          minutes, with no wait in the limiter and memory under 420 MB.
+          Very likely Fly's shared-CPU limit: a shared CPU may run at
+          full speed in bursts, and is slowed down to a small share of
+          a core once the burst allowance is used up (to check: the
+          app's CPU panels in the Fly dashboard Metrics around 19:10
+          UTC). So measure a *series* of photos, not one (a vendor
+          adding 20 at once), and see whether 3a's savings keep a
+          series within the burst; otherwise a bigger CPU (cost) or
+          a queue that spreads the work out.
+          Measure on Fly with the timing logs after each:
           a. Server tuning, no JavaScript: a lower WebP `effort` (on
              the Mac, 2500px: effort 4 = 335 ms / 1113 KB, effort 2 =
              171 ms / 1119 KB, effort 0 = 99 ms / 1143 KB), and make
