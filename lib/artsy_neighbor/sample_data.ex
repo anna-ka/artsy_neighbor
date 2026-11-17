@@ -15,7 +15,7 @@ defmodule ArtsyNeighbor.SampleData do
   ## Adding
 
     * **It only adds.** Nothing existing is changed or deleted. A
-      category whose slug is already there, or an artist whose nickname
+      category whose slug or name is already there, or an artist whose nickname
       is already there, is skipped, so running it twice is safe.
     * **Every artist can log in**, with the email of their `user` and
       the password `"DevPassword1!"`. An existing user with that email
@@ -144,10 +144,18 @@ defmodule ArtsyNeighbor.SampleData do
     result
   end
 
-  @doc "Adds each category whose slug isn't in the database yet."
+  @doc """
+  Adds each category whose slug and name aren't in the database yet.
+  Both are checked because both must be unique: a category made by hand
+  can have the same name with a different slug. (The works find their
+  category by name, so they use the existing one.)
+  """
   def add_categories(categories) do
     for category <- categories do
-      if Repo.exists?(from(c in Category, where: c.slug == ^category.slug)) do
+      already_there =
+        from(c in Category, where: c.slug == ^category.slug or c.name == ^category.name)
+
+      if Repo.exists?(already_there) do
         IO.puts("Skipped category #{category.name} (already there)")
       else
         %Category{}

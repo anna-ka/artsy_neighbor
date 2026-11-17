@@ -134,6 +134,29 @@ defmodule ArtsyNeighbor.SampleDataTest do
       assert output =~ "Skipped category Sculptures"
       assert Repo.aggregate(from(c in Category, where: c.slug == "sculptures"), :count) == 1
     end
+
+    test "skips a category whose name is there with another slug, and works use it" do
+      # Like a category made by hand on the site, with its own slug.
+      existing =
+        %Category{}
+        |> Category.changeset(%{
+          name: "Sculptures",
+          slug: "sculpture-by-hand",
+          description: "Made by hand in the admin pages."
+        })
+        |> Repo.insert!()
+
+      output = quietly(fn -> SampleData.add_categories([@sculptures]) end)
+
+      assert output =~ "Skipped category Sculptures"
+      assert Repo.aggregate(from(c in Category, where: c.name == "Sculptures"), :count) == 1
+
+      with_photo_cleanup(fn ->
+        assert add_sample_artists([entry()]) == :ok
+        product = Repo.get_by!(Product, title: "Clay Cat")
+        assert product.category_id == existing.id
+      end)
+    end
   end
 
   describe "add_artists/1" do
