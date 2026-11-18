@@ -125,6 +125,27 @@ defmodule ArtsyNeighbor.Release do
     end
   end
 
+  @doc """
+  Times photo processing on this machine (see
+  `ArtsyNeighbor.Images.Timing`): processes a series of sample photos,
+  enlarged to phone size, as uploads would be; prints each photo's
+  wall time and CPU time and a summary; and deletes what it stored.
+  Changes nothing else. Options: `count:` (default 20) and
+  `long_side:` (default 4032; `nil` = the samples as they are).
+
+      fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.time_photos()'"
+      fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.time_photos(count: 40)'"
+
+  `rpc` for the same reason as `add_sample_data/0`. It uses the CPU
+  hard for a minute or more, so run it when nobody else is adding
+  photos.
+  """
+  def time_photos(opts \\ []) do
+    ensure_running_site!()
+    ArtsyNeighbor.Images.Timing.run(opts)
+    :ok
+  end
+
   # These commands need the running site (the photo limiter, the
   # background tasks that delete photo files), so they must be run with
   # `rpc`, which runs inside it; `eval` starts a separate, bare copy.

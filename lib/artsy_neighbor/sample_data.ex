@@ -106,6 +106,16 @@ defmodule ArtsyNeighbor.SampleData do
     entry.photos ++ work_photos
   end
 
+  @doc """
+  The file of one sample photo: `photo` (e.g. `"shore-2.jpg"`) in an
+  entry's `photo_dir` (e.g. `"images/seed/demo/maren"`), which is under
+  `priv/static/`.
+  """
+  def photo_file(photo_dir, photo) do
+    relative_path = Path.join(photo_dir, photo)
+    Application.app_dir(:artsy_neighbor, Path.join("priv/static", relative_path))
+  end
+
   # Every email a sample account can have (the `fallback_user` too,
   # but never the admin's: the studio's `user: :first_admin`).
   defp sample_emails(entries) do
@@ -344,9 +354,8 @@ defmodule ArtsyNeighbor.SampleData do
   defp each_photo(photos, photo_dir, folder, save_row) do
     each_until_error(Enum.with_index(photos, 1), fn {photo, position} ->
       relative_path = Path.join(photo_dir, photo)
-      file = Application.app_dir(:artsy_neighbor, Path.join("priv/static", relative_path))
 
-      case Images.process_upload(file, photo, folder) do
+      case Images.process_upload(photo_file(photo_dir, photo), photo, folder) do
         {:ok, key} ->
           save_row.(key, position)
           :ok

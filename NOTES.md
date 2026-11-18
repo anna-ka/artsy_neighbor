@@ -241,6 +241,33 @@ which is mechanical and done once, up front.
           adding 20 at once), and see whether 3a's savings keep a
           series within the burst; otherwise a bigger CPU (cost) or
           a queue that spreads the work out.
+          *Found 2026-11-17:* the sample photos are small (almost all
+          0.6–1.4 MP, 1200 px wide), so that run measured about a
+          twelfth of a phone photo's pixels. Fly's numbers (docs.fly.io
+          "CPU performance"): a shared CPU is guaranteed 6.25% of a core
+          (5 ms in every 80 ms); unused time builds up a burst balance
+          of at most 500 s at full speed, and a new or restarted
+          Machine starts with only 5 s, which fits the slowdown right
+          after a deploy. The preview's `fly.toml` stops the Machine
+          when idle (`auto_stop_machines = 'stop'`,
+          `min_machines_running = 0`), so it probably starts each visit
+          with that 5 s too; the real site should keep one Machine
+          running so the balance can build up (an idle Machine earns
+          it back in about 2 hours). Prices (US, per month, billed per second):
+          shared-cpu-1x 1 GB $6.70 (now), shared-cpu-2x 2 GB $13.39,
+          performance-1x 2 GB $33 (a full core, never slowed down),
+          performance-2x 4 GB $66.
+          **Measuring:** `Release.time_photos/1`
+          (`ArtsyNeighbor.Images.Timing`) processes 20 sample photos
+          enlarged to phone size (4032 px) in a row, like real uploads,
+          prints wall time and CPU time per photo, and deletes them
+          again. CPU time doesn't depend on Fly slowing the CPU, so it's
+          the number to compare before/after and to plan capacity
+          with. **Before 3a, on the Mac: 1.48 s CPU per photo** (about
+          2,400 photos an hour per full core). Fly before 3a: to run.
+          Load to plan for (developer, 2026-11-17): 10–20 artists
+          onboarding at the same time in Victoria; for Vancouver
+          (bigger, its own instance), several hundred at once.
           Measure on Fly with the timing logs after each:
           a. Server tuning, no JavaScript: a lower WebP `effort` (on
              the Mac, 2500px: effort 4 = 335 ms / 1113 KB, effort 2 =
@@ -261,7 +288,7 @@ which is mechanical and done once, up front.
           encoding is the expensive part anyway, so making the sizes in
           the browser would save only the cheap shrinking.
        The audit of 2026-11-15
-       (`docs/code-reviews/2026-11-15-security-correctness-efficiency-audit.md`)
+       (kept locally in `docs/private/`, which git ignores)
        is to be addressed after these.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
@@ -299,6 +326,8 @@ through that area's tests (what they check, what's missing). A session
 on how the test suite is organized is a good first step.
 
 ## Known bugs
+
+- **Sending a message to artist seems to crash LiveView at messages route for the recipient on the deployed site.
 
 - **Registration crashes on the preview (prod)** (found 2026-11-04).
   The user is saved, then sending the confirmation email crashes the
@@ -553,6 +582,27 @@ working on the code should keep in mind.
 
 6. **Multi-item cart on `ArtistLive.Store`** — deferred.
 7. **Delivery completion flow** — deferred, not planned for launch. Likely for subsequent releases.
+7a. **Smart search (later, after launch; discussed 2026-11-17)** —
+   search products by meaning using text and image embeddings, maybe
+   a chat helper on top. Plan as discussed:
+   - Embeddings from a **hosted embedding service** (an API call per
+     product save and per search), not a model run on our own server:
+     a local image model needs hundreds of MB of memory and a lot of
+     CPU, which is just what our small machine lacks. Products and
+     photos are public anyway; search text goes in the privacy policy.
+   - Vectors in Postgres with **pgvector**. A few thousand products
+     need no special index. Fly's own unmanaged Postgres image
+     (`flyio/postgres-flex`) does **not** include pgvector (checked
+     2026-11-17); Fly Managed Postgres (from $38/month) and Neon do.
+     So it counts in the Postgres/Neon decision.
+   - A **job queue (Oban, jobs kept in Postgres)** for computing
+     embeddings after a save, retrying when the service is down, and
+     re-embedding everything after a model change. Add it with this
+     feature, not before (see #34).
+   - The private `source.webp` of every photo stays: it lets image
+     embeddings be computed or recomputed later.
+   - A chat helper would call an LLM API with search as its tool:
+     nothing heavy on our server.
 8. **Vendor/admin polish**: vendor dashboard preview-before-going-live;
    admin can already set all three artist statuses, vendor can only
    toggle active/inactive (by design).

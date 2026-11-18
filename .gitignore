@@ -64,6 +64,9 @@ npm-debug.log
 #environment variables
 .env
 
+# Local-only documents (e.g. security findings) that must never be committed
+/docs/private/
+
 
 # Draft commit message (Claude writes it, the developer edits it, then `git commit -F`)
 /COMMIT_MSG.txt
