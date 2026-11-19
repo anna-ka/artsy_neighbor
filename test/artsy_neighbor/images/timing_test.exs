@@ -44,6 +44,8 @@ defmodule ArtsyNeighbor.Images.TimingTest do
     assert output =~ "Prepared 2 photos using"
     assert output =~ "Done: 2 photos"
     assert output =~ "CPU time per photo"
+    # Photo 1 is left out of the numbers to compare.
+    assert output =~ "Photo 2, the same photos in every run <- the numbers to compare"
     assert output =~ "All files stored by this run have been deleted again."
   end
 

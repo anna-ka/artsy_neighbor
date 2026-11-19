@@ -288,8 +288,26 @@ which is mechanical and done once, up front.
           1–10 effort scale can't reach 0), the upload decoded once
           into memory instead of four times, and the four files stored
           at the same time. `source.webp` stays first and in the
-          foreground (no background job until Oban, see 7a). Fly
-          after 3a: to run.
+          foreground (no background job until Oban, see 7a).
+          **Fly after 3a (2026-11-19, 13:14 Vancouver time):** photos
+          2–8, the same ones as in the run before, at full speed:
+          **~1.5 s CPU each, was ~3.8 s (2.5× less, as on the Mac)**;
+          storing 0.1–0.24 s, was 0.26–0.76 s. 20 photos in 5.2
+          minutes instead of 16.5; slowed-down photos took 37–53 s
+          instead of 45–110; peak memory 453 MB. The first photo is
+          slower in every run (3.1 s; 4.6 s before): getting started.
+          Lesson: photos 9–14 showed 3.5–4.7 s of CPU *and* the same
+          processing time, so mild slowing down raises both together
+          and the tool's "full speed" rule (processing < 1.25 × CPU)
+          didn't catch it; it only caught heavy slowing down. Fair
+          comparisons: the same photos at the start of a run, on a
+          Machine that has been idle (or on the Mac, never slowed). So
+          the tool's summary now reports photos 2–8 instead, and warns
+          if they were clearly slowed down.
+          At 1.5 s: one performance core ~2,400 photos an hour; our
+          shared CPU ~150 an hour sustained, a full 500 s burst ~330
+          photos; Victoria's ~400 in an hour is ~17% of one
+          performance core.
           Load to plan for (developer, 2026-11-17): 10–20 artists
           onboarding at the same time in Victoria; for Vancouver
           (bigger, its own instance), several hundred at once.
@@ -306,6 +324,8 @@ which is mechanical and done once, up front.
           c. Shrink photos in the browser before upload (smaller
              uploads on slow connections, less server work): quick
              trial on an iPhone and the Mac, then the hook.
+          Very large photos (warn, then a low-priority lane): #43,
+          designed together with b and c.
           Decided: the browser only shrinks; it never makes the
           display sizes. The server must encode every file it serves
           itself: a crafted image can attack visitors' browsers (e.g.
@@ -373,6 +393,8 @@ on how the test suite is organized is a good first step.
   (`UserSessionController`) doesn't show up. Fix: a clear message
   right under the field, e.g. "Please enter your email address, not
   your username." Matters for older users.
+
+-* IN the conversation window between a vendor and an artist: add a note saying that to make a purchase click button in the correcponding products' webpage. or you can do it from a panel here and add a button to open a panel to choose a product from this specific artist, perhaps with search field. Should be similar to the same panel that vendors have for this purpose.
 
 ## Known limitations / deliberately deferred
 
@@ -1033,6 +1055,46 @@ working on the code should keep in mind.
       the full teardown): `docs/deploy.md` §8, "Starting the database
       over". Removing just the sample data needs nothing extra:
       `Release.remove_sample_data/0` deletes their photos too.
+
+  43. **Very large photos (e.g. 50 MP): warn first, then process them
+      without slowing anyone else down** (added 2026-11-19, the
+      developer's request; part of the photo speed work, step 2).
+      Two things to avoid: (a) one artist's huge photo making everyone
+      else wait ("better one unhappy user than many"); (b) that artist
+      waiting and waiting with no clear message and no choice.
+      *Today:* the browser refuses files over 25 MB; the server
+      refuses photos over 52 MP (#33); anything below is processed
+      like any other photo, in the same 2 limiter slots. The result is
+      always ≤4096 px, so encoding costs the same as for 12 MP, but
+      reading costs more: a JPEG is shrunk while it's read (cheap), a
+      HEIC can't be, so all 50 MP are decoded (more CPU and memory).
+      Uploading 15–25 MB on a weak phone connection can take minutes.
+      Steps:
+      1. **Measure** on Fly: `time_photos(count: 5, long_side: 8160)`
+         (about 50 MP, JPEG: time and memory in the log lines), and a
+         real 48–50 MP HEIC from the developer's phone (never put in
+         the repo: phone photos carry GPS). Decide from that what
+         counts as "large".
+      2. **Warn, and let the artist choose**: "This photo is very large
+         and will take a while to save. Choose a smaller copy, or
+         continue?", with two buttons ("Choose a smaller photo" /
+         "Continue with this one") and the plain-words guide from #33
+         on how to make a smaller copy. The browser knows the file
+         size before uploading; the pixel count the server reads from
+         the header in milliseconds, before any processing, so with 3b
+         (process on pick) it can ask right after the upload.
+      3. **If the artist continues, process it at low priority**: e.g.
+         its own limiter lane with one slot, so normal photos never
+         queue behind it; big photos take turns there, with a longer
+         wait allowed (no "site is busy" just for waiting in the slow
+         lane); maybe fewer libvips threads for it. A clear message
+         while it runs ("Your large photo is being prepared, this can
+         take a few minutes"). Whether the artist may leave the page
+         meanwhile depends on a real job queue (Oban, see 7a).
+      Check with 3c (shrinking in the browser before upload): if the
+      browser can shrink a 50 MP photo to 4096 px itself, most huge
+      photos become ordinary ones and the warning is only needed when
+      it can't (to check: can browsers other than Safari read HEIC?).
 
 
 

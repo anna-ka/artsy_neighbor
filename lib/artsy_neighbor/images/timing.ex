@@ -21,13 +21,24 @@ defmodule ArtsyNeighbor.Images.Timing do
       counts them all, checked 2026-11-17). It's the number for
       comparing before and after a change, and for working out how
       many photos an hour a machine can take, **but only for photos
-      that ran at full speed**. On Fly, 2026-11-17, photos slowed down
-      by the shared CPU's limit showed ~6.5 s of CPU instead of ~3.9 s
-      (most likely because the server can't tell when Fly pauses its
-      CPU, and counts part of the pause as work). So the summary
-      reports the full-speed photos separately: those whose processing
-      time (making the files, without storing and waiting) is under
-      1.25 × their CPU time.
+      that ran at full speed**.
+
+  ## Comparing runs: photos 2–8
+
+  On Fly, photos slowed down by the shared CPU's limit show *more* CPU
+  time than they used, most likely because the server can't tell when
+  Fly pauses its CPU and counts part of the pause as work: ~6.5 s
+  instead of ~3.9 s when heavily slowed down (2026-11-17), and 3.5–4.7 s
+  instead of ~1.5 s when mildly slowed down (2026-11-19). Mild slowing
+  down can't be told apart from a slow photo, so the summary doesn't
+  guess which photos ran at full speed. It reports **photos 2–8**
+  instead: the same photos in every run (as long as the sample data
+  doesn't change), early enough to usually run before the burst
+  allowance is used up. Photo 1 is left out because the first photo
+  of a run is always slower. On Fly, run it on a Machine that has been
+  idle for a while, so the allowance has built up. If photos 2–8 were
+  clearly slowed down (wall time over twice the CPU time), the summary
+  says so: run again later.
 
   The CPU time is the whole server's, so it also counts, besides the
   photo itself:
@@ -212,11 +223,11 @@ defmodule ArtsyNeighbor.Images.Timing do
 
     wall_ms = System.monotonic_time(:millisecond) - started_at
 
-    # `processing_ms` is the time spent making the files, without the
-    # waiting for a limiter slot and for storage (nil if it failed).
-    {outcome, processing_ms, deleted} =
+    # `storing_ms` is the part of the wall time spent writing the files
+    # to storage, i.e. mostly waiting for the network (nil if it failed).
+    {outcome, storing_ms, deleted} =
       case upload_result do
-        {:ok, key, timings} -> {{:ok, key}, timings.processing_ms, delete_folder(key)}
+        {:ok, key, timings} -> {{:ok, key}, timings.storing_ms, delete_folder(key)}
         {:error, message} -> {{:error, message}, nil, true}
       end
 
@@ -226,7 +237,7 @@ defmodule ArtsyNeighbor.Images.Timing do
       height: height,
       wall_ms: wall_ms,
       cpu_ms: cpu_ms,
-      processing_ms: processing_ms,
+      storing_ms: storing_ms,
       outcome: outcome,
       deleted: deleted
     }
@@ -269,7 +280,7 @@ defmodule ArtsyNeighbor.Images.Timing do
         "wall #{result.wall_ms} ms  CPU #{result.cpu_ms} ms"
 
     case result.outcome do
-      {:ok, _key} -> base
+      {:ok, _key} -> base <> "  (storing #{result.storing_ms} ms)"
       {:error, message} -> base <> "  FAILED: " <> message
     end
   end
@@ -288,6 +299,7 @@ defmodule ArtsyNeighbor.Images.Timing do
 
     if stored != [] do
       print_averages(stored)
+      print_comparison(results)
     end
 
     print_cleanup(stored)
@@ -296,7 +308,6 @@ defmodule ArtsyNeighbor.Images.Timing do
   defp print_averages(stored) do
     first = Enum.take(stored, 5)
     last = Enum.take(stored, -5)
-    average_cpu_ms = average_of(stored, :cpu_ms)
 
     IO.puts(
       "  Wall time per photo: average #{average_of(stored, :wall_ms)} ms " <>
@@ -304,45 +315,52 @@ defmodule ArtsyNeighbor.Images.Timing do
     )
 
     IO.puts(
-      "  CPU time per photo:  average #{average_cpu_ms} ms " <>
+      "  CPU time per photo:  average #{average_of(stored, :cpu_ms)} ms " <>
         "(first 5: #{average_of(first, :cpu_ms)} ms, last 5: #{average_of(last, :cpu_ms)} ms)"
     )
+  end
 
-    full_speed = Enum.filter(stored, fn result -> full_speed?(result) end)
+  # The numbers to compare between runs: photos 2–8 (see the moduledoc).
+  # A shorter run uses what it has: photos 2 onwards, or photo 1 alone.
+  defp print_comparison(results) do
+    {label, picked} =
+      cond do
+        length(results) >= 8 -> {"Photos 2–8", Enum.slice(results, 1..7)}
+        length(results) >= 3 -> {"Photos 2–#{length(results)}", Enum.drop(results, 1)}
+        length(results) == 2 -> {"Photo 2", Enum.drop(results, 1)}
+        true -> {"Photo 1", results}
+      end
 
-    IO.puts(
-      "  Photos that ran at full speed (processing time under 1.25 × CPU time): " <>
-        "#{length(full_speed)} of #{length(stored)}"
-    )
+    compared = Enum.filter(picked, fn result -> match?({:ok, _key}, result.outcome) end)
 
-    if full_speed != [] do
-      full_speed_cpu_ms = average_of(full_speed, :cpu_ms)
+    if compared != [] do
+      cpu_ms = average_of(compared, :cpu_ms)
+      wall_ms = average_of(compared, :wall_ms)
+
+      IO.puts("")
+      IO.puts("  #{label}, the same photos in every run <- the numbers to compare:")
+      IO.puts("    CPU time: average #{cpu_ms} ms; wall time: average #{wall_ms} ms")
 
       IO.puts(
-        "  CPU time per photo at full speed: average #{full_speed_cpu_ms} ms " <>
-          "<- the number to compare"
+        "    (" <>
+          Enum.map_join(compared, ", ", fn result -> Path.basename(result.name) end) <> ")"
       )
 
-      if full_speed_cpu_ms > 0 do
-        photos_per_hour = div(3_600_000, full_speed_cpu_ms)
-
+      if cpu_ms > 0 do
         IO.puts(
-          "  At that CPU time, one full CPU core can process about " <>
-            "#{photos_per_hour} photos an hour."
+          "    At that CPU time, one full CPU core can process about " <>
+            "#{div(3_600_000, cpu_ms)} photos an hour."
+        )
+      end
+
+      if wall_ms > 2 * cpu_ms do
+        IO.puts(
+          "    WARNING: these photos were slowed down (wall time over twice the CPU " <>
+            "time), so their CPU time is too high. Run again after the Machine has " <>
+            "been idle for a while."
         )
       end
     end
-  end
-
-  # Compares the processing time (making the files; not storing, not
-  # waiting for a slot, which take time but little CPU) with the CPU
-  # time. On Fly, 2026-11-17: at full speed, processing took 1.05–1.08 ×
-  # the CPU time; slowed down by the CPU limit, 6 × or more. 1.25 also
-  # leaves out photos that were slowed down for part of the way, whose
-  # CPU time is already too high.
-  defp full_speed?(result) do
-    # processing_ms < 1.25 × cpu_ms, in whole numbers.
-    result.processing_ms * 4 < result.cpu_ms * 5
   end
 
   defp print_cleanup(stored) do
