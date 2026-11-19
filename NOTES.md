@@ -326,6 +326,8 @@ which is mechanical and done once, up front.
              trial on an iPhone and the Mac, then the hook.
           Very large photos (warn, then a low-priority lane): #43,
           designed together with b and c.
+          **Plan for c then b (2026-11-19, order: 3c, 3b, then the
+          audit):** `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
           Decided: the browser only shrinks; it never makes the
           display sizes. The server must encode every file it serves
           itself: a crafted image can attack visitors' browsers (e.g.
@@ -360,6 +362,34 @@ which is mechanical and done once, up front.
    *Added 2026-11-14:* account security for every outside service
    (#36) — not urgent for the private preview, but done meticulously
    before testers and again before launch.
+   *Added 2026-11-19:* **keep libvips and the libraries behind it up to
+   date** (libjpeg, libwebp, libheif, libde265, libpng, libtiff). The
+   server rebuilds every upload from its pixels, so nothing hidden in a
+   file survives, but a specially crafted image could still attack the
+   image decoder itself while our server reads it (real cases: the 2023
+   WebP flaw CVE-2023-4863, used in attacks). These libraries come from
+   Debian through the Dockerfile, so they only get security fixes when
+   the Docker image is rebuilt and deployed. Decide: a regular rebuild
+   (e.g. monthly, and soon after a libvips/libwebp/libheif advisory),
+   perhaps automatic (GitHub Actions, with the precommit check), and
+   how we hear about advisories (Debian security announcements).
+   `Release.image_support()` prints the libvips version (8.16.1 on Fly,
+   2026-11-19). The upload size limits (25 MB, 52 MP) also help: they
+   keep a crafted file from using up memory.
+   *Added 2026-11-19:* **a rate limit on photo uploads per account**
+   (developer's decision). Today one artist account could upload photo
+   after photo, all of them legitimate, and keep both limiter slots
+   busy so other artists wait or get "site is busy". The per-photo
+   limits (25 MB, 52 MP, refused from the header alone) and the
+   limiter (2 at a time) protect memory, but not fairness. Needed: at
+   most N photos per account per hour (N from real use: an artist
+   setting up a store adds maybe 20–50 photos in an evening), counted
+   on the server (the browser can be bypassed), with a plain message
+   when it's reached ("You've added a lot of photos in a short time.
+   Please wait a few minutes and try again."). Only logged-in artists
+   and admins can upload, so this is per account, not per IP. Check
+   whether other actions need the same (sending messages, flag
+   reports, log-in attempts).
 6. **Developer's own rehearsal** on the deployed site, as vendor, buyer,
    and admin; fix what turns up. Then **invite testers**.
 7. **Before public launch** — full flag moderation pass (rest of #1),
@@ -890,10 +920,25 @@ working on the code should keep in mind.
         (Preview → Tools → Adjust Size), Windows (Photos → Resize);
       - a general "Photo tips" help page (also good for lighting,
         backgrounds, cropping);
+      - *added 2026-11-19:* maybe a link to a free, trustworthy tool
+        for making a photo smaller (one that works in the browser
+        without uploading the photo anywhere, or the computer's own
+        photo app), for the rare over-limit photo the browser can't
+        shrink itself;
       - accept big JPEGs anyway by reading them at ½ / ¼ / ⅛ size
         (libvips "shrink-on-load", cheap in memory), so only big
         HEIC/PNG/TIFF files would still be refused. More code; only
         if artists actually hit the limit.
+      - *Added 2026-11-19:* browser shrinking (photo speed 3c) will
+        make most over-limit photos fit before upload (plan
+        `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`,
+        3c point 9).
+      - *Added 2026-11-19:* **once a year, check what new phones save**
+        and whether the server's limits (25 MB, 52 MP) still cover
+        them (as of mid-2026: normally 12–24 MP; optional modes 48–50
+        MP, Samsung 200 MP; panoramas 60–100 MP). Raising 52 MP costs
+        server memory (a 48 MP photo peaked at ~460 MB), so measure
+        again with `Release.time_photos/1` first.
 
   34. **Photo processing is a bottleneck — rethink it systematically
       before the site gets busy** (added 2026-11-09, code review of
