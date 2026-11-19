@@ -18,10 +18,16 @@ defmodule ArtsyNeighbor.Images.Timing do
       on Tigris, which is waiting for the network, not work.
     * **CPU time** — the work the machine did: every thread of the
       server, libvips' own threads included (`:erlang.statistics(:runtime)`
-      counts them all, checked 2026-11-17). It doesn't depend on Fly
-      slowing the CPU down, so it's the fair number for comparing
-      before and after a change, and for working out how many photos
-      an hour a machine can take.
+      counts them all, checked 2026-11-17). It's the number for
+      comparing before and after a change, and for working out how
+      many photos an hour a machine can take, **but only for photos
+      that ran at full speed**. On Fly, 2026-11-17, photos slowed down
+      by the shared CPU's limit showed ~6.5 s of CPU instead of ~3.9 s
+      (most likely because the server can't tell when Fly pauses its
+      CPU, and counts part of the pause as work). So the summary
+      reports the full-speed photos separately: those whose processing
+      time (making the files, without storing and waiting) is under
+      1.25 × their CPU time.
 
   The CPU time is the whole server's, so it also counts, besides the
   photo itself:
@@ -201,15 +207,17 @@ defmodule ArtsyNeighbor.Images.Timing do
 
     started_at = System.monotonic_time(:millisecond)
 
-    {cpu_ms, outcome} =
-      cpu_timed(fn -> Images.process_upload(photo.path, photo.name, @folder) end)
+    {cpu_ms, upload_result} =
+      cpu_timed(fn -> Images.process_upload_with_timings(photo.path, photo.name, @folder) end)
 
     wall_ms = System.monotonic_time(:millisecond) - started_at
 
-    deleted =
-      case outcome do
-        {:ok, key} -> delete_folder(key)
-        {:error, _message} -> true
+    # `processing_ms` is the time spent making the files, without the
+    # waiting for a limiter slot and for storage (nil if it failed).
+    {outcome, processing_ms, deleted} =
+      case upload_result do
+        {:ok, key, timings} -> {{:ok, key}, timings.processing_ms, delete_folder(key)}
+        {:error, message} -> {{:error, message}, nil, true}
       end
 
     %{
@@ -218,6 +226,7 @@ defmodule ArtsyNeighbor.Images.Timing do
       height: height,
       wall_ms: wall_ms,
       cpu_ms: cpu_ms,
+      processing_ms: processing_ms,
       outcome: outcome,
       deleted: deleted
     }
@@ -299,14 +308,41 @@ defmodule ArtsyNeighbor.Images.Timing do
         "(first 5: #{average_of(first, :cpu_ms)} ms, last 5: #{average_of(last, :cpu_ms)} ms)"
     )
 
-    if average_cpu_ms > 0 do
-      photos_per_hour = div(3_600_000, average_cpu_ms)
+    full_speed = Enum.filter(stored, fn result -> full_speed?(result) end)
+
+    IO.puts(
+      "  Photos that ran at full speed (processing time under 1.25 × CPU time): " <>
+        "#{length(full_speed)} of #{length(stored)}"
+    )
+
+    if full_speed != [] do
+      full_speed_cpu_ms = average_of(full_speed, :cpu_ms)
 
       IO.puts(
-        "  At that CPU time, one full CPU core can process about " <>
-          "#{photos_per_hour} photos an hour."
+        "  CPU time per photo at full speed: average #{full_speed_cpu_ms} ms " <>
+          "<- the number to compare"
       )
+
+      if full_speed_cpu_ms > 0 do
+        photos_per_hour = div(3_600_000, full_speed_cpu_ms)
+
+        IO.puts(
+          "  At that CPU time, one full CPU core can process about " <>
+            "#{photos_per_hour} photos an hour."
+        )
+      end
     end
+  end
+
+  # Compares the processing time (making the files; not storing, not
+  # waiting for a slot, which take time but little CPU) with the CPU
+  # time. On Fly, 2026-11-17: at full speed, processing took 1.05–1.08 ×
+  # the CPU time; slowed down by the CPU limit, 6 × or more. 1.25 also
+  # leaves out photos that were slowed down for part of the way, whose
+  # CPU time is already too high.
+  defp full_speed?(result) do
+    # processing_ms < 1.25 × cpu_ms, in whole numbers.
+    result.processing_ms * 4 < result.cpu_ms * 5
   end
 
   defp print_cleanup(stored) do

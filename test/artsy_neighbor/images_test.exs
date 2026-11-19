@@ -394,14 +394,15 @@ defmodule ArtsyNeighbor.ImagesTest do
   end
 end
 
-defmodule ArtsyNeighbor.ImagesTimingLogTest do
+defmodule ArtsyNeighbor.ImagesInfoLogTest do
   @moduledoc """
-  The timing line `Images.process_upload/3` logs for each stored photo.
+  What `Images.process_upload/3` logs at info level: the timing line
+  for each stored photo, and why a photo couldn't be decoded.
 
   The test config only logs warnings, and a single test process can't
-  ask for more, so this test turns on info logging for the whole app
-  for a moment. That's why it's in its own module with `async: false`:
-  no other test runs at the same time.
+  ask for more, so these tests turn on info logging for the whole app
+  for a moment. That's why they're in their own module with
+  `async: false`: no other test runs at the same time.
   """
   use ExUnit.Case, async: false
 
@@ -410,15 +411,20 @@ defmodule ArtsyNeighbor.ImagesTimingLogTest do
 
   # 1487 × 998 pixels, a JPEG.
   @site_image "priv/static/images/cat-sculpture.jpg"
+  # 1000 × 671 pixels, HEVC-encoded.
+  @heic_fixture "test/support/images/cat-sculpture.heic"
 
-  test "logs one timing line per stored photo" do
-    folder = "test/" <> Ecto.UUID.generate()
-    on_exit(fn -> Storage.delete_prefix(folder) end)
-
+  setup do
     previous_level = Logger.level()
     Logger.configure(level: :info)
     on_exit(fn -> Logger.configure(level: previous_level) end)
 
+    folder = "test/" <> Ecto.UUID.generate()
+    on_exit(fn -> Storage.delete_prefix(folder) end)
+    %{folder: folder}
+  end
+
+  test "logs one timing line per stored photo", %{folder: folder} do
     log =
       ExUnit.CaptureLog.capture_log([level: :info], fn ->
         {:ok, _key} = Images.process_upload(@site_image, "photo.jpg", folder)
@@ -427,5 +433,27 @@ defmodule ArtsyNeighbor.ImagesTimingLogTest do
     assert log =~ ~s(Photo stored #{folder}/)
     assert log =~ ~s("photo.jpg", jpeg 1487×998 \(1.5 MP,)
     assert log =~ ~r/waited \d+ ms, processing \d+ ms, storing \d+ ms; memory/
+  end
+
+  # A cut-off HEIC file opens (its header is intact) but fails while
+  # decoding, with only libvips' generic "Failed to memory copy image".
+  # Where HEIC is supported, that's a broken file, not a missing
+  # decoder, so the artist gets the general message.
+  @tag :heic
+  @tag :tmp_dir
+  test "a broken HEIC file, where HEIC is supported, gets the general message",
+       %{folder: folder, tmp_dir: tmp_dir} do
+    bytes = File.read!(@heic_fixture)
+    broken = Path.join(tmp_dir, "broken.heic")
+    File.write!(broken, binary_part(bytes, 0, div(byte_size(bytes), 2)))
+
+    log =
+      ExUnit.CaptureLog.capture_log([level: :info], fn ->
+        assert {:error, "We couldn't read this file as a photo." <> _} =
+                 Images.process_upload(broken, "IMG_0002.HEIC", folder)
+      end)
+
+    assert log =~ ~s(Image upload "IMG_0002.HEIC" (heifload\) couldn't be decoded)
+    refute log =~ "can't decode HEIC"
   end
 end

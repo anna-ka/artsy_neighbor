@@ -264,7 +264,32 @@ which is mechanical and done once, up front.
           again. CPU time doesn't depend on Fly slowing the CPU, so it's
           the number to compare before/after and to plan capacity
           with. **Before 3a, on the Mac: 1.48 s CPU per photo** (about
-          2,400 photos an hour per full core). Fly before 3a: to run.
+          2,400 photos an hour per full core). **Fly before 3a
+          (2026-11-17, 17:12 Vancouver time):** 8 photos at full speed, ~3.9 s
+          CPU each (2.6× the Mac; wall = CPU + 0.2–0.8 s storing),
+          then the burst ran out (after ~45 s of CPU, 13 s of it the
+          run's preparation) and photos 9–20 took 45–110 s each, about
+          7% of a core. 16.5 minutes for 20 photos, peak memory 464 MB.
+          Correction: the slowed-down photos showed ~6.5 s CPU, not
+          3.9, so CPU time is only fair for full-speed photos; the tool
+          now reports those separately. At 3.9 s: our shared CPU
+          sustains ~60 photos an hour, a full burst ~130 photos, one
+          performance core ~900; Victoria's 20 artists × 20 photos in
+          an hour needs ~400. While slowed down, a photo takes over a
+          minute. One artist's photos go through the limiter one after
+          another (one slot at a time), so they never wait on each
+          other; but with 2 slots and a 30 s wait, a *third* artist
+          saving photos while two others are being processed would
+          get "site is busy".
+          **3a written 2026-11-17, review fixes 2026-11-19 (Mac: 1.48 s
+          → 0.57 s CPU per photo):**
+          effort 0 for `source.webp`, effort 2 for the display sizes
+          (libvips' WebP writer called directly: `Image.write/3`'s
+          1–10 effort scale can't reach 0), the upload decoded once
+          into memory instead of four times, and the four files stored
+          at the same time. `source.webp` stays first and in the
+          foreground (no background job until Oban, see 7a). Fly
+          after 3a: to run.
           Load to plan for (developer, 2026-11-17): 10–20 artists
           onboarding at the same time in Victoria; for Vancouver
           (bigger, its own instance), several hundred at once.

@@ -49,6 +49,22 @@ defmodule ArtsyNeighbor.Images do
   @source_quality 95
   @display_quality 82
 
+  # WebP "effort" (0–6): how hard the encoder works to make the file
+  # small. It doesn't change how the photo looks (`quality` does that),
+  # only the file size and the time. Measured on the Mac, 2026-11-17,
+  # for a 12 MP photo: source.webp at effort 4 (the default) 733 ms,
+  # at effort 0 238 ms and even 2% smaller; for a 2500 px display
+  # size, effort 2 is twice as fast as 4 for files 0.5% bigger. The
+  # source is private, so its size hardly matters; the display sizes
+  # are downloaded by visitors, so they get a little more effort.
+  @source_effort 0
+  @display_effort 2
+
+  # How many of a photo's files are written to storage at the same time
+  # (it has four). On Tigris each file is a network request, so most of
+  # the time is waiting, not work.
+  @store_concurrency 4
+
   # The libvips "loaders" we accept, i.e. the file formats. libvips can
   # read more (GIF, SVG, PDF, ...), but those are refused on purpose —
   # see the plan doc. `heifload` covers both HEIC and AVIF.
@@ -98,6 +114,19 @@ defmodule ArtsyNeighbor.Images do
   returning an error message.
   """
   def process_upload(tmp_path, client_name, folder) do
+    case process_upload_with_timings(tmp_path, client_name, folder) do
+      {:ok, key, _timings} -> {:ok, key}
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  @doc """
+  Same as `process_upload/3`, but on success also returns how long the
+  steps took: `{:ok, key, %{waited_ms: ..., processing_ms: ...,
+  storing_ms: ...}}` (the numbers of the timing log line). Used by
+  `ArtsyNeighbor.Images.Timing`.
+  """
+  def process_upload_with_timings(tmp_path, client_name, folder) do
     key = folder <> "/" <> Ecto.UUID.generate()
     Storage.validate_key!(key)
 
@@ -142,7 +171,7 @@ defmodule ArtsyNeighbor.Images do
            {:ok, loader} <- check_format(image, client_name),
            :ok <- check_dimensions(image),
            {processing_ms, {:ok, files}} <-
-             timed(fn -> make_webp_files(tmp_path, work_dir, client_name) end),
+             timed(fn -> make_webp_files(tmp_path, work_dir, client_name, loader) end),
            {storing_ms, :ok} <- timed(fn -> store_files(files, key) end) do
         log_timing(%{
           key: key,
@@ -155,7 +184,8 @@ defmodule ArtsyNeighbor.Images do
           storing_ms: storing_ms
         })
 
-        {:ok, key}
+        timings = %{waited_ms: waited_ms, processing_ms: processing_ms, storing_ms: storing_ms}
+        {:ok, key, timings}
       else
         {_ms, {:error, message}} -> {:error, message}
         {:error, message} -> {:error, message}
@@ -406,8 +436,8 @@ defmodule ArtsyNeighbor.Images do
   end
 
   # Opening only reads the file's header (libvips is lazy), so this is
-  # cheap even for a big photo; the pixels are decoded later, when the
-  # first file is written.
+  # cheap even for a big photo; the pixels are decoded later, in
+  # make_webp_files/4 (decode_into_memory/1).
   defp open_image(tmp_path, client_name) do
     case Image.open(tmp_path) do
       {:ok, image} ->
@@ -450,12 +480,13 @@ defmodule ArtsyNeighbor.Images do
 
   # Writes source.webp and the display sizes into `work_dir`.
   # Returns {:ok, [{local_path, file_name, visibility}, ...]}.
+  # `loader` is the file format check_format/2 found, e.g. "heifload".
   #
   # Reads the upload again from its path rather than reusing the image
   # opened for the checks: from a path, libvips can shrink while
   # reading (e.g. decode a big JPEG at half size straight away), which
   # needs much less memory.
-  defp make_webp_files(tmp_path, work_dir, client_name) do
+  defp make_webp_files(tmp_path, work_dir, client_name, loader) do
     source_path = Path.join(work_dir, "source.webp")
 
     # `thumbnail` with `resize: :down` only ever shrinks. It also:
@@ -463,8 +494,6 @@ defmodule ArtsyNeighbor.Images do
     #   * converts colours to sRGB, the colour space browsers assume
     #     (iPhone photos are in the wider "Display P3"), so the colours
     #     still look right once the colour profile is stripped.
-    # Writing the file is where libvips actually decodes the pixels,
-    # so a HEIC that can't be decoded fails here, not when opened.
     result =
       with {:ok, upright} <-
              Image.thumbnail(tmp_path, @source_max_side,
@@ -472,19 +501,54 @@ defmodule ArtsyNeighbor.Images do
                autorotate: true,
                export_icc_profile: :srgb
              ),
-           {:ok, _} <- write_webp(upright, source_path, @source_quality) do
-        make_display_sizes(source_path, work_dir)
+           {:ok, decoded} <- decode_into_memory(upright, client_name, loader),
+           :ok <- write_webp(decoded, source_path, @source_quality, @source_effort) do
+        make_display_sizes(decoded, work_dir)
       end
 
     case result do
       {:ok, display_files} ->
         {:ok, [{source_path, "source.webp", :private} | display_files]}
 
-      {:error, reason} ->
-        log_message = "Image upload #{inspect(client_name)} failed to process: #{inspect(reason)}"
+      # Already logged and worded by decode_into_memory/3.
+      {:error, message} when is_binary(message) ->
+        {:error, message}
 
-        if heic_not_supported?(reason) do
-          Logger.warning(log_message)
+      {:error, reason} ->
+        Logger.info("Image upload #{inspect(client_name)} failed to process: #{inspect(reason)}")
+        {:error, @msg_not_an_image}
+    end
+  end
+
+  # libvips works "lazily": `upright` is only a recipe, and the pixels
+  # are worked out when something is written. Writing four files from
+  # the recipe would decode the upload four times, so `copy_memory`
+  # decodes it once, into memory, and all four files are made from
+  # that. It always holds 8 bits per colour (`thumbnail` converts
+  # 16-bit photos, checked 2026-11-19), so it takes 3 bytes per pixel,
+  # 4 with transparency: 37 MB for a 12 MP photo, at most 64 MB
+  # (4096 × 4096 with transparency).
+  #
+  # This is where the pixels are actually decoded, so a photo that can't
+  # be decoded fails here, not when opened: e.g. an iPhone HEIC photo on
+  # a libvips without the HEVC decoder (the `image` library's bundled
+  # libvips can open a HEIC file and read its size, but not its pixels).
+  # copy_memory's error only says "Failed to memory copy image" (libvips'
+  # own message goes to the terminal), so for a HEIC file we ask
+  # heic_decoding_supported?/0 rather than read the message.
+  # Returns {:ok, decoded} or {:error, message for the artist}.
+  defp decode_into_memory(upright, client_name, loader) do
+    case Vix.Vips.Image.copy_memory(upright) do
+      {:ok, decoded} ->
+        {:ok, decoded}
+
+      {:error, reason} ->
+        log_message =
+          "Image upload #{inspect(client_name)} (#{loader}) couldn't be decoded: " <>
+            inspect(reason)
+
+        if loader == "heifload" and not heic_decoding_supported?() do
+          Logger.warning(log_message <> "; this server's libvips can't decode HEIC")
           {:error, @msg_heic_unsupported}
         else
           Logger.info(log_message)
@@ -493,11 +557,25 @@ defmodule ArtsyNeighbor.Images do
     end
   end
 
-  # The display sizes are made from source.webp, which is already upright,
-  # sRGB and metadata-free. Starting from a file path (not an opened
-  # image) lets libvips shrink while reading, which is faster and needs
-  # less memory.
-  defp make_display_sizes(source_path, work_dir) do
+  @doc """
+  True if this server's libvips can decode iPhone (HEIC) photos. It
+  decodes `priv/image_check/check.heic`, a tiny HEVC-encoded sample,
+  the same check as `ArtsyNeighbor.Release.image_support/0`. Only
+  asked after a HEIC photo has failed to decode, to tell the artist
+  the right thing.
+  """
+  def heic_decoding_supported? do
+    sample = Application.app_dir(:artsy_neighbor, "priv/image_check/check.heic")
+
+    case Image.open(sample) do
+      {:ok, image} -> match?({:ok, _}, Vix.Vips.Image.copy_memory(image))
+      {:error, _reason} -> false
+    end
+  end
+
+  # The display sizes are made from the decoded photo in memory (see
+  # make_webp_files/3), which is already upright and sRGB.
+  defp make_display_sizes(decoded, work_dir) do
     # The files to make: [{long_side, local_path, file_name}, ...]
     planned =
       for {name, long_side} <- @sizes do
@@ -507,9 +585,8 @@ defmodule ArtsyNeighbor.Images do
 
     result =
       each_until_error(planned, fn {long_side, out_path, _file_name} ->
-        with {:ok, resized} <- Image.thumbnail(source_path, long_side, resize: :down),
-             {:ok, _} <- write_webp(resized, out_path, @display_quality) do
-          :ok
+        with {:ok, resized} <- Image.thumbnail(decoded, long_side, resize: :down) do
+          write_webp(resized, out_path, @display_quality, @display_effort)
         end
       end)
 
@@ -528,28 +605,54 @@ defmodule ArtsyNeighbor.Images do
   end
 
   # Removes every metadata field first (GPS location, camera details,
-  # the colour profile, ...), and asks the writer to strip too, so
-  # nothing slips through.
-  defp write_webp(image, path, quality) do
+  # the colour profile, ...), and tells the writer to keep none either
+  # (`keep: NONE`), so nothing slips through.
+  #
+  # Calls libvips' WebP writer directly rather than `Image.write/3`:
+  # that one takes `effort` on its own 1–10 scale and converts it, so
+  # WebP effort 0 can't be reached through it. `keep` needs libvips
+  # 8.15 or newer (Fly's Debian has 8.16, the Mac 8.18).
+  # Returns :ok or {:error, reason}.
+  defp write_webp(image, path, quality, effort) do
     with {:ok, clean} <- Image.remove_metadata(image) do
-      Image.write(clean, path, quality: quality, strip_metadata: true)
+      Vix.Vips.Operation.webpsave(clean, path,
+        Q: quality,
+        effort: effort,
+        keep: [:VIPS_FOREIGN_KEEP_NONE]
+      )
     end
   end
 
-  # The error libvips gives when it was built without the HEVC decoder
-  # (e.g. the `image` library's bundled libvips): "Support for this
-  # compression format has not been built in: HEVC". iPhone HEIC photos
-  # use HEVC; a missing decoder for anything else gets the general
-  # message. See `test/artsy_neighbor/image_setup_test.exs`.
-  defp heic_not_supported?(reason) do
-    String.contains?(inspect(reason), "HEVC")
-  end
-
+  # Writes the files to storage at the same time (see @store_concurrency).
+  # Waits for all of them, even after one fails, so that none is still
+  # being written when the clean-up below deletes the folder.
+  #
+  # The writes run as tasks under ArtsyNeighbor.TaskSupervisor, *not
+  # linked* to the caller (`async_stream_nolink`). With linked tasks
+  # (plain Task.async_stream), a write that raises would kill the
+  # caller on the spot: the clean-up below and the removal of the work
+  # folder (with its private source.webp) would never run. Unlinked, a
+  # crash comes back as {:exit, reason} and is handled like any failure.
   defp store_files(files, key) do
+    put_results =
+      ArtsyNeighbor.TaskSupervisor
+      |> Task.Supervisor.async_stream_nolink(
+        files,
+        fn {local_path, file_name, visibility} ->
+          Storage.put(local_path, key <> "/" <> file_name, visibility)
+        end,
+        max_concurrency: @store_concurrency,
+        # No time limit here, as when the files were written one after
+        # another: the storage requests have their own.
+        timeout: :infinity
+      )
+      |> Enum.map(fn task_result -> put_outcome(task_result) end)
+
     result =
-      each_until_error(files, fn {local_path, file_name, visibility} ->
-        Storage.put(local_path, key <> "/" <> file_name, visibility)
-      end)
+      case Enum.find(put_results, fn put_result -> put_result != :ok end) do
+        nil -> :ok
+        {:error, reason} -> {:error, reason}
+      end
 
     case result do
       :ok ->
@@ -570,6 +673,14 @@ defmodule ArtsyNeighbor.Images do
         {:error, @msg_save_failed}
     end
   end
+
+  # What one storage task gave: :ok or {:error, reason}, whether
+  # Storage.put returned an error, crashed, or returned something
+  # unexpected.
+  defp put_outcome({:ok, :ok}), do: :ok
+  defp put_outcome({:ok, {:error, reason}}), do: {:error, reason}
+  defp put_outcome({:ok, other}), do: {:error, {:unexpected_result, other}}
+  defp put_outcome({:exit, reason}), do: {:error, {:crashed, reason}}
 
   # --- Timing log ------------------------------------------------------
   #
