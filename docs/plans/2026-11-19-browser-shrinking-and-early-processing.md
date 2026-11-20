@@ -229,6 +229,19 @@ What this answers:
 picture + canvas with the default sRGB canvas.** The iPhone part of the trial is
 complete; Safari and Firefox on the Mac are optional.
 
+**Firefox 160 on the Mac (2026-11-20, picture + canvas, sRGB), as a
+sanity check:** HEIC can't be read ("would upload the original", as
+expected: the server handles it); 48 and 60 MP JPEGs shrunk in about
+0.3 s; the sideways photo upright (2731 × 4096); all six WebPs sorted
+as in Chromium and on the iPhone; no visible difference. So all three
+browser engines (WebKit, Chromium, Gecko) agree. Safari on the Mac
+was skipped: same engine as the iPhone. With createImageBitmap,
+Firefox did the same, a little slower (48 MP: 0.42 s instead of
+0.29 s) but with *smaller* files (2.8 MB instead of 3.5 MB), the
+opposite of Safari. So file size depends on the browser, not the
+way; speed favoured picture + canvas in every browser, which with
+its simplicity keeps the decision as it is.
+
 ### Tests
 
 The server side doesn't change, and its tests stay. There is no
