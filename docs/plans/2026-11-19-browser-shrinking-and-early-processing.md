@@ -159,6 +159,76 @@ orientation note. A first check in Chromium on the Mac (2026-11-19):
 both ways work, 48 MP → 4096 × 3072 in 0.3–0.7 s, the sideways photo
 comes out upright, HEIC can't be read (as expected).
 
+### Trial results: the developer's iPhone (2026-11-20)
+
+Safari 27.2 on iOS 27 (the browser line says "iPhone OS 18_7": Apple
+froze that number), screen 375 × 812 at 3×. Test files picked through
+"Choose File" from Downloads (AirDrop refused the mixed batch; saving
+to Downloads worked). Times are the total per photo.
+
+| Photo | Picture + canvas | createImageBitmap |
+|---|---|---|
+| 48 MP JPEG (11.3 MB) | 0.53 s → 3.0 MB | 0.99 s → 4.6 MB |
+| 60 MP JPEG (14.0 MB) | 0.55 s → 1.8 MB | 1.4 s → 4.7 MB |
+| 48 MP HEIC (16.1 MB) | 0.84 s → 2.8 MB | 1.1 s → 4.5 MB |
+| 24 MP sideways JPEG (5.5 MB) | 0.41–0.44 s → 2.5 MB | 0.68 s → 4.0 MB |
+
+What this answers:
+
+- **A 48 or 60 MP photo is no problem for this phone:** shrunk in
+  0.5–1.4 s, no crash, far below the 15 s limit, and faster than the
+  server (~1.5 s CPU for an ordinary photo on Fly). Uploads become 4–6
+  times smaller.
+- **Safari reads HEIC** and hands it over as `image/heic` for a file
+  picked from Files/Downloads.
+- **From Photo Library, the iPhone converts HEIC to JPEG while the
+  photo is picked**, even though our form lists `.heic` as accepted
+  (this corrects the earlier assumption, "Questions the trial answers"
+  above). The developer's four own photos (HEIC on the phone: AirDrop
+  to the Mac gave `.heic` files, so the camera saves "High
+  Efficiency") reached the page as `image/jpeg`, named `IMG_7821.jpeg`
+  etc., 3.1–4.6 MB for 12 MP. Good for us: the server can shrink a
+  JPEG while reading it, a HEIC it must decode in full (NOTES #43).
+  Left as it is.
+- **Colours:** no visible difference between original and re-made
+  copy for the developer's own (P3) photos, with an sRGB canvas or a
+  Display P3 one, with both ways; file sizes practically the same.
+  So the hook uses the default sRGB canvas (the server converts every
+  photo to sRGB anyway).
+- **Re-making an ordinary 12 MP photo makes it bigger** (e.g. 3.8 →
+  4.4 MB at quality 0.92), which confirms the rule: only photos over
+  4096 px are shrunk. Times for re-making them: 0.35–0.53 s (picture
+  + canvas), 0.54–0.65 s (createImageBitmap); same sizes with both.
+- **Upright:** the sideways photo was reported as 4000 × 6000 (stored
+  6000 × 4000) and shrunk to 2731 × 4096, with both ways.
+- **No visible difference** between original and shrunk copy for any
+  test photo (the developer switched between them on each).
+- **WebP:** Safari reads it, and the header check sorted all six test
+  files as in Chromium (three ordinary ones shrunk; the two
+  see-through ones and the moving one left alone). Same result with
+  both ways: 0.35–0.50 s with picture + canvas, 0.53–0.68 s with
+  createImageBitmap, and the *same* file sizes with both (these test
+  pictures are smooth, without grain; the JPEG/HEIC ones have grain,
+  and there createImageBitmap's files were bigger, so it keeps more
+  grain, and real photos will likely show a smaller size gap). A tiny, smooth WebP (107 KB) became a bigger JPEG
+  (653 KB): no rule needed, as the shrunk copy is still cheaper for
+  the server and such small uploads are quick anyway.
+- **Which way:** "Picture + canvas" is 1.5–2.5 times faster *and*
+  gives smaller files, with no visible difference, and works in every
+  browser. Chosen for the hook (see below).
+
+- **"Take Photo" in the picker** gives a JPEG (3.9 MB, 12 MP, upright
+  3024 × 4032), always named **`image.jpg`**: several photos taken
+  this way all have the same name. Harmless for the server (storage
+  uses its own names), but the 3b upload box must show each photo's
+  preview, not only its name. Times and sizes as for library photos
+  (0.42–0.50 s picture + canvas, 0.66–0.67 s createImageBitmap, same
+  size, no visible difference, sRGB or Display P3).
+
+**Decided 2026-11-20 (the developer, from the trial): the hook uses
+picture + canvas with the default sRGB canvas.** The iPhone part of the trial is
+complete; Safari and Firefox on the Mac are optional.
+
 ### Tests
 
 The server side doesn't change, and its tests stay. There is no
