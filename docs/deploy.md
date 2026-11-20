@@ -438,9 +438,10 @@ fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.check_bef
 ```
 
 It prints "OK: no sample data left", or lists what's left and stops
-with "NOT READY". It also checks that no temporary trial page (such
-as the photo-shrinking trial, `priv/static/trials/`) is still served:
-"OK: no trial pages served", or what to remove.
+with "NOT READY". It also checks that no temporary trial page (in a
+folder such as `priv/static/trials/`, as the photo-shrinking trial
+was until 2026-11-20) is still served: "OK: no trial pages served", or
+what to remove.
 
 Hard-deleting a single sample artist in `/admin` is not enough on its
 own: it removes the artist and their photos, but their login keeps

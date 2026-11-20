@@ -134,11 +134,11 @@ Firefox):
 
 The results go into this plan before the hook is written.
 
-**The trial page** is `priv/static/trials/photo-shrink.html`, at
+**The trial page** was `priv/static/trials/photo-shrink.html`, at
 `/trials/photo-shrink.html` (behind the site password on the preview;
-`trials` is in `ArtsyNeighborWeb.static_paths/0`). Both the page and
-that entry are temporary: remove them once 3c is done
-(`Release.check_before_launch/0` refuses while they're there). It can
+`trials` was in `ArtsyNeighborWeb.static_paths/0`). Both were
+temporary and were removed once 3c was done (2026-11-20; the page is
+in git history, commit `806e423`). It can
 try two ways of shrinking (picture + canvas, or `createImageBitmap`
 with resize) and two canvas colour spaces (sRGB, Display P3), and
 keeps a text log of all results to copy. It follows the rules above:
@@ -319,9 +319,43 @@ way); the test drafts were deleted afterwards.
 
 Not tried in a browser (checked by reading): the 15 s limit, and the
 profile form's Previous button pressed while a photo is still being
-prepared. Still to do: the developer's iPhone on the preview site
-(real Photo Library photos, a real phone connection); then remove the
-trial page and its `trials` entry.
+prepared.
+
+**On the developer's iPhone, on the preview site (2026-11-20, after
+deploying `0c4dcc9`)**, read from the server's "Photo stored" log
+lines:
+
+| Photo | On the phone | What the server received |
+|---|---|---|
+| 2 × Take Photo (`image.jpg`) | 12 MP | 4032 × 3024, 4.6 MB: as it is |
+| Photo Library (`IMG_7820.jpeg`) | 12 MP | 4032 × 3024, 4.3 MB: as it is |
+| `test-48mp.jpg` (Downloads) | 8064 × 6048, 11.3 MB | 4096 × 3072, 2.7 MB: shrunk |
+| `test-60mp.jpg` (Downloads) | 60 MP, 14.0 MB | 4096 × 3049, 1.8 MB: shrunk |
+| `test-sideways.jpg` (Downloads) | 24 MP, stored sideways, 5.5 MB | 2731 × 4096, 2.4 MB: shrunk, upright |
+
+- The phone's own photos are just under 4096 px, so they go up as
+  they are, as designed: everyday photos are not touched.
+- The big ones were shrunk on the phone; uploads 2–8 times smaller,
+  and the 60 MP photo, which the server refuses unshrunk, went
+  through. The developer checked the stored photos: they look right,
+  the sideways one upright. No errors in the log.
+- **The developer didn't notice "Preparing photo…"**, not even for
+  the big photos. Expected: on this phone shrinking takes about half
+  a second, and the rows appear under the photos already in the list,
+  possibly just out of view. A slower phone or a bigger photo keeps
+  it up longer. Left as it is.
+- **Not explained:** the server took 3.5–4 s to process each shrunk
+  test photo, against ~2 s for the developer's own 12 MP photos of
+  about the same size. Likely the picture content (the generated test
+  photos are fine stripes and grain, harder for the WebP encoder) or
+  the preview's shared CPU slowing down after several photos in a
+  row; not the hook, which works before the server sees the file. To
+  look at in the measuring step (order of work, step 6).
+
+3c is done. The trial page (`priv/static/trials/photo-shrink.html`)
+and its `trials` entry in `static_paths/0` were removed afterwards;
+the page is still in git history (commit `806e423`), should it be
+wanted again.
 
 ## 3b: processing on pick
 
@@ -403,9 +437,8 @@ new-product form works without a product id.
 2. The trial page; results added here.
 3. 3c: the hook, the fallbacks, the "Preparing photo…" state. Checked
    in three browsers and on the developer's phone. One commit.
-   *Built and checked in three browsers 2026-11-20 (see "What was
-   built"); the phone check and the trial page's removal follow in a
-   small second commit.*
+   *DONE 2026-11-20: built and checked in three browsers (`0c4dcc9`),
+   then on the developer's iPhone; trial page removed (see "Tests").*
 4. 3b: processing on pick, the new upload box, the clean-up. One or two
    commits, with a code review before committing.
 5. #43: the warning and the big-photo lane.

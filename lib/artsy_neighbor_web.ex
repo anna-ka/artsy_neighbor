@@ -17,10 +17,11 @@ defmodule ArtsyNeighborWeb do
   those modules here.
   """
 
-  # "trials" holds a temporary test page (photo speed step 3c); remove it
-  # with the folder priv/static/trials once 3c is done
-  # (Release.check_before_launch/0 refuses while it's here).
-  def static_paths, do: ~w(assets fonts images uploads trials favicon.ico robots.txt)
+  # A temporary trial page goes in its own folder, e.g. "trials" (the
+  # photo-shrinking trial of step 3c was there until 2026-11-20).
+  # Release.check_before_launch/0 refuses while such a folder is listed
+  # here (see Release.trial_pages/1).
+  def static_paths, do: ~w(assets fonts images uploads favicon.ico robots.txt)
 
   def router do
     quote do

@@ -328,11 +328,11 @@ which is mechanical and done once, up front.
              `ArtsyNeighborWeb.static_paths/0`) is temporary: remove
              both when 3c is done. `Release.check_before_launch/0`
              refuses while it's still served.
-             *Built 2026-11-20:* the hook `assets/js/photo_shrink.js`,
-             checked in Chromium, Firefox and WebKit (details and what
-             was added beyond the plan in the plan doc, "What was
-             built"). Next: the developer's iPhone on the preview, then
-             remove the trial page.
+             *DONE 2026-11-20:* the hook `assets/js/photo_shrink.js`,
+             checked in Chromium, Firefox and WebKit and on the
+             developer's iPhone on the preview (details and what was
+             added beyond the plan in the plan doc, "What was built");
+             trial page and its `trials` entry removed.
           Very large photos (warn, then a low-priority lane): #43,
           designed together with b and c.
           **Plan for c then b (2026-11-19, order: 3c, 3b, then the
