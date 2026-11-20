@@ -416,6 +416,88 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       assert has_element?(view, "#photo-problem", "drawing.gif was NOT saved")
     end
 
+    # The browser's PhotoShrink hook (assets/js/photo_shrink.js) can't
+    # run in these tests; they check the server's side of it.
+    test "the picker carries the browser's shrinking code and the server's limits",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      assert has_element?(
+               view,
+               "[phx-hook=PhotoShrink][data-max-pixels='52000000'][data-long-side='4096']" <>
+                 "[data-too-large-message='This photo is too large. Please use a smaller version.']"
+             )
+
+      assert has_element?(view, "[phx-hook=PhotoShrink] [data-preparing-list][phx-update=ignore]")
+    end
+
+    test "while the browser is still preparing a photo, saving waits for it",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      # What the hook sends when the artist has picked a photo.
+      render_hook(view, "photo_picker_state", %{"preparing" => true, "refused" => []})
+      press(view, "draft", new_product_params(category))
+
+      # The text is saved, the page stays and says why.
+      product = only_product_of(artist)
+      assert_patch(view, ~p"/vendor/products/#{product.id}/edit")
+      assert has_element?(view, "#photo-problem", "Your photos are still being prepared.")
+
+      # The hook is done and hands the photo to LiveView. The message is
+      # out of date now, so it goes, and saving works.
+      render_hook(view, "photo_picker_state", %{"preparing" => false, "refused" => []})
+      refute has_element?(view, "#photo-problem")
+      pick_photos(view, "#product-form", :images, [good_photo()])
+      press(view, "draft")
+
+      assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert [_stored] = images_of(product.id)
+    end
+
+    test "a photo the browser refused (too large) keeps the save on the page until it's removed",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      # The hook refused a 60 MP photo without uploading it, and the
+      # artist picked a good one too.
+      render_hook(view, "photo_picker_state", %{"preparing" => false, "refused" => ["huge.png"]})
+      pick_photos(view, "#product-form", :images, [good_photo()])
+      press(view, "draft", new_product_params(category))
+
+      product = only_product_of(artist)
+      assert_patch(view, ~p"/vendor/products/#{product.id}/edit")
+
+      assert has_element?(
+               view,
+               "#photo-problem",
+               "Your photo huge.png was NOT uploaded: This photo is too large."
+             )
+
+      assert images_of(product.id) == []
+
+      # The artist removes the red row with ✕; now saving works.
+      render_hook(view, "photo_picker_state", %{"preparing" => false, "refused" => []})
+      refute has_element?(view, "#photo-problem")
+      press(view, "draft")
+
+      assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+      assert [_stored] = images_of(product.id)
+    end
+
+    test "a malformed picker message doesn't crash the page", %{conn: conn, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      # The message comes from the browser, so it can be anything.
+      render_hook(view, "photo_picker_state", %{})
+      render_hook(view, "photo_picker_state", %{"preparing" => "yes", "refused" => "x"})
+      render_hook(view, "photo_picker_state", %{"refused" => [1, nil, %{"a" => 1}]})
+
+      # Still alive, and none of these counted as "preparing" or "refused".
+      press(view, "draft", new_product_params(category))
+      assert_redirect(view, @wait)
+    end
+
     @tag :heic
     test "an iPhone HEIC photo is accepted", %{conn: conn, artist: artist, category: category} do
       {:ok, view, _html} = live(conn, ~p"/vendor/products/new")

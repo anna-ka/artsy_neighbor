@@ -90,6 +90,19 @@ defmodule ArtsyNeighbor.Images do
   @doc "The display size names: `[:large, :medium, :thumb]`."
   def sizes, do: @size_names
 
+  # The three below are for the photo pickers, whose browser code
+  # (assets/js/photo_shrink.js) shrinks big photos before uploading
+  # and must use the same numbers and words as the server.
+
+  @doc "The largest photo we accept, in pixels (width × height)."
+  def max_pixels, do: @max_pixels
+
+  @doc "The long side, in pixels, of the private copy we keep (`source.webp`)."
+  def source_max_side, do: @source_max_side
+
+  @doc "The message for a photo over `max_pixels/0`."
+  def too_large_message, do: @msg_too_large
+
   @doc """
   Processes one uploaded photo and stores it under a new key inside
   `folder` (e.g. `"products/12"`).

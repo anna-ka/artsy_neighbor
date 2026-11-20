@@ -328,6 +328,11 @@ which is mechanical and done once, up front.
              `ArtsyNeighborWeb.static_paths/0`) is temporary: remove
              both when 3c is done. `Release.check_before_launch/0`
              refuses while it's still served.
+             *Built 2026-11-20:* the hook `assets/js/photo_shrink.js`,
+             checked in Chromium, Firefox and WebKit (details and what
+             was added beyond the plan in the plan doc, "What was
+             built"). Next: the developer's iPhone on the preview, then
+             remove the trial page.
           Very large photos (warn, then a low-priority lane): #43,
           designed together with b and c.
           **Plan for c then b (2026-11-19, order: 3c, 3b, then the
@@ -1143,7 +1148,9 @@ working on the code should keep in mind.
       Check with 3c (shrinking in the browser before upload): if the
       browser can shrink a 50 MP photo to 4096 px itself, most huge
       photos become ordinary ones and the warning is only needed when
-      it can't (to check: can browsers other than Safari read HEIC?).
+      it can't (to check: can browsers other than Safari read HEIC?
+      *Answered 2026-11-20: no; Chrome and Firefox pass HEIC on
+      unshrunk, Safari on the iPhone and the Mac shrinks it*).
       **Which photos get the warning** (decided 2026-11-20, the
       developer's point): every photo over the "large" limit that
       reaches the server *unshrunk*, whatever the reason: a WebP with
@@ -1245,4 +1252,5 @@ working on the code should keep in mind.
   revisiting eventually. Do NOT refactor until explicitly asked.
 - **Nav UI** — top strip cuts off on small screens; arrow visibility needs
   a JS scroll listener. Deferred until closer to deployment.
+- **Product pictures not visible without scrolling**: this is the case for the Artist show page both on the desktop but especially brutal on the phone. On the desktop at least about 2/3 of the product row is showing while on the phone no products are visible at all. We need to make products appear higher. I am contemplating a collapsible panel that would hide/show filters, reviews, delivery into and categories. This may be not ideal as that infor too is important. At least on the phones we may consider seriously trimming the header of the Artist show page. On the desktop too we may need to arrange all this info in at most one thin line.
 

@@ -92,8 +92,10 @@ mix phx.server           # dev server
 - Photos: `lib/artsy_neighbor/images.ex` (check, resize, store; `Images.url/2`),
   `lib/artsy_neighbor/storage.ex` + `storage/local.ex`,
   `lib/artsy_neighbor/images/limiter.ex`; form side:
-  `lib/artsy_neighbor_web/photo_uploads.ex`. Plan:
-  `docs/plans/2026-10-28-image-storage-and-resizing.md`
+  `lib/artsy_neighbor_web/photo_uploads.ex`, plus the browser hook that
+  shrinks big photos before upload, `assets/js/photo_shrink.js`. Plans:
+  `docs/plans/2026-10-28-image-storage-and-resizing.md`,
+  `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`
 - Sample data (dev seeds and the Fly preview): `lib/artsy_neighbor/sample_data.ex`
   (add-only, photos through `Images.process_upload/3`), the data in
   `priv/repo/sample_data/*.exs`; `seeds.exs` wipes first and then uses it,

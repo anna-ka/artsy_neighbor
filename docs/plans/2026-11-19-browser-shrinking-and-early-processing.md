@@ -242,16 +242,86 @@ opposite of Safari. So file size depends on the browser, not the
 way; speed favoured picture + canvas in every browser, which with
 its simplicity keeps the decision as it is.
 
+### What was built (2026-11-20)
+
+**The hook:** `assets/js/photo_shrink.js` (`PhotoShrink`, registered
+in `assets/js/app.js`), on a wrapper around the file picker in
+`ArtsyNeighborWeb.PhotoUploads.photo_picker/1`, so all four photo
+forms have it. It catches the artist's pick before LiveView does
+(listening in the "capture" phase; LiveView's own later events are
+let through, as they come from code, not from the artist), prepares
+the photos one after another, and hands each to LiveView with
+`this.upload` as soon as it's ready. The shrinking itself is the trial
+page's "picture + canvas" way with the default sRGB canvas. The
+numbers and the "too large" wording come from the server
+(`Images.max_pixels/0`, `source_max_side/0`, `too_large_message/0`,
+as `data-*` attributes), so they can't drift apart.
+
+**Added beyond the design above** (some from the code review):
+
+- **Save waits for the browser.** The hook keeps the server informed
+  (event `photo_picker_state`: still preparing? which photos were
+  refused here?), handled in `PhotoUploads` through `attach_hook/4`,
+  so the forms didn't change. A save while a photo is still being
+  prepared stays on the page ("Your photos are still being prepared.
+  Please wait until they show a bar, then save again."), as it does
+  for photos still uploading; a save while a photo refused in the
+  browser is still shown stays too ("Your photo … was NOT uploaded:
+  This photo is too large. Remove it with ✕ …"), so it can't be
+  quietly left out. Either message goes as soon as the browser's state
+  changes. The event comes from the browser, so the server takes only
+  true/false and a short list of names from it.
+- **What gets shrunk is decided by the file's first bytes**, not its
+  name or type alone: only JPEG, HEIC and ordinary WebP, and only if
+  the name's ending matches. Otherwise a big GIF or BMP (which the
+  server refuses) could have come in as a JPEG made here. Everything
+  else goes up as it is, and the server decides as before.
+- **PNG and WebP sizes are read from those first bytes**, so a big
+  PNG is refused (or passed on) without loading the picture.
+- **After the 15 s limit,** the abandoned shrinking is told to stop at
+  its next step, and the next photo waits for it to finish (at most
+  30 s more), so a slow phone never holds two big photos at once.
+- **Each photo waits for LiveView before the next one.** Found in the
+  browser checks: a photo handed over before LiveView had answered
+  for the previous one got an empty preview (in all three engines,
+  now and then). The hook now waits until LiveView's row for the
+  photo appears (at most 10 s); its "Preparing photo…" row stays
+  until then, so the photo never vanishes from the list in between.
+  This uses a LiveView-internal name (`_phxRef`, see the comment in
+  the hook): if a LiveView update ever changes it, the waiting simply
+  ends at once.
+- **Side effects:** the 25 MB limit now applies only to photos that
+  aren't shrunk (a 30 MB photo shrunk to 3 MB goes through, which is
+  fine for the server); a big HEIC shrunk in Safari arrives as a JPEG
+  and so gets a preview.
+
 ### Tests
 
-The server side doesn't change, and its tests stay. There is no
+The server side has LiveView tests (`vendor_product_form_test.exs`):
+the picker carries the hook and the server's numbers; a save waits
+while photos are being prepared, and while a photo refused in the
+browser is shown; the messages go when the state changes; a malformed
+`photo_picker_state` event doesn't crash the page. There is no
 JavaScript test setup (NOTES #19 discusses a browser suite), so the
-hook is kept small and checked by hand: in Chromium, WebKit and
-Firefox through the Playwright tool (big JPEG gets shrunk, 12 MP JPEG
-and PNG don't, an ordinary big WebP gets shrunk while a see-through
-or moving one doesn't, a broken file falls back to the original, an over-52 MP
-photo the browser can't shrink is refused without uploading), and on the
-developer's phone on the preview site.
+hook was checked by hand (2026-11-20) in all three browser engines,
+through Playwright on the dev site: Chromium 158, Firefox 159 and
+WebKit 27.2 (Safari's engine). In each: 48 and 60 MP JPEGs shrunk
+(0.2–0.3 s), a 12 MP JPEG uploaded as it is, a 63 MP PNG refused
+without uploading, a broken file and a big GIF (also renamed `.jpg`)
+passed on for LiveView or the server to refuse, ordinary WebPs shrunk,
+see-through and moving WebPs left alone, the sideways photo upright,
+every preview shown, and a full save storing the shrunk photos
+(`source.webp` 4096 × 3072, and 2731 × 4096 for the sideways one).
+WebKit on the Mac reads HEIC, so there a big HEIC is shrunk too;
+Chromium and Firefox pass it on unread. Generated test files only
+(`~/Code/artsy-neighbor-design/photo-trial/` plus a few made the same
+way); the test drafts were deleted afterwards.
+
+Not tried in a browser (checked by reading): the 15 s limit, and the
+profile form's Previous button pressed while a photo is still being
+prepared. Still to do: the developer's iPhone on the preview site
+(real Photo Library photos, a real phone connection); then remove the
+trial page and its `trials` entry.
 
 ## 3b: processing on pick
 
@@ -333,6 +403,9 @@ new-product form works without a product id.
 2. The trial page; results added here.
 3. 3c: the hook, the fallbacks, the "Preparing photo…" state. Checked
    in three browsers and on the developer's phone. One commit.
+   *Built and checked in three browsers 2026-11-20 (see "What was
+   built"); the phone check and the trial page's removal follow in a
+   small second commit.*
 4. 3b: processing on pick, the new upload box, the clean-up. One or two
    commits, with a code review before committing.
 5. #43: the warning and the big-photo lane.

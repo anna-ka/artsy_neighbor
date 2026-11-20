@@ -38,7 +38,31 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       save button(s), or `nil`;
     * `:saving_photos` — true while the background task runs. The
       file picker, the ✕ buttons and the buttons of the stored photos
-      are disabled meanwhile, and the forms ignore save presses.
+      are disabled meanwhile, and the forms ignore save presses;
+    * `:photos_preparing` — true while the browser is still shrinking
+      picked photos (see below). A save then waits, as it does for
+      photos still uploading;
+    * `:refused_in_browser` — names of photos the browser refused
+      without uploading (over the size limit), whose red rows are still
+      shown. A save then stays on the page and says why, until the
+      artist removes them with ✕;
+    * `:problem_from_browser` — true when `:photo_problem` was set for
+      one of the two reasons above, so it can be cleared as soon as the
+      browser's state changes.
+
+  ## Shrinking in the browser
+
+  Before a photo is uploaded, the picker's browser code
+  (`assets/js/photo_shrink.js`, the `PhotoShrink` hook) shrinks photos
+  bigger than the private copy we keep (`Images.source_max_side/0`) to
+  a JPEG of that size, so big phone photos upload faster and cost the
+  server less. It's only a shortcut: whatever it can't shrink, it
+  uploads as it is, and the server checks and processes every photo
+  the same way either way. It keeps the server informed (the
+  `"photo_picker_state"` event: still preparing? which photos were
+  refused?), handled here through `attach_hook/4`, so the forms don't
+  need to. Plan:
+  `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
   """
 
   use Phoenix.Component
@@ -46,6 +70,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   import Phoenix.LiveView,
     only: [
       allow_upload: 3,
+      attach_hook: 4,
       cancel_upload: 3,
       consume_uploaded_entry: 3,
       start_async: 3,
@@ -74,6 +99,13 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   @msg_save_failed "Something went wrong while saving this photo. Please try again."
   @msg_picked_late "This photo was picked while the others were being saved, so it " <>
                      "isn't saved yet. Please save again to add it."
+  @msg_preparing "Your photos are still being prepared. Please wait until they show a bar, " <>
+                   "then save again."
+
+  # Limits on what the browser may tell us about refused photos: the
+  # message comes from the visitor's browser, so it can't be trusted.
+  @max_refused_names 20
+  @max_name_length 255
 
   @doc """
   Sets up the upload slot `name` (e.g. `:images`) and this module's
@@ -98,8 +130,54 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
     socket
     |> allow_upload(name, upload_opts)
-    |> assign(photo_errors: %{}, photo_problem: nil, saving_photos: false)
+    |> assign(
+      photo_errors: %{},
+      photo_problem: nil,
+      saving_photos: false,
+      photos_preparing: false,
+      refused_in_browser: [],
+      problem_from_browser: false
+    )
+    |> attach_hook(:photo_picker_state, :handle_event, fn event, params, socket ->
+      handle_picker_state(event, params, socket)
+    end)
   end
+
+  # The browser's PhotoShrink hook sends its state whenever it changes:
+  # %{"preparing" => true/false, "refused" => [file names]}. The event is
+  # always handled here ({:halt, ...}), whatever its contents, so a
+  # malformed one can't reach the form (which has no clause for it).
+  # Every other event goes on to the form ({:cont, ...}).
+  defp handle_picker_state("photo_picker_state", params, socket) do
+    socket =
+      socket
+      |> assign(:photos_preparing, params["preparing"] == true)
+      |> assign(:refused_in_browser, refused_names(params["refused"]))
+      |> clear_browser_problem()
+
+    {:halt, socket}
+  end
+
+  defp handle_picker_state(_event, _params, socket), do: {:cont, socket}
+
+  # Only strings, a limited number, each of limited length.
+  defp refused_names(names) when is_list(names) do
+    names
+    |> Enum.filter(fn name -> is_binary(name) end)
+    |> Enum.take(@max_refused_names)
+    |> Enum.map(fn name -> String.slice(name, 0, @max_name_length) end)
+  end
+
+  defp refused_names(_not_a_list), do: []
+
+  # A message about the browser's state ("still being prepared", "not
+  # uploaded") is out of date once that state changes: the artist
+  # simply saves again.
+  defp clear_browser_problem(%{assigns: %{problem_from_browser: true}} = socket) do
+    assign(socket, photo_problem: nil, problem_from_browser: false)
+  end
+
+  defp clear_browser_problem(socket), do: socket
 
   @doc """
   Starts processing the photos in upload slot `name` in the background,
@@ -115,19 +193,29 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     * `{:started, socket}` — the form's
       `handle_async(:process_photos, ...)` will be called when done;
     * `{:no_photos, socket}` — nothing to process; the form carries on;
-    * `{:not_ready, socket}` — a picked file was already refused by the
-      browser check (too large, wrong type) or is still uploading.
+    * `{:not_ready, socket}` — a picked file was already refused in the
+      browser (too large, wrong type), or is still being prepared or
+      uploading.
       Nothing is processed and `:photo_problem` says why; the form
       should stay on the page, as when a photo is refused.
   """
   def start_processing(socket, name, folder, first_position, create_row) do
-    socket = assign(socket, photo_errors: %{}, photo_problem: nil)
+    socket = assign(socket, photo_errors: %{}, photo_problem: nil, problem_from_browser: false)
     {done, in_progress} = uploaded_entries(socket, name)
-    # Entries refused by the browser check never finish uploading, so
-    # they are in `in_progress` too.
+    # Entries refused by LiveView's own check (too large, wrong type)
+    # never finish uploading, so they are in `in_progress` too.
     {refused, still_uploading} = Enum.split_with(in_progress, fn entry -> not entry.valid? end)
 
     cond do
+      # The two browser-side cases come first: those photos aren't in
+      # the upload box, so a save now would quietly leave them out.
+      socket.assigns.photos_preparing ->
+        {:not_ready, assign(socket, photo_problem: @msg_preparing, problem_from_browser: true)}
+
+      socket.assigns.refused_in_browser != [] ->
+        problem = refused_in_browser_summary(socket.assigns.refused_in_browser)
+        {:not_ready, assign(socket, photo_problem: problem, problem_from_browser: true)}
+
       still_uploading != [] ->
         problem =
           "Your photos are still uploading. Please wait until their bars are full, " <>
@@ -304,7 +392,21 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       " Remove them with ✕ and pick other photos, or save again to try once more."
   end
 
-  # Why the browser-side check refused `entry` (too large, wrong kind).
+  # The text for the red box when the browser refused photos without
+  # uploading them (over the size limit). Saving again doesn't help
+  # here, so unlike problem_summary/1 it only says to remove them.
+  defp refused_in_browser_summary([file_name]) do
+    "Your photo #{file_name} was NOT uploaded: #{Images.too_large_message()} " <>
+      "Remove it with ✕ and pick another photo, then save again."
+  end
+
+  defp refused_in_browser_summary(file_names) do
+    "#{length(file_names)} photos were NOT uploaded: #{Enum.join(file_names, ", ")}. " <>
+      "They are too large. Please use smaller versions: remove them with ✕ and " <>
+      "pick other photos, then save again."
+  end
+
+  # Why LiveView's own check refused `entry` (too large, wrong kind).
   defp browser_check_reason(upload_config, entry) do
     upload_config
     |> upload_errors(entry)
@@ -366,66 +468,96 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
   def photo_picker(assigns) do
     ~H"""
-    <%!-- live_file_input is the LiveView-aware file picker: it sends the
+    <%!-- The PhotoShrink hook (assets/js/photo_shrink.js) catches the
+         picked files before LiveView does, shrinks the big ones and then
+         hands them to LiveView. The data-* attributes give it the
+         server's limits and wording. --%>
+    <div
+      id={"photo-picker-#{@upload.ref}"}
+      phx-hook="PhotoShrink"
+      data-max-pixels={Images.max_pixels()}
+      data-long-side={Images.source_max_side()}
+      data-too-large-message={Images.too_large_message()}
+    >
+      <%!-- live_file_input is the LiveView-aware file picker: it sends the
          file to the server in chunks as soon as it is picked. --%>
-    <.live_file_input
-      upload={@upload}
-      class="file-input file-input-bordered w-full"
-      disabled={@saving_photos}
-    />
+      <.live_file_input
+        upload={@upload}
+        class="file-input file-input-bordered w-full"
+        disabled={@saving_photos}
+      />
 
-    <div class="space-y-3 mt-3">
-      <div
-        :for={entry <- @upload.entries}
-        id={"photo-entry-#{entry.ref}"}
-        class={[
-          "flex flex-wrap items-center gap-3 rounded-lg p-2",
-          Map.has_key?(@photo_errors, entry.ref) && "border-2 border-error bg-error/10"
-        ]}
-      >
-        <.live_img_preview
-          :if={previewable?(entry)}
-          entry={entry}
-          class="w-16 h-16 object-cover rounded-lg border border-base-300"
-        />
+      <div class="space-y-3 mt-3">
         <div
-          :if={not previewable?(entry)}
-          class="w-16 h-16 rounded-lg border border-base-300 flex items-center justify-center text-xs text-base-content/60 text-center"
+          :for={entry <- @upload.entries}
+          id={"photo-entry-#{entry.ref}"}
+          class={[
+            "flex flex-wrap items-center gap-3 rounded-lg p-2",
+            Map.has_key?(@photo_errors, entry.ref) && "border-2 border-error bg-error/10"
+          ]}
         >
-          no preview
+          <.live_img_preview
+            :if={previewable?(entry)}
+            entry={entry}
+            class="w-16 h-16 object-cover rounded-lg border border-base-300"
+          />
+          <div
+            :if={not previewable?(entry)}
+            class="w-16 h-16 rounded-lg border border-base-300 flex items-center justify-center text-xs text-base-content/60 text-center"
+          >
+            no preview
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <p class="text-sm truncate">{entry.client_name}</p>
+            <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
+          </div>
+
+          <button
+            :if={not @saving_photos}
+            type="button"
+            phx-click="cancel_upload"
+            phx-value-ref={entry.ref}
+            class="btn btn-ghost btn-xs text-error"
+            aria-label={"Remove #{entry.client_name}"}
+          >
+            ✕
+          </button>
+
+          <%!-- Problems found in the browser: too big, wrong type. --%>
+          <p
+            :for={err <- upload_errors(@upload, entry)}
+            class="w-full text-error text-sm font-semibold"
+          >
+            {error_to_string(err)}
+          </p>
+          <%!-- Problems found on the server while processing. --%>
+          <p :if={@photo_errors[entry.ref]} class="w-full text-error text-sm font-semibold">
+            Not saved: {@photo_errors[entry.ref]}
+          </p>
         </div>
-
-        <div class="flex-1 min-w-0">
-          <p class="text-sm truncate">{entry.client_name}</p>
-          <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
-        </div>
-
-        <button
-          :if={not @saving_photos}
-          type="button"
-          phx-click="cancel_upload"
-          phx-value-ref={entry.ref}
-          class="btn btn-ghost btn-xs text-error"
-          aria-label={"Remove #{entry.client_name}"}
-        >
-          ✕
-        </button>
-
-        <%!-- Problems found in the browser: too big, wrong type. --%>
-        <p :for={err <- upload_errors(@upload, entry)} class="w-full text-error text-sm font-semibold">
-          {error_to_string(err)}
-        </p>
-        <%!-- Problems found on the server while processing. --%>
-        <p :if={@photo_errors[entry.ref]} class="w-full text-error text-sm font-semibold">
-          Not saved: {@photo_errors[entry.ref]}
-        </p>
       </div>
-    </div>
 
-    <%!-- Problems with the whole selection, e.g. too many files. --%>
-    <p :for={err <- upload_errors(@upload)} class="text-error text-sm font-semibold mt-2">
-      {error_to_string(err)}
-    </p>
+      <%!-- Photos the hook is still preparing ("Preparing photo…"), and
+         photos it refused without uploading. The hook fills this list
+         itself; phx-update="ignore" tells LiveView to leave it alone.
+         empty:hidden (no gap while there's nothing in it) needs a truly
+         empty element, so the hook removes the line break below when it
+         starts (the formatter puts it back here). --%>
+      <div
+        id={"photo-preparing-#{@upload.ref}"}
+        phx-update="ignore"
+        data-preparing-list
+        aria-live="polite"
+        class="space-y-3 mt-3 empty:hidden"
+      >
+      </div>
+
+      <%!-- Problems with the whole selection, e.g. too many files. --%>
+      <p :for={err <- upload_errors(@upload)} class="text-error text-sm font-semibold mt-2">
+        {error_to_string(err)}
+      </p>
+    </div>
     """
   end
 
