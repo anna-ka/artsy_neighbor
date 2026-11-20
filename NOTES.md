@@ -323,7 +323,11 @@ which is mechanical and done once, up front.
              background, so most of the work is done before Save.
           c. Shrink photos in the browser before upload (smaller
              uploads on slow connections, less server work): quick
-             trial on an iPhone and the Mac, then the hook.
+             trial on an iPhone and the Mac, then the hook. The trial
+             page (`priv/static/trials/`, plus `trials` in
+             `ArtsyNeighborWeb.static_paths/0`) is temporary: remove
+             both when 3c is done. `Release.check_before_launch/0`
+             refuses while it's still served.
           Very large photos (warn, then a low-priority lane): #43,
           designed together with b and c.
           **Plan for c then b (2026-11-19, order: 3c, 3b, then the
@@ -1140,6 +1144,34 @@ working on the code should keep in mind.
       browser can shrink a 50 MP photo to 4096 px itself, most huge
       photos become ordinary ones and the warning is only needed when
       it can't (to check: can browsers other than Safari read HEIC?).
+      **Which photos get the warning** (decided 2026-11-20, the
+      developer's point): every photo over the "large" limit that
+      reaches the server *unshrunk*, whatever the reason: a WebP with
+      see-through parts or a moving one (3c leaves those alone), any
+      PNG, TIFF or AVIF (also left alone), HEIC in browsers that can't
+      read it, and photos where shrinking failed or took too long.
+      The message names the reason when it's known, in plain words
+      (not "complex elements"). Draft:
+      "This photo is very large, and because it has see-through parts,
+      it can't be made smaller on your device first. Preparing it will
+      take a while." with two buttons, [Use this photo] and [Choose a
+      different photo] (for a moving image: "because it's a moving
+      image"). **Asked in the browser before uploading** whenever the
+      browser knows the size and the reason (e.g. a see-through WebP),
+      so the artist doesn't wait for a long upload first; the server
+      asks after the upload only for files the browser can't read.
+
+  44. **Tell the artist that a moving image becomes a still one**
+      (added 2026-11-20). The server keeps only the first frame of a
+      moving (animated) WebP, at any size: checked 2026-11-20 by
+      loading a two-frame test WebP the way `Images.process_upload/3`
+      does (one 1500 × 1000 frame came back). That's fine for a
+      marketplace, but the artist should know, e.g. "Only the first
+      picture of a moving image will be shown." Separate from the
+      #43 "large" warning: it applies to small moving images too. The
+      browser can tell from the file's first bytes (3c reads them for
+      WebP already); GIF isn't accepted, AVIF can also be moving
+      (rare). Best done with #43 or 3b, which change the upload box.
 
 
 

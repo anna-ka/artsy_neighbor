@@ -412,8 +412,25 @@ defmodule ArtsyNeighbor.SampleDataTest do
 
       quietly(fn -> SampleData.remove_all() end)
 
-      output = quietly(fn -> assert Release.check_before_launch() == :ok end)
+      # While a trial page is served (photo speed step 3c), the check
+      # still refuses, for that reason alone.
+      output =
+        quietly(fn ->
+          if Release.trial_pages() == [] do
+            assert Release.check_before_launch() == :ok
+          else
+            assert_raise RuntimeError, ~r/NOT READY/, fn -> Release.check_before_launch() end
+          end
+        end)
+
       assert output =~ "OK: no sample data left"
+    end
+  end
+
+  describe "Release.trial_pages/1" do
+    test "finds the trial-page folders among the served folders" do
+      assert Release.trial_pages(~w(assets images trials robots.txt)) == ["trials"]
+      assert Release.trial_pages(~w(assets images robots.txt)) == []
     end
   end
 

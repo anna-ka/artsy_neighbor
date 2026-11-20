@@ -103,8 +103,9 @@ defmodule ArtsyNeighbor.Release do
 
   @doc """
   Look-only check to run before a site is shown to anyone beyond the
-  developer (testers, the public). For now it checks one thing: that
-  no sample data is left (see `ArtsyNeighbor.SampleData.leftovers/0`).
+  developer (testers, the public). It checks that no sample data is
+  left (see `ArtsyNeighbor.SampleData.leftovers/0`) and that no
+  temporary trial page is still served (see `trial_pages/1`).
   Prints what it finds; raises if something must be done first.
 
       fly ssh console -C "/app/bin/artsy_neighbor rpc 'ArtsyNeighbor.Release.check_before_launch()'"
@@ -112,17 +113,58 @@ defmodule ArtsyNeighbor.Release do
   def check_before_launch do
     ensure_running_site!()
 
+    # Both checks run (and print) even if the first one finds a problem
+    sample_data_ok = check_sample_data()
+    trial_pages_ok = check_trial_pages()
+
+    if sample_data_ok and trial_pages_ok do
+      :ok
+    else
+      raise "NOT READY: see the lines above for what to do first."
+    end
+  end
+
+  defp check_sample_data do
     case ArtsyNeighbor.SampleData.leftovers() do
       [] ->
         IO.puts("OK: no sample data left.")
-        :ok
+        true
 
       problems ->
-        for problem <- problems, do: IO.puts("  " <> problem)
+        IO.puts(
+          "Sample data is still here. Run ArtsyNeighbor.Release.remove_sample_data() first:"
+        )
 
-        raise "NOT READY: sample data is still here. " <>
-                "Run ArtsyNeighbor.Release.remove_sample_data() first."
+        for problem <- problems, do: IO.puts("  " <> problem)
+        false
     end
+  end
+
+  defp check_trial_pages do
+    case trial_pages() do
+      [] ->
+        IO.puts("OK: no trial pages served.")
+        true
+
+      folders ->
+        IO.puts(
+          "Trial pages are still served from priv/static/#{Enum.join(folders, ", ")}. " <>
+            "Remove the folder and its entry in ArtsyNeighborWeb.static_paths/0."
+        )
+
+        false
+    end
+  end
+
+  @trial_folders ~w(trials)
+
+  @doc """
+  The temporary trial-page folders (e.g. `trials`, photo speed step 3c)
+  among the folders the site serves. They're for the developer only and
+  must be gone before anyone else sees the site.
+  """
+  def trial_pages(static_paths \\ ArtsyNeighborWeb.static_paths()) do
+    Enum.filter(static_paths, fn path -> path in @trial_folders end)
   end
 
   @doc """

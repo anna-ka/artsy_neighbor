@@ -17,7 +17,10 @@ defmodule ArtsyNeighborWeb do
   those modules here.
   """
 
-  def static_paths, do: ~w(assets fonts images uploads favicon.ico robots.txt)
+  # "trials" holds a temporary test page (photo speed step 3c); remove it
+  # with the folder priv/static/trials once 3c is done
+  # (Release.check_before_launch/0 refuses while it's here).
+  def static_paths, do: ~w(assets fonts images uploads trials favicon.ico robots.txt)
 
   def router do
     quote do

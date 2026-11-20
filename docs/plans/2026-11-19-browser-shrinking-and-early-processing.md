@@ -55,7 +55,17 @@ to start with.
    it (Safari can; Chrome and Firefox, as far as I know, can't, so
    those upload HEIC as it is). **PNG, TIFF and AVIF are left alone**:
    PNG may have transparency, which JPEG would lose; TIFF and AVIF
-   are rare.
+   are rare. **A WebP is shrunk only if it's an ordinary photo**
+   (decided 2026-11-20): WebP can also have see-through parts, or be
+   moving (animated), and a JPEG can have neither (see-through parts
+   would turn black; only the first frame would be kept). The file's
+   first 30 bytes say which it is ("RIFF container": the `VP8 `
+   layout is always plain, `VP8L` has an "alpha is used" bit, `VP8X`
+   has flags for alpha and animation), so the hook reads them first
+   and leaves alone a WebP that has either, or whose header it doesn't
+   recognise. The size limits still apply to photos left alone (25 MB
+   refused before upload, over 52 MP refused in the browser when it
+   can read the size, and NOTES #43 for the big ones in between).
 4. **The file keeps its name** with `.jpg` instead of the old ending
    (e.g. `IMG_6457.HEIC` → `IMG_6457.jpg`), so the artist recognises it
    in the list.
@@ -104,22 +114,50 @@ to start with.
 
 A small private test page that runs entirely in the phone's browser
 (nothing is uploaded anywhere): pick photos, see the original's type,
-size and dimensions, the shrunk size, how long shrinking took, and
-both versions side by side. On the developer's iPhone (3–4 years old)
-and on the Mac (Safari, Chrome, Firefox):
+size and dimensions, the shrunk size, how long shrinking took, and the
+shrunk copy with a button to switch to the original in the same spot.
+The big test photos are made on the Mac (see "The trial page" below):
+an iPhone browser can't make a picture that big itself. On the
+developer's iPhone (3–4 years old) and on the Mac (Safari, Chrome,
+Firefox):
 
 - What does Safari hand the page for an iPhone photo: HEIC, or
   already a JPEG? (Earlier finding: iPhone Safari converts HEIC to
   JPEG only when the form doesn't list HEIC as accepted; ours does.)
 - Can it read and shrink a 48 MP photo, and how long does it take?
   Older iPhones limit how big an image the browser handles at once.
-  And what happens with a photo over 52 MP (a large test image the
-  page can make itself): shrunk, or does it fail, and how?
+  And what happens with a photo over 52 MP (the 60 MP test photo):
+  shrunk, or does it fail, and how?
 - Do the colours stay right? iPhone photos use the wider "Display P3"
   colour range; drawing them in the browser may shift them slightly.
 - Does the photo come out upright?
 
 The results go into this plan before the hook is written.
+
+**The trial page** is `priv/static/trials/photo-shrink.html`, at
+`/trials/photo-shrink.html` (behind the site password on the preview;
+`trials` is in `ArtsyNeighborWeb.static_paths/0`). Both the page and
+that entry are temporary: remove them once 3c is done
+(`Release.check_before_launch/0` refuses while they're there). It can
+try two ways of shrinking (picture + canvas, or `createImageBitmap`
+with resize) and two canvas colour spaces (sRGB, Display P3), and
+keeps a text log of all results to copy. It follows the rules above:
+PNG/TIFF/AVIF left alone, a WebP left alone unless its header says
+it's an ordinary photo (point 3), and a photo it can't shrink is
+reported as "would upload the original", or "would refuse it" if it's
+over 52 MP. Both ways first read the photo's size from an `<img>` (the
+real version needs it too); a big original is only shown when asked
+for. WebP test files of each kind (simple lossy, simple lossless,
+lossless see-through, extended still, extended see-through, moving)
+and their script are with the other test photos; in Chromium all were
+sorted correctly, as were a fake `.webp` and a JPEG named `.webp`
+(left alone: header not recognised). Generated test photos (never real
+ones: GPS) and the script that made them are outside the repo, in
+`~/Code/artsy-neighbor-design/photo-trial/`: 48 MP JPEG, 48 MP HEIC,
+60 MP JPEG (over the limit), and a 24 MP JPEG stored sideways with an
+orientation note. A first check in Chromium on the Mac (2026-11-19):
+both ways work, 48 MP → 4096 × 3072 in 0.3–0.7 s, the sideways photo
+comes out upright, HEIC can't be read (as expected).
 
 ### Tests
 
@@ -127,7 +165,8 @@ The server side doesn't change, and its tests stay. There is no
 JavaScript test setup (NOTES #19 discusses a browser suite), so the
 hook is kept small and checked by hand: in Chromium, WebKit and
 Firefox through the Playwright tool (big JPEG gets shrunk, 12 MP JPEG
-and PNG don't, a broken file falls back to the original, an over-52 MP
+and PNG don't, an ordinary big WebP gets shrunk while a see-through
+or moving one doesn't, a broken file falls back to the original, an over-52 MP
 photo the browser can't shrink is refused without uploading), and on the
 developer's phone on the preview site.
 
@@ -180,10 +219,21 @@ any work. So, for a photo the browser couldn't shrink:
   big photos, so ordinary photos never wait behind one, and a longer
   wait allowed there.
 
-**To decide:** do this as part of 3b, or as its own step right after?
-It touches the same code, but 3b is already big. Suggestion: right
-after 3b, as its own commit, once 3c shows how many big photos still
-reach the server.
+**Which photos get the warning** (decided 2026-11-20): every photo
+over the limit that reaches the server unshrunk, whatever the reason:
+a see-through or moving WebP, any PNG/TIFF/AVIF, HEIC the browser
+can't read, or a photo whose shrinking failed. The message names the
+reason in plain words when it's known (draft in NOTES #43, with two
+buttons: [Use this photo] / [Choose a different photo]), and the
+browser asks **before uploading** whenever it knows both the size and
+the reason; the server asks after the upload only for files the
+browser can't read. Related: a moving image becomes a still one on
+the site (the server keeps the first frame) — the artist should be
+told, at any size (NOTES #44).
+
+**Decided 2026-11-19: right after 3b**, as its own step and commit, once
+3c shows how many big photos still reach the server (3b touches the
+same code, but is already big).
 
 ### Tests
 
@@ -202,6 +252,6 @@ new-product form works without a product id.
    in three browsers and on the developer's phone. One commit.
 4. 3b: processing on pick, the new upload box, the clean-up. One or two
    commits, with a code review before committing.
-5. #43 (if not in 3b): the warning and the big-photo lane.
+5. #43: the warning and the big-photo lane.
 6. Measure on Fly: a series of photos, and the time from pick to
    "Ready" and from Save to done.
