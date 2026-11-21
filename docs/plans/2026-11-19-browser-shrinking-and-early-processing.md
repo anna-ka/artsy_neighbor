@@ -506,6 +506,78 @@ told, at any size (NOTES #44).
 3c shows how many big photos still reach the server (3b touches the
 same code, but is already big).
 
+#### Measured 2026-11-21 (#43 step 1)
+
+Test photos generated on the Mac (never the developer's own photos),
+kept in `~/Code/artsy-neighbor-design/photo-trial/`.
+
+On the Mac, `Images.prepare_upload/4` only (checking and making the
+files, nothing stored), CPU time and the memory added on top of the
+idle app (~120 MB):
+
+| Photo | CPU | Memory added |
+|---|---|---|
+| 12 MP JPEG (a typical phone photo) | 0.55 s | +240 MB |
+| 12 MP HEIC | 0.95 s | +325 MB |
+| 48 MP JPEG | 0.74 s | +275 MB |
+| 19 MP PNG (the largest that fits in 25 MB) | 0.7 s | – |
+| 48 MP AVIF | 1.7 s | +490 MB |
+| 48 MP HEIC | 2.9 s | +615 MB |
+
+A JPEG is shrunk while it's read, so its size hardly matters; HEIC
+and AVIF are decoded in full. PNG and TIFF photos can't be big: the
+25 MB upload limit stops them first (a 48 MP PNG is 69 MB, a 48 MP
+TIFF 76 MB). The Mac's memory numbers are high because libvips runs
+a thread per core, and the Mac has many.
+
+On the Fly preview (1 shared CPU, 1 GB), through the real product
+form in Chrome (which can't read HEIC and leaves AVIF alone, so both
+reach the server at full size); "peak" is the whole server's:
+
+| Photo | Preparing | Peak |
+|---|---|---|
+| 48 MP HEIC | 7.8–8.7 s | ~570 MB |
+| 48 MP AVIF | 6.5 s | (≤ 571 MB) |
+| *ordinary phone photos, for comparison* | *~2 s* | *~470 MB* |
+
+Uploading through the form, two photos never overlapped: each 15 MB
+upload took longer than preparing the one before. So the two-at-once
+case was forced on the server (the HEIC copied over with
+`fly ssh sftp put`, two `prepare_upload` calls started together via
+`rpc`, nothing stored, files deleted afterwards): **17 s each, peak
+757 MB**.
+
+What this shows:
+
+- Memory is safe: the limiter allows two photos at once, and two big
+  ones together leave ~250 MB spare on the 1 GB server.
+- The cost is time, and it's shared: the server has one CPU, so two
+  photos prepared side by side each take twice as long. Running two
+  big photos at once makes nothing faster; it only makes everyone
+  else wait (an ordinary photo arriving then would wait up to ~17 s).
+
+#### Decided 2026-11-21
+
+This replaces the question with two buttons and the separate lane
+above.
+
+1. **A big photo may use only one of the two limiter slots.** "Big"
+   means HEIC or AVIF (libvips' `heifload`) over about 20 MP; the
+   server knows both from the header, in milliseconds, before any
+   work. Other big photos wait their turn for that one slot, with a
+   longer wait allowed than the usual 30 s (e.g. the 3 minutes Try
+   again already uses). Ordinary photos always find a slot; at worst
+   they share the CPU with one big photo (~4 s instead of ~2). With
+   one CPU, this costs the big photos nothing overall.
+2. **No question.** The worst case is 8–17 s, not minutes, and a
+   question would give older artists a decision they don't need.
+   Instead the photo's row says e.g. "Large photo — this one takes a
+   little longer…" while it waits and is prepared; ✕ still removes
+   it.
+3. NOTES #44 (telling the artist that a moving image becomes a still
+   one) is built in the same step, since it changes the same row
+   messages.
+
 ### Tests
 
 LiveView tests (the existing upload helpers): a picked photo becomes
@@ -540,6 +612,8 @@ starts the next background step.
    then on the developer's iPhone; trial page removed (see "Tests").*
 4. 3b: processing on pick, the new upload box, the clean-up. One or two
    commits, with a code review before committing.
-5. #43: the warning and the big-photo lane.
+5. #43: the warning and the big-photo lane. *Measured and decided
+   2026-11-21 (see "Very large photos"): one slot for big photos, a
+   row message instead of a question.*
 6. Measure on Fly: a series of photos, and the time from pick to
    "Ready" and from Save to done.

@@ -340,8 +340,10 @@ which is mechanical and done once, up front.
              developer's iPhone on the preview (details and what was
              added beyond the plan in the plan doc, "What was built");
              trial page and its `trials` entry removed.
-          Very large photos (warn, then a low-priority lane): #43,
-          designed together with b and c.
+          Very large photos: #43, measured and decided 2026-11-21
+          (big photos use only one of the two limiter slots; a
+          message on the photo's row instead of a question). Next to
+          build.
           **Plan for c then b (2026-11-19, order: 3c, 3b, then the
           audit):** `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
           Decided: the browser only shrinks; it never makes the
@@ -1174,6 +1176,31 @@ working on the code should keep in mind.
       browser knows the size and the reason (e.g. a see-through WebP),
       so the artist doesn't wait for a long upload first; the server
       asks after the upload only for files the browser can't read.
+      **Measured and decided 2026-11-21** (this replaces the question
+      with two buttons above, and step 3's separate lane; details in
+      the plan doc, "Very large photos"):
+      - *Which photos cost more:* only big HEIC and AVIF. A JPEG of
+        any size is shrunk while it's read (a 48 MP JPEG costs about
+        the same as a 12 MP one), and the browser shrinks big JPEGs
+        anyway; PNG and TIFF can't be big under the 25 MB limit
+        (the largest PNG photo that fits is ~19 MP).
+      - *On Fly:* one 48 MP HEIC takes ~8 s to prepare (an ordinary
+        photo ~2 s), AVIF ~6.5 s; the server's memory peaks at
+        ~570 MB. Two 48 MP HEICs prepared at the same time (forced
+        on the server, nothing stored): 17 s each, peak 757 MB. So
+        with the 2 limiter slots, memory is safe on the 1 GB server.
+        The server has one CPU: photos prepared side by side share
+        it, so running two big ones at once makes nothing faster,
+        it only makes everyone else wait.
+      - *Decided:* a "big" photo (HEIC or AVIF over ~20 MP) may use
+        only one of the two slots; other big photos wait their turn,
+        with a longer wait allowed than the usual 30 s. Ordinary
+        photos always find a slot (at worst sharing the CPU with one
+        big photo, ~4 s instead of ~2). No question with two
+        buttons: the photo's row says e.g. "Large photo — this one
+        takes a little longer…", and ✕ still removes it.
+      - #44 (moving images) is built in the same step (decided
+        2026-11-21).
 
   44. **Tell the artist that a moving image becomes a still one**
       (added 2026-11-20). The server keeps only the first frame of a
