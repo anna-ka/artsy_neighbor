@@ -48,4 +48,49 @@ defmodule ArtsyNeighborWeb.PhotoUploadHelpers do
 
     input
   end
+
+  @doc """
+  Waits until the page is done with its photos: none is still being
+  checked ("Checking the photo…") and no save is still storing them
+  ("Saving your photos…"). Returns the page's HTML.
+
+  (`render_async/2` alone isn't enough: it waits only for the background
+  work running at the moment, and checking one photo starts the next,
+  or the storing of a waiting save.)
+  """
+  def wait_for_photo_work(view, timeout_ms \\ 10_000) do
+    deadline = System.monotonic_time(:millisecond) + timeout_ms
+    wait_until_done(view, deadline)
+  end
+
+  defp wait_until_done(view, deadline) do
+    time_left = deadline - System.monotonic_time(:millisecond)
+
+    if time_left <= 0 do
+      ExUnit.Assertions.flunk("The page was still busy with its photos.")
+    end
+
+    # render_async raises if the work running now doesn't finish in time;
+    # say what that means here instead of its own general message.
+    html =
+      try do
+        render_async(view, time_left)
+      rescue
+        error ->
+          ExUnit.Assertions.flunk(
+            "The page was still busy with its photos: " <> Exception.message(error)
+          )
+      end
+
+    busy? = html =~ "Checking the photo" or has_element?(view, "#saving-photos")
+
+    if busy? do
+      # Nothing may be running at this very moment (the next step starts
+      # when LiveView handles the last one's result): look again shortly.
+      Process.sleep(20)
+      wait_until_done(view, deadline)
+    else
+      html
+    end
+  end
 end

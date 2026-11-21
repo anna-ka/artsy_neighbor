@@ -342,6 +342,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
             </p>
             <PhotoUploads.photo_picker
               upload={@uploads.images}
+              photo_prep={@photo_prep}
               photo_errors={@photo_errors}
               saving_photos={@saving_photos}
             />

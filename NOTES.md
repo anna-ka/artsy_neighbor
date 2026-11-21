@@ -321,6 +321,13 @@ which is mechanical and done once, up front.
              s per photo on Fly.
           b. Process each photo as soon as it's picked, in the
              background, so most of the work is done before Save.
+             *DONE 2026-11-20:* each photo is checked as soon as it has
+             uploaded ("Checking the photo…" → "Ready ✓" or the problem,
+             with Try again for problems on our side); Save only stores
+             (~0.1 s) and waits by itself for photos still being
+             checked. Temporary files per page in
+             `Images.PreparedFolders`. Checked in Chromium on the dev
+             site. Details in the plan doc, "3b".
           c. Shrink photos in the browser before upload (smaller
              uploads on slow connections, less server work): quick
              trial on an iPhone and the Mac, then the hook. The trial

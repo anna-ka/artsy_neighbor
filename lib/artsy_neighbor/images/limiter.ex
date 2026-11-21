@@ -28,6 +28,8 @@ defmodule ArtsyNeighbor.Images.Limiter do
     * The server *monitors* every slot holder: if a holder process
       dies mid-photo (e.g. its page crashed), the server is told and
       frees the slot. So a crash can never use up a slot for good.
+    * It monitors everyone waiting in line too: one that dies (e.g. the
+      artist removed the photo while it waited) leaves the line at once.
   """
 
   use GenServer
@@ -53,12 +55,20 @@ defmodule ArtsyNeighbor.Images.Limiter do
   Runs `fun` once a slot is free, and returns its result.
 
   Returns `{:error, :busy}` instead, without running `fun`, if no slot
-  freed up within the wait time. `server` is only passed by tests.
+  freed up within the wait time. Options:
+
+    * `:wait_ms` — wait this long instead of the configured time. Photos
+      processed as soon as they're picked (`ArtsyNeighborWeb.PhotoUploads`)
+      can wait longer than a button press could;
+    * `:server` — only passed by tests, which start their own limiter.
   """
-  def run(fun, server \\ __MODULE__) do
+  def run(fun, opts \\ []) do
+    server = Keyword.get(opts, :server, __MODULE__)
+    wait_ms = Keyword.get(opts, :wait_ms)
+
     # :infinity is safe here: the server always answers, at the latest
     # when the wait time is over (see handle_info({:give_up, ...}) below).
-    case GenServer.call(server, :acquire, :infinity) do
+    case GenServer.call(server, {:acquire, wait_ms}, :infinity) do
       {:ok, slot} ->
         try do
           fun.()
@@ -80,9 +90,11 @@ defmodule ArtsyNeighbor.Images.Limiter do
   #                    reference, so a :DOWN message tells us directly
   #                    which slot to free;
   #   waiting        — the line, oldest first: a list of
-  #                    {from, timer} (from = whom to answer, timer =
-  #                    the "give up" timer to cancel when served).
-  #                    A plain list is fine: it holds a handful at most.
+  #                    {from, timer, watch} (from = whom to answer,
+  #                    timer = the "give up" timer to cancel when
+  #                    served, watch = the monitor on the waiting
+  #                    process). A plain list is fine: it holds a
+  #                    handful at most.
 
   @impl true
   def init(opts) do
@@ -101,15 +113,17 @@ defmodule ArtsyNeighbor.Images.Limiter do
   end
 
   @impl true
-  def handle_call(:acquire, {pid, _tag} = from, state) do
+  # `wait_ms` is the caller's own wait time, or nil for the configured one.
+  def handle_call({:acquire, wait_ms}, {pid, _tag} = from, state) do
     if map_size(state.holders) < state.max_concurrent do
       {slot, state} = give_slot(pid, state)
       {:reply, {:ok, slot}, state}
     else
       # No free slot: join the line, and set a timer to give up.
       # The reply is sent later, by GenServer.reply/2.
-      timer = Process.send_after(self(), {:give_up, from}, state.wait_ms)
-      {:noreply, %{state | waiting: state.waiting ++ [{from, timer}]}}
+      timer = Process.send_after(self(), {:give_up, from}, wait_ms || state.wait_ms)
+      watch = Process.monitor(pid)
+      {:noreply, %{state | waiting: state.waiting ++ [{from, timer, watch}]}}
     end
   end
 
@@ -122,16 +136,22 @@ defmodule ArtsyNeighbor.Images.Limiter do
   end
 
   @impl true
-  # A slot holder died before giving its slot back.
-  def handle_info({:DOWN, slot, :process, _pid, _reason}, state) do
-    {:noreply, free_slot(slot, state)}
+  # A slot holder died before giving its slot back, or someone waiting
+  # in line died.
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+    if Map.has_key?(state.holders, ref) do
+      {:noreply, free_slot(ref, state)}
+    else
+      {:noreply, drop_waiter(ref, state)}
+    end
   end
 
   # A waiting request's time is up. If it's no longer in the line (it
   # got a slot just before its timer fired), there's nothing to do.
   def handle_info({:give_up, from}, state) do
     case List.keytake(state.waiting, from, 0) do
-      {{^from, _timer}, rest} ->
+      {{^from, _timer, watch}, rest} ->
+        Process.demonitor(watch, [:flush])
         Logger.warning("A photo waited too long for a processing slot; told the artist to retry.")
         GenServer.reply(from, :busy)
         {:noreply, %{state | waiting: rest}}
@@ -156,10 +176,23 @@ defmodule ArtsyNeighbor.Images.Limiter do
       [] ->
         state
 
-      [{{pid, _tag} = from, timer} | rest] ->
+      [{{pid, _tag} = from, timer, watch} | rest] ->
         Process.cancel_timer(timer)
+        Process.demonitor(watch, [:flush])
         {new_slot, state} = give_slot(pid, %{state | waiting: rest})
         GenServer.reply(from, {:ok, new_slot})
+        state
+    end
+  end
+
+  # Takes the waiter watched by `watch` out of the line.
+  defp drop_waiter(watch, state) do
+    case List.keytake(state.waiting, watch, 2) do
+      {{_from, timer, ^watch}, rest} ->
+        Process.cancel_timer(timer)
+        %{state | waiting: rest}
+
+      nil ->
         state
     end
   end

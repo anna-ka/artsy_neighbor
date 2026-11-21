@@ -254,6 +254,68 @@ defmodule ArtsyNeighbor.ImagesTest do
     end
   end
 
+  # The two halves of process_upload/3, used by the photo forms to check
+  # a photo as soon as it's picked and store it at Save.
+  describe "prepare_upload/4 and store_prepared/2" do
+    test "prepare makes the four files in the work folder without storing anything; store stores them",
+         %{dir: dir, folder: folder} do
+      work_dir = Path.join(dir, "work")
+
+      assert {:ok, prepared} = Images.prepare_upload(@site_image, "cat.jpg", work_dir)
+      assert prepared.dir == work_dir
+
+      for file_name <- ["source.webp", "large.webp", "medium.webp", "thumb.webp"] do
+        assert File.exists?(Path.join(work_dir, file_name))
+      end
+
+      refute File.exists?(Local.path_for(folder, :public))
+
+      assert {:ok, key} = Images.store_prepared(prepared, folder)
+      assert String.starts_with?(key, folder <> "/")
+      assert File.exists?(stored_path(key, "source.webp", :private))
+      assert File.exists?(stored_path(key, "thumb.webp", :public))
+
+      # Storing leaves the prepared files; discarding removes them.
+      assert File.dir?(work_dir)
+      Images.discard_prepared(prepared)
+      refute File.exists?(work_dir)
+    end
+
+    # E.g. a full disk: a problem on our side, so the artist gets "Try
+    # again" rather than "remove it". (A folder we can't write to stands
+    # in for the full disk.)
+    @tag capture_log: true
+    test "a good photo whose files can't be written is :failed, not :refused", %{dir: dir} do
+      work_dir = Path.join(dir, "read-only")
+      File.mkdir_p!(work_dir)
+      File.chmod!(work_dir, 0o500)
+      on_exit(fn -> File.chmod(work_dir, 0o700) end)
+
+      assert {:error, {:failed, "Something went wrong while saving your photo." <> _}} =
+               Images.prepare_upload(@site_image, "cat.jpg", work_dir)
+    end
+
+    @tag capture_log: true
+    test "a work folder that can't be made is :failed", %{dir: dir} do
+      # A file where the folder's parent should be.
+      not_a_folder = Path.join(dir, "file")
+      File.write!(not_a_folder, "")
+
+      assert {:error, {:failed, _message}} =
+               Images.prepare_upload(@site_image, "cat.jpg", Path.join(not_a_folder, "work"))
+    end
+
+    test "a photo that can't be used is :refused, and its work folder is removed", %{dir: dir} do
+      path = make_test_photo(dir, "small.jpg", fn image -> Image.thumbnail!(image, 400) end)
+      work_dir = Path.join(dir, "work")
+
+      assert {:error, {:refused, "This photo is too small to look good." <> _}} =
+               Images.prepare_upload(path, "small.jpg", work_dir)
+
+      refute File.exists?(work_dir)
+    end
+  end
+
   @tag :no_heic
   test "where libvips can't decode HEIC, the artist gets a plain message",
        %{folder: folder} do

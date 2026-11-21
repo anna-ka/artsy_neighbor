@@ -28,6 +28,14 @@ config :artsy_neighbor, ArtsyNeighbor.Storage.Local,
   public_dir: Path.join(System.tmp_dir!(), "artsy_neighbor_test/uploads"),
   private_dir: Path.join(System.tmp_dir!(), "artsy_neighbor_test/private_uploads")
 
+# Photos checked on pick wait in a temporary folder per page
+# (ArtsyNeighbor.Images.PreparedFolders): the tests' own, apart from the
+# dev server's, and deleted straight after a page closes rather than a
+# minute later, so the tests can check it.
+config :artsy_neighbor, ArtsyNeighbor.Images.PreparedFolders,
+  base_dir: Path.join(System.tmp_dir!(), "artsy_neighbor_test/prepared"),
+  delete_after_ms: 0
+
 # In test we don't send emails
 config :artsy_neighbor, ArtsyNeighbor.Mailer, adapter: Swoosh.Adapters.Test
 

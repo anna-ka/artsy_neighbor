@@ -118,8 +118,9 @@ defmodule ArtsyNeighbor.Images do
   `ArtsyNeighbor.Images.Limiter`); this waits for its turn, and if the
   wait is too long it returns the "site is busy" message without
   processing anything. So it can take a while: don't call it while a
-  page waits for an answer (the forms call it in a background task,
-  see `ArtsyNeighborWeb.PhotoUploads`).
+  page waits for an answer. (The photo forms use its two halves,
+  `prepare_upload/4` and `store_prepared/2`, in background tasks; see
+  `ArtsyNeighborWeb.PhotoUploads`.)
 
   `folder` is built by our own code from database ids, never from
   what a user typed, so an invalid folder is a programming bug: it
@@ -140,21 +141,102 @@ defmodule ArtsyNeighbor.Images do
   `ArtsyNeighbor.Images.Timing`.
   """
   def process_upload_with_timings(tmp_path, client_name, folder) do
-    key = folder <> "/" <> Ecto.UUID.generate()
-    Storage.validate_key!(key)
+    # (An invalid `folder` raises in store_prepared_timed/2, when the key
+    # is made.)
+    work_dir = Path.join(System.tmp_dir!(), "artsy_neighbor_image_" <> Ecto.UUID.generate())
 
+    try do
+      with {:ok, prepared} <- prepare_upload(tmp_path, client_name, work_dir),
+           {:ok, key, storing_ms} <- store_prepared_timed(prepared, folder) do
+        timings = %{
+          waited_ms: prepared.waited_ms,
+          processing_ms: prepared.processing_ms,
+          storing_ms: storing_ms
+        }
+
+        {:ok, key, timings}
+      else
+        {:error, {_kind, message}} -> {:error, message}
+        {:error, message} -> {:error, message}
+      end
+    after
+      File.rm_rf(work_dir)
+    end
+  end
+
+  @doc """
+  The first half of `process_upload/3`: checks the photo at `tmp_path`
+  and makes `source.webp` and the display sizes in `work_dir` (a folder
+  that doesn't exist yet; it's made here), without storing anything.
+  The photo forms call this as soon as a photo has been uploaded, and
+  `store_prepared/2` when the artist saves
+  (`ArtsyNeighborWeb.PhotoUploads`).
+
+  Waits for a slot in `ArtsyNeighbor.Images.Limiter`; the option
+  `:wait_ms` sets how long it may wait.
+
+  Returns `{:ok, prepared}` (a map to hand to `store_prepared/2` or
+  `discard_prepared/1`), or `{:error, {kind, message}}` with a
+  plain-words `message` for the artist, where `kind` is:
+
+    * `:refused` — the photo itself can't be used (not a photo, too
+      small, too large, ...): trying again won't help;
+    * `:failed` — a problem on our side (the site was busy, a folder
+      couldn't be made, a file couldn't be written): trying again may
+      well work.
+
+  Each step below says which kind its own errors are (as
+  `{:error, {kind, message}}`), where it knows best.
+
+  On an error `work_dir` is removed again.
+  """
+  def prepare_upload(tmp_path, client_name, work_dir, opts \\ []) do
+    limiter_opts = Keyword.take(opts, [:wait_ms])
     asked_at = now_ms()
 
     result =
-      Limiter.run(fn ->
-        waited_ms = now_ms() - asked_at
-        process_and_store(tmp_path, client_name, key, waited_ms)
-      end)
+      Limiter.run(
+        fn ->
+          waited_ms = now_ms() - asked_at
+          prepare_in_slot(tmp_path, client_name, work_dir, waited_ms)
+        end,
+        limiter_opts
+      )
 
     case result do
-      {:error, :busy} -> {:error, @msg_busy}
-      other -> other
+      {:ok, prepared} ->
+        {:ok, prepared}
+
+      {:error, :busy} ->
+        {:error, {:failed, @msg_busy}}
+
+      {:error, {kind, message}} ->
+        File.rm_rf(work_dir)
+        {:error, {kind, message}}
     end
+  end
+
+  @doc """
+  The second half of `process_upload/3`: stores a photo made by
+  `prepare_upload/4` under a new key inside `folder` (e.g.
+  `"products/12"`) and logs its timing line. Doesn't remove the
+  prepared files; `discard_prepared/1` does that.
+
+  Returns `{:ok, key}` or `{:error, message}` (always a problem on our
+  side, so trying again may work). Like `process_upload/3`, raises
+  `ArgumentError` for an invalid `folder`.
+  """
+  def store_prepared(prepared, folder) do
+    case store_prepared_timed(prepared, folder) do
+      {:ok, key, _storing_ms} -> {:ok, key}
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  @doc "Deletes the files `prepare_upload/4` made."
+  def discard_prepared(prepared) do
+    File.rm_rf(prepared.dir)
+    :ok
   end
 
   @doc """
@@ -167,44 +249,71 @@ defmodule ArtsyNeighbor.Images do
   def check_file(path) do
     name = Path.basename(path)
 
-    with {:ok, image} <- open_image(path, name),
-         {:ok, _loader} <- check_format(image, name) do
-      check_dimensions(image)
+    result =
+      with {:ok, image} <- open_image(path, name),
+           {:ok, _loader} <- check_format(image, name) do
+        check_dimensions(image)
+      end
+
+    case result do
+      :ok -> :ok
+      {:error, {_kind, message}} -> {:error, message}
     end
   end
 
-  defp process_and_store(tmp_path, client_name, key, waited_ms) do
-    work_dir = Path.join(System.tmp_dir!(), "artsy_neighbor_image_" <> Ecto.UUID.generate())
+  # Runs while holding a Limiter slot. Returns {:ok, prepared} or
+  # {:error, {kind, message}}.
+  #
+  # `prepared` holds the folder and its files, plus what the timing log
+  # line needs when the photo is stored later (log_timing/1); the upload
+  # itself may be gone by then.
+  defp prepare_in_slot(tmp_path, client_name, work_dir, waited_ms) do
+    # The slow step is wrapped in `timed/1`, which returns
+    # {milliseconds, result}; the `else` below unwraps its error.
+    with :ok <- make_work_dir(work_dir),
+         {:ok, image} <- open_image(tmp_path, client_name),
+         {:ok, loader} <- check_format(image, client_name),
+         :ok <- check_dimensions(image),
+         {processing_ms, {:ok, files}} <-
+           timed(fn -> make_webp_files(tmp_path, work_dir, client_name, loader) end) do
+      prepared = %{
+        dir: work_dir,
+        files: files,
+        client_name: client_name,
+        format: String.replace_suffix(loader, "load", ""),
+        width: Image.width(image),
+        height: Image.height(image),
+        file_size: file_size(tmp_path),
+        waited_ms: waited_ms,
+        processing_ms: processing_ms
+      }
 
-    try do
-      # The two slow steps are wrapped in `timed/1`, which returns
-      # {milliseconds, result}; the `else` below unwraps their errors.
-      with :ok <- make_work_dir(work_dir),
-           {:ok, image} <- open_image(tmp_path, client_name),
-           {:ok, loader} <- check_format(image, client_name),
-           :ok <- check_dimensions(image),
-           {processing_ms, {:ok, files}} <-
-             timed(fn -> make_webp_files(tmp_path, work_dir, client_name, loader) end),
-           {storing_ms, :ok} <- timed(fn -> store_files(files, key) end) do
-        log_timing(%{
-          key: key,
-          client_name: client_name,
-          tmp_path: tmp_path,
-          image: image,
-          loader: loader,
-          waited_ms: waited_ms,
-          processing_ms: processing_ms,
-          storing_ms: storing_ms
-        })
+      {:ok, prepared}
+    else
+      {_ms, {:error, {kind, message}}} -> {:error, {kind, message}}
+      {:error, {kind, message}} -> {:error, {kind, message}}
+    end
+  end
 
-        timings = %{waited_ms: waited_ms, processing_ms: processing_ms, storing_ms: storing_ms}
-        {:ok, key, timings}
-      else
-        {_ms, {:error, message}} -> {:error, message}
-        {:error, message} -> {:error, message}
-      end
-    after
-      File.rm_rf(work_dir)
+  # Returns {:ok, key, storing_ms} or {:error, message}.
+  defp store_prepared_timed(prepared, folder) do
+    key = folder <> "/" <> Ecto.UUID.generate()
+    Storage.validate_key!(key)
+
+    case timed(fn -> store_files(prepared.files, key) end) do
+      {storing_ms, :ok} ->
+        log_timing(prepared, key, storing_ms)
+        {:ok, key, storing_ms}
+
+      {_ms, {:error, message}} ->
+        {:error, message}
+    end
+  end
+
+  defp file_size(path) do
+    case File.stat(path) do
+      {:ok, stat} -> stat.size
+      {:error, _} -> nil
     end
   end
 
@@ -444,7 +553,7 @@ defmodule ArtsyNeighbor.Images do
 
       {:error, reason} ->
         Logger.error("Couldn't create image work folder #{work_dir}: #{inspect(reason)}")
-        {:error, @msg_save_failed}
+        {:error, {:failed, @msg_save_failed}}
     end
   end
 
@@ -461,7 +570,7 @@ defmodule ArtsyNeighbor.Images do
           "Image upload #{inspect(client_name)} refused, can't open: #{inspect(reason)}"
         )
 
-        {:error, @msg_not_an_image}
+        {:error, {:refused, @msg_not_an_image}}
     end
   end
 
@@ -476,7 +585,7 @@ defmodule ArtsyNeighbor.Images do
       {:ok, loader}
     else
       Logger.info("Image upload #{inspect(client_name)} refused, format #{inspect(loader)}")
-      {:error, @msg_not_an_image}
+      {:error, {:refused, @msg_not_an_image}}
     end
   end
 
@@ -485,37 +594,60 @@ defmodule ArtsyNeighbor.Images do
     height = Image.height(image)
 
     cond do
-      width * height > @max_pixels -> {:error, @msg_too_large}
-      max(width, height) < @min_long_side -> {:error, @msg_too_small}
+      width * height > @max_pixels -> {:error, {:refused, @msg_too_large}}
+      max(width, height) < @min_long_side -> {:error, {:refused, @msg_too_small}}
       true -> :ok
     end
   end
 
   # Writes source.webp and the display sizes into `work_dir`.
-  # Returns {:ok, [{local_path, file_name, visibility}, ...]}.
+  # Returns {:ok, [{local_path, file_name, visibility}, ...]} or
+  # {:error, {kind, message}}.
   # `loader` is the file format check_format/2 found, e.g. "heifload".
   #
   # Reads the upload again from its path rather than reusing the image
   # opened for the checks: from a path, libvips can shrink while
   # reading (e.g. decode a big JPEG at half size straight away), which
   # needs much less memory.
+  #
+  # Whose fault an error is: up to and including decoding, the photo's
+  # (it can't be read); once the pixels are decoded, ours (e.g. the disk
+  # is full), so the artist gets "Try again" rather than "remove it".
   defp make_webp_files(tmp_path, work_dir, client_name, loader) do
+    with {:ok, upright} <- shrink_upright(tmp_path, client_name),
+         {:ok, decoded} <- decode_into_memory(upright, client_name, loader) do
+      write_all_files(decoded, work_dir, client_name)
+    end
+  end
+
+  # `thumbnail` with `resize: :down` only ever shrinks. It also:
+  #   * turns the photo upright using its orientation note (EXIF),
+  #   * converts colours to sRGB, the colour space browsers assume
+  #     (iPhone photos are in the wider "Display P3"), so the colours
+  #     still look right once the colour profile is stripped.
+  # It only sets up the work (see decode_into_memory/3), so an error
+  # here means the file can't be read.
+  defp shrink_upright(tmp_path, client_name) do
+    case Image.thumbnail(tmp_path, @source_max_side,
+           resize: :down,
+           autorotate: true,
+           export_icc_profile: :srgb
+         ) do
+      {:ok, upright} ->
+        {:ok, upright}
+
+      {:error, reason} ->
+        Logger.info("Image upload #{inspect(client_name)} failed to process: #{inspect(reason)}")
+        {:error, {:refused, @msg_not_an_image}}
+    end
+  end
+
+  # Writes source.webp and the display sizes from the decoded photo.
+  defp write_all_files(decoded, work_dir, client_name) do
     source_path = Path.join(work_dir, "source.webp")
 
-    # `thumbnail` with `resize: :down` only ever shrinks. It also:
-    #   * turns the photo upright using its orientation note (EXIF),
-    #   * converts colours to sRGB, the colour space browsers assume
-    #     (iPhone photos are in the wider "Display P3"), so the colours
-    #     still look right once the colour profile is stripped.
     result =
-      with {:ok, upright} <-
-             Image.thumbnail(tmp_path, @source_max_side,
-               resize: :down,
-               autorotate: true,
-               export_icc_profile: :srgb
-             ),
-           {:ok, decoded} <- decode_into_memory(upright, client_name, loader),
-           :ok <- write_webp(decoded, source_path, @source_quality, @source_effort) do
+      with :ok <- write_webp(decoded, source_path, @source_quality, @source_effort) do
         make_display_sizes(decoded, work_dir)
       end
 
@@ -523,13 +655,12 @@ defmodule ArtsyNeighbor.Images do
       {:ok, display_files} ->
         {:ok, [{source_path, "source.webp", :private} | display_files]}
 
-      # Already logged and worded by decode_into_memory/3.
-      {:error, message} when is_binary(message) ->
-        {:error, message}
-
       {:error, reason} ->
-        Logger.info("Image upload #{inspect(client_name)} failed to process: #{inspect(reason)}")
-        {:error, @msg_not_an_image}
+        Logger.error(
+          "Image upload #{inspect(client_name)}: writing its files failed: #{inspect(reason)}"
+        )
+
+        {:error, {:failed, @msg_save_failed}}
     end
   end
 
@@ -549,7 +680,7 @@ defmodule ArtsyNeighbor.Images do
   # copy_memory's error only says "Failed to memory copy image" (libvips'
   # own message goes to the terminal), so for a HEIC file we ask
   # heic_decoding_supported?/0 rather than read the message.
-  # Returns {:ok, decoded} or {:error, message for the artist}.
+  # Returns {:ok, decoded} or {:error, {:refused, message for the artist}}.
   defp decode_into_memory(upright, client_name, loader) do
     case Vix.Vips.Image.copy_memory(upright) do
       {:ok, decoded} ->
@@ -562,10 +693,10 @@ defmodule ArtsyNeighbor.Images do
 
         if loader == "heifload" and not heic_decoding_supported?() do
           Logger.warning(log_message <> "; this server's libvips can't decode HEIC")
-          {:error, @msg_heic_unsupported}
+          {:error, {:refused, @msg_heic_unsupported}}
         else
           Logger.info(log_message)
-          {:error, @msg_not_an_image}
+          {:error, {:refused, @msg_not_an_image}}
         end
     end
   end
@@ -717,23 +848,24 @@ defmodule ArtsyNeighbor.Images do
     {now_ms() - started_at, result}
   end
 
-  defp log_timing(facts) do
-    width = Image.width(facts.image)
-    height = Image.height(facts.image)
-    megapixels = Float.round(width * height / 1_000_000, 1)
-    format = String.replace_suffix(facts.loader, "load", "")
+  # `prepared` comes from prepare_upload/4. With processing on pick, the
+  # "waited" and "processing" parts happened when the photo was picked,
+  # "storing" when the artist saved.
+  defp log_timing(prepared, key, storing_ms) do
+    megapixels = Float.round(prepared.width * prepared.height / 1_000_000, 1)
 
     file_size =
-      case File.stat(facts.tmp_path) do
-        {:ok, stat} -> format_mb(stat.size)
-        {:error, _} -> "size unknown"
+      case prepared.file_size do
+        nil -> "size unknown"
+        bytes -> format_mb(bytes)
       end
 
     Logger.info(
-      "Photo stored #{facts.key}: #{inspect(facts.client_name)}, " <>
-        "#{format} #{width}×#{height} (#{megapixels} MP, #{file_size}); " <>
-        "waited #{facts.waited_ms} ms, processing #{facts.processing_ms} ms, " <>
-        "storing #{facts.storing_ms} ms; #{memory_text()}"
+      "Photo stored #{key}: #{inspect(prepared.client_name)}, " <>
+        "#{prepared.format} #{prepared.width}×#{prepared.height} " <>
+        "(#{megapixels} MP, #{file_size}); " <>
+        "waited #{prepared.waited_ms} ms, processing #{prepared.processing_ms} ms, " <>
+        "storing #{storing_ms} ms; #{memory_text()}"
     )
   end
 

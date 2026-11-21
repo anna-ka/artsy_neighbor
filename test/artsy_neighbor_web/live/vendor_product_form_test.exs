@@ -361,7 +361,7 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       assert_patch(view, ~p"/vendor/products/#{product.id}/edit", @wait)
 
       html = render(view)
-      assert html =~ "Not saved: This photo is too small to look good."
+      assert has_element?(view, "[id^=photo-entry-]", "This photo is too small to look good.")
       assert has_element?(view, "#photo-problem", "small.jpg was NOT saved")
       # The flash gives the full reason too, not just a pointer to the
       # red box (it's the same text, so it appears twice on the page).

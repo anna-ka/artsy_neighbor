@@ -91,7 +91,9 @@ mix phx.server           # dev server
 - Layouts: `lib/artsy_neighbor_web/components/layouts.ex`
 - Photos: `lib/artsy_neighbor/images.ex` (check, resize, store; `Images.url/2`),
   `lib/artsy_neighbor/storage.ex` + `storage/local.ex`,
-  `lib/artsy_neighbor/images/limiter.ex`; form side:
+  `lib/artsy_neighbor/images/limiter.ex`,
+  `lib/artsy_neighbor/images/prepared_folders.ex` (temporary folders of
+  photos checked on pick, deleted when the page closes); form side:
   `lib/artsy_neighbor_web/photo_uploads.ex`, plus the browser hook that
   shrinks big photos before upload, `assets/js/photo_shrink.js`. Plans:
   `docs/plans/2026-10-28-image-storage-and-resizing.md`,
@@ -152,8 +154,11 @@ doesn't cost real efficiency.
   `Images.placeholder(:artist | :product | :category)` or
   `Images.or_placeholder(path, kind)`; never write a placeholder path in a
   page. That way changing a placeholder never needs a database update.
-  New photos only go in through `Images.process_upload/3` (via
-  `PhotoUploads` in the forms), never by copying the uploaded file.
+  New photos only go in through `Images`, never by copying the uploaded
+  file: the forms (via `PhotoUploads`) use its two halves,
+  `Images.prepare_upload/4` when a photo has uploaded and
+  `Images.store_prepared/2` at Save; everything else (sample data, the
+  timing tool) uses `Images.process_upload/3`, which is both together.
 
 ## Git and GitHub
 

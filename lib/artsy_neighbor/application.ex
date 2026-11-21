@@ -14,6 +14,9 @@ defmodule ArtsyNeighbor.Application do
       {Phoenix.PubSub, name: ArtsyNeighbor.PubSub},
       # Limits how many photos are processed at the same time.
       ArtsyNeighbor.Images.Limiter,
+      # Photos prepared as soon as they're picked wait in a temporary
+      # folder per page; this deletes it when the page closes.
+      ArtsyNeighbor.Images.PreparedFolders,
       # Runs small background jobs that no page waits for, e.g. deleting
       # the files of deleted photos (Images.delete_files/1).
       {Task.Supervisor, name: ArtsyNeighbor.TaskSupervisor},

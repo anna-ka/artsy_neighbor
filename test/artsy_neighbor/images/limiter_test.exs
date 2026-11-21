@@ -38,7 +38,7 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
               :finish -> :done
             end
           end,
-          limiter
+          server: limiter
         )
 
       send(test_pid, {:finished, self(), result})
@@ -47,18 +47,18 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
 
   test "runs the function and returns its result" do
     limiter = start_limiter(2, 1_000)
-    assert Limiter.run(fn -> 6 * 7 end, limiter) == 42
+    assert Limiter.run(fn -> 6 * 7 end, server: limiter) == 42
   end
 
   test "gives the slot back even if the function raises" do
     limiter = start_limiter(1, 100)
 
     assert_raise RuntimeError, fn ->
-      Limiter.run(fn -> raise "boom" end, limiter)
+      Limiter.run(fn -> raise "boom" end, server: limiter)
     end
 
     # If the slot weren't given back, this would wait and get :busy.
-    assert Limiter.run(fn -> :ok end, limiter) == :ok
+    assert Limiter.run(fn -> :ok end, server: limiter) == :ok
   end
 
   test "lets at most max_concurrent run at once; the next waits for a free slot" do
@@ -111,7 +111,38 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
     holder = start_holder(limiter)
     assert_receive {:got_slot, ^holder}
 
-    assert Limiter.run(fn -> flunk("should not run") end, limiter) == {:error, :busy}
+    assert Limiter.run(fn -> flunk("should not run") end, server: limiter) == {:error, :busy}
+
+    send(holder, :finish)
+  end
+
+  @tag capture_log: true
+  test "a caller's own :wait_ms replaces the configured wait" do
+    limiter = start_limiter(1, 5_000)
+
+    holder = start_holder(limiter)
+    assert_receive {:got_slot, ^holder}
+
+    # Gives up after 100 ms instead of the limiter's 5 s.
+    assert Limiter.run(fn -> flunk("should not run") end, server: limiter, wait_ms: 100) ==
+             {:error, :busy}
+
+    send(holder, :finish)
+  end
+
+  test "someone who dies while waiting leaves the line at once" do
+    limiter = start_limiter(1, 5_000)
+
+    holder = start_holder(limiter)
+    assert_receive {:got_slot, ^holder}
+
+    # E.g. the artist removed the photo while it waited for its turn.
+    waiter = start_holder(limiter)
+    Process.sleep(50)
+    assert length(:sys.get_state(limiter).waiting) == 1
+    Process.exit(waiter, :kill)
+    Process.sleep(50)
+    assert :sys.get_state(limiter).waiting == []
 
     send(holder, :finish)
   end

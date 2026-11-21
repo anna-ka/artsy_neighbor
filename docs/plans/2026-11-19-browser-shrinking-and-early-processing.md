@@ -366,32 +366,116 @@ is processed until Save: then each photo is checked, resized and
 stored in a background task, one after another, while the page shows
 "Saving your photos…" (`ArtsyNeighborWeb.PhotoUploads`).
 
-### Proposed design (to confirm)
+### Design (agreed 2026-11-20)
 
 1. **As soon as a photo has finished uploading, the server processes
    it** (checks, makes `source.webp` and the three sizes) **into a
    temporary folder on the server, not into storage.** Each photo shows
-   its own status: "Preparing…", then "Ready", or the problem in plain
-   words ("This photo is too small…") with its ✕ to remove it.
+   its own status: "Checking the photo…" (spinner), then "Ready ✓", or
+   the problem in plain words ("This photo is too small…") in red with
+   its ✕ to remove it. ("Preparing photo…" is already the browser's
+   shrinking step, so the server's step has a different name.)
 2. **Save only stores and records:** it copies the ready files to
-   storage and makes the database rows. That's quick (storing took
-   0.1–0.24 s per photo on Fly). It also works for a new product,
-   which has no id (and so no storage folder) until it's saved.
-3. **If Save is pressed while photos are still being prepared**, the
-   form waits for them, as it now waits for uploads ("Your photos are
-   still being prepared…").
-4. **Nothing is left behind:** if the artist removes a photo, leaves
-   the page or closes the browser, its temporary files are deleted. A
-   small watcher process deletes a page's temporary folder when the
-   page's process ends, and at start-up the server deletes leftover
-   folders older than a day (e.g. after a crash).
-5. **The limiter stays:** one artist's photos are processed one after
-   another, holding one slot at a time, as today.
-6. **The upload box changes:** today it lists LiveView's own upload
-   entries. Processing on pick takes the file over from LiveView once
-   it has arrived, so the box becomes our own list of "photos being
-   added" (preview, name, status, ✕). This is the biggest part of 3b,
-   in all four forms that take photos (through `PhotoUploads`).
+   storage and makes the database rows, still in the background task
+   with "Saving your photos…", but quick (storing took 0.1–0.24 s per
+   photo on Fly). It also works for a new product, which has no id
+   (and so no storage folder) until it's saved: the folder is chosen
+   only at Save. In `Images`: `prepare_upload` (checks + the four
+   files) and `store_prepared` (copy to storage); `process_upload/3`
+   stays as the two together, for the sample data and the timing tool.
+3. **If Save is pressed while photos are still being checked, Save
+   waits by itself** (developer's choice, 2026-11-20): the text is
+   saved, "Saving your photos…" shows, and as soon as the photos are
+   ready they're stored and the form carries on as usual. The artist
+   presses once. (Photos still uploading, or still being shrunk in the
+   browser, keep today's message and "save again": those usually
+   finish while the artist is still on the photo section.)
+4. **A photo the server refused** (not a photo, too small, too large)
+   **blocks Save** until it's removed with ✕, as photos refused in the
+   browser already do: trying again can't help when the photo itself
+   is the problem. The text is still saved, as today.
+5. **"The site is busy" or "Something went wrong"** (problems on our
+   side): the photo waits longer for its turn than a button press
+   could (no browser time-out here); if it still fails, its row says
+   so and gets a **Try again** button. Save also tries such photos
+   once more.
+6. **Nothing is left behind:** removing a photo with ✕ deletes its
+   files; if it's still being worked on, it's let finish and the result
+   thrown away (stopping it halfway could leave a file being written).
+   A small watcher process deletes a page's temporary folder when the
+   page's process ends, and at start-up and once an hour the server
+   deletes leftover folders older than a day (e.g. after a crash).
+7. **The limiter stays:** one page's photos are processed one after
+   another, holding one slot at a time, as today. Storing at Save
+   doesn't take a slot (it's copying files, not image work).
+8. **The upload box stays LiveView's own list** (changed from the
+   first draft, which planned our own list): LiveView can keep a
+   finished photo in its list and just tell us where the file is
+   (`{:postpone, ...}`), so previews, ✕, the 5-photo limit and the 3c
+   hook (which waits for LiveView's row of each photo) keep working;
+   `PhotoUploads` adds one status line per photo, and handles the
+   "upload finished" and "photo ready" signals itself (`progress:`
+   callback, `attach_hook` on `:handle_async`), so the forms barely
+   change.
+
+### What was built (2026-11-20)
+
+- **`Images`:** `prepare_upload/4` (checks + the four files into a
+  work folder, holding a Limiter slot; errors come back as
+  `{:refused, message}` or `{:failed, message}`, so the page knows
+  whether trying again can help), `store_prepared/2` (copy to storage
+  and the timing log line; no Limiter slot) and `discard_prepared/1`.
+  `process_upload/3` is now the two together, so the sample data and
+  the timing tool work as before.
+- **`Limiter.run/2`** takes `wait_ms:` (and `server:`, for its tests).
+  A photo checked on pick may wait **3 minutes** for a slot instead of
+  30 s (`prepare_wait_ms` in `PhotoUploads`, can be set in config).
+- **`ArtsyNeighbor.Images.PreparedFolders`** (new, started with the
+  app): one temporary folder per page under
+  `<tmp>/artsy_neighbor_prepared/`, deleted when the page's process
+  ends; at start-up and hourly, folders older than a day that no open
+  page uses are deleted.
+- **`PhotoUploads`:** a `progress:` callback starts checking each photo
+  when its upload is done (one at a time per page, in the order
+  listed); an `attach_hook` on `:handle_async` takes the result; a
+  `"retry_photo"` event (the Try again button) is handled next to the
+  browser's `"photo_picker_state"`. Status per photo in the new
+  `:photo_prep` assign. `start_processing/5` and `finish_processing/3`
+  keep their shape, so the four forms only pass `photo_prep` to the
+  picker.
+- **Save with a photo that can't be used** stores the good ones and
+  stays on the page, asking to remove it ("Remove it with ✕ and pick
+  another photo, then save again."); with only problems on our side it
+  says "Press Try again next to it, or save again."
+
+**After the code review (2026-11-20), all 10 findings fixed:**
+
+- Each step in `Images` says itself whether its error is the photo's
+  or ours (no more telling them apart by the message text). A file
+  that can't be written after the photo was decoded (e.g. a full disk)
+  is now "failed" (Try again), not "couldn't read this file as a
+  photo".
+- ✕ on a photo being checked stops its task at once (it may only be
+  waiting for its turn), and its files are deleted once the task has
+  really ended. The Limiter drops a waiter that dies from its line.
+- When a photo fails on our side, the photos queued after it on the
+  same page get the same message instead of each waiting 3 minutes in
+  turn; one Try again retries them all. So a waiting Save ends within
+  about 3 minutes, not up to 15.
+- Storing protects each photo on its own (a crash fails only that
+  photo), and the page is told after each photo stored, so even if the
+  storing task died, no photo is stored twice.
+- While a save waits, only its own photos are checked; one picked
+  later is checked after the save.
+- `PreparedFolders` deletes a closed page's folder a minute later, in
+  the background (a photo step still finishing can't recreate it, and
+  other pages aren't held up), and keeps a `.owner` file in each folder
+  (the page's process and the server's operating-system process id),
+  so after a restart of `PreparedFolders` it watches the open pages'
+  folders again. Tests use their own folder (`config/test.exs`).
+- Smaller: the test helper's wait says clearly when it times out;
+  CLAUDE.md's photo rule names the two halves; the folder is
+  validated once.
 
 ### Very large photos (NOTES #43) fit in here
 
@@ -430,6 +514,21 @@ stores ready photos and makes their rows; Save with a photo still
 being prepared waits; removing a photo and closing the page delete its
 temporary files; the start-up clean-up removes only old folders; the
 new-product form works without a product id.
+
+*Written 2026-11-20:* `test/artsy_neighbor_web/live/photo_checking_test.exs`
+(11 tests on the vendor product form: all of the above, plus "site
+busy" → Try again, Save retrying a failed photo, ✕ while a photo is
+being checked or waiting for its turn, and the photos after a busy
+one not being left waiting; to make a photo wait, the tests hold all
+the app's Limiter slots, safe because the module isn't async),
+`test/artsy_neighbor/images/prepared_folders_test.exs` (7, incl. the
+restart cases), four tests for `prepare_upload`/`store_prepared` in
+`images_test.exs` (incl. a folder that can't be written to counting as
+"failed"), two in `limiter_test.exs` (`wait_ms:`, a waiter that dies). The existing upload tests of all four
+forms pass unchanged apart from the wording of the row message; the
+profile form tests now wait with `wait_for_photo_work/2`
+(`test/support/photo_upload_helpers.ex`), since checking one photo
+starts the next background step.
 
 ## Order of work
 

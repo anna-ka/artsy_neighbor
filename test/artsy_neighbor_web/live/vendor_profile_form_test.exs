@@ -62,7 +62,7 @@ defmodule ArtsyNeighborWeb.VendorProfileFormTest do
 
     # Waits until the background processing is done and returns the page.
     defp wait_for_photos(view) do
-      render_async(view, @wait)
+      wait_for_photo_work(view, @wait)
     end
 
     test "a good photo is stored and the form moves on to step 3", %{conn: conn} do
@@ -102,7 +102,7 @@ defmodule ArtsyNeighborWeb.VendorProfileFormTest do
       html = wait_for_photos(view)
 
       refute html =~ "Payment info stub"
-      assert html =~ "Not saved: This photo is too small to look good."
+      assert has_element?(view, "[id^=photo-entry-]", "This photo is too small to look good.")
       assert has_element?(view, "#photo-problem", "small.jpg was NOT saved")
       assert Artists.get_images_for_artist(artist) == []
     end

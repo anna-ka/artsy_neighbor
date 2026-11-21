@@ -4,41 +4,78 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   product form, vendor profile form, admin product form, admin artist
   form).
 
-  ## How a save with photos works
+  ## The life of a picked photo
 
-  1. The form saves its text fields as usual.
-  2. It calls `start_processing/5`. The photos the artist picked are
-     processed (checked, resized, stored — `ArtsyNeighbor.Images`) in a
-     **background task** (LiveView's `start_async/3`), and right after
-     each photo is stored the task makes its database row (the form's
-     `create_row` function). The page stays responsive meanwhile and
-     shows "Saving your photos…".
-
-     Why in the background: the browser waits at most 30 seconds for
-     the answer to a button press and then reloads the page. Processing
-     up to 5 photos, each possibly waiting for its turn
-     (`ArtsyNeighbor.Images.Limiter`), can take longer than that.
-
-     Why the row is made in the task, straight after the files: if the
-     page closes in between, stored files with no row pointing to them
-     would be left behind, and nothing would ever clean them up.
-  3. When the task is done, LiveView calls the form's
+  1. **Uploading.** The photo is sent to the server as soon as it's
+     picked (`auto_upload`), with a progress bar. (Big photos are first
+     shrunk in the browser, see below.)
+  2. **"Checking the photo…"** As soon as it has arrived, the server
+     checks it and makes the files we keep (`Images.prepare_upload/4`)
+     in the background, into a temporary folder for this page
+     (`ArtsyNeighbor.Images.PreparedFolders`), **not into storage yet**.
+     One photo at a time per page, each taking a slot in
+     `ArtsyNeighbor.Images.Limiter`. The artist meanwhile fills in the
+     rest of the form.
+  3. **"Ready ✓"**, or the problem in red: a photo that can't be used
+     (too small, not a photo, ...) says so and has to be removed with
+     ✕; a problem on our side (the site was busy, ...) gets a **Try
+     again** button.
+  4. **Save.** The form saves its text fields, then calls
+     `start_processing/5`. That only **stores** the ready photos and
+     makes their database rows (the form's `create_row` function), in a
+     background task (LiveView's `start_async/3`), which is quick. If a
+     photo is still being checked, Save waits for it by itself
+     ("Saving your photos…" meanwhile), so the artist presses only
+     once; photos with a problem on our side are tried once more.
+  5. When the task is done, LiveView calls the form's
      `handle_async(:process_photos, result, socket)`, which calls
      `finish_processing/3` here. Each stored photo leaves the upload
-     box; a refused one **stays in the upload box** with its message,
-     so the artist can see what went wrong and remove it or try again.
-     Then the form decides where to go next: on as usual if all went
-     well, or stay on the page if a photo was refused.
+     box; one that couldn't be used **stays in the upload box** with
+     its message, so the artist can see what went wrong. Then the form
+     decides where to go next: on as usual if all went well, or stay on
+     the page if a photo was refused.
+
+  The photo stays in LiveView's own upload list the whole time (it's
+  taken with `{:postpone, ...}`, which leaves it there and only tells us
+  where its file is), so previews, ✕ and the 5-photo limit work as
+  LiveView does them. This module only adds a status per photo
+  (`:photo_prep`). It catches the "upload finished" (the `progress:`
+  callback) and "photo checked" (an `attach_hook/4` on `:handle_async`)
+  signals itself, so the forms don't need to.
+
+  Why the background: the browser waits at most 30 seconds for the
+  answer to a button press and then reloads the page. Why the row is
+  made in the task, straight after the files: if the page closes in
+  between, stored files with no row pointing to them would be left
+  behind, and nothing would ever clean them up.
+
+  Plan: "3b" in `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
 
   ## Assigns this module adds to a form's socket
 
-    * `:photo_errors` — `%{entry_ref => message}`, the message for each
-      refused photo still in the upload box;
+    * `:photo_prep` — `%{entry_ref => photo}`, one per uploaded photo,
+      where `photo` is `%{name: file name, upload_path: its uploaded file,
+      status: status}`, and `status` is `:queued` (waiting for this
+      page's turn), `:checking`, `{:ready, prepared}`, `{:refused,
+      message}` (the photo can't be used), `{:failed, message}` (a
+      problem on our side; can be tried again), `:stored` (stored by a
+      save still under way) or `:removed` (removed with ✕ while being
+      checked; gone once its task has ended);
+    * `:photo_checking` — the ref of the photo being checked right now,
+      or `nil` (also kept for a photo removed while being checked, so
+      the next one waits until it's done);
+    * `:photo_folder` — this page's temporary folder, made at the first
+      photo;
+    * `:pending_save` — set while a save waits for photos still being
+      checked: what to store where;
+    * `:photo_errors` — `%{entry_ref => message}` for photos picked
+      while the others were being saved (rare; see finish_processing/3);
     * `:photo_problem` — a summary sentence shown in red next to the
       save button(s), or `nil`;
-    * `:saving_photos` — true while the background task runs. The
-      file picker, the ✕ buttons and the buttons of the stored photos
-      are disabled meanwhile, and the forms ignore save presses;
+    * `:saving_photos` — true while a save stores photos or waits for
+      them. The file picker, the ✕ buttons and the buttons of the
+      stored photos are disabled meanwhile, and the forms ignore save
+      presses;
     * `:photos_preparing` — true while the browser is still shrinking
       picked photos (see below). A save then waits, as it does for
       photos still uploading;
@@ -61,8 +98,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   the same way either way. It keeps the server informed (the
   `"photo_picker_state"` event: still preparing? which photos were
   refused?), handled here through `attach_hook/4`, so the forms don't
-  need to. Plan:
-  `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
+  need to.
   """
 
   use Phoenix.Component
@@ -71,6 +107,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     only: [
       allow_upload: 3,
       attach_hook: 4,
+      cancel_async: 3,
       cancel_upload: 3,
       consume_uploaded_entry: 3,
       start_async: 3,
@@ -80,6 +117,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   require Logger
 
   alias ArtsyNeighbor.Images
+  alias ArtsyNeighbor.Images.PreparedFolders
   alias ArtsyNeighbor.Storage
 
   # Everything is converted to WebP on our side, so the uploaded format
@@ -90,6 +128,12 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   # Phone photos are big; we shrink them anyway.
   @max_file_size 25_000_000
   @max_entries 5
+
+  # How long a photo checked on pick may wait for a free Limiter slot.
+  # Longer than the Limiter's usual 30 s: no button press is waiting for
+  # an answer here. Can be set in config (the tests make it short):
+  #   config :artsy_neighbor, ArtsyNeighborWeb.PhotoUploads, prepare_wait_ms: 180_000
+  @default_prepare_wait_ms 180_000
 
   # Formats most browsers can show as a preview before upload. HEIC and
   # TIFF usually can't be shown, so they get a plain placeholder instead
@@ -123,7 +167,12 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
           # only when the form is saved: the photo sections sit near the
           # top of the forms, so the sending happens while the artist
           # fills in the rest.
-          auto_upload: true
+          auto_upload: true,
+          # Called as each photo's upload goes on; we start checking the
+          # photo when it's done.
+          progress: fn upload_name, entry, socket ->
+            handle_progress(upload_name, entry, socket)
+          end
         ],
         opts
       )
@@ -131,6 +180,11 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     socket
     |> allow_upload(name, upload_opts)
     |> assign(
+      photo_prep: %{},
+      photo_checking: nil,
+      photo_folder: nil,
+      pending_save: nil,
+      photos_in_progress: [],
       photo_errors: %{},
       photo_problem: nil,
       saving_photos: false,
@@ -138,17 +192,26 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       refused_in_browser: [],
       problem_from_browser: false
     )
-    |> attach_hook(:photo_picker_state, :handle_event, fn event, params, socket ->
-      handle_picker_state(event, params, socket)
+    |> attach_hook(:photo_picker_events, :handle_event, fn event, params, socket ->
+      handle_picker_event(name, event, params, socket)
+    end)
+    |> attach_hook(:photo_checked, :handle_async, fn key, result, socket ->
+      handle_photo_checked(key, result, socket)
+    end)
+    |> attach_hook(:photo_stored, :handle_info, fn message, socket ->
+      handle_photo_stored(message, socket)
     end)
   end
 
+  # --- Events from the page --------------------------------------------
+  #
+  # Each is always handled here ({:halt, ...}), whatever its contents,
+  # so a malformed one can't reach the form (which has no clause for
+  # it). Every other event goes on to the form ({:cont, ...}).
+
   # The browser's PhotoShrink hook sends its state whenever it changes:
-  # %{"preparing" => true/false, "refused" => [file names]}. The event is
-  # always handled here ({:halt, ...}), whatever its contents, so a
-  # malformed one can't reach the form (which has no clause for it).
-  # Every other event goes on to the form ({:cont, ...}).
-  defp handle_picker_state("photo_picker_state", params, socket) do
+  # %{"preparing" => true/false, "refused" => [file names]}.
+  defp handle_picker_event(_name, "photo_picker_state", params, socket) do
     socket =
       socket
       |> assign(:photos_preparing, params["preparing"] == true)
@@ -158,7 +221,25 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     {:halt, socket}
   end
 
-  defp handle_picker_state(_event, _params, socket), do: {:cont, socket}
+  # The "Try again" button of a photo that failed on our side. It tries
+  # every such photo again, not just the one whose button was pressed:
+  # when one fails on our side (e.g. the site was busy), the photos
+  # waiting after it are given the same message without being tried
+  # (see handle_photo_checked/3), so they all need another go.
+  defp handle_picker_event(name, "retry_photo", _params, socket) do
+    if socket.assigns.saving_photos do
+      {:halt, socket}
+    else
+      socket =
+        socket
+        |> queue_failed_again(Map.keys(socket.assigns.photo_prep))
+        |> check_next_photo(name)
+
+      {:halt, socket}
+    end
+  end
+
+  defp handle_picker_event(_name, _event, _params, socket), do: {:cont, socket}
 
   # Only strings, a limited number, each of limited length.
   defp refused_names(names) when is_list(names) do
@@ -179,9 +260,188 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
   defp clear_browser_problem(socket), do: socket
 
+  # --- Checking each photo as soon as it has arrived -------------------
+
+  # LiveView calls this as a photo's upload goes on. Once it's done, we
+  # take note of where its file is ({:postpone, ...} keeps the photo in
+  # the upload box and its file on disk) and queue it for checking.
+  defp handle_progress(name, entry, socket) do
+    if entry.done? and not Map.has_key?(socket.assigns.photo_prep, entry.ref) do
+      socket =
+        socket
+        |> add_photo(entry)
+        |> check_next_photo(name)
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  defp add_photo(socket, entry) do
+    path = consume_uploaded_entry(socket, entry, fn %{path: path} -> {:postpone, path} end)
+    photo = %{name: entry.client_name, upload_path: path, status: :queued}
+    assign(socket, :photo_prep, Map.put(socket.assigns.photo_prep, entry.ref, photo))
+  end
+
+  # Where the photo's files are being made, so they can be deleted if
+  # the photo is removed while it's being checked.
+  defp put_work_dir(socket, ref, work_dir) do
+    photo_prep =
+      Map.update!(socket.assigns.photo_prep, ref, fn photo ->
+        Map.put(photo, :work_dir, work_dir)
+      end)
+
+    assign(socket, :photo_prep, photo_prep)
+  end
+
+  defp put_status(socket, ref, status) do
+    photo_prep =
+      Map.update!(socket.assigns.photo_prep, ref, fn photo -> %{photo | status: status} end)
+
+    assign(socket, :photo_prep, photo_prep)
+  end
+
+  # Starts checking the next queued photo (in the order they're listed),
+  # unless one is being checked already: one at a time per page. When
+  # nothing is left to check and a save is waiting, the save goes on.
+  #
+  # While a save waits, only its own photos are checked: a photo picked
+  # after Save mustn't hold it up. (It's checked once the save is done,
+  # see finish_processing/3.)
+  defp check_next_photo(%{assigns: %{photo_checking: ref}} = socket, _name) when ref != nil do
+    socket
+  end
+
+  defp check_next_photo(socket, name) do
+    candidate_refs =
+      case socket.assigns.pending_save do
+        nil -> Enum.map(socket.assigns.uploads[name].entries, fn entry -> entry.ref end)
+        pending -> pending.refs
+      end
+
+    queued_ref =
+      Enum.find(candidate_refs, fn ref ->
+        match?(%{status: :queued}, socket.assigns.photo_prep[ref])
+      end)
+
+    if queued_ref do
+      start_checking(socket, name, queued_ref)
+    else
+      continue_waiting_save(socket)
+    end
+  end
+
+  defp start_checking(socket, name, ref) do
+    case page_folder(socket) do
+      {:ok, socket, page_folder} ->
+        photo = socket.assigns.photo_prep[ref]
+        work_dir = Path.join(page_folder, Ecto.UUID.generate())
+        wait_ms = prepare_wait_ms()
+
+        socket
+        |> put_status(ref, :checking)
+        |> put_work_dir(ref, work_dir)
+        |> assign(:photo_checking, ref)
+        |> start_async({:check_photo, name, ref}, fn ->
+          Images.prepare_upload(photo.upload_path, photo.name, work_dir, wait_ms: wait_ms)
+        end)
+
+      {:error, socket} ->
+        socket
+        |> put_status(ref, {:failed, @msg_save_failed})
+        |> check_next_photo(name)
+    end
+  end
+
+  # This page's temporary folder, made the first time it's needed.
+  defp page_folder(%{assigns: %{photo_folder: folder}} = socket) when folder != nil do
+    {:ok, socket, folder}
+  end
+
+  defp page_folder(socket) do
+    case PreparedFolders.page_folder(self()) do
+      {:ok, folder} -> {:ok, assign(socket, :photo_folder, folder), folder}
+      {:error, _reason} -> {:error, socket}
+    end
+  end
+
+  defp prepare_wait_ms do
+    :artsy_neighbor
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:prepare_wait_ms, @default_prepare_wait_ms)
+  end
+
+  # A photo has been checked (the background task started in
+  # start_checking/3 is done). Other async results go on to the form.
+  defp handle_photo_checked({:check_photo, name, ref}, result, socket) do
+    status =
+      case result do
+        {:ok, {:ok, prepared}} ->
+          {:ready, prepared}
+
+        {:ok, {:error, {:refused, message}}} ->
+          {:refused, message}
+
+        {:ok, {:error, {:failed, message}}} ->
+          {:failed, message}
+
+        # Stopped by cancel_photo/3: not a crash.
+        {:exit, {:shutdown, :photo_removed}} ->
+          :stopped
+
+        {:exit, reason} ->
+          Logger.error("Checking photo #{inspect(ref)} crashed: #{inspect(reason)}")
+          {:failed, @msg_save_failed}
+      end
+
+    socket = assign(socket, :photo_checking, nil)
+
+    socket =
+      case socket.assigns.photo_prep[ref] do
+        # Removed with ✕ while it was being checked (cancel_photo/3). Its
+        # task has ended now, so nothing more can be written into its
+        # folder: delete it, with whatever was made.
+        %{status: :removed} = photo ->
+          discard_status(status)
+          File.rm_rf(photo.work_dir)
+          assign(socket, :photo_prep, Map.delete(socket.assigns.photo_prep, ref))
+
+        %{} ->
+          socket
+          |> put_status(ref, status)
+          |> fail_waiting_photos(status)
+      end
+
+    {:halt, check_next_photo(socket, name)}
+  end
+
+  defp handle_photo_checked(_key, _result, socket), do: {:cont, socket}
+
+  # A photo failed on our side (e.g. it waited minutes for its turn and
+  # the site is still busy). The photos queued after it would most
+  # likely wait just as long, one after another, so they aren't started:
+  # they get the same message and a "Try again" too.
+  defp fail_waiting_photos(socket, {:failed, message}) do
+    Enum.reduce(socket.assigns.photo_prep, socket, fn {ref, photo}, socket ->
+      if photo.status == :queued do
+        put_status(socket, ref, {:failed, message})
+      else
+        socket
+      end
+    end)
+  end
+
+  defp fail_waiting_photos(socket, _status), do: socket
+
+  defp discard_status({:ready, prepared}), do: Images.discard_prepared(prepared)
+  defp discard_status(_other), do: :ok
+
+  # --- Saving ------------------------------------------------------------
+
   @doc """
-  Starts processing the photos in upload slot `name` in the background,
-  storing them under `folder` (e.g. `"products/12"`).
+  Stores the photos in upload slot `name` under `folder` (e.g.
+  `"products/12"`), in the background, once they're all checked.
 
   `create_row` makes a stored photo's database row. It is called (in the
   background task) as `create_row.(key, position)`, with positions
@@ -191,13 +451,14 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   Returns one of:
 
     * `{:started, socket}` — the form's
-      `handle_async(:process_photos, ...)` will be called when done;
-    * `{:no_photos, socket}` — nothing to process; the form carries on;
+      `handle_async(:process_photos, ...)` will be called when done
+      (after waiting for photos still being checked, if any);
+    * `{:no_photos, socket}` — nothing to store; the form carries on;
     * `{:not_ready, socket}` — a picked file was already refused in the
-      browser (too large, wrong type), or is still being prepared or
-      uploading.
-      Nothing is processed and `:photo_problem` says why; the form
-      should stay on the page, as when a photo is refused.
+      browser (too large, wrong type), or is still being prepared there
+      or still uploading.
+      Nothing is stored and `:photo_problem` says why; the form should
+      stay on the page, as when a photo is refused.
   """
   def start_processing(socket, name, folder, first_position, create_row) do
     socket = assign(socket, photo_errors: %{}, photo_problem: nil, problem_from_browser: false)
@@ -226,7 +487,8 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       refused != [] ->
         failures =
           for entry <- refused do
-            {entry.client_name, browser_check_reason(socket.assigns.uploads[name], entry)}
+            {entry.client_name, :refused,
+             browser_check_reason(socket.assigns.uploads[name], entry)}
           end
 
         {:not_ready, assign(socket, :photo_problem, problem_summary(failures))}
@@ -235,48 +497,119 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
         {:no_photos, socket}
 
       true ->
-        # {:postpone, ...} gives us each temporary file's path but keeps
-        # the photo in the upload box (and its file on disk) for now. A
-        # photo leaves the box only once it is stored
-        # (finish_processing/3).
-        files =
-          for entry <- done do
-            consume_uploaded_entry(socket, entry, fn %{path: path} ->
-              {:postpone, %{ref: entry.ref, client_name: entry.client_name, path: path}}
-            end)
-          end
+        pending = %{
+          refs: Enum.map(done, fn entry -> entry.ref end),
+          folder: folder,
+          first_position: first_position,
+          create_row: create_row
+        }
 
         socket =
           socket
-          |> assign(:saving_photos, true)
-          |> assign(:photos_in_progress, files)
-          |> start_async(:process_photos, fn ->
-            process_all(files, folder, first_position, create_row)
-          end)
+          |> make_sure_all_known(done)
+          |> queue_failed_again(pending.refs)
+          |> assign(saving_photos: true, pending_save: pending)
+          |> check_next_photo(name)
 
         {:started, socket}
     end
   end
 
+  # Every finished upload has a status already (handle_progress/3); this
+  # is only a safety net, so no photo can be left out of a save.
+  defp make_sure_all_known(socket, done_entries) do
+    Enum.reduce(done_entries, socket, fn entry, socket ->
+      if Map.has_key?(socket.assigns.photo_prep, entry.ref) do
+        socket
+      else
+        add_photo(socket, entry)
+      end
+    end)
+  end
+
+  # Save tries photos that failed on our side once more.
+  defp queue_failed_again(socket, refs) do
+    Enum.reduce(refs, socket, fn ref, socket ->
+      case socket.assigns.photo_prep[ref] do
+        %{status: {:failed, _message}} -> put_status(socket, ref, :queued)
+        _other -> socket
+      end
+    end)
+  end
+
+  # Called when nothing is left to check. If a save is waiting, its
+  # photos are all checked now: store them.
+  defp continue_waiting_save(%{assigns: %{pending_save: nil}} = socket), do: socket
+
+  defp continue_waiting_save(socket) do
+    pending = socket.assigns.pending_save
+
+    # What to do with each photo of the save, in the order picked.
+    photos =
+      for ref <- pending.refs, photo = socket.assigns.photo_prep[ref], photo != nil do
+        %{ref: ref, client_name: photo.name, status: photo.status}
+      end
+
+    page = self()
+
+    socket
+    |> assign(pending_save: nil, photos_in_progress: photos)
+    |> start_async(:process_photos, fn ->
+      store_all(photos, pending.folder, pending.first_position, pending.create_row, page)
+    end)
+  end
+
   # Runs in the background task, one photo after another. Returns
-  # {ref, :stored} or {ref, {:error, message}} for each photo.
-  defp process_all(files, folder, first_position, create_row) do
+  # {ref, :stored}, {ref, {:refused, message}} or {ref, {:failed,
+  # message}} for each photo.
+  #
+  # Tells the page (`page`) as soon as each photo is stored, so that even
+  # if this task died halfway, the page would know which photos already
+  # have their row and mustn't be stored again (finish_processing/3).
+  defp store_all(photos, folder, first_position, create_row, page) do
     {results, _next_position} =
-      Enum.map_reduce(files, first_position, fn file, position ->
-        case process_one(file, folder, position, create_row) do
-          :stored -> {{file.ref, :stored}, position + 1}
-          {:error, message} -> {{file.ref, {:error, message}}, position}
+      Enum.map_reduce(photos, first_position, fn photo, position ->
+        case photo.status do
+          {:ready, prepared} ->
+            case store_one_safely(prepared, folder, position, create_row) do
+              :stored ->
+                send(page, {:photo_stored, photo.ref})
+                {{photo.ref, :stored}, position + 1}
+
+              {:error, message} ->
+                {{photo.ref, {:failed, message}}, position}
+            end
+
+          # Refused or failed when checked: passed on as it is.
+          other ->
+            {{photo.ref, other}, position}
         end
       end)
 
     results
   end
 
-  # Processes and stores one photo, then makes its row.
-  defp process_one(file, folder, position, create_row) do
-    case Images.process_upload(file.path, file.client_name, folder) do
+  # Stores one checked photo, then makes its row. Its temporary files go
+  # either way: if storing failed, trying again checks the photo afresh.
+  #
+  # Anything that raises (or exits) here counts as this photo failing, so
+  # one photo's crash can't take the others down with it.
+  defp store_one_safely(prepared, folder, position, create_row) do
+    try do
+      store_one(prepared, folder, position, create_row)
+    catch
+      kind, reason ->
+        Logger.error("Storing photo #{prepared.client_name} crashed: #{inspect({kind, reason})}")
+        {:error, @msg_save_failed}
+    after
+      Images.discard_prepared(prepared)
+    end
+  end
+
+  defp store_one(prepared, folder, position, create_row) do
+    case Images.store_prepared(prepared, folder) do
       {:ok, key} ->
-        case create_row.(key, position) do
+        case create_row_safely(create_row, key, position) do
           {:ok, _row} ->
             :stored
 
@@ -292,51 +625,85 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     end
   end
 
+  # The form's create_row function, with a raise counted as an error,
+  # so the stored files are removed again (store_one/4).
+  defp create_row_safely(create_row, key, position) do
+    try do
+      create_row.(key, position)
+    rescue
+      exception -> {:error, exception}
+    end
+  end
+
+  # The background task stored a photo (store_all/5). Other messages go
+  # on to the form.
+  defp handle_photo_stored({:photo_stored, ref}, socket) do
+    socket =
+      if Map.has_key?(socket.assigns.photo_prep, ref) do
+        put_status(socket, ref, :stored)
+      else
+        socket
+      end
+
+    {:halt, socket}
+  end
+
+  defp handle_photo_stored(_message, socket), do: {:cont, socket}
+
   @doc """
   Handles the background task's result (the form's `handle_async`
-  passes it on): stored photos leave the upload box, refused ones stay
+  passes it on): stored photos leave the upload box, the others stay
   with their messages.
 
   Returns `{socket, outcome}`, where `outcome` is
   `%{stored: count, failed: count}`.
   """
   def finish_processing(socket, name, async_result) do
-    files = socket.assigns.photos_in_progress
+    photos = socket.assigns.photos_in_progress
 
     results =
       case async_result do
         {:ok, results} ->
           results
 
-        # The task crashed. Every photo counts as failed; it stays in the
-        # upload box for another try. (A photo stored just before the
-        # crash keeps its row and shows up under the stored photos.)
+        # The task died. (Each photo is protected on its own in
+        # store_all/5, so this needs something unusual, e.g. the task
+        # being killed.) The page was told about each photo stored before
+        # that, so those count as stored and won't be stored twice. A
+        # photo that was ready but not stored yet counts as failed (its
+        # files are deleted; trying again checks it afresh); refused and
+        # failed photos keep their messages.
         {:exit, reason} ->
-          Logger.error("Processing photos crashed: #{inspect(reason)}")
+          Logger.error("Storing photos crashed: #{inspect(reason)}")
 
-          for file <- files do
-            {file.ref, {:error, @msg_save_failed}}
+          for photo <- photos do
+            {photo.ref, result_after_crash(socket.assigns.photo_prep[photo.ref])}
           end
       end
 
-    {socket, errors, stored} =
-      Enum.reduce(results, {socket, %{}, 0}, fn {ref, result}, {socket, errors, stored} ->
+    {socket, stored} =
+      Enum.reduce(results, {socket, 0}, fn {ref, result}, {socket, stored} ->
         case result do
-          :stored -> {remove_from_upload_box(socket, name, ref), errors, stored + 1}
-          {:error, message} -> {socket, Map.put(errors, ref, message), stored}
+          :stored -> {remove_from_upload_box(socket, name, ref), stored + 1}
+          not_stored -> {put_status(socket, ref, not_stored), stored}
         end
       end)
 
-    # {file name, reason} for each refused photo, in the order picked.
+    # {file name, kind, reason} for each photo not stored, in the order
+    # picked. (A result that isn't :stored is {:refused or :failed,
+    # message}.)
+    results_by_ref = Map.new(results)
+
     failures =
-      for file <- files, Map.has_key?(errors, file.ref) do
-        {file.client_name, errors[file.ref]}
+      for photo <- photos, results_by_ref[photo.ref] != :stored do
+        {kind, message} = results_by_ref[photo.ref]
+        {photo.client_name, kind, message}
       end
 
     # Photos picked while the others were being saved weren't part of
     # this save. (The picker is disabled meanwhile, so this is a rare
     # case.) Say so, rather than letting the form move on without them.
-    batch_refs = Enum.map(files, fn file -> file.ref end)
+    batch_refs = Enum.map(photos, fn photo -> photo.ref end)
 
     late_entries =
       Enum.reject(socket.assigns.uploads[name].entries, fn entry -> entry.ref in batch_refs end)
@@ -345,20 +712,39 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       Map.new(late_entries, fn entry -> {entry.ref, @msg_picked_late} end)
 
     late_failures =
-      Enum.map(late_entries, fn entry -> {entry.client_name, @msg_picked_late} end)
+      Enum.map(late_entries, fn entry -> {entry.client_name, :failed, @msg_picked_late} end)
 
     all_failures = failures ++ late_failures
 
+    # A photo picked during the save may still be waiting to be checked
+    # (check_next_photo/2 keeps to the save's own photos meanwhile).
     socket =
-      assign(socket,
+      socket
+      |> assign(
         saving_photos: false,
         photos_in_progress: [],
-        photo_errors: Map.merge(errors, late_errors),
+        photo_errors: late_errors,
         photo_problem: problem_summary(all_failures)
       )
+      |> check_next_photo(name)
 
     {socket, %{stored: stored, failed: length(all_failures)}}
   end
+
+  # What a photo counts as when the storing task died (see
+  # finish_processing/3): `photo` is its entry in :photo_prep.
+  defp result_after_crash(%{status: :stored}), do: :stored
+
+  defp result_after_crash(%{status: {:ready, prepared}}) do
+    Images.discard_prepared(prepared)
+    {:failed, @msg_save_failed}
+  end
+
+  defp result_after_crash(%{status: {kind, message}}) when kind in [:refused, :failed] do
+    {kind, message}
+  end
+
+  defp result_after_crash(_other), do: {:failed, @msg_save_failed}
 
   # The photo is stored, so its temporary upload file can go.
   defp remove_from_upload_box(socket, name, ref) do
@@ -368,33 +754,51 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
       consume_uploaded_entry(socket, entry, fn _meta -> {:ok, nil} end)
     end
 
-    socket
+    assign(socket, :photo_prep, Map.delete(socket.assigns.photo_prep, ref))
   end
 
   # The text for the red box (and the flash, see problem_flash/2):
   # which photos weren't saved, why, and what to do. `failures` is a
-  # list of {file name, reason}.
+  # list of {file name, kind, reason}, kind being :refused (the photo
+  # can't be used: only removing it helps) or :failed (trying again
+  # may work).
   defp problem_summary([]), do: nil
 
-  defp problem_summary([{file_name, reason}]) do
-    "Your photo #{file_name} was NOT saved: #{reason} " <>
-      "Remove it with ✕ and pick another photo, or save again to try once more."
+  defp problem_summary([{file_name, kind, reason}]) do
+    "Your photo #{file_name} was NOT saved: #{reason} " <> what_to_do([kind], :one)
   end
 
   defp problem_summary(failures) do
     reasons =
-      for {file_name, reason} <- failures do
+      for {file_name, _kind, reason} <- failures do
         "#{file_name}: #{reason}"
       end
 
+    kinds = Enum.map(failures, fn {_file_name, kind, _reason} -> kind end)
+
     "#{length(failures)} photos were NOT saved. " <>
-      Enum.join(reasons, " ") <>
-      " Remove them with ✕ and pick other photos, or save again to try once more."
+      Enum.join(reasons, " ") <> " " <> what_to_do(kinds, :several)
+  end
+
+  defp what_to_do(kinds, :one) do
+    if :refused in kinds do
+      "Remove it with ✕ and pick another photo, then save again."
+    else
+      "Press Try again next to it, or save again."
+    end
+  end
+
+  defp what_to_do(kinds, :several) do
+    if :refused in kinds do
+      "Remove the ones that can't be used with ✕ and pick other photos, then save again."
+    else
+      "Press Try again next to them, or save again."
+    end
   end
 
   # The text for the red box when the browser refused photos without
   # uploading them (over the size limit). Saving again doesn't help
-  # here, so unlike problem_summary/1 it only says to remove them.
+  # here, so it only says to remove them.
   defp refused_in_browser_summary([file_name]) do
     "Your photo #{file_name} was NOT uploaded: #{Images.too_large_message()} " <>
       "Remove it with ✕ and pick another photo, then save again."
@@ -436,12 +840,35 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   def order_reminder(_outcome, _total_photos), do: nil
 
   @doc """
-  Removes one photo from the upload box (its ✕ button). Ignored while
-  photos are being saved: the photo may be the one being processed.
+  Removes one photo from the upload box (its ✕ button), with its
+  temporary files. Ignored while photos are being saved: the photo may
+  be the one being stored.
+
+  A photo still being checked has its background task stopped (it may
+  only be waiting for its turn, which can take minutes). The photo
+  stays in `:photo_prep` as `:removed` until the task has really ended
+  (handle_photo_checked/3 gets told), and only then are its files
+  deleted: a task stopped in the middle of writing a file finishes that
+  file first.
   """
   def cancel_photo(%{assigns: %{saving_photos: true}} = socket, _name, _ref), do: socket
 
   def cancel_photo(socket, name, ref) do
+    socket =
+      case socket.assigns.photo_prep[ref] do
+        %{status: :checking} ->
+          socket
+          |> cancel_async({:check_photo, name, ref}, {:shutdown, :photo_removed})
+          |> put_status(ref, :removed)
+
+        %{status: status} ->
+          discard_status(status)
+          assign(socket, :photo_prep, Map.delete(socket.assigns.photo_prep, ref))
+
+        nil ->
+          socket
+      end
+
     socket
     |> cancel_upload(name, ref)
     |> assign(:photo_errors, Map.delete(socket.assigns.photo_errors, ref))
@@ -460,9 +887,10 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
   @doc """
   The file picker plus one row per picked photo: preview, name,
-  progress, ✕, and any message about it.
+  progress or status, ✕, and any message about it.
   """
   attr :upload, :any, required: true, doc: "e.g. @uploads.images"
+  attr :photo_prep, :map, required: true, doc: "the :photo_prep assign"
   attr :photo_errors, :map, required: true
   attr :saving_photos, :boolean, required: true
 
@@ -493,7 +921,8 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
           id={"photo-entry-#{entry.ref}"}
           class={[
             "flex flex-wrap items-center gap-3 rounded-lg p-2",
-            Map.has_key?(@photo_errors, entry.ref) && "border-2 border-error bg-error/10"
+            has_problem?(@photo_prep[entry.ref], @photo_errors[entry.ref]) &&
+              "border-2 border-error bg-error/10"
           ]}
         >
           <.live_img_preview
@@ -510,7 +939,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
           <div class="flex-1 min-w-0">
             <p class="text-sm truncate">{entry.client_name}</p>
-            <progress value={entry.progress} max="100" class="progress progress-primary w-full" />
+            <.photo_state entry={entry} photo={@photo_prep[entry.ref]} />
           </div>
 
           <button
@@ -531,7 +960,13 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
           >
             {error_to_string(err)}
           </p>
-          <%!-- Problems found on the server while processing. --%>
+          <%!-- Problems found on the server when checking the photo. --%>
+          <.check_problem
+            photo={@photo_prep[entry.ref]}
+            ref={entry.ref}
+            saving_photos={@saving_photos}
+          />
+          <%!-- Picked while the others were being saved. --%>
           <p :if={@photo_errors[entry.ref]} class="w-full text-error text-sm font-semibold">
             Not saved: {@photo_errors[entry.ref]}
           </p>
@@ -561,10 +996,77 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     """
   end
 
+  defp has_problem?(%{status: {:refused, _}}, _late_error), do: true
+  defp has_problem?(%{status: {:failed, _}}, _late_error), do: true
+  defp has_problem?(_photo, late_error), do: late_error != nil
+
+  # Under the photo's name: the upload's progress bar until it has
+  # arrived, then what the server is doing with it.
+  attr :entry, :any, required: true
+  attr :photo, :map, default: nil
+
+  defp photo_state(%{photo: nil} = assigns) do
+    ~H"""
+    <progress value={@entry.progress} max="100" class="progress progress-primary w-full" />
+    """
+  end
+
+  defp photo_state(%{photo: %{status: status}} = assigns) when status in [:queued, :checking] do
+    ~H"""
+    <p class="text-sm text-base-content/70 flex items-center gap-2" role="status">
+      <span class="loading loading-spinner loading-xs"></span> Checking the photo…
+    </p>
+    """
+  end
+
+  defp photo_state(%{photo: %{status: {:ready, _prepared}}} = assigns) do
+    ~H"""
+    <p class="text-sm text-success font-semibold">Ready ✓</p>
+    """
+  end
+
+  # Refused or failed: the message goes on its own line (photo_problem/1).
+  defp photo_state(assigns), do: ~H""
+
+  # The server's message about a photo it couldn't use, or couldn't
+  # check because of a problem on our side (then with "Try again").
+  attr :photo, :map, default: nil
+  attr :ref, :string, required: true
+  attr :saving_photos, :boolean, required: true
+
+  defp check_problem(%{photo: %{status: {:refused, message}}} = assigns) do
+    assigns = assign(assigns, :message, message)
+
+    ~H"""
+    <p class="w-full text-error text-sm font-semibold">{@message}</p>
+    """
+  end
+
+  defp check_problem(%{photo: %{status: {:failed, message}}} = assigns) do
+    assigns = assign(assigns, :message, message)
+
+    ~H"""
+    <div class="w-full flex flex-wrap items-center gap-3">
+      <p class="text-error text-sm font-semibold">{@message}</p>
+      <button
+        :if={not @saving_photos}
+        type="button"
+        phx-click="retry_photo"
+        phx-value-ref={@ref}
+        class="btn btn-sm btn-outline"
+      >
+        Try again
+      </button>
+    </div>
+    """
+  end
+
+  defp check_problem(assigns), do: ~H""
+
   @doc """
   Goes next to the save button(s): "Saving your photos…" while the
-  background task runs, and a red box if a photo was refused. (The
-  flash says the same, but is easy to miss.)
+  photos are stored (or a save waits for them), and a red box if a
+  photo was refused. (The flash says the same, but is easy to miss.)
   """
   attr :saving_photos, :boolean, required: true
   attr :photo_problem, :string, default: nil
@@ -574,7 +1076,7 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     <div :if={@saving_photos} id="saving-photos" class="alert alert-info mt-4" role="status">
       <span class="loading loading-spinner"></span>
       <span>
-        Saving your photos… This usually takes a few seconds per photo, a little longer
+        Saving your photos… This usually takes a few seconds, a little longer
         when the site is busy. Please keep this page open.
       </span>
     </div>
