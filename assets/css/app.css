@@ -837,7 +837,7 @@
 
   /* "Back to ...": just under the category bar, starting where "All
      categories" starts and looking like it. That spot is the screen
-     edge + logo + gap of the category bar (24px + 66px + 10px, see
+     edge + logo + gap of the category bar (24px + 77px + 10px, see
      "Header" below) from the window's left edge; the column starts
      half the difference between window and column further right, so
      that is subtracted. It takes a line of its own, so the header
@@ -846,7 +846,7 @@
   .back-under-menu {
     display: inline-block;
     margin-top: 12px;
-    margin-left: calc(100px - (100vw - 100%) / 2);
+    margin-left: calc(111px - (100vw - 100%) / 2);
     /* Font, size and colour: shared with the category bar's links
        (see "Header" below). */
   }
@@ -1304,7 +1304,8 @@
      and site name near the left edge, search box and links near the
      right. Shared measurements, so the category bar and the admin strip
      can line up with the site name. */
-  .site-header, .category-bar, .admin-strip { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; }
+  .site-header, .category-bar, .admin-strip { --header-edge: 24px; --logo-size: 77px; --logo-gap: 10px; }
+   /* .site-header, .category-bar, .admin-strip { --header-edge: 24px; --logo-size: 66px; --logo-gap: 10px; } */
   .site-header { border-bottom: var(--border) solid var(--color-base-300); }
   .site-header-row { display: flex; align-items: center; gap: 20px; padding: 10px var(--header-edge); }
   .brand { display: flex; align-items: center; gap: var(--logo-gap); flex: none; color: inherit; text-decoration: none; }

@@ -52,7 +52,9 @@ defmodule ArtsyNeighborWeb.Layouts do
         <div class="site-header-row">
           <.link navigate={~p"/"} class="brand" aria-label="localpalette, home page">
             <%!-- The logo is still a draft (the final one is being made). --%>
-            <img src={~p"/images/site/logo-draft.png"} alt="" class="brand-logo" />
+            <%!-- <img src={~p"/images/site/logo-v2-pastely-trimmed.png"} alt="" class="brand-logo" /> --%>
+            <img src={~p"/images/site/logo-3-linear-trimmed.png"} alt="" class="brand-logo" />
+            <%!-- <img src={~p"/images/site/logo-draft.png"} alt="" class="brand-logo" /> --%>
             <.wordmark />
           </.link>
 
