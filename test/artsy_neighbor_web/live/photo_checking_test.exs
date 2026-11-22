@@ -233,7 +233,8 @@ defmodule ArtsyNeighborWeb.PhotoCheckingTest do
   test "removing a photo while it waits for its turn stops it at once", %{view: view} do
     _holders = hold_all_slots()
     pick_photos(view, "#product-form", :images, [good_photo()])
-    assert length(:sys.get_state(Limiter).waiting) == 1
+    # (It reads the photo's header first, then joins the line.)
+    assert eventually(fn -> length(:sys.get_state(Limiter).waiting) == 1 end)
 
     view |> element("button[aria-label='Remove cat.jpg']") |> render_click()
 
@@ -308,6 +309,102 @@ defmodule ArtsyNeighborWeb.PhotoCheckingTest do
 
     # PreparedFolders is told too, and deletes the folder.
     assert eventually(fn -> not File.exists?(page_folder) end)
+  end
+
+  # --- Big photos and moving images (NOTES #43, #44) -------------------
+
+  # A big photo while another big photo holds the big photos' slot of the
+  # app's Limiter. (The 1.5 MP test AVIF counts as big with the limit
+  # lowered; a real big photo would be a 15 MB file. Making the AVIF
+  # needs libheif, as HEIC does, hence the :heic tag.)
+  @tag :heic
+  test "a big photo says it takes a little longer, then becomes Ready", %{view: view} do
+    Application.put_env(:artsy_neighbor, ArtsyNeighbor.Images, big_photo_pixels: 1_000_000)
+    on_exit(fn -> Application.delete_env(:artsy_neighbor, ArtsyNeighbor.Images) end)
+
+    test_pid = self()
+
+    other_big_photo =
+      spawn(fn ->
+        Limiter.run(
+          fn ->
+            send(test_pid, :holding)
+
+            receive do
+              :release -> :ok
+            end
+          end,
+          big: true
+        )
+      end)
+
+    assert_receive :holding
+    on_exit(fn -> send(other_big_photo, :release) end)
+
+    pick_photos(view, "#product-form", :images, [avif_photo()])
+
+    # The message comes as soon as the header has been read, while the
+    # photo waits for its turn.
+    assert eventually(fn ->
+             has_element?(
+               view,
+               "[id^=photo-entry-]",
+               "Large photo — this one takes a little longer"
+             )
+           end)
+
+    refute has_element?(view, "[id^=photo-entry-]", "Checking the photo")
+
+    send(other_big_photo, :release)
+    wait_for_photo_work(view)
+
+    assert has_element?(view, "[id^=photo-entry-]", "Ready ✓")
+    refute has_element?(view, "[id^=photo-entry-]", "Large photo")
+  end
+
+  test "an ordinary photo just says Checking the photo", %{view: view} do
+    holders = hold_all_slots()
+    pick_photos(view, "#product-form", :images, [good_photo()])
+
+    # Once the photo is waiting in line, its header has been read and
+    # the page told; render/1 makes sure the page has handled that.
+    assert eventually(fn -> length(:sys.get_state(Limiter).waiting) == 1 end)
+    render(view)
+
+    assert has_element?(view, "[id^=photo-entry-]", "Checking the photo…")
+    refute has_element?(view, "[id^=photo-entry-]", "Large photo")
+
+    release_slots(holders)
+    wait_for_photo_work(view)
+  end
+
+  test "a moving image gets a note that only its first picture will be shown",
+       %{view: view, category: category, artist: artist} do
+    pick_photos(view, "#product-form", :images, [moving_webp_photo()])
+    wait_for_photo_work(view)
+
+    assert has_element?(view, "[id^=photo-entry-]", "Ready ✓")
+
+    assert has_element?(
+             view,
+             "[id^=photo-entry-]",
+             "This is a moving image. Only its first picture will be shown"
+           )
+
+    # It saves like any other photo.
+    press_save_draft(view, new_product_params(category))
+    [product] = products_of(artist)
+    assert_redirect(view, ~p"/vendor/products/#{product.id}/edit", @wait)
+    assert [_image] = images_of_only_product(artist)
+  end
+
+  test "an ordinary photo gets no moving-image note", %{view: view} do
+    pick_photos(view, "#product-form", :images, [good_photo()])
+    wait_for_photo_work(view)
+
+    assert has_element?(view, "[id^=photo-entry-]", "Ready ✓")
+    refute has_element?(view, "[id^=photo-entry-]", "moving image")
+    refute has_element?(view, "[id^=photo-entry-]", "several pages")
   end
 
   # True as soon as `check` returns true, within a second.

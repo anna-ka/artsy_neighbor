@@ -15,7 +15,10 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
      (`ArtsyNeighbor.Images.PreparedFolders`), **not into storage yet**.
      One photo at a time per page, each taking a slot in
      `ArtsyNeighbor.Images.Limiter`. The artist meanwhile fills in the
-     rest of the form.
+     rest of the form. A big photo (`Images.big_photo?/3`) says "Large
+     photo — this one takes a little longer…" instead, and a moving
+     image (or a TIFF with several pages) gets a note that only its
+     first picture will be shown (NOTES #43, #44).
   3. **"Ready ✓"**, or the problem in red: a photo that can't be used
      (too small, not a photo, ...) says so and has to be removed with
      ✕; a problem on our side (the site was busy, ...) gets a **Try
@@ -55,7 +58,9 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
     * `:photo_prep` — `%{entry_ref => photo}`, one per uploaded photo,
       where `photo` is `%{name: file name, upload_path: its uploaded file,
-      status: status}`, and `status` is `:queued` (waiting for this
+      big: big photo?, pictures: :one | :moving_image | :several_pages,
+      status: status}` (`big` and `pictures` are known once checking has
+      started, false until then), and `status` is `:queued` (waiting for this
       page's turn), `:checking`, `{:ready, prepared}`, `{:refused,
       message}` (the photo can't be used), `{:failed, message}` (a
       problem on our side; can be tried again), `:stored` (stored by a
@@ -201,6 +206,9 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     |> attach_hook(:photo_stored, :handle_info, fn message, socket ->
       handle_photo_stored(message, socket)
     end)
+    |> attach_hook(:photo_header, :handle_info, fn message, socket ->
+      handle_photo_header(message, socket)
+    end)
   end
 
   # --- Events from the page --------------------------------------------
@@ -280,7 +288,15 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
   defp add_photo(socket, entry) do
     path = consume_uploaded_entry(socket, entry, fn %{path: path} -> {:postpone, path} end)
-    photo = %{name: entry.client_name, upload_path: path, status: :queued}
+
+    photo = %{
+      name: entry.client_name,
+      upload_path: path,
+      big: false,
+      pictures: :one,
+      status: :queued
+    }
+
     assign(socket, :photo_prep, Map.put(socket.assigns.photo_prep, entry.ref, photo))
   end
 
@@ -338,13 +354,23 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
         photo = socket.assigns.photo_prep[ref]
         work_dir = Path.join(page_folder, Ecto.UUID.generate())
         wait_ms = prepare_wait_ms()
+        page = self()
+
+        # Called by prepare_upload/4 in the background task as soon as
+        # it has read the photo's header, before the photo waits for its
+        # turn: tells this page whether it's big, and how many pictures it holds
+        # (handle_photo_header/2).
+        on_header = fn header_info -> send(page, {:photo_header, ref, header_info}) end
 
         socket
         |> put_status(ref, :checking)
         |> put_work_dir(ref, work_dir)
         |> assign(:photo_checking, ref)
         |> start_async({:check_photo, name, ref}, fn ->
-          Images.prepare_upload(photo.upload_path, photo.name, work_dir, wait_ms: wait_ms)
+          Images.prepare_upload(photo.upload_path, photo.name, work_dir,
+            wait_ms: wait_ms,
+            on_header: on_header
+          )
         end)
 
       {:error, socket} ->
@@ -649,6 +675,26 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   end
 
   defp handle_photo_stored(_message, socket), do: {:cont, socket}
+
+  # The background task checking a photo has read its header (see
+  # start_checking/3): whether it's big, and how many pictures it holds
+  # (Images.prepare_upload/4). The photo may have
+  # been removed meanwhile. Other messages go on to the form.
+  defp handle_photo_header({:photo_header, ref, %{big: big, pictures: pictures}}, socket) do
+    socket =
+      case socket.assigns.photo_prep[ref] do
+        nil ->
+          socket
+
+        photo ->
+          photo = %{photo | big: big, pictures: pictures}
+          assign(socket, :photo_prep, Map.put(socket.assigns.photo_prep, ref, photo))
+      end
+
+    {:halt, socket}
+  end
+
+  defp handle_photo_header(_message, socket), do: {:cont, socket}
 
   @doc """
   Handles the background task's result (the form's `handle_async`
@@ -960,6 +1006,8 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
           >
             {error_to_string(err)}
           </p>
+          <%!-- A moving image, or a TIFF with several pages (NOTES #44). --%>
+          <.pictures_note photo={@photo_prep[entry.ref]} />
           <%!-- Problems found on the server when checking the photo. --%>
           <.check_problem
             photo={@photo_prep[entry.ref]}
@@ -1001,7 +1049,9 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
   defp has_problem?(_photo, late_error), do: late_error != nil
 
   # Under the photo's name: the upload's progress bar until it has
-  # arrived, then what the server is doing with it.
+  # arrived, then what the server is doing with it. `data-photo-checking`
+  # marks "still being checked", whatever the wording (the tests wait
+  # for it to go: PhotoUploadHelpers.wait_for_photo_work/2).
   attr :entry, :any, required: true
   attr :photo, :map, default: nil
 
@@ -1011,9 +1061,20 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
     """
   end
 
+  # A big photo waits for the big photos' slot and takes several times
+  # longer (NOTES #43): say so, so the artist doesn't think it's stuck.
+  defp photo_state(%{photo: %{status: :checking, big: true}} = assigns) do
+    ~H"""
+    <p class="text-sm text-base-content/70 flex items-center gap-2" role="status" data-photo-checking>
+      <span class="loading loading-spinner loading-xs"></span>
+      Large photo — this one takes a little longer…
+    </p>
+    """
+  end
+
   defp photo_state(%{photo: %{status: status}} = assigns) when status in [:queued, :checking] do
     ~H"""
-    <p class="text-sm text-base-content/70 flex items-center gap-2" role="status">
+    <p class="text-sm text-base-content/70 flex items-center gap-2" role="status" data-photo-checking>
       <span class="loading loading-spinner loading-xs"></span> Checking the photo…
     </p>
     """
@@ -1027,6 +1088,33 @@ defmodule ArtsyNeighborWeb.PhotoUploads do
 
   # Refused or failed: the message goes on its own line (photo_problem/1).
   defp photo_state(assigns), do: ~H""
+
+  # Only the first picture of a moving image, or the first page of a TIFF
+  # with several, is kept: see Images.prepare_upload/4. Not shown for a
+  # photo that can't be used anyway.
+  attr :photo, :map, default: nil
+
+  defp pictures_note(assigns) do
+    ~H"""
+    <p
+      :if={show_pictures_note?(@photo) and @photo.pictures == :moving_image}
+      class="w-full text-sm text-base-content/80"
+    >
+      This is a moving image. Only its first picture will be shown on the site.
+    </p>
+    <p
+      :if={show_pictures_note?(@photo) and @photo.pictures == :several_pages}
+      class="w-full text-sm text-base-content/80"
+    >
+      This file has several pages. Only the first page will be shown on the site.
+    </p>
+    """
+  end
+
+  defp show_pictures_note?(%{status: {:ready, _prepared}}), do: true
+  defp show_pictures_note?(%{status: :checking}), do: true
+  defp show_pictures_note?(%{status: :stored}), do: true
+  defp show_pictures_note?(_photo), do: false
 
   # The server's message about a photo it couldn't use, or couldn't
   # check because of a problem on our side (then with "Try again").

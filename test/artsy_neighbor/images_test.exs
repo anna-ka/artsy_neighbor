@@ -314,6 +314,111 @@ defmodule ArtsyNeighbor.ImagesTest do
 
       refute File.exists?(work_dir)
     end
+
+    test ":on_header is told whether the photo is big and how many pictures it holds",
+         %{dir: dir} do
+      test_pid = self()
+      on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+      assert {:ok, _prepared} =
+               Images.prepare_upload(@site_image, "cat.jpg", Path.join(dir, "work"),
+                 on_header: on_header
+               )
+
+      assert_received {:header, %{big: false, pictures: :one}}
+    end
+
+    test ":on_header isn't called for a photo refused by its header", %{dir: dir} do
+      path = make_test_photo(dir, "small.jpg", fn image -> Image.thumbnail!(image, 400) end)
+      test_pid = self()
+      on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+      assert {:error, {:refused, _message}} =
+               Images.prepare_upload(path, "small.jpg", Path.join(dir, "work"),
+                 on_header: on_header
+               )
+
+      refute_received {:header, _header_info}
+    end
+
+    # NOTES #44: the artist is told that a moving image becomes a still one.
+    test "a moving image: :on_header says so, and only its first picture is kept",
+         %{dir: dir} do
+      path = Path.join(dir, "moving.webp")
+      File.write!(path, ArtsyNeighborWeb.PhotoUploadHelpers.moving_webp())
+      test_pid = self()
+      on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+      assert {:ok, prepared} =
+               Images.prepare_upload(path, "moving.webp", Path.join(dir, "work"),
+                 on_header: on_header
+               )
+
+      assert_received {:header, %{big: false, pictures: :moving_image}}
+
+      # One picture of 1487 × 998, not the two stacked (998 × 2 high).
+      source = Image.open!(Path.join(prepared.dir, "source.webp"))
+      assert {Image.width(source), Image.height(source)} == {1487, 998}
+      assert Vix.Vips.Image.header_value(source, "n-pages") != {:ok, 2}
+    end
+
+    test "a TIFF with several pages: :on_header says so, and only the first page is kept",
+         %{dir: dir} do
+      path = Path.join(dir, "pages.tif")
+      File.write!(path, two_page_tiff())
+      test_pid = self()
+      on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+      assert {:ok, prepared} =
+               Images.prepare_upload(path, "pages.tif", Path.join(dir, "work"),
+                 on_header: on_header
+               )
+
+      assert_received {:header, %{big: false, pictures: :several_pages}}
+
+      source = Image.open!(Path.join(prepared.dir, "source.webp"))
+      assert {Image.width(source), Image.height(source)} == {1487, 998}
+    end
+  end
+
+  # A TIFF with two pages (the site image, then the same in negative):
+  # the two stacked, with "page-height" telling libvips where each ends.
+  defp two_page_tiff do
+    page = Image.open!(@site_image)
+    {:ok, negative} = Vix.Vips.Operation.invert(page)
+    {:ok, negative} = Vix.Vips.Operation.cast(negative, :VIPS_FORMAT_UCHAR)
+    {:ok, stacked} = Vix.Vips.Operation.arrayjoin([page, negative], across: 1)
+
+    {:ok, pages} =
+      Vix.Vips.Image.mutate(stacked, fn mutable ->
+        :ok = Vix.Vips.MutableImage.set(mutable, "page-height", :gint, Image.height(page))
+      end)
+
+    {:ok, bytes} = Vix.Vips.Image.write_to_buffer(pages, ".tif")
+    bytes
+  end
+
+  describe "big_photo?/3" do
+    test "HEIC or AVIF (heifload) over 20 megapixels is big" do
+      assert Images.big_photo?("heifload", 8064, 6048)
+      assert Images.big_photo?("heifload", 5712, 4284)
+    end
+
+    test "PNG and TIFF over 20 megapixels are big too: also decoded in full" do
+      assert Images.big_photo?("pngload", 8064, 6048)
+      assert Images.big_photo?("tiffload", 8064, 6048)
+    end
+
+    test "20 megapixels or less is not big" do
+      refute Images.big_photo?("heifload", 4032, 3024)
+      refute Images.big_photo?("heifload", 5000, 4000)
+      refute Images.big_photo?("pngload", 5000, 4000)
+    end
+
+    test "JPEG and WebP are never big: they're shrunk while they're read" do
+      refute Images.big_photo?("jpegload", 8064, 6048)
+      refute Images.big_photo?("webpload", 8064, 6048)
+    end
   end
 
   @tag :no_heic
@@ -517,5 +622,102 @@ defmodule ArtsyNeighbor.ImagesInfoLogTest do
 
     assert log =~ ~s(Image upload "IMG_0002.HEIC" (heifload\) couldn't be decoded)
     refute log =~ "can't decode HEIC"
+  end
+end
+
+defmodule ArtsyNeighbor.ImagesBigPhotoTest do
+  @moduledoc """
+  A big photo (NOTES #43) through `ArtsyNeighbor.Images.prepare_upload/4`.
+
+  A real big photo (a 48 MP HEIC is 15 MB) would make the tests slow
+  and the repo heavy, so these tests lower the `big_photo_pixels`
+  setting instead, and use a small AVIF (read by the same libvips
+  loader as HEIC). Changing a setting affects the whole app, hence
+  `async: false`: no other test runs meanwhile.
+
+  Tagged `:heic` like the other AVIF test: writing and reading AVIF
+  needs the same libheif as HEIC, which the `image` library's bundled
+  libvips doesn't have (`test_helper.exs` skips these tests there).
+  """
+  use ExUnit.Case, async: false
+
+  @moduletag :heic
+
+  alias ArtsyNeighbor.Images
+  alias ArtsyNeighbor.Images.Limiter
+
+  setup do
+    # 1487 × 998 = 1.48 MP counts as big below 1 MP.
+    Application.put_env(:artsy_neighbor, Images, big_photo_pixels: 1_000_000)
+    on_exit(fn -> Application.delete_env(:artsy_neighbor, Images) end)
+
+    dir = Path.join(System.tmp_dir!(), "images_big_test_" <> Ecto.UUID.generate())
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+
+    avif = Path.join(dir, "photo.avif")
+    File.write!(avif, ArtsyNeighborWeb.PhotoUploadHelpers.avif_photo().content)
+    %{dir: dir, avif: avif}
+  end
+
+  test "an AVIF over the limit is big; :on_header says so", %{dir: dir, avif: avif} do
+    test_pid = self()
+    on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+    assert {:ok, _prepared} =
+             Images.prepare_upload(avif, "photo.avif", Path.join(dir, "work"),
+               on_header: on_header
+             )
+
+    assert_received {:header, %{big: true, pictures: :one}}
+  end
+
+  test "a JPEG of the same size isn't big", %{dir: dir} do
+    test_pid = self()
+    on_header = fn header_info -> send(test_pid, {:header, header_info}) end
+
+    assert {:ok, _prepared} =
+             Images.prepare_upload(
+               "priv/static/images/cat-sculpture.jpg",
+               "cat.jpg",
+               Path.join(dir, "work"),
+               on_header: on_header
+             )
+
+    assert_received {:header, %{big: false}}
+  end
+
+  # The app's own Limiter (max_big 1): while one big photo holds the big
+  # photos' slot, a second big photo waits, though a slot is free.
+  @tag capture_log: true
+  test "a big photo waits while another big photo is being prepared", %{dir: dir, avif: avif} do
+    test_pid = self()
+
+    holder =
+      spawn(fn ->
+        Limiter.run(
+          fn ->
+            send(test_pid, :holding)
+
+            receive do
+              :release -> :ok
+            end
+          end,
+          big: true
+        )
+      end)
+
+    assert_receive :holding
+    on_exit(fn -> send(holder, :release) end)
+
+    # Gives up after 200 ms: it never got a slot.
+    assert {:error, {:failed, "The site is busy" <> _}} =
+             Images.prepare_upload(avif, "photo.avif", Path.join(dir, "work"), wait_ms: 200)
+
+    # Once the first big photo is done, it goes through.
+    send(holder, :release)
+
+    assert {:ok, _prepared} =
+             Images.prepare_upload(avif, "photo.avif", Path.join(dir, "work2"), wait_ms: 5_000)
   end
 end

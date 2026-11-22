@@ -30,6 +30,44 @@ defmodule ArtsyNeighborWeb.PhotoUploadHelpers do
     %{name: name, content: content, type: "image/jpeg"}
   end
 
+  @doc """
+  An AVIF photo (1487 × 998). AVIF is read by the same libvips loader as
+  HEIC (`heifload`), so with a lowered `big_photo_pixels` setting it
+  counts as a big photo, without a big file in the tests. Making it
+  needs libheif, so tests using it need the `:heic` tag.
+  """
+  def avif_photo(name \\ "photo.avif") do
+    content = @site_image |> Image.open!() |> Image.write!(:memory, suffix: ".avif")
+    %{name: name, content: content, type: "image/avif"}
+  end
+
+  @doc """
+  A moving image: a WebP with two pictures (1487 × 998 each), the
+  second the first in negative.
+  """
+  def moving_webp_photo(name \\ "moving.webp") do
+    %{name: name, content: moving_webp(), type: "image/webp"}
+  end
+
+  @doc "The bytes of the moving WebP of `moving_webp_photo/1`."
+  def moving_webp do
+    frame = Image.open!(@site_image)
+    {:ok, negative} = Vix.Vips.Operation.invert(frame)
+    {:ok, negative} = Vix.Vips.Operation.cast(negative, :VIPS_FORMAT_UCHAR)
+    # The two pictures one above the other; "page-height" tells libvips
+    # where one ends and the next begins.
+    {:ok, stacked} = Vix.Vips.Operation.arrayjoin([frame, negative], across: 1)
+
+    {:ok, moving} =
+      Vix.Vips.Image.mutate(stacked, fn mutable ->
+        :ok = Vix.Vips.MutableImage.set(mutable, "page-height", :gint, Image.height(frame))
+        :ok = Vix.Vips.MutableImage.set(mutable, "delay", :VipsArrayInt, [500, 500])
+      end)
+
+    {:ok, bytes} = Vix.Vips.Image.write_to_buffer(moving, ".webp")
+    bytes
+  end
+
   @doc "An iPhone-style HEIC photo (tests using it need the `:heic` tag)."
   def heic_photo(name \\ "IMG_0001.HEIC") do
     %{name: name, content: File.read!(@heic_fixture), type: "image/heic"}
@@ -51,8 +89,9 @@ defmodule ArtsyNeighborWeb.PhotoUploadHelpers do
 
   @doc """
   Waits until the page is done with its photos: none is still being
-  checked ("Checking the photo…") and no save is still storing them
-  ("Saving your photos…"). Returns the page's HTML.
+  checked ("Checking the photo…" or, for a big photo, "Large photo…";
+  both are marked `data-photo-checking`) and no save is still storing
+  them ("Saving your photos…"). Returns the page's HTML.
 
   (`render_async/2` alone isn't enough: it waits only for the background
   work running at the moment, and checking one photo starts the next,
@@ -82,7 +121,10 @@ defmodule ArtsyNeighborWeb.PhotoUploadHelpers do
           )
       end
 
-    busy? = html =~ "Checking the photo" or has_element?(view, "#saving-photos")
+    # Decided from this same `html`, the one returned: a second look at
+    # the page could already see the work done and return this older
+    # page.
+    busy? = html =~ "data-photo-checking" or html =~ ~s(id="saving-photos")
 
     if busy? do
       # Nothing may be running at this very moment (the next step starts

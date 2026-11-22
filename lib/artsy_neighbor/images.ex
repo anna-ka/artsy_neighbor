@@ -46,6 +46,24 @@ defmodule ArtsyNeighbor.Images do
   # Encoding a full-resolution WebP was the main memory and time cost.
   @source_max_side 4096
 
+  # A "big" photo: one libvips has to decode in full (see
+  # @decoded_in_full below) with more than this many pixels. A 48 MP
+  # HEIC took ~8 s on the Fly server (an ordinary photo ~2 s). Big
+  # photos use only one of the Limiter's slots at a time
+  # (`ArtsyNeighbor.Images.Limiter`), and the artist is told it takes
+  # longer. Measured 2026-11-21, NOTES #43. Can be set in config (a test
+  # lowers it to use a small AVIF):
+  #   config :artsy_neighbor, ArtsyNeighbor.Images, big_photo_pixels: 20_000_000
+  @default_big_photo_pixels 20_000_000
+
+  # The formats libvips decodes in full whatever size we ask for: HEIC
+  # and AVIF (`heifload`), PNG and TIFF. JPEG and WebP it shrinks while
+  # reading, so a 48 MP JPEG costs about the same as a 12 MP one. Big
+  # PNG and TIFF files are rare (the 25 MB upload limit stops a 48 MP
+  # one: the largest PNG photo that fits is ~19 MP), but a scan saved
+  # with compression could get past it, so they count too.
+  @decoded_in_full ~w(heifload pngload tiffload)
+
   @source_quality 95
   @display_quality 82
 
@@ -172,8 +190,19 @@ defmodule ArtsyNeighbor.Images do
   `store_prepared/2` when the artist saves
   (`ArtsyNeighborWeb.PhotoUploads`).
 
-  Waits for a slot in `ArtsyNeighbor.Images.Limiter`; the option
-  `:wait_ms` sets how long it may wait.
+  Checks the photo's header first (format, size; this takes
+  milliseconds), so a photo that can't be used is refused without
+  waiting. Then waits for a slot in `ArtsyNeighbor.Images.Limiter` (a
+  big photo, see `big_photo?/3`, for one of the big photos' slots).
+  Options:
+
+    * `:wait_ms` — how long it may wait for a slot;
+    * `:on_header` — a function called with `%{big: true/false,
+      pictures: ...}` once the header has been checked, before waiting.
+      `pictures` is `:one`, `:moving_image` (a moving WebP) or
+      `:several_pages` (a TIFF with several pages); only the first
+      picture is kept. The photo forms use it to tell the artist
+      straight away.
 
   Returns `{:ok, prepared}` (a map to hand to `store_prepared/2` or
   `discard_prepared/1`), or `{:error, {kind, message}}` with a
@@ -191,17 +220,24 @@ defmodule ArtsyNeighbor.Images do
   On an error `work_dir` is removed again.
   """
   def prepare_upload(tmp_path, client_name, work_dir, opts \\ []) do
-    limiter_opts = Keyword.take(opts, [:wait_ms])
-    asked_at = now_ms()
+    on_header = Keyword.get(opts, :on_header, fn _header_info -> :ok end)
 
     result =
-      Limiter.run(
-        fn ->
-          waited_ms = now_ms() - asked_at
-          prepare_in_slot(tmp_path, client_name, work_dir, waited_ms)
-        end,
-        limiter_opts
-      )
+      with {:ok, header} <- read_header(tmp_path, client_name) do
+        big = big_photo?(header.loader, header.width, header.height)
+        on_header.(%{big: big, pictures: header.pictures})
+
+        limiter_opts = [big: big] ++ Keyword.take(opts, [:wait_ms])
+        asked_at = now_ms()
+
+        Limiter.run(
+          fn ->
+            waited_ms = now_ms() - asked_at
+            prepare_in_slot(tmp_path, client_name, work_dir, header, waited_ms)
+          end,
+          limiter_opts
+        )
+      end
 
     case result do
       {:ok, prepared} ->
@@ -261,28 +297,95 @@ defmodule ArtsyNeighbor.Images do
     end
   end
 
-  # Runs while holding a Limiter slot. Returns {:ok, prepared} or
+  # Opens the photo and checks its format and size, keeping only plain
+  # values: the photo's format (libvips "loader"), width, height and
+  # `pictures` (see prepare_upload/4). Returns {:ok, header} or
+  # {:error, {:refused, message}}.
+  #
+  # The opened photo itself isn't kept: the photo may wait minutes for a
+  # Limiter slot, and for HEIC libheif may hold the whole file in memory
+  # while it's open. libvips lets go of it when this process's garbage
+  # is collected, so that's done straight away.
+  defp read_header(tmp_path, client_name) do
+    result =
+      with {:ok, image} <- open_image(tmp_path, client_name),
+           {:ok, loader} <- check_format(image, client_name),
+           :ok <- check_dimensions(image) do
+        header = %{
+          loader: loader,
+          width: Image.width(image),
+          height: Image.height(image),
+          pictures: pictures(image, loader)
+        }
+
+        {:ok, header}
+      end
+
+    :erlang.garbage_collect()
+    result
+  end
+
+  @doc """
+  Whether a photo counts as **big**: a format libvips decodes in full
+  (HEIC, AVIF, PNG, TIFF) over 20 megapixels. Those take several times
+  longer than other photos (a JPEG of any size is shrunk while it's
+  read). See `ArtsyNeighbor.Images.Limiter` for what changes for them.
+  """
+  def big_photo?(loader, width, height) do
+    loader in @decoded_in_full and width * height > big_photo_pixels()
+  end
+
+  defp big_photo_pixels do
+    :artsy_neighbor
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:big_photo_pixels, @default_big_photo_pixels)
+  end
+
+  # Whether the file holds more than one picture, of a kind the artist
+  # should hear about (NOTES #44): `:moving_image` (a moving WebP) or
+  # `:several_pages` (a TIFF); otherwise `:one`. libvips reads only the
+  # first picture, so that's the one we keep (checked 2026-11-21 with a
+  # moving WebP). A file with one picture has no "n-pages" field at all,
+  # or 1.
+  #
+  # HEIC/AVIF are left out on purpose: there "n-pages" counts the
+  # file's top-level pictures, e.g. the two of an iPhone spatial (3D)
+  # photo, and libvips shows the main one, which is the photo the artist
+  # sees. Telling them "moving image" would only confuse.
+  defp pictures(image, loader) do
+    several =
+      case Vix.Vips.Image.header_value(image, "n-pages") do
+        {:ok, pages} when is_integer(pages) -> pages > 1
+        _ -> false
+      end
+
+    cond do
+      several and loader == "webpload" -> :moving_image
+      several and loader == "tiffload" -> :several_pages
+      true -> :one
+    end
+  end
+
+  # Runs while holding a Limiter slot, after prepare_upload/4 has read
+  # the header (read_header/2). Returns {:ok, prepared} or
   # {:error, {kind, message}}.
   #
   # `prepared` holds the folder and its files, plus what the timing log
   # line needs when the photo is stored later (log_timing/1); the upload
   # itself may be gone by then.
-  defp prepare_in_slot(tmp_path, client_name, work_dir, waited_ms) do
+  defp prepare_in_slot(tmp_path, client_name, work_dir, header, waited_ms) do
     # The slow step is wrapped in `timed/1`, which returns
     # {milliseconds, result}; the `else` below unwraps its error.
     with :ok <- make_work_dir(work_dir),
-         {:ok, image} <- open_image(tmp_path, client_name),
-         {:ok, loader} <- check_format(image, client_name),
-         :ok <- check_dimensions(image),
          {processing_ms, {:ok, files}} <-
-           timed(fn -> make_webp_files(tmp_path, work_dir, client_name, loader) end) do
+           timed(fn -> make_webp_files(tmp_path, work_dir, client_name, header.loader) end) do
       prepared = %{
         dir: work_dir,
         files: files,
         client_name: client_name,
-        format: String.replace_suffix(loader, "load", ""),
-        width: Image.width(image),
-        height: Image.height(image),
+        format: String.replace_suffix(header.loader, "load", ""),
+        width: header.width,
+        height: header.height,
         file_size: file_size(tmp_path),
         waited_ms: waited_ms,
         processing_ms: processing_ms

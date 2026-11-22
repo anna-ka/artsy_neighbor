@@ -10,8 +10,17 @@ defmodule ArtsyNeighbor.Images.Limiter do
   photo that waits longer than `wait_ms` is given up on, and the
   artist is told the site is busy.
 
+  **Big photos** (`run/2` with `big: true`; `Images` decides which
+  photos are big, see `Images.big_photo?/3`) may use at most
+  `max_big` of the slots at once, so ordinary photos always find one.
+  Two big photos side by side wouldn't finish sooner anyway: the
+  server has one CPU, and they'd only share it (measured 2026-11-21,
+  NOTES #43). A big photo waiting for its turn doesn't hold up the
+  ordinary photos behind it in line.
+
       config :artsy_neighbor, ArtsyNeighbor.Images.Limiter,
         max_concurrent: 2,
+        max_big: 1,
         wait_ms: 30_000
 
   ## How it works
@@ -37,13 +46,14 @@ defmodule ArtsyNeighbor.Images.Limiter do
   require Logger
 
   @default_max_concurrent 2
+  @default_max_big 1
   @default_wait_ms 30_000
 
   # --- Public functions ----------------------------------------------
 
   @doc """
   Starts the limiter. Options (all optional; otherwise read from
-  config): `:name`, `:max_concurrent`, `:wait_ms`. Tests start their
+  config): `:name`, `:max_concurrent`, `:max_big`, `:wait_ms`. Tests start their
   own limiter with a `:name` and small numbers.
   """
   def start_link(opts \\ []) do
@@ -60,15 +70,18 @@ defmodule ArtsyNeighbor.Images.Limiter do
     * `:wait_ms` — wait this long instead of the configured time. Photos
       processed as soon as they're picked (`ArtsyNeighborWeb.PhotoUploads`)
       can wait longer than a button press could;
+    * `:big` — `true` for a big photo, which may only use one of the
+      `max_big` slots (see above). Default `false`;
     * `:server` — only passed by tests, which start their own limiter.
   """
   def run(fun, opts \\ []) do
     server = Keyword.get(opts, :server, __MODULE__)
     wait_ms = Keyword.get(opts, :wait_ms)
+    big = Keyword.get(opts, :big, false)
 
     # :infinity is safe here: the server always answers, at the latest
     # when the wait time is over (see handle_info({:give_up, ...}) below).
-    case GenServer.call(server, {:acquire, wait_ms}, :infinity) do
+    case GenServer.call(server, {:acquire, wait_ms, big}, :infinity) do
       {:ok, slot} ->
         try do
           fun.()
@@ -85,14 +98,15 @@ defmodule ArtsyNeighbor.Images.Limiter do
 
   # State:
   #   max_concurrent — how many slots there are;
+  #   max_big        — how many of them big photos may use at once;
   #   wait_ms        — how long a request may wait for one;
-  #   holders        — %{slot => pid}; the slot is the monitor
-  #                    reference, so a :DOWN message tells us directly
-  #                    which slot to free;
+  #   holders        — %{slot => big?} (true for a big photo); the slot
+  #                    is the monitor reference, so a :DOWN message
+  #                    tells us directly which slot to free;
   #   waiting        — the line, oldest first: a list of
-  #                    {from, timer, watch} (from = whom to answer,
-  #                    timer = the "give up" timer to cancel when
-  #                    served, watch = the monitor on the waiting
+  #                    {from, timer, watch, big?} (from = whom to
+  #                    answer, timer = the "give up" timer to cancel
+  #                    when served, watch = the monitor on the waiting
   #                    process). A plain list is fine: it holds a
   #                    handful at most.
 
@@ -104,6 +118,7 @@ defmodule ArtsyNeighbor.Images.Limiter do
       max_concurrent:
         Keyword.get(opts, :max_concurrent) ||
           Keyword.get(config, :max_concurrent, @default_max_concurrent),
+      max_big: Keyword.get(opts, :max_big) || Keyword.get(config, :max_big, @default_max_big),
       wait_ms: Keyword.get(opts, :wait_ms) || Keyword.get(config, :wait_ms, @default_wait_ms),
       holders: %{},
       waiting: []
@@ -113,17 +128,18 @@ defmodule ArtsyNeighbor.Images.Limiter do
   end
 
   @impl true
-  # `wait_ms` is the caller's own wait time, or nil for the configured one.
-  def handle_call({:acquire, wait_ms}, {pid, _tag} = from, state) do
-    if map_size(state.holders) < state.max_concurrent do
-      {slot, state} = give_slot(pid, state)
+  # `wait_ms` is the caller's own wait time, or nil for the configured
+  # one; `big` is true for a big photo.
+  def handle_call({:acquire, wait_ms, big}, {pid, _tag} = from, state) do
+    if can_start?(big, state) do
+      {slot, state} = give_slot(pid, big, state)
       {:reply, {:ok, slot}, state}
     else
-      # No free slot: join the line, and set a timer to give up.
+      # No slot it may use: join the line, and set a timer to give up.
       # The reply is sent later, by GenServer.reply/2.
       timer = Process.send_after(self(), {:give_up, from}, wait_ms || state.wait_ms)
       watch = Process.monitor(pid)
-      {:noreply, %{state | waiting: state.waiting ++ [{from, timer, watch}]}}
+      {:noreply, %{state | waiting: state.waiting ++ [{from, timer, watch, big}]}}
     end
   end
 
@@ -150,7 +166,7 @@ defmodule ArtsyNeighbor.Images.Limiter do
   # got a slot just before its timer fired), there's nothing to do.
   def handle_info({:give_up, from}, state) do
     case List.keytake(state.waiting, from, 0) do
-      {{^from, _timer, watch}, rest} ->
+      {{^from, _timer, watch, _big}, rest} ->
         Process.demonitor(watch, [:flush])
         Logger.warning("A photo waited too long for a processing slot; told the artist to retry.")
         GenServer.reply(from, :busy)
@@ -161,34 +177,59 @@ defmodule ArtsyNeighbor.Images.Limiter do
     end
   end
 
-  # Gives a slot to `pid`, watching it in case it dies.
-  defp give_slot(pid, state) do
-    slot = Process.monitor(pid)
-    {slot, %{state | holders: Map.put(state.holders, slot, pid)}}
+  # Whether a photo may start now: a slot must be free, and a big photo
+  # also needs one of the big photos' slots to be free.
+  defp can_start?(big, state) do
+    slot_free = map_size(state.holders) < state.max_concurrent
+
+    if big do
+      slot_free and big_holders(state) < state.max_big
+    else
+      slot_free
+    end
   end
 
-  # Frees `slot` and, if someone is waiting, gives it to the first in
-  # line.
-  defp free_slot(slot, state) do
-    state = %{state | holders: Map.delete(state.holders, slot)}
+  defp big_holders(state) do
+    Enum.count(state.holders, fn {_slot, big} -> big end)
+  end
 
-    case state.waiting do
-      [] ->
+  # Gives a slot to `pid`, watching it in case it dies.
+  defp give_slot(pid, big, state) do
+    slot = Process.monitor(pid)
+    {slot, %{state | holders: Map.put(state.holders, slot, big)}}
+  end
+
+  # Frees `slot` and lets the line move on.
+  defp free_slot(slot, state) do
+    serve_waiting(%{state | holders: Map.delete(state.holders, slot)})
+  end
+
+  # Gives a slot to the first one in line that may start now, and
+  # repeats until no one more can. Usually the first in line; but a big
+  # photo that has to wait for the big photos' slot is skipped (it keeps
+  # its place), so it doesn't hold up ordinary photos behind it.
+  defp serve_waiting(state) do
+    next =
+      Enum.find(state.waiting, fn {_from, _timer, _watch, big} -> can_start?(big, state) end)
+
+    case next do
+      nil ->
         state
 
-      [{{pid, _tag} = from, timer, watch} | rest] ->
+      {{pid, _tag} = from, timer, watch, big} = waiter ->
         Process.cancel_timer(timer)
         Process.demonitor(watch, [:flush])
-        {new_slot, state} = give_slot(pid, %{state | waiting: rest})
+        state = %{state | waiting: List.delete(state.waiting, waiter)}
+        {new_slot, state} = give_slot(pid, big, state)
         GenServer.reply(from, {:ok, new_slot})
-        state
+        serve_waiting(state)
     end
   end
 
   # Takes the waiter watched by `watch` out of the line.
   defp drop_waiter(watch, state) do
     case List.keytake(state.waiting, watch, 2) do
-      {{_from, timer, ^watch}, rest} ->
+      {{_from, timer, ^watch, _big}, rest} ->
         Process.cancel_timer(timer)
         %{state | waiting: rest}
 

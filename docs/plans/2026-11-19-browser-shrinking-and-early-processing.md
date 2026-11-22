@@ -578,6 +578,66 @@ above.
    one) is built in the same step, since it changes the same row
    messages.
 
+#### Built 2026-11-21
+
+- `Limiter.run/2` takes `big: true`. Big photos may hold at most
+  `max_big` slots (config, 1). When a slot frees up, it goes to the
+  first one in line *that may start*: a big photo waiting for the big
+  photos' slot keeps its place, and ordinary photos behind it go
+  ahead.
+- `Images.prepare_upload/4` now checks the header (format, size)
+  **before** waiting for a slot, so a photo that can't be used is
+  refused at once, and the server knows whether a photo is big before
+  it waits. `Images.big_photo?/3`: `heifload` over `big_photo_pixels`
+  (config, default 20 MP; a test lowers it). The new `:on_header`
+  option reports `%{big: ..., moving: ...}` (moving: the file's
+  `n-pages` header is over 1). *Changed after the review, see below:
+  PNG/TIFF count too, and `moving` became `pictures`.*
+- `PhotoUploads`: the background task sends the page
+  `{:photo_header, ref, info}`; the photo's row then says "Large photo
+  — this one takes a little longer…" instead of "Checking the
+  photo…", and a moving image gets "This is a moving image, or a file
+  with several pictures. Only the first picture will be shown on the
+  site." (wider than the draft: a TIFF with several pages ends up the
+  same way). Both "checking" lines carry `data-photo-checking`, which
+  the tests' `wait_for_photo_work/2` looks for.
+- The "longer wait" for big photos needed nothing new: photos checked
+  on pick already wait up to 3 minutes for a slot (`prepare_wait_ms`).
+- Tests: `limiter_test.exs` (4: at most `max_big`, a waiting big photo
+  doesn't hold up ordinary ones, the config value, `:busy`),
+  `images_test.exs` (`:on_header` for a JPEG, a refused photo and a
+  moving WebP, which keeps one 1487 × 998 picture; `big_photo?/3`),
+  a new `ImagesBigPhotoTest` module (an AVIF with the limit lowered:
+  big; waits while another big photo is prepared), and
+  `photo_checking_test.exs` (4: "Large photo", the moving-image note,
+  and neither for an ordinary photo). The test photos (a small AVIF,
+  a two-picture WebP) are made from the cat-sculpture site image in
+  `test/support/photo_upload_helpers.ex`.
+- Checked in Chromium on the dev site with `test-48mp.heic` (Chromium
+  can't read HEIC, so it arrives unshrunk) and the moving WebP from
+  the photo trial: both messages appear as intended.
+- After the code review (2026-11-21):
+  - **PNG and TIFF over 20 MP count as big too.** libvips decodes
+    them in full as well; they're rare at that size (the 25 MB limit
+    stops most), but a compressed scan could get through.
+  - **The header is read without keeping the photo open.** Only plain
+    values (format, width, height, pictures) are kept while a photo
+    waits for its slot, and the opened file is let go at once: for
+    HEIC, libheif may hold the whole file in memory while it's open,
+    and a photo can wait minutes.
+  - **The note is given only where it's true:** "This is a moving
+    image. Only its first picture will be shown on the site." for a
+    moving WebP, "This file has several pages. Only the first page
+    will be shown on the site." for a TIFF with several pages, and
+    nothing for HEIC/AVIF. There `n-pages` counts the top-level
+    pictures, e.g. the two of an iPhone spatial (3D) photo, and libvips
+    shows the main one, the photo the artist sees.
+  - The tests that make an AVIF are tagged `:heic` (they need libheif,
+    like the existing AVIF test); "an ordinary photo just says Checking
+    the photo" now waits until the page knows the header (checked: it
+    fails if `big_photo?/3` always says yes); a test for a TIFF with
+    two pages.
+
 ### Tests
 
 LiveView tests (the existing upload helpers): a picked photo becomes
@@ -614,6 +674,6 @@ starts the next background step.
    commits, with a code review before committing.
 5. #43: the warning and the big-photo lane. *Measured and decided
    2026-11-21 (see "Very large photos"): one slot for big photos, a
-   row message instead of a question.*
+   row message instead of a question. Built the same day, with #44.*
 6. Measure on Fly: a series of photos, and the time from pick to
    "Ready" and from Save to done.

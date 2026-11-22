@@ -37,9 +37,12 @@ config :ex_aws, http_client: ExAws.Request.Req
 # (milliseconds) a photo waits for its turn before the artist is told
 # the site is busy (see ArtsyNeighbor.Images.Limiter). Processing a
 # photo takes a lot of memory; decide the final numbers on the real
-# server (NOTES, step 2c).
+# server (NOTES, step 2c). `max_big`: how many of the slots big photos
+# (HEIC/AVIF/PNG/TIFF over 20 MP) may use at once; the server has one CPU, so
+# more wouldn't make them faster, only keep others waiting (NOTES #43).
 config :artsy_neighbor, ArtsyNeighbor.Images.Limiter,
   max_concurrent: 2,
+  max_big: 1,
   wait_ms: 30_000
 
 # Configure the endpoint

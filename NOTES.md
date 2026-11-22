@@ -340,10 +340,10 @@ which is mechanical and done once, up front.
              developer's iPhone on the preview (details and what was
              added beyond the plan in the plan doc, "What was built");
              trial page and its `trials` entry removed.
-          Very large photos: #43, measured and decided 2026-11-21
-          (big photos use only one of the two limiter slots; a
-          message on the photo's row instead of a question). Next to
-          build.
+          Very large photos: #43, measured, decided and *DONE
+          2026-11-21* (big photos use only one of the two limiter
+          slots; a message on the photo's row instead of a question),
+          together with #44 (moving images).
           **Plan for c then b (2026-11-19, order: 3c, 3b, then the
           audit):** `docs/plans/2026-11-19-browser-shrinking-and-early-processing.md`.
           Decided: the browser only shrinks; it never makes the
@@ -1201,9 +1201,17 @@ working on the code should keep in mind.
         takes a little longer…", and ✕ still removes it.
       - #44 (moving images) is built in the same step (decided
         2026-11-21).
+      **DONE 2026-11-21:** as decided, except that after the code
+      review big PNG and TIFF count as big too (also decoded in full;
+      rare at that size); details in the plan doc, "Built 2026-11-21".
 
   44. **Tell the artist that a moving image becomes a still one**
-      (added 2026-11-20). The server keeps only the first frame of a
+      (added 2026-11-20). **DONE 2026-11-21** with #43: the server
+      reads it from the file's header, and the photo's row says only
+      the first picture will be shown (a moving WebP), or only the
+      first page (a TIFF with several pages). Not for HEIC/AVIF: an
+      iPhone spatial photo also holds two pictures, and the main one
+      is shown. The server keeps only the first frame of a
       moving (animated) WebP, at any size: checked 2026-11-20 by
       loading a two-frame test WebP the way `Images.process_upload/3`
       does (one 1500 × 1000 frame came back). That's fine for a

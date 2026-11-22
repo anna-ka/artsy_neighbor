@@ -14,10 +14,14 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
 
   alias ArtsyNeighbor.Images.Limiter
 
-  defp start_limiter(max_concurrent, wait_ms) do
+  # `max_big`: how many slots big photos may use (default: the
+  # limiter's own default, 1).
+  defp start_limiter(max_concurrent, wait_ms, max_big \\ nil) do
     name = :"limiter_test_#{System.unique_integer([:positive])}"
 
-    start_supervised!({Limiter, name: name, max_concurrent: max_concurrent, wait_ms: wait_ms})
+    start_supervised!(
+      {Limiter, name: name, max_concurrent: max_concurrent, max_big: max_big, wait_ms: wait_ms}
+    )
 
     name
   end
@@ -25,7 +29,8 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
   # Starts a process that takes a slot (waiting for one if needed),
   # tells the test `{:got_slot, pid}`, and keeps the slot until it is
   # sent `:finish`. It then tells the test `{:finished, pid, result}`.
-  defp start_holder(limiter) do
+  # `big: true` makes it a big photo.
+  defp start_holder(limiter, big \\ [big: false]) do
     test_pid = self()
 
     spawn(fn ->
@@ -38,7 +43,8 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
               :finish -> :done
             end
           end,
-          server: limiter
+          server: limiter,
+          big: Keyword.fetch!(big, :big)
         )
 
       send(test_pid, {:finished, self(), result})
@@ -161,5 +167,80 @@ defmodule ArtsyNeighbor.Images.LimiterTest do
     assert_receive {:got_slot, ^waiter}
 
     send(waiter, :finish)
+  end
+
+  # --- Big photos (NOTES #43) -----------------------------------------
+
+  describe "big photos" do
+    test "use at most max_big slots; ordinary photos still find one" do
+      limiter = start_limiter(2, 5_000, 1)
+
+      big = start_holder(limiter, big: true)
+      assert_receive {:got_slot, ^big}
+
+      # A second big photo waits, although a slot is free...
+      second_big = start_holder(limiter, big: true)
+      refute_receive {:got_slot, ^second_big}, 100
+
+      # ...which an ordinary photo gets straight away.
+      ordinary = start_holder(limiter)
+      assert_receive {:got_slot, ^ordinary}
+
+      # When the first big photo is done, the second one starts.
+      send(big, :finish)
+      assert_receive {:got_slot, ^second_big}
+
+      send(ordinary, :finish)
+      send(second_big, :finish)
+    end
+
+    test "a big photo waiting for its turn doesn't hold up ordinary photos behind it" do
+      limiter = start_limiter(2, 5_000, 1)
+
+      big = start_holder(limiter, big: true)
+      ordinary = start_holder(limiter)
+      assert_receive {:got_slot, ^big}
+      assert_receive {:got_slot, ^ordinary}
+
+      # Both slots taken: a big photo and then an ordinary one join the
+      # line, in that order.
+      waiting_big = start_holder(limiter, big: true)
+      Process.sleep(50)
+      waiting_ordinary = start_holder(limiter)
+      Process.sleep(50)
+
+      # The ordinary photo's slot frees up. The big photo is first in
+      # line but may not use it (the big photos' slot is still taken),
+      # so the ordinary photo behind it gets it.
+      send(ordinary, :finish)
+      assert_receive {:got_slot, ^waiting_ordinary}
+      refute_receive {:got_slot, ^waiting_big}, 100
+
+      # The big photo keeps its place and starts when the first big one
+      # is done.
+      send(big, :finish)
+      assert_receive {:got_slot, ^waiting_big}
+
+      send(waiting_ordinary, :finish)
+      send(waiting_big, :finish)
+    end
+
+    test "max_big comes from the app's config (1) when not given" do
+      limiter = start_limiter(2, 5_000)
+      assert :sys.get_state(limiter).max_big == 1
+    end
+
+    @tag capture_log: true
+    test "a big photo that waits too long gets :busy like any other" do
+      limiter = start_limiter(2, 100, 1)
+
+      big = start_holder(limiter, big: true)
+      assert_receive {:got_slot, ^big}
+
+      assert Limiter.run(fn -> flunk("should not run") end, server: limiter, big: true) ==
+               {:error, :busy}
+
+      send(big, :finish)
+    end
   end
 end
