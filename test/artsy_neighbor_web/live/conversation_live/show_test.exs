@@ -7,10 +7,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.OrdersFixtures
 
+  alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Orders
-  alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Repo
 
   # ---------------------------------------------------------------------------
@@ -358,34 +358,58 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
   # Vendor adding an item to an already-open order
   # ---------------------------------------------------------------------------
 
-  # Regression test: open_add_item_form used to use a public-scoped
-  # product list (Products.only_available/1), so a vendor whose own profile wasn't
-  # :active saw zero products to add to their own open order.
+  # Only works that are for sale can go in an order (decided 2026-11-23;
+  # until then the list showed all the vendor's works, whatever their
+  # status, so that a paused vendor could still add their own).
   describe "vendor add item to order" do
-    test "shows the vendor's own product even though it isn't :available — the vendor dashboard already gets this right, this page didn't" do
+    test "lists only the vendor's works that are for sale" do
+      artist = artist_fixture(%{status: :active})
+      vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
+      order = order_fixture(%{artist_id: artist.id})
+      for_sale = product_fixture(%{artist_id: artist.id, title: "For Sale Work"})
+      draft = product_fixture(%{artist_id: artist.id, title: "Draft Work", status: :draft})
+
+      archived =
+        product_fixture(%{artist_id: artist.id, title: "Archived Work", status: :archived})
+
+      lv = live_as(vendor_user, order.conversation_id)
+      html = lv |> element("[phx-click='open_add_item_form']") |> render_click()
+
+      assert html =~ for_sale.title
+      refute html =~ draft.title
+      refute html =~ archived.title
+    end
+
+    test "a paused vendor has no works to add" do
       artist = artist_fixture(%{status: :active})
       vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
       order = order_fixture(%{artist_id: artist.id})
       product = product_fixture(%{artist_id: artist.id})
 
-      # Self-deactivating cascades the product to :unavailable (see
-      # Artists.deactivate_artist/1) — the exact combination
-      # (non-:available product, vendor still able to reach this page)
-      # that used to make this list empty.
+      # Pausing the profile also pauses the work (:unavailable), see
+      # Artists.deactivate_artist/1.
       {:ok, _} = Artists.deactivate_artist(Artists.get_artist!(artist.id))
-      assert Products.get_product!(product.id).status == :unavailable
 
-      {:ok, lv, _html} =
-        build_conn()
-        |> log_in_user(vendor_user)
-        |> live(~p"/messages/#{order.conversation_id}")
+      lv = live_as(vendor_user, order.conversation_id)
+      html = lv |> element("[phx-click='open_add_item_form']") |> render_click()
+
+      refute html =~ product.title
+      assert html =~ "You have no works for sale to add."
+    end
+
+    test "a forged event can't add a work that isn't for sale" do
+      %{order: order, artist: artist, vendor_user: vendor_user} = open_order()
+      draft = product_fixture(%{artist_id: artist.id, status: :draft})
+      lv = live_as(vendor_user, order.conversation_id)
 
       html =
-        lv
-        |> element("[phx-click='open_add_item_form']")
-        |> render_click()
+        render_click(lv, "vendor_add_item", %{
+          "order-id" => to_string(order.id),
+          "product-id" => to_string(draft.id)
+        })
 
-      assert html =~ product.title
+      assert html =~ "That work isn&#39;t for sale, so it can&#39;t be added."
+      assert item_quantities(order) == [1]
     end
   end
 
@@ -408,7 +432,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
     {:ok, conv} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
     {:ok, order} =
-      Orders.create_order(conv, buyer, artist, [%{product: product, quantity: 1}])
+      Orders.create_order(Scope.for_user(buyer), conv, [%{product: product, quantity: 1}])
 
     vendor_user = Repo.get!(ArtsyNeighbor.Accounts.User, artist.user_id)
 
@@ -494,13 +518,14 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
     end
 
     test "can't cancel or reschedule another conversation's pick-up", %{
-      victim: %{order: order},
+      victim: %{order: order, vendor_user: vendor_user},
       lv: lv
     } do
-      {:ok, confirmed} = Orders.confirm_order(order)
+      vendor_scope = Scope.for_user(vendor_user)
+      {:ok, confirmed} = Orders.confirm_order(vendor_scope, order)
 
       {:ok, _event} =
-        Orders.schedule_pickup(confirmed, %{
+        Orders.schedule_pickup(vendor_scope, confirmed, %{
           date: "June 5, 2027",
           time: "2:00 PM",
           address: "123 Main St",
@@ -587,8 +612,8 @@ defmodule ArtsyNeighborWeb.ConversationLive.ShowTest do
     end
 
     test "the buyer can't schedule the pick-up as if they were the vendor" do
-      %{order: order, buyer: buyer} = open_order()
-      {:ok, _confirmed} = Orders.confirm_order(order)
+      %{order: order, buyer: buyer, vendor_user: vendor_user} = open_order()
+      {:ok, _confirmed} = Orders.confirm_order(Scope.for_user(vendor_user), order)
       lv = live_as(buyer, order.conversation_id)
 
       html = render_click(lv, "open_schedule_form", %{"id" => to_string(order.id)})

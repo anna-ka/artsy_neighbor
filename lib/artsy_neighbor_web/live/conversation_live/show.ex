@@ -48,7 +48,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
 
           {current_role, other_name, other_thumbnail} =
             if is_system do
-              platform = Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+              platform = ArtsyNeighbor.platform_name()
               {:user, platform, nil}
             else
               role = if current_user.id == conversation.buyer_id, do: :buyer, else: :vendor
@@ -284,7 +284,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                               −
                             </button>
                             <span class="text-sm font-medium w-4 text-center">{item.quantity}</span>
+                            <%!-- No "+" for a one-of-a-kind work: there is only one of it. --%>
                             <button
+                              :if={!(item.product && item.product.unique_work)}
                               phx-click="increment_order_item"
                               phx-value-order-id={order.id}
                               phx-value-item-id={item.id}
@@ -492,7 +494,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                               :if={@vendor_products == []}
                               class="text-xs text-base-content/50 px-2 py-1"
                             >
-                              You have no available products to add.
+                              You have no works for sale to add.
                             </p>
                           </div>
                           <button
@@ -626,6 +628,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   # vendor-only buttons (confirm, schedule pick-up, add item) also check
   # vendor?/1 first, because hiding a button in the template doesn't stop
   # its event from being sent.
+  #
+  # The Orders functions check who is acting again themselves, from the
+  # current_scope passed to them, so these page checks are a second line
+  # of defence, and the ones that decide which forms the page shows.
   # ---------------------------------------------------------------------------
 
   def handle_event("open_schedule_form", %{"id" => id}, socket) do
@@ -655,11 +661,11 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   end
 
   def handle_event("remove_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
-    actor_type = socket.assigns.current_role
+    scope = socket.assigns.current_scope
 
     with %Order{} = order <- open_order_from_event(socket, order_id),
          parsed_item_id when is_integer(parsed_item_id) <- parse_id(item_id),
-         {:ok, _} <- Orders.remove_order_item(order, parsed_item_id, actor_type) do
+         {:ok, _} <- Orders.remove_order_item(scope, order, parsed_item_id) do
       {:noreply, reload_open_orders(socket)}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not remove item.")}
@@ -671,28 +677,37 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         %{"order-id" => order_id, "item-id" => item_id},
         socket
       ) do
-    actor_type = socket.assigns.current_role
+    scope = socket.assigns.current_scope
 
     with %Order{} = order <- open_order_from_event(socket, order_id),
          parsed_item_id when is_integer(parsed_item_id) <- parse_id(item_id),
-         {:ok, _} <- Orders.increment_order_item(order, parsed_item_id, actor_type) do
+         {:ok, _} <- Orders.increment_order_item(scope, order, parsed_item_id) do
       {:noreply, reload_open_orders(socket)}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
+      {:error, :unique_work} ->
+        {:noreply, put_flash(socket, :error, "This is a one-of-a-kind work: there is only one.")}
+
+      {:error, :not_available} ->
+        {:noreply, put_flash(socket, :error, "This work is no longer for sale.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not update quantity.")}
     end
   end
 
   def handle_event("confirm_order", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+
     with true <- vendor?(socket),
          %Order{} = order <- open_order_from_event(socket, id),
-         {:ok, confirmed_order} <- Orders.confirm_order(order) do
+         {:ok, confirmed_order} <- Orders.confirm_order(scope, order) do
       if confirmed_order.pickup_date do
         completion_url =
           url(
             ~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}"
           )
 
-        Orders.schedule_pickup(confirmed_order, %{
+        Orders.schedule_pickup(scope, confirmed_order, %{
           date: confirmed_order.pickup_date,
           time: confirmed_order.pickup_time,
           address: confirmed_order.pickup_address,
@@ -708,10 +723,10 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   end
 
   def handle_event("cancel_pickup", %{"id" => id}, socket) do
-    actor_type = socket.assigns.current_role
+    scope = socket.assigns.current_scope
 
     with %Order{} = order <- open_order_from_event(socket, id),
-         {:ok, _} <- Orders.cancel_pickup(order, actor_type) do
+         {:ok, _} <- Orders.cancel_pickup(scope, order) do
       {:noreply, reload_open_orders(socket)}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not cancel pick-up.")}
@@ -719,25 +734,25 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   end
 
   def handle_event("cancel_order", %{"id" => id}, socket) do
-    actor_type = socket.assigns.current_role
+    scope = socket.assigns.current_scope
 
     with %Order{} = order <- open_order_from_event(socket, id),
-         {:ok, _order} <- Orders.cancel_order(order, actor_type) do
+         {:ok, _order} <- Orders.cancel_order(scope, order) do
       {:noreply, reload_open_orders(socket)}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not cancel order.")}
     end
   end
 
-  # Uses the all-status product list, not a public-scoped one
-  # (Products.only_available/1): this is the vendor managing their own
-  # open order, and a public list returns nothing at all when the
-  # vendor's own artist profile isn't :active (same reason the vendor
-  # dashboard uses the all-status version).
+  # Lists only the vendor's works that are for sale: only those can go in
+  # an order (Orders.add_item_to_order/3 refuses the rest). So a vendor
+  # whose profile is paused (:inactive) has nothing to add until it's
+  # active again. Decided 2026-11-23; commissions, later, will need their
+  # own way in (NOTES.md).
   def handle_event("open_add_item_form", %{"id" => id}, socket) do
     with true <- vendor?(socket),
          %Order{} = order <- open_order_from_event(socket, id) do
-      products = Products.get_products_by_artist_all_status(order.artist_id)
+      products = Products.list_available_products_by_artist(order.artist_id)
 
       {:noreply,
        socket
@@ -760,17 +775,23 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         %{"order-id" => order_id, "product-id" => product_id},
         socket
       ) do
+    scope = socket.assigns.current_scope
+
     with true <- vendor?(socket),
          %Order{} = order <- open_order_from_event(socket, order_id),
          %Product{} = product <- product_from_event(product_id),
          true <- product.artist_id == order.artist_id,
-         {:ok, _} <- Orders.add_item_to_order(order, product, :vendor) do
+         {:ok, _} <- Orders.add_item_to_order(scope, order, product) do
       {:noreply,
        socket
        |> assign(:add_item_order_id, nil)
        |> reload_open_orders()}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Could not add item.")}
+      {:error, :not_available} ->
+        {:noreply, put_flash(socket, :error, "That work isn't for sale, so it can't be added.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not add item.")}
     end
   end
 
@@ -878,7 +899,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
         date = format_picked_date(date_raw)
         time = format_picked_time(time_raw)
 
-        case Orders.schedule_pickup(order, %{
+        case Orders.schedule_pickup(socket.assigns.current_scope, order, %{
                date: date,
                time: time,
                address: address,

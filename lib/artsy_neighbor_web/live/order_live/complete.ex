@@ -30,15 +30,22 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
     end
   end
 
+  # Both buttons act on the order as it is *now*, re-read from the
+  # database, not as it was when the page opened: the vendor may have
+  # cancelled it (or the buyer completed it in another tab) meanwhile.
+  # Orders then refuses with :wrong_state.
   def handle_event("cancel_order", _params, socket) do
-    order = socket.assigns.order
+    order = Orders.get_order!(socket.assigns.order.id)
 
-    case Orders.cancel_order(order, :buyer) do
+    case Orders.cancel_order(socket.assigns.current_scope, order) do
       {:ok, _} ->
         {:noreply,
          socket
          |> put_flash(:info, "Order cancelled.")
          |> push_navigate(to: ~p"/messages/#{order.conversation_id}")}
+
+      {:error, :wrong_state} ->
+        {:noreply, no_longer_open(socket, order)}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not cancel the order. Please try again.")}
@@ -46,10 +53,10 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
   end
 
   def handle_event("complete_pickup", _params, socket) do
-    order = socket.assigns.order
+    order = Orders.get_order!(socket.assigns.order.id)
     token = socket.assigns.token
 
-    case Orders.complete_pickup(order, token) do
+    case Orders.complete_pickup(socket.assigns.current_scope, order, token) do
       {:ok, _order} ->
         {:noreply,
          socket
@@ -59,9 +66,20 @@ defmodule ArtsyNeighborWeb.OrderLive.Complete do
       {:error, :invalid_token} ->
         {:noreply, put_flash(socket, :error, "This pickup link is invalid.")}
 
+      {:error, :wrong_state} ->
+        {:noreply, no_longer_open(socket, order)}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Something went wrong. Please try again.")}
     end
+  end
+
+  # The order changed since the page opened (cancelled or completed):
+  # back to the conversation, where its current state shows.
+  defp no_longer_open(socket, order) do
+    socket
+    |> put_flash(:error, "This order has changed (status: #{order.status}). Nothing was done.")
+    |> push_navigate(to: ~p"/messages/#{order.conversation_id}")
   end
 
   def render(assigns) do

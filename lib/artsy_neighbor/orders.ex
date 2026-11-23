@@ -9,27 +9,142 @@ defmodule ArtsyNeighbor.Orders do
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Conversations.Conversation
   alias ArtsyNeighbor.Conversations.ConversationEvent
+  alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Accounts.User
+  alias ArtsyNeighbor.Artists.Artist
+  alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Reviews.ReviewNotifier
 
-  @doc """
-  Creates an order within an existing conversation.
-  items is a list of %{product: product, quantity: integer}.
-  Atomically inserts the order, order items, a system ConversationEvent,
-  and stamps conversation.last_event_at.
-  Returns {:error, :invalid_quantity} if any item's quantity isn't a
-  positive integer.
-  """
-  def create_order(conversation, buyer, artist, items, delivery_method \\ :pickup) do
-    if Enum.any?(items, fn %{quantity: q} -> not (is_integer(q) and q > 0) end) do
-      {:error, :invalid_quantity}
-    else
-      do_create_order(conversation, buyer, artist, items, delivery_method)
+  # ---------------------------------------------------------------------------
+  # Who is acting
+  #
+  # Every function that changes an order takes the caller's scope
+  # (`socket.assigns.current_scope`: the logged-in user, their artist
+  # profile if they have one, and whether they are an admin) as its first
+  # argument, and works out from it who is acting on this order:
+  #
+  #   :buyer  - the user is the order's buyer
+  #   :vendor - the user's artist profile is the order's artist
+  #   :admin  - neither, but the user is an admin
+  #
+  # Each function lists the roles it allows and returns
+  # {:error, :unauthorized} for anyone else. Callers never pass a role in,
+  # so no page can act as someone it isn't, or forget to check.
+  # ---------------------------------------------------------------------------
+
+  # The caller's role on this order, or nil if they have none. Buyer is
+  # checked first, so an admin buying a work acts as its buyer.
+  defp acting_role(%Scope{user: %User{id: user_id}} = scope, %Order{} = order) do
+    cond do
+      user_id == order.buyer_id -> :buyer
+      scope.artist != nil and scope.artist.id == order.artist_id -> :vendor
+      scope.admin -> :admin
+      true -> nil
     end
   end
 
-  # The actual order-creation work, split out from create_order/5 so the
-  # quantity guard above can short-circuit before any of this runs. Builds
+  # No scope (a logged-out visitor) or a scope without a user.
+  defp acting_role(_scope, _order), do: nil
+
+  # {:ok, role} if the caller's role on the order is one of allowed_roles,
+  # {:error, :unauthorized} otherwise.
+  defp authorize(scope, order, allowed_roles) do
+    role = acting_role(scope, order)
+
+    if role in allowed_roles do
+      {:ok, role}
+    else
+      {:error, :unauthorized}
+    end
+  end
+
+  # How a change is recorded in the conversation. An admin's change is
+  # recorded as coming from the platform (actor_type :system), so both
+  # buyer and vendor get the unread dot, and neither sees which admin it
+  # was.
+  defp event_actor_type(:admin), do: :system
+  defp event_actor_type(role), do: role
+
+  # The name a change's message starts with, e.g. "Buyer cancelled ...",
+  # or the platform's name for an admin ("<platform> cancelled ...").
+  defp actor_label(:buyer), do: "Buyer"
+  defp actor_label(:vendor), do: "Vendor"
+  defp actor_label(:admin), do: ArtsyNeighbor.platform_name()
+
+  # Tells everyone about an order event that has just been saved: the
+  # open conversation pages and the inboxes (through
+  # Conversations.broadcast_order_event/2).
+  #
+  # An admin's change (actor_type :system) also moves the conversation's
+  # last_event_at forward first, so buyer and vendor both see the unread
+  # dot even if they weren't on the site at that moment. Buyer and vendor
+  # changes don't do that yet: it would also mark the conversation unread
+  # for the person who made the change (audit finding C-11, NOTES.md).
+  defp announce_order_event(%ConversationEvent{} = event) do
+    if event.actor_type == :system do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(c in Conversation, where: c.id == ^event.conversation_id),
+        set: [last_event_at: now]
+      )
+    end
+
+    Conversations.broadcast_order_event(event.conversation_id, event)
+  end
+
+  @doc """
+  The buyer starts an order in their conversation with an artist.
+  items is a list of %{product: product, quantity: integer}.
+  Atomically inserts the order, order items, a system ConversationEvent,
+  and stamps conversation.last_event_at.
+
+  Only the conversation's buyer can do this. Returns
+  - {:error, :unauthorized} for anyone else,
+  - {:error, :no_items} if items is empty,
+  - {:error, :wrong_artist} if a work isn't by the conversation's artist,
+  - {:error, :not_available} if a work isn't for sale
+    (Products.for_sale?/1),
+  - {:error, :invalid_quantity} if a quantity isn't a positive integer,
+  - {:error, :unique_work} if a one-of-a-kind work has quantity above 1.
+  """
+  def create_order(scope, %Conversation{} = conversation, items, delivery_method \\ :pickup) do
+    cond do
+      not conversation_buyer?(scope, conversation) ->
+        {:error, :unauthorized}
+
+      items == [] ->
+        {:error, :no_items}
+
+      Enum.any?(items, fn %{product: p} -> p.artist_id != conversation.artist_id end) ->
+        {:error, :wrong_artist}
+
+      Enum.any?(items, fn %{product: p} -> not Products.for_sale?(p.id) end) ->
+        {:error, :not_available}
+
+      Enum.any?(items, fn %{quantity: q} -> not (is_integer(q) and q > 0) end) ->
+        {:error, :invalid_quantity}
+
+      Enum.any?(items, fn %{product: p, quantity: q} -> p.unique_work and q > 1 end) ->
+        {:error, :unique_work}
+
+      true ->
+        buyer = scope.user
+        artist = Repo.get!(Artist, conversation.artist_id)
+        do_create_order(conversation, buyer, artist, items, delivery_method)
+    end
+  end
+
+  # True if the scope's user is the buyer of this (buyer-artist)
+  # conversation. A system conversation has no buyer, so it's never true.
+  defp conversation_buyer?(%Scope{user: %User{id: user_id}}, conversation) do
+    conversation.conversation_type != :system and conversation.buyer_id == user_id
+  end
+
+  defp conversation_buyer?(_scope, _conversation), do: false
+
+  # The actual order-creation work, split out from create_order/4 so its
+  # checks above can short-circuit before any of this runs. Builds
   # the Order, its OrderItem rows, and the "requested" ConversationEvent in
   # one Multi so a failure partway through (e.g. a duplicate item) leaves no
   # partial order behind.
@@ -107,7 +222,7 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.transaction()
     |> case do
       {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, order}
 
       {:error, _step, reason, _changes} ->
@@ -118,8 +233,15 @@ defmodule ArtsyNeighbor.Orders do
   @doc """
   Vendor confirms the order. Generates a pickup token and posts a system event.
   Only works when the order is in :requested state.
+  Only the order's vendor can confirm it; {:error, :unauthorized} otherwise.
   """
-  def confirm_order(%Order{status: :requested} = order) do
+  def confirm_order(scope, %Order{} = order) do
+    with {:ok, _role} <- authorize(scope, order, [:vendor]) do
+      do_confirm_order(order)
+    end
+  end
+
+  defp do_confirm_order(%Order{status: :requested} = order) do
     token = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
@@ -148,7 +270,7 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.transaction()
     |> case do
       {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, order}
 
       {:error, _step, reason, _changes} ->
@@ -156,15 +278,22 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
-  def confirm_order(%Order{}), do: {:error, :wrong_state}
+  defp do_confirm_order(%Order{}), do: {:error, :wrong_state}
 
   @doc """
   Buyer completes the pickup by providing the token from the vendor.
   Uses constant-time comparison to prevent timing attacks.
+  Only the order's buyer can complete it; {:error, :unauthorized} otherwise.
   """
-  def complete_pickup(%Order{complete_token: nil}, _token), do: {:error, :invalid_token}
+  def complete_pickup(scope, %Order{} = order, token) do
+    with {:ok, _role} <- authorize(scope, order, [:buyer]) do
+      do_complete_pickup(order, token)
+    end
+  end
 
-  def complete_pickup(%Order{status: :confirmed, delivery_method: :pickup} = order, token) do
+  defp do_complete_pickup(%Order{complete_token: nil}, _token), do: {:error, :invalid_token}
+
+  defp do_complete_pickup(%Order{status: :confirmed, delivery_method: :pickup} = order, token) do
     if Plug.Crypto.secure_compare(order.complete_token, token) do
       now = DateTime.utc_now() |> DateTime.truncate(:second)
       base_url = ArtsyNeighborWeb.Endpoint.url()
@@ -231,14 +360,14 @@ defmodule ArtsyNeighbor.Orders do
   # :confirmed delivery order lands here and gets :wrong_state rather than
   # silently doing nothing. Build a real delivery-completion clause above
   # this one when that feature is implemented.
-  def complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
+  defp do_complete_pickup(%Order{}, _token), do: {:error, :wrong_state}
 
   # Posts a private review-request message to each party's system inbox.
   # System conversations are created on demand if the user doesn't have one yet.
   # Called after the order transaction commits so a messaging failure never
   # rolls back a completed order.
   defp send_review_request_messages(buyer_user_id, vendor_user_id, buyer_url, vendor_url) do
-    platform = Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+    platform = ArtsyNeighbor.platform_name()
 
     with {:ok, buyer_conv} <- Conversations.get_or_create_system_conversation(buyer_user_id),
          {:ok, vendor_conv} <- Conversations.get_or_create_system_conversation(vendor_user_id) do
@@ -272,10 +401,23 @@ defmodule ArtsyNeighbor.Orders do
   @doc """
   Adds a product to an open order, incrementing its quantity if already present
   or appending a new line item at the current product price.
-  actor_type must be :buyer or :vendor (either party can add items in person).
+  The order's buyer or vendor can do this (either can add items in person).
+  Returns
+  - {:error, :unauthorized} for anyone else,
+  - {:error, :wrong_artist} if the work isn't by the order's artist,
+  - {:error, :not_available} if the work isn't for sale
+    (Products.for_sale?/1; the vendor can't add a draft, paused or
+    archived work either),
+  - {:error, :unique_work} if it's a one-of-a-kind work already in the order.
   """
-  def add_item_to_order(%Order{status: status} = order, product, actor_type)
-      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor] do
+  def add_item_to_order(scope, %Order{} = order, product) do
+    with {:ok, role} <- authorize(scope, order, [:buyer, :vendor]) do
+      do_add_item_to_order(order, product, role)
+    end
+  end
+
+  defp do_add_item_to_order(%Order{status: status} = order, product, role)
+       when status in [:requested, :confirmed] do
     # force: true — do_amend deletes and reinserts every OrderItem row on any
     # amendment, so a caller holding an order struct from a *previous*
     # mutation would otherwise have its (already "loaded") :items silently
@@ -284,47 +426,66 @@ defmodule ArtsyNeighbor.Orders do
     # get_order!/1 between actions (as the LiveViews do); this guards the
     # cases where they don't.
     order = Repo.preload(order, :items, force: true)
+    already_in_order = Enum.find(order.items, fn item -> item.product_id == product.id end)
 
-    specs =
-      case Enum.find(order.items, &(&1.product_id == product.id)) do
-        nil ->
-          to_specs(order.items) ++
-            [
-              %{
-                product_id: product.id,
-                product_title: product.title,
-                quantity: 1,
-                unit_price: product.price
-              }
-            ]
+    cond do
+      product.artist_id != order.artist_id ->
+        {:error, :wrong_artist}
 
-        found ->
-          Enum.map(order.items, fn item ->
-            spec = to_spec(item)
-            if item.id == found.id, do: %{spec | quantity: spec.quantity + 1}, else: spec
-          end)
-      end
+      not Products.for_sale?(product.id) ->
+        {:error, :not_available}
 
-    {_, _, total} = calculate_totals_from_specs(specs)
-    actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
+      product.unique_work and already_in_order != nil ->
+        {:error, :unique_work}
 
-    do_amend(
-      order,
-      specs,
-      actor_type,
-      "#{actor_label} added #{product.title} to the order — new total CA$#{total}"
-    )
+      true ->
+        specs =
+          case already_in_order do
+            nil ->
+              to_specs(order.items) ++
+                [
+                  %{
+                    product_id: product.id,
+                    product_title: product.title,
+                    quantity: 1,
+                    unit_price: product.price
+                  }
+                ]
+
+            found ->
+              Enum.map(order.items, fn item ->
+                spec = to_spec(item)
+                if item.id == found.id, do: %{spec | quantity: spec.quantity + 1}, else: spec
+              end)
+          end
+
+        {_, _, total} = calculate_totals_from_specs(specs)
+
+        do_amend(
+          order,
+          specs,
+          role,
+          "#{actor_label(role)} added #{product.title} to the order — new total CA$#{total}"
+        )
+    end
   end
 
-  def add_item_to_order(%Order{}, _product, _actor_type), do: {:error, :wrong_state}
+  defp do_add_item_to_order(%Order{}, _product, _role), do: {:error, :wrong_state}
 
   @doc """
   Removes one unit of an order item (decrements quantity, or removes the line
   entirely if quantity is 1). Cancels the whole order if no items remain.
-  actor_type must be :buyer or :vendor.
+  The order's buyer or vendor, or an admin, can do this;
+  {:error, :unauthorized} for anyone else.
   """
-  def remove_order_item(%Order{status: status} = order, order_item_id, actor_type)
-      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor, :system] do
+  def remove_order_item(scope, %Order{} = order, order_item_id) do
+    with {:ok, role} <- authorize(scope, order, [:buyer, :vendor, :admin]) do
+      do_remove_order_item(order, order_item_id, role)
+    end
+  end
+
+  defp do_remove_order_item(%Order{status: status} = order, order_item_id, role)
+       when status in [:requested, :confirmed] do
     order = Repo.preload(order, :items, force: true)
 
     case Enum.find(order.items, &(&1.id == order_item_id)) do
@@ -332,13 +493,6 @@ defmodule ArtsyNeighbor.Orders do
         {:error, :not_found}
 
       item ->
-        actor_label =
-          case actor_type do
-            :buyer -> "Buyer"
-            :vendor -> "Vendor"
-            :system -> "System"
-          end
-
         if item.quantity > 1 do
           new_qty = item.quantity - 1
 
@@ -353,93 +507,104 @@ defmodule ArtsyNeighbor.Orders do
           do_amend(
             order,
             specs,
-            actor_type,
-            "#{actor_label} decremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}"
+            role,
+            "#{actor_label(role)} decremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}"
           )
         else
           specs = order.items |> Enum.reject(&(&1.id == order_item_id)) |> to_specs()
 
           if Enum.empty?(specs) do
-            cancel_order(order, actor_type)
+            do_cancel_order(order, role)
           else
             {_, _, total} = calculate_totals_from_specs(specs)
 
             do_amend(
               order,
               specs,
-              actor_type,
-              "#{actor_label} removed #{item.product_title} from the order — new total CA$#{total}"
+              role,
+              "#{actor_label(role)} removed #{item.product_title} from the order — new total CA$#{total}"
             )
           end
         end
     end
   end
 
-  def remove_order_item(%Order{}, _item_id, _actor), do: {:error, :wrong_state}
+  defp do_remove_order_item(%Order{}, _item_id, _role), do: {:error, :wrong_state}
 
   @doc """
   Increments the quantity of an existing order item by 1, keeping the snapshot price.
-  actor_type must be :buyer or :vendor.
+  The order's buyer or vendor can do this. Returns
+  - {:error, :unauthorized} for anyone else,
+  - {:error, :unique_work} if the item is a one-of-a-kind work (there is
+    only one of it, so its quantity stays 1),
+  - {:error, :not_available} if the work is no longer for sale (it can
+    still be removed from the order).
   """
-  def increment_order_item(%Order{status: status} = order, order_item_id, actor_type)
-      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor] do
-    order = Repo.preload(order, :items, force: true)
+  def increment_order_item(scope, %Order{} = order, order_item_id) do
+    with {:ok, role} <- authorize(scope, order, [:buyer, :vendor]) do
+      do_increment_order_item(order, order_item_id, role)
+    end
+  end
+
+  defp do_increment_order_item(%Order{status: status} = order, order_item_id, role)
+       when status in [:requested, :confirmed] do
+    # The items' products too, to see whether a work is one of a kind.
+    order = Repo.preload(order, [items: :product], force: true)
 
     case Enum.find(order.items, &(&1.id == order_item_id)) do
       nil ->
         {:error, :not_found}
 
+      %OrderItem{product: %{unique_work: true}} ->
+        {:error, :unique_work}
+
       item ->
-        new_qty = item.quantity + 1
-
-        specs =
-          Enum.map(order.items, fn i ->
-            spec = to_spec(i)
-            if i.id == item.id, do: %{spec | quantity: new_qty}, else: spec
-          end)
-
-        {_, _, total} = calculate_totals_from_specs(specs)
-        actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
-
-        do_amend(
-          order,
-          specs,
-          actor_type,
-          "#{actor_label} incremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}"
-        )
+        if Products.for_sale?(item.product_id) do
+          increment_item(order, item, role)
+        else
+          {:error, :not_available}
+        end
     end
   end
 
-  def increment_order_item(%Order{}, _item_id, _actor_type), do: {:error, :wrong_state}
+  defp do_increment_order_item(%Order{}, _item_id, _role), do: {:error, :wrong_state}
 
-  @doc """
-  Amends an order by replacing its items with a new list.
-  items is a list of %{product: product, quantity: integer}.
-  Prices are taken from the product struct (use add_item_to_order / remove_order_item
-  to preserve snapshot prices for existing items).
-  """
-  def amend_order(%Order{status: status} = order, items)
-      when status in [:requested, :confirmed] do
+  # One more unit of an item already in the order, at its snapshot price.
+  defp increment_item(order, item, role) do
+    new_qty = item.quantity + 1
+
     specs =
-      Enum.map(items, fn %{product: p, quantity: q} ->
-        %{product_id: p.id, product_title: p.title, quantity: q, unit_price: p.price}
+      Enum.map(order.items, fn i ->
+        spec = to_spec(i)
+        if i.id == item.id, do: %{spec | quantity: new_qty}, else: spec
       end)
 
     {_, _, total} = calculate_totals_from_specs(specs)
-    do_amend(order, specs, :buyer, "Order updated — new total CA$#{total}")
+
+    do_amend(
+      order,
+      specs,
+      role,
+      "#{actor_label(role)} incremented quantity of #{item.product_title} to #{new_qty}. New total: CA$#{total}"
+    )
   end
 
-  def amend_order(%Order{}, _items), do: {:error, :wrong_state}
-
   @doc """
-  Cancels an order. Can be called by either party.
-  actor_type must be :buyer or :vendor.
+  Cancels an order. The order's buyer or vendor, or an admin, can do this;
+  {:error, :unauthorized} for anyone else.
   Posts a system ConversationEvent recording who cancelled.
   Only allowed while the order is still open (:requested or :confirmed) —
   a :completed order cannot be retroactively cancelled.
   """
-  def cancel_order(%Order{status: status} = order, actor_type)
-      when status in [:requested, :confirmed] and actor_type in [:buyer, :vendor, :system] do
+  def cancel_order(scope, %Order{} = order) do
+    with {:ok, role} <- authorize(scope, order, [:buyer, :vendor, :admin]) do
+      do_cancel_order(order, role)
+    end
+  end
+
+  # Also used by do_remove_order_item/3 when the last item goes.
+  defp do_cancel_order(%Order{status: status} = order, role)
+       when status in [:requested, :confirmed] do
     order = Repo.preload(order, :items, force: true)
 
     item_summary =
@@ -449,33 +614,24 @@ defmodule ArtsyNeighbor.Orders do
         items -> "#{length(items)} items"
       end
 
-    actor_label =
-      case actor_type do
-        :buyer -> "Buyer"
-        :vendor -> "Vendor"
-        :system -> "System"
-      end
-
-    # actor_label = if actor_type == :buyer, do: "Buyer", else: "Vendor"
-
     Multi.new()
     |> Multi.update(:order, Order.changeset(order, %{status: :cancelled}))
     |> Multi.run(:event, fn _repo, %{order: updated_order} ->
       %ConversationEvent{event_type: :status_change}
       |> ConversationEvent.status_change_changeset(%{
         conversation_id: updated_order.conversation_id,
-        actor_type: actor_type,
+        actor_type: event_actor_type(role),
         order_id: updated_order.id,
         from_status: to_string(order.status),
         to_status: "cancelled",
-        body: "#{actor_label} cancelled the order for #{item_summary} — CA$#{order.total}"
+        body: "#{actor_label(role)} cancelled the order for #{item_summary} — CA$#{order.total}"
       })
       |> Repo.insert()
     end)
     |> Repo.transaction()
     |> case do
       {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, order}
 
       {:error, _step, reason, _changes} ->
@@ -483,7 +639,7 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
-  def cancel_order(%Order{}, _actor_type), do: {:error, :wrong_state}
+  defp do_cancel_order(%Order{}, _role), do: {:error, :wrong_state}
 
   @doc """
   Schedules a pick-up for a confirmed order. Saves the pickup details on the order
@@ -491,8 +647,15 @@ defmodule ArtsyNeighbor.Orders do
   details is a map with keys: date, time, address, instructions, completion_url.
   date and time may be blank — some vendors/buyers agree on a time informally
   in chat rather than through this form.
+  Only the order's vendor can do this; {:error, :unauthorized} otherwise.
   """
-  def schedule_pickup(%Order{status: :confirmed} = order, details) do
+  def schedule_pickup(scope, %Order{} = order, details) do
+    with {:ok, _role} <- authorize(scope, order, [:vendor]) do
+      do_schedule_pickup(order, details)
+    end
+  end
+
+  defp do_schedule_pickup(%Order{status: :confirmed} = order, details) do
     %{
       date: date,
       time: time,
@@ -549,7 +712,7 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.transaction()
     |> case do
       {:ok, %{event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, event}
 
       {:error, _step, reason, _changes} ->
@@ -557,20 +720,28 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
-  def schedule_pickup(%Order{}, _details), do: {:error, :wrong_state}
+  defp do_schedule_pickup(%Order{}, _details), do: {:error, :wrong_state}
 
   @doc """
   Cancels a previously scheduled pick-up, clearing the pickup details and
   returning the order to :confirmed state (status unchanged). Posts a
   status_change event so both parties are notified.
+  The order's buyer or vendor can do this; {:error, :unauthorized} for
+  anyone else (admins included, for now).
   """
-  def cancel_pickup(
-        %Order{status: :confirmed, pickup_scheduled_at: scheduled_at} = order,
-        actor_type
-      )
-      when not is_nil(scheduled_at) and actor_type in [:buyer, :vendor] do
+  def cancel_pickup(scope, %Order{} = order) do
+    with {:ok, role} <- authorize(scope, order, [:buyer, :vendor]) do
+      do_cancel_pickup(order, role)
+    end
+  end
+
+  defp do_cancel_pickup(
+         %Order{status: :confirmed, pickup_scheduled_at: scheduled_at} = order,
+         role
+       )
+       when not is_nil(scheduled_at) do
     body =
-      if actor_type == :buyer,
+      if role == :buyer,
         do: "Buyer requested a new pick-up time. Please agree on a new time and reschedule.",
         else: "Vendor cancelled the pick-up. Please agree on a new time."
 
@@ -589,7 +760,7 @@ defmodule ArtsyNeighbor.Orders do
       %ConversationEvent{event_type: :status_change}
       |> ConversationEvent.status_change_changeset(%{
         conversation_id: updated_order.conversation_id,
-        actor_type: actor_type,
+        actor_type: event_actor_type(role),
         order_id: updated_order.id,
         to_status: "confirmed",
         body: body
@@ -599,7 +770,7 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.transaction()
     |> case do
       {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, order}
 
       {:error, _step, reason, _changes} ->
@@ -607,7 +778,7 @@ defmodule ArtsyNeighbor.Orders do
     end
   end
 
-  def cancel_pickup(%Order{}, _actor_type), do: {:error, :wrong_state}
+  defp do_cancel_pickup(%Order{}, _role), do: {:error, :wrong_state}
 
   @doc """
   Returns true if the conversation already has an open order (:requested or
@@ -736,7 +907,8 @@ defmodule ArtsyNeighbor.Orders do
   # be pure friction. The safeguard that matters is buyer-facing: the buyer
   # must see the updated quantity/total before they complete purchase, which
   # the completion page and order sidebar already show live from the DB.
-  defp do_amend(%Order{} = order, specs, actor_type, event_body) do
+  # role is who made the change (:buyer, :vendor or :admin), for the event.
+  defp do_amend(%Order{} = order, specs, role, event_body) do
     {subtotal, platform_fee, total} = calculate_totals_from_specs(specs)
 
     Multi.new()
@@ -777,7 +949,7 @@ defmodule ArtsyNeighbor.Orders do
       %ConversationEvent{event_type: :status_change}
       |> ConversationEvent.status_change_changeset(%{
         conversation_id: updated_order.conversation_id,
-        actor_type: actor_type,
+        actor_type: event_actor_type(role),
         order_id: updated_order.id,
         from_status: to_string(order.status),
         to_status: to_string(updated_order.status),
@@ -788,7 +960,7 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.transaction()
     |> case do
       {:ok, %{order: order, event: event}} ->
-        Conversations.broadcast_order_event(order.conversation_id, event)
+        announce_order_event(event)
         {:ok, order}
 
       {:error, _step, reason, _changes} ->

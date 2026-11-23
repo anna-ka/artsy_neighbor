@@ -357,18 +357,48 @@ which is mechanical and done once, up front.
        is to be addressed after these. *Started 2026-11-21*, in the
        audit's suggested order (S-1, S-2, S-3+S-4, then the crashes
        C-1 to C-3, before anyone else uses the preview):
-          S-1 (order buttons acted on any order): *page fix DONE
-          2026-11-21*. The conversation page now looks every order up
-          within its own conversation and checks the role for the
-          vendor-only buttons. Next, in its own commit: the `Orders`
-          functions take the `current_scope` and check who is acting
-          themselves (Phoenix 1.8's convention), so no future page can
-          forget the checks. Include in that commit (from the code
-          review of the page fix): one-of-a-kind works (`unique_work`)
-          can reach quantity 2. Only the template hides them from the
-          add list, and the "+" button shows for every item, so
-          `Orders.add_item_to_order/3` and `increment_order_item/3`
-          should refuse to take a unique work above quantity 1.
+          S-1 (order buttons acted on any order): *DONE*, in two
+          commits. Page fix (2026-11-21, `c933d30`): the conversation
+          page looks every order up within its own conversation and
+          checks the role for the vendor-only buttons. Then
+          (2026-11-23): the `Orders` functions take the `current_scope`
+          and check who is acting themselves (Phoenix 1.8's
+          convention), so no future page can forget the checks.
+          Admins may cancel orders and remove items (recorded as from
+          the platform); console recipe in `docs/deploy.md` §6 until
+          the admin pages have order tools (step 4). Same commit:
+          one-of-a-kind works can no longer reach quantity 2, and the
+          unused `amend_order/2` was removed.
+          From that commit's code review (fixed in it): admin changes
+          now reach both inboxes; only works for sale can go in an
+          order (decided: also for the vendor, so a paused artist has
+          nothing to add); no empty orders; the complete-purchase page
+          re-reads the order before acting; logged-out clicks on the
+          product page no longer crash it.
+          Left for later, from the same review:
+          - With audit C-6 (step 5 above): two changes to one order at
+            the same moment can still overwrite each other.
+            `do_amend` deletes and re-inserts all items from what it
+            read earlier, with no row lock; the one-of-a-kind and
+            for-sale checks can be raced the same way. Fix with
+            `lock: "FOR UPDATE"` on the order, re-reading the items
+            inside the transaction.
+          - With audit C-11 (unread badge, ask before changing it):
+            buyer and vendor order changes (confirm, cancel, items,
+            pick-up) don't move `last_event_at`, so after a reload the
+            other side sees no unread dot for them; only the live
+            message works. Admin changes do move it
+            (`Orders.announce_order_event/1`). Doing the same for buyer
+            and vendor would mark the conversation unread for the
+            person who made the change too, which is C-11 itself.
+          - With audit C-7: the complete-purchase page still *shows*
+            the items and total as they were when it opened (the
+            buttons now act on the current order).
+          - With audit S-15: other public pages' handlers that assume
+            a logged-in user (only the product page's two buttons
+            were fixed).
+          Next: S-2 (an artist profile's owner can be set from the
+          browser).
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -377,6 +407,11 @@ which is mechanical and done once, up front.
    or soft-delete any user/artist/product/order/review (part of #1).
    Includes the restore-button no-op and the missing `/admin/reviews`.
    Full flag moderation is NOT in this step (see 7).
+   *Added 2026-11-23:* order tools for admins (cancel an order, remove
+   an item). `Orders.cancel_order/2` and `remove_order_item/3` already
+   allow an admin's scope (until then: console, `docs/deploy.md` §6).
+   To let admins do more, add `:admin` to that function's allowed roles
+   in `orders.ex`, with a test.
    *Added 2026-11-09 (image storage step 2a):* admins can't publish a
    product. The admin "new product" form publishes it straight away if
    it has a photo, but a product created without one stays `:draft`,
@@ -655,6 +690,13 @@ working on the code should keep in mind.
   can't send people elsewhere. The same applies to "Create an account".
 
 - **UI to request commissions** . It basically comes down to a fancy looking entry-point (button) which opens the chat between artist and buyer. But we do need to include a way for the artist to bill buyers through the system, thus collecting our share
+  *Added 2026-11-23:* since then, only works that are for sale
+  (`Products.for_sale?/1`) can go in an order, for buyer and vendor
+  alike (`Orders.create_order/4`, `add_item_to_order/3`). A commission
+  (the artist describes the work and sets a price) isn't a listed work,
+  so it will need its own way into an order, e.g. a "commission" item
+  the vendor creates in the conversation, not an exception to that
+  rule.
 
 ## Features / next chunks of work
 

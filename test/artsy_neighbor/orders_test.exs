@@ -15,10 +15,18 @@ defmodule ArtsyNeighbor.OrdersTest do
                       :cancelled
 
   `:confirmed` has an optional sub-state driven by `pickup_scheduled_at`:
-  once a vendor calls `schedule_pickup/2`, the order carries pickup
+  once a vendor calls `schedule_pickup/3`, the order carries pickup
   date/time/address/instructions and a `complete_token` the buyer needs to
   complete the purchase. `cancel_pickup/2` clears that sub-state without
   changing `status` — the order is still `:confirmed`, just unscheduled again.
+
+  ## Who may act (2026-11-23)
+
+  Every function that changes an order takes the caller's scope first
+  and works out from it whether they are the order's buyer, its vendor,
+  or an admin; anyone else gets `{:error, :unauthorized}`. Most tests
+  below act as the right person through `scope_for(order, role)`; the
+  "who may act" tests at the end check the refusals.
 
   Every mutating function follows the same pattern: one clause with a status
   guard that does the real work, and a catch-all clause returning
@@ -29,8 +37,9 @@ defmodule ArtsyNeighbor.OrdersTest do
 
   ## The item-amendment rule (session of 2026-08-20)
 
-  `add_item_to_order/3`, `remove_order_item/3`, `increment_order_item/3`, and
-  `amend_order/2` all route through the private `do_amend/4`. Until this
+  `add_item_to_order/3`, `remove_order_item/3` and `increment_order_item/3`
+  all route through the private `do_amend/4` (so did `amend_order/2`,
+  removed 2026-11-23 because nothing used it). Until this
   session, amending an order reset its status back to `:requested` and wiped
   `complete_token` — meaning a buyer standing at the vendor's door who wanted
   "just one more piece" would silently invalidate the pickup link the vendor
@@ -46,6 +55,10 @@ defmodule ArtsyNeighbor.OrdersTest do
   alias ArtsyNeighbor.Orders
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Accounts.Admin
+  alias ArtsyNeighbor.Accounts.Scope
+  alias ArtsyNeighbor.Accounts.User
+  alias ArtsyNeighbor.Artists.Artist
 
   import ArtsyNeighbor.AccountsFixtures
   import ArtsyNeighbor.ArtistsFixtures
@@ -77,14 +90,35 @@ defmodule ArtsyNeighbor.OrdersTest do
     {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
     {:ok, order} =
-      Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: quantity}])
+      Orders.create_order(Scope.for_user(buyer), conversation, [
+        %{product: product, quantity: quantity}
+      ])
 
     %{order: order, buyer: buyer, artist: artist, product: product, conversation: conversation}
   end
 
+  # The scope of someone acting on the order: its buyer (:buyer), the
+  # user behind its artist profile (:vendor), or a new admin user
+  # (:admin). Built with Scope.for_user/1, exactly as for a logged-in
+  # visitor, so the tests go through the same role checks as the pages.
+  defp scope_for(order, :buyer) do
+    Scope.for_user(Repo.get!(User, order.buyer_id))
+  end
+
+  defp scope_for(order, :vendor) do
+    artist = Repo.get!(Artist, order.artist_id)
+    Scope.for_user(Repo.get!(User, artist.user_id))
+  end
+
+  defp scope_for(_order, :admin) do
+    admin = user_fixture()
+    Repo.insert!(%Admin{user_id: admin.id})
+    Scope.for_user(admin)
+  end
+
   # Advances a :requested order to :confirmed.
   defp confirm!(order) do
-    {:ok, confirmed} = Orders.confirm_order(order)
+    {:ok, confirmed} = Orders.confirm_order(scope_for(order, :vendor), order)
     confirmed
   end
 
@@ -102,7 +136,7 @@ defmodule ArtsyNeighbor.OrdersTest do
         completion_url: "http://localhost/complete"
       })
 
-    {:ok, _event} = Orders.schedule_pickup(order, details)
+    {:ok, _event} = Orders.schedule_pickup(scope_for(order, :vendor), order, details)
     Orders.get_order!(order.id)
   end
 
@@ -114,9 +148,9 @@ defmodule ArtsyNeighbor.OrdersTest do
   end
 
   # ---------------------------------------------------------------------------
-  # create_order/5
+  # create_order/4
   # ---------------------------------------------------------------------------
-  describe "create_order/5" do
+  describe "create_order/4" do
     test "creates a :requested order with correct totals and item snapshot" do
       buyer = user_fixture()
       artist = artist_fixture()
@@ -124,7 +158,9 @@ defmodule ArtsyNeighbor.OrdersTest do
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
       assert {:ok, order} =
-               Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 2}])
+               Orders.create_order(Scope.for_user(buyer), conversation, [
+                 %{product: product, quantity: 2}
+               ])
 
       assert order.status == :requested
       assert order.conversation_id == conversation.id
@@ -196,7 +232,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
       for bad_quantity <- [nil, 0, -1] do
-        assert Orders.create_order(conversation, buyer, artist, [
+        assert Orders.create_order(Scope.for_user(buyer), conversation, [
                  %{product: product, quantity: 1},
                  %{product: product, quantity: bad_quantity}
                ]) == {:error, :invalid_quantity}
@@ -207,14 +243,14 @@ defmodule ArtsyNeighbor.OrdersTest do
   end
 
   # ---------------------------------------------------------------------------
-  # confirm_order/1 — :requested -> :confirmed
+  # confirm_order/2 — :requested -> :confirmed
   # ---------------------------------------------------------------------------
-  describe "confirm_order/1" do
+  describe "confirm_order/2" do
     test "moves a :requested order to :confirmed and issues a completion token" do
       %{order: order} = new_order()
       assert order.complete_token == nil
 
-      assert {:ok, confirmed} = Orders.confirm_order(order)
+      assert {:ok, confirmed} = Orders.confirm_order(scope_for(order, :vendor), order)
       assert confirmed.status == :confirmed
       refute is_nil(confirmed.complete_token)
       refute is_nil(confirmed.complete_token_at)
@@ -232,14 +268,16 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       confirmed = confirm!(order)
 
-      assert Orders.confirm_order(confirmed) == {:error, :wrong_state}
+      assert Orders.confirm_order(scope_for(confirmed, :vendor), confirmed) ==
+               {:error, :wrong_state}
     end
 
     test "refuses to confirm a :cancelled order" do
       %{order: order} = new_order()
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
 
-      assert Orders.confirm_order(cancelled) == {:error, :wrong_state}
+      assert Orders.confirm_order(scope_for(cancelled, :vendor), cancelled) ==
+               {:error, :wrong_state}
     end
 
     test "refuses to confirm a :completed order" do
@@ -247,19 +285,26 @@ defmodule ArtsyNeighbor.OrdersTest do
       confirmed = confirm!(order)
       completed = complete!(confirmed)
 
-      assert Orders.confirm_order(completed) == {:error, :wrong_state}
+      assert Orders.confirm_order(scope_for(completed, :vendor), completed) ==
+               {:error, :wrong_state}
     end
   end
 
   # ---------------------------------------------------------------------------
-  # complete_pickup/2 — :confirmed -> :completed
+  # complete_pickup/3 — :confirmed -> :completed
   # ---------------------------------------------------------------------------
-  describe "complete_pickup/2" do
+  describe "complete_pickup/3" do
     test "completes a :confirmed pickup order given the correct token" do
       %{order: order} = new_order()
       confirmed = confirm!(order) |> then(&Orders.get_order!(&1.id))
 
-      assert {:ok, completed} = Orders.complete_pickup(confirmed, confirmed.complete_token)
+      assert {:ok, completed} =
+               Orders.complete_pickup(
+                 scope_for(confirmed, :buyer),
+                 confirmed,
+                 confirmed.complete_token
+               )
+
       assert completed.status == :completed
       refute is_nil(completed.completed_at)
     end
@@ -268,14 +313,19 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       confirmed = confirm!(order) |> then(&Orders.get_order!(&1.id))
 
-      assert Orders.complete_pickup(confirmed, "not-the-right-token") == {:error, :invalid_token}
+      assert Orders.complete_pickup(
+               scope_for(confirmed, :buyer),
+               confirmed,
+               "not-the-right-token"
+             ) == {:error, :invalid_token}
     end
 
     test "an order that was never confirmed (no token yet) is rejected regardless of status" do
       %{order: order} = new_order()
       order = Orders.get_order!(order.id)
 
-      assert Orders.complete_pickup(order, "anything") == {:error, :invalid_token}
+      assert Orders.complete_pickup(scope_for(order, :buyer), order, "anything") ==
+               {:error, :invalid_token}
     end
 
     test "a token that belonged to a now-:cancelled order no longer works" do
@@ -283,9 +333,13 @@ defmodule ArtsyNeighbor.OrdersTest do
       # exercises the status guard rather than the token-nil guard above.
       %{order: order} = new_order()
       confirmed = confirm!(order) |> then(&Orders.get_order!(&1.id))
-      {:ok, cancelled} = Orders.cancel_order(confirmed, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(confirmed, :buyer), confirmed)
 
-      assert Orders.complete_pickup(cancelled, confirmed.complete_token) == {:error, :wrong_state}
+      assert Orders.complete_pickup(
+               scope_for(cancelled, :buyer),
+               cancelled,
+               confirmed.complete_token
+             ) == {:error, :wrong_state}
     end
 
     test "a :delivery order can never be completed (no delivery flow exists yet)" do
@@ -296,16 +350,19 @@ defmodule ArtsyNeighbor.OrdersTest do
 
       {:ok, order} =
         Orders.create_order(
+          Scope.for_user(buyer),
           conversation,
-          buyer,
-          artist,
           [%{product: product, quantity: 1}],
           :delivery
         )
 
       confirmed = confirm!(order) |> then(&Orders.get_order!(&1.id))
 
-      assert Orders.complete_pickup(confirmed, confirmed.complete_token) == {:error, :wrong_state}
+      assert Orders.complete_pickup(
+               scope_for(confirmed, :buyer),
+               confirmed,
+               confirmed.complete_token
+             ) == {:error, :wrong_state}
     end
   end
 
@@ -313,7 +370,10 @@ defmodule ArtsyNeighbor.OrdersTest do
   # fine in Elixir — private functions are resolved at compile time).
   defp complete!(order) do
     order = Orders.get_order!(order.id)
-    {:ok, completed} = Orders.complete_pickup(order, order.complete_token)
+
+    {:ok, completed} =
+      Orders.complete_pickup(scope_for(order, :buyer), order, order.complete_token)
+
     completed
   end
 
@@ -325,7 +385,9 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, artist: artist} = new_order()
       other_product = product_fixture(artist_id: artist.id, price: "20.00")
 
-      assert {:ok, updated} = Orders.add_item_to_order(order, other_product, :buyer)
+      assert {:ok, updated} =
+               Orders.add_item_to_order(scope_for(order, :buyer), order, other_product)
+
       # force: true — do_amend deletes/reinserts item rows out from under the
       # returned struct's association, so a plain preload here would silently
       # return the pre-amendment items rather than re-querying. See the note
@@ -340,7 +402,7 @@ defmodule ArtsyNeighbor.OrdersTest do
     test "adding a product already on the order increments its quantity instead of duplicating" do
       %{order: order, product: product} = new_order()
 
-      {:ok, updated} = Orders.add_item_to_order(order, product, :buyer)
+      {:ok, updated} = Orders.add_item_to_order(scope_for(order, :buyer), order, product)
       items = Repo.preload(updated, :items, force: true).items
       assert length(items) == 1
       assert hd(items).quantity == 2
@@ -350,11 +412,11 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, artist: artist, conversation: conversation} = new_order()
       other_product = product_fixture(artist_id: artist.id)
 
-      {:ok, order} = Orders.add_item_to_order(order, other_product, :vendor)
+      {:ok, order} = Orders.add_item_to_order(scope_for(order, :vendor), order, other_product)
       [_original, event] = Conversations.list_events_for_conversation(conversation.id)
       assert event.body =~ "Vendor added"
 
-      {:ok, _} = Orders.add_item_to_order(order, other_product, :buyer)
+      {:ok, _} = Orders.add_item_to_order(scope_for(order, :buyer), order, other_product)
       [_, _, event2] = Conversations.list_events_for_conversation(conversation.id)
       assert event2.body =~ "Buyer added"
     end
@@ -365,7 +427,9 @@ defmodule ArtsyNeighbor.OrdersTest do
       confirmed = confirm!(order)
       other_product = product_fixture(artist_id: artist.id)
 
-      {:ok, updated} = Orders.add_item_to_order(confirmed, other_product, :buyer)
+      {:ok, updated} =
+        Orders.add_item_to_order(scope_for(confirmed, :buyer), confirmed, other_product)
+
       assert updated.status == :confirmed
       assert updated.complete_token == confirmed.complete_token
     end
@@ -376,7 +440,9 @@ defmodule ArtsyNeighbor.OrdersTest do
       scheduled = schedule!(confirmed)
       other_product = product_fixture(artist_id: artist.id)
 
-      {:ok, updated} = Orders.add_item_to_order(scheduled, other_product, :buyer)
+      {:ok, updated} =
+        Orders.add_item_to_order(scope_for(scheduled, :buyer), scheduled, other_product)
+
       assert updated.status == :confirmed
       assert updated.complete_token == scheduled.complete_token
       assert updated.pickup_date == scheduled.pickup_date
@@ -387,10 +453,11 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "cannot add an item to a :cancelled order" do
       %{order: order, artist: artist} = new_order()
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
       other_product = product_fixture(artist_id: artist.id)
 
-      assert Orders.add_item_to_order(cancelled, other_product, :buyer) == {:error, :wrong_state}
+      assert Orders.add_item_to_order(scope_for(cancelled, :buyer), cancelled, other_product) ==
+               {:error, :wrong_state}
     end
 
     test "cannot add an item to a :completed order" do
@@ -398,7 +465,8 @@ defmodule ArtsyNeighbor.OrdersTest do
       completed = confirm!(order) |> complete!()
       other_product = product_fixture(artist_id: artist.id)
 
-      assert Orders.add_item_to_order(completed, other_product, :buyer) == {:error, :wrong_state}
+      assert Orders.add_item_to_order(scope_for(completed, :buyer), completed, other_product) ==
+               {:error, :wrong_state}
     end
   end
 
@@ -416,7 +484,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order(quantity: 3)
       item = sole_item(order)
 
-      assert {:ok, updated} = Orders.remove_order_item(order, item.id, :buyer)
+      assert {:ok, updated} = Orders.remove_order_item(scope_for(order, :buyer), order, item.id)
       assert updated.status == :requested
       assert sole_item(updated).quantity == 2
     end
@@ -424,7 +492,7 @@ defmodule ArtsyNeighbor.OrdersTest do
     test "decrementing a line at quantity 1, with other items remaining, removes just that line" do
       %{order: order, artist: artist, buyer: buyer} = new_order(quantity: 1)
       second_product = product_fixture(artist_id: artist.id)
-      {:ok, order} = Orders.add_item_to_order(order, second_product, :buyer)
+      {:ok, order} = Orders.add_item_to_order(scope_for(order, :buyer), order, second_product)
 
       first_item =
         Enum.find(
@@ -432,7 +500,9 @@ defmodule ArtsyNeighbor.OrdersTest do
           &(&1.product_id != second_product.id)
         )
 
-      assert {:ok, updated} = Orders.remove_order_item(order, first_item.id, :buyer)
+      assert {:ok, updated} =
+               Orders.remove_order_item(scope_for(order, :buyer), order, first_item.id)
+
       remaining = Repo.preload(updated, :items, force: true).items
       assert length(remaining) == 1
       assert hd(remaining).product_id == second_product.id
@@ -444,7 +514,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order(quantity: 1)
       item = sole_item(order)
 
-      assert {:ok, cancelled} = Orders.remove_order_item(order, item.id, :buyer)
+      assert {:ok, cancelled} = Orders.remove_order_item(scope_for(order, :buyer), order, item.id)
       assert cancelled.status == :cancelled
     end
 
@@ -453,36 +523,47 @@ defmodule ArtsyNeighbor.OrdersTest do
       confirmed = confirm!(order)
       item = sole_item(confirmed)
 
-      assert {:ok, cancelled} = Orders.remove_order_item(confirmed, item.id, :vendor)
+      assert {:ok, cancelled} =
+               Orders.remove_order_item(scope_for(confirmed, :vendor), confirmed, item.id)
+
       assert cancelled.status == :cancelled
     end
 
     test "a cancelled order cannot be decremented further — no going below the cancelled floor" do
       %{order: order} = new_order(quantity: 1)
       item = sole_item(order)
-      {:ok, cancelled} = Orders.remove_order_item(order, item.id, :buyer)
+      {:ok, cancelled} = Orders.remove_order_item(scope_for(order, :buyer), order, item.id)
 
       # There is no item left to reference, but even attempting the call
       # (e.g. with a stale item id from the client) hits the status guard
       # first and is refused.
-      assert Orders.remove_order_item(cancelled, item.id, :buyer) == {:error, :wrong_state}
+      assert Orders.remove_order_item(scope_for(cancelled, :buyer), cancelled, item.id) ==
+               {:error, :wrong_state}
     end
 
-    test "labels the event by actor_type — buyer, vendor, and system" do
-      for actor <- [:buyer, :vendor, :system] do
+    # An admin's change is recorded as coming from the platform, under
+    # its name (config :platform_name), with actor_type :system.
+    test "labels the event by who acted — buyer, vendor, or the platform for an admin" do
+      platform = ArtsyNeighbor.platform_name()
+
+      for {role, expected_label, expected_actor_type} <- [
+            {:buyer, "Buyer", :buyer},
+            {:vendor, "Vendor", :vendor},
+            {:admin, platform, :system}
+          ] do
         %{order: order, conversation: conversation} = new_order(quantity: 2)
         item = sole_item(order)
 
-        {:ok, _} = Orders.remove_order_item(order, item.id, actor)
+        {:ok, _} = Orders.remove_order_item(scope_for(order, role), order, item.id)
         [_original, event] = Conversations.list_events_for_conversation(conversation.id)
-        expected_label = actor |> to_string() |> String.capitalize()
         assert event.body =~ expected_label
+        assert event.actor_type == expected_actor_type
       end
     end
 
     test "returns :not_found for an item id that doesn't belong to the order" do
       %{order: order} = new_order()
-      assert Orders.remove_order_item(order, -1, :buyer) == {:error, :not_found}
+      assert Orders.remove_order_item(scope_for(order, :buyer), order, -1) == {:error, :not_found}
     end
 
     test "refuses to touch a :completed order" do
@@ -490,7 +571,8 @@ defmodule ArtsyNeighbor.OrdersTest do
       completed = confirm!(order) |> complete!()
       item = sole_item(completed)
 
-      assert Orders.remove_order_item(completed, item.id, :buyer) == {:error, :wrong_state}
+      assert Orders.remove_order_item(scope_for(completed, :buyer), completed, item.id) ==
+               {:error, :wrong_state}
     end
 
     # --- Regression coverage: amending a :confirmed order keeps it :confirmed ---
@@ -500,7 +582,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       scheduled = schedule!(confirmed)
       item = sole_item(scheduled)
 
-      {:ok, updated} = Orders.remove_order_item(scheduled, item.id, :buyer)
+      {:ok, updated} = Orders.remove_order_item(scope_for(scheduled, :buyer), scheduled, item.id)
       assert updated.status == :confirmed
       assert updated.complete_token == scheduled.complete_token
       assert updated.pickup_scheduled_at == scheduled.pickup_scheduled_at
@@ -515,7 +597,9 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order(quantity: 1)
       item = sole_item(order)
 
-      assert {:ok, updated} = Orders.increment_order_item(order, item.id, :buyer)
+      assert {:ok, updated} =
+               Orders.increment_order_item(scope_for(order, :buyer), order, item.id)
+
       assert sole_item(updated).quantity == 2
     end
 
@@ -525,7 +609,7 @@ defmodule ArtsyNeighbor.OrdersTest do
 
       {:ok, _same_product} = Products.update_product(product, %{price: "999.00"})
 
-      {:ok, updated} = Orders.increment_order_item(order, item.id, :buyer)
+      {:ok, updated} = Orders.increment_order_item(scope_for(order, :buyer), order, item.id)
       new_item = sole_item(updated)
       assert new_item.quantity == 2
       assert Decimal.equal?(new_item.unit_price, Decimal.new("50.00"))
@@ -537,27 +621,30 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, conversation: conversation} = new_order()
       item = sole_item(order)
 
-      {:ok, order} = Orders.increment_order_item(order, item.id, :vendor)
+      {:ok, order} = Orders.increment_order_item(scope_for(order, :vendor), order, item.id)
       [_original, event] = Conversations.list_events_for_conversation(conversation.id)
       assert event.body =~ "Vendor incremented"
 
       item2 = sole_item(order)
-      {:ok, _} = Orders.increment_order_item(order, item2.id, :buyer)
+      {:ok, _} = Orders.increment_order_item(scope_for(order, :buyer), order, item2.id)
       [_, _, event2] = Conversations.list_events_for_conversation(conversation.id)
       assert event2.body =~ "Buyer incremented"
     end
 
     test "returns :not_found for an item id that doesn't belong to the order" do
       %{order: order} = new_order()
-      assert Orders.increment_order_item(order, -1, :buyer) == {:error, :not_found}
+
+      assert Orders.increment_order_item(scope_for(order, :buyer), order, -1) ==
+               {:error, :not_found}
     end
 
     test "refuses to touch a :cancelled order" do
       %{order: order} = new_order()
       item = sole_item(order)
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
 
-      assert Orders.increment_order_item(cancelled, item.id, :buyer) == {:error, :wrong_state}
+      assert Orders.increment_order_item(scope_for(cancelled, :buyer), cancelled, item.id) ==
+               {:error, :wrong_state}
     end
 
     # --- Regression coverage: amending a :confirmed order keeps it :confirmed ---
@@ -567,41 +654,12 @@ defmodule ArtsyNeighbor.OrdersTest do
       scheduled = schedule!(confirmed)
       item = sole_item(scheduled)
 
-      {:ok, updated} = Orders.increment_order_item(scheduled, item.id, :vendor)
+      {:ok, updated} =
+        Orders.increment_order_item(scope_for(scheduled, :vendor), scheduled, item.id)
+
       assert updated.status == :confirmed
       assert updated.complete_token == scheduled.complete_token
       assert updated.pickup_address == scheduled.pickup_address
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # amend_order/2
-  # ---------------------------------------------------------------------------
-  describe "amend_order/2" do
-    test "replaces the order's items wholesale, recalculating totals from current product prices" do
-      %{order: order, artist: artist} = new_order(price: "50.00")
-      p2 = product_fixture(artist_id: artist.id, price: "10.00")
-      p3 = product_fixture(artist_id: artist.id, price: "5.00")
-
-      assert {:ok, updated} =
-               Orders.amend_order(order, [
-                 %{product: p2, quantity: 2},
-                 %{product: p3, quantity: 4}
-               ])
-
-      items = Repo.preload(updated, :items, force: true).items
-      assert length(items) == 2
-      # (10*2) + (5*4) = 40 subtotal, 5% = 2.00, total 42.00.
-      assert Decimal.equal?(updated.total, Decimal.new("42.00"))
-    end
-
-    test "refuses to amend a :completed order" do
-      %{order: order, artist: artist} = new_order()
-      completed = confirm!(order) |> complete!()
-      p2 = product_fixture(artist_id: artist.id)
-
-      assert Orders.amend_order(completed, [%{product: p2, quantity: 1}]) ==
-               {:error, :wrong_state}
     end
   end
 
@@ -615,14 +673,14 @@ defmodule ArtsyNeighbor.OrdersTest do
   describe "cancel_order/2" do
     test "cancels a :requested order" do
       %{order: order} = new_order()
-      assert {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      assert {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
       assert cancelled.status == :cancelled
     end
 
     test "cancels a :confirmed order" do
       %{order: order} = new_order()
       confirmed = confirm!(order)
-      assert {:ok, cancelled} = Orders.cancel_order(confirmed, :vendor)
+      assert {:ok, cancelled} = Orders.cancel_order(scope_for(confirmed, :vendor), confirmed)
       assert cancelled.status == :cancelled
     end
 
@@ -630,7 +688,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       confirmed = confirm!(order)
       scheduled = schedule!(confirmed)
-      assert {:ok, cancelled} = Orders.cancel_order(scheduled, :buyer)
+      assert {:ok, cancelled} = Orders.cancel_order(scope_for(scheduled, :buyer), scheduled)
       assert cancelled.status == :cancelled
     end
 
@@ -639,19 +697,21 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       completed = confirm!(order) |> complete!()
 
-      assert Orders.cancel_order(completed, :buyer) == {:error, :wrong_state}
+      assert Orders.cancel_order(scope_for(completed, :buyer), completed) ==
+               {:error, :wrong_state}
     end
 
     test "refuses to cancel an already-:cancelled order" do
       %{order: order} = new_order()
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
 
-      assert Orders.cancel_order(cancelled, :buyer) == {:error, :wrong_state}
+      assert Orders.cancel_order(scope_for(cancelled, :buyer), cancelled) ==
+               {:error, :wrong_state}
     end
 
     test "records who cancelled and an item summary in the event body" do
       %{order: order, conversation: conversation} = new_order(quantity: 5)
-      {:ok, _} = Orders.cancel_order(order, :vendor)
+      {:ok, _} = Orders.cancel_order(scope_for(order, :vendor), order)
 
       [_original, event] = Conversations.list_events_for_conversation(conversation.id)
       assert event.actor_type == :vendor
@@ -663,8 +723,8 @@ defmodule ArtsyNeighbor.OrdersTest do
     test "summarizes multiple distinct items as \"N items\" rather than listing titles" do
       %{order: order, artist: artist, conversation: conversation} = new_order(quantity: 1)
       p2 = product_fixture(artist_id: artist.id)
-      {:ok, order} = Orders.add_item_to_order(order, p2, :buyer)
-      {:ok, _} = Orders.cancel_order(order, :buyer)
+      {:ok, order} = Orders.add_item_to_order(scope_for(order, :buyer), order, p2)
+      {:ok, _} = Orders.cancel_order(scope_for(order, :buyer), order)
 
       events = Conversations.list_events_for_conversation(conversation.id)
       cancel_event = Enum.find(events, &(&1.to_status == "cancelled"))
@@ -673,15 +733,15 @@ defmodule ArtsyNeighbor.OrdersTest do
   end
 
   # ---------------------------------------------------------------------------
-  # schedule_pickup/2 — sub-state of :confirmed
+  # schedule_pickup/3 — sub-state of :confirmed
   # ---------------------------------------------------------------------------
-  describe "schedule_pickup/2" do
+  describe "schedule_pickup/3" do
     test "stores the pickup details and stamps pickup_scheduled_at" do
       %{order: order} = new_order()
       confirmed = confirm!(order)
 
       assert {:ok, event} =
-               Orders.schedule_pickup(confirmed, %{
+               Orders.schedule_pickup(scope_for(confirmed, :vendor), confirmed, %{
                  date: "June 5, 2026",
                  time: "2:00 PM",
                  address: "123 Main St",
@@ -710,7 +770,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       confirmed = confirm!(order)
 
       {:ok, event} =
-        Orders.schedule_pickup(confirmed, %{
+        Orders.schedule_pickup(scope_for(confirmed, :vendor), confirmed, %{
           date: "",
           time: "",
           address: "123 Main St",
@@ -745,7 +805,7 @@ defmodule ArtsyNeighbor.OrdersTest do
     test "refuses to schedule a pickup for a :requested (not yet confirmed) order" do
       %{order: order} = new_order()
 
-      assert Orders.schedule_pickup(order, %{
+      assert Orders.schedule_pickup(scope_for(order, :vendor), order, %{
                date: "",
                time: "",
                address: "x",
@@ -757,9 +817,9 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "refuses to schedule a pickup for a :cancelled order" do
       %{order: order} = new_order()
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
 
-      assert Orders.schedule_pickup(cancelled, %{
+      assert Orders.schedule_pickup(scope_for(cancelled, :vendor), cancelled, %{
                date: "",
                time: "",
                address: "x",
@@ -779,7 +839,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       confirmed = confirm!(order)
       scheduled = schedule!(confirmed)
 
-      assert {:ok, updated} = Orders.cancel_pickup(scheduled, :buyer)
+      assert {:ok, updated} = Orders.cancel_pickup(scope_for(scheduled, :buyer), scheduled)
       assert updated.status == :confirmed
       assert updated.pickup_date == nil
       assert updated.pickup_time == nil
@@ -795,7 +855,7 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, conversation: conversation} = new_order()
       confirmed = confirm!(order)
       scheduled = schedule!(confirmed)
-      {:ok, _} = Orders.cancel_pickup(scheduled, :buyer)
+      {:ok, _} = Orders.cancel_pickup(scope_for(scheduled, :buyer), scheduled)
 
       events = Conversations.list_events_for_conversation(conversation.id)
       cancel_event = List.last(events)
@@ -806,12 +866,13 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order} = new_order()
       confirmed = confirm!(order)
 
-      assert Orders.cancel_pickup(confirmed, :buyer) == {:error, :wrong_state}
+      assert Orders.cancel_pickup(scope_for(confirmed, :buyer), confirmed) ==
+               {:error, :wrong_state}
     end
 
     test "refuses on a :requested order (can't have a scheduled pickup at all)" do
       %{order: order} = new_order()
-      assert Orders.cancel_pickup(order, :buyer) == {:error, :wrong_state}
+      assert Orders.cancel_pickup(scope_for(order, :buyer), order) == {:error, :wrong_state}
     end
   end
 
@@ -827,7 +888,7 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "false once the order is cancelled" do
       %{order: order, product: product, conversation: conversation} = new_order()
-      {:ok, _} = Orders.cancel_order(order, :buyer)
+      {:ok, _} = Orders.cancel_order(scope_for(order, :buyer), order)
 
       refute Orders.has_open_order_for_product?(conversation.id, product.id)
     end
@@ -864,7 +925,7 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "returns nil once the only order has been cancelled" do
       %{order: order, conversation: conversation} = new_order()
-      {:ok, _} = Orders.cancel_order(order, :buyer)
+      {:ok, _} = Orders.cancel_order(scope_for(order, :buyer), order)
 
       assert Orders.get_open_order_for_conversation(conversation.id) == nil
     end
@@ -877,10 +938,10 @@ defmodule ArtsyNeighbor.OrdersTest do
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
       {:ok, _first} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p1, quantity: 1}])
 
       {:ok, second} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p2, quantity: 1}])
 
       assert Orders.get_open_order_for_conversation(conversation.id).id == second.id
     end
@@ -896,17 +957,17 @@ defmodule ArtsyNeighbor.OrdersTest do
       {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
 
       {:ok, requested} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p1, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p1, quantity: 1}])
 
       {:ok, to_confirm} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p2, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p2, quantity: 1}])
 
       confirmed = confirm!(to_confirm)
 
       {:ok, to_cancel} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p3, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p3, quantity: 1}])
 
-      {:ok, _cancelled} = Orders.cancel_order(to_cancel, :buyer)
+      {:ok, _cancelled} = Orders.cancel_order(scope_for(to_cancel, :buyer), to_cancel)
 
       open = Orders.list_open_orders_for_conversation(conversation.id)
       assert Enum.map(open, & &1.id) == [confirmed.id, requested.id]
@@ -941,13 +1002,15 @@ defmodule ArtsyNeighbor.OrdersTest do
         Conversations.find_or_create_conversation(other_buyer.id, artist.id)
 
       {:ok, first} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p, quantity: 1}])
 
       {:ok, second} =
-        Orders.create_order(conversation, buyer, artist, [%{product: p, quantity: 1}])
+        Orders.create_order(Scope.for_user(buyer), conversation, [%{product: p, quantity: 1}])
 
       {:ok, _other} =
-        Orders.create_order(other_conversation, other_buyer, artist, [%{product: p, quantity: 1}])
+        Orders.create_order(Scope.for_user(other_buyer), other_conversation, [
+          %{product: p, quantity: 1}
+        ])
 
       result = Orders.list_orders_for_buyer(buyer.id)
       assert Enum.map(result, & &1.id) == [second.id, first.id]
@@ -955,12 +1018,319 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "list_orders_for_artist/1 returns only that artist's orders, regardless of status" do
       %{order: order, artist: artist} = new_order()
-      {:ok, cancelled} = Orders.cancel_order(order, :buyer)
+      {:ok, cancelled} = Orders.cancel_order(scope_for(order, :buyer), order)
       other_artist = artist_fixture()
       %{} = new_order(artist: other_artist)
 
       result = Orders.list_orders_for_artist(artist.id)
       assert Enum.map(result, & &1.id) == [cancelled.id]
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Who may act (2026-11-23)
+  #
+  # The Orders functions work out the caller's role from their scope and
+  # refuse anyone the function doesn't allow. These tests call them as
+  # the wrong person and check both the {:error, :unauthorized} and that
+  # nothing changed. (The tests above all act as the right person.)
+  # ---------------------------------------------------------------------------
+
+  # A confirmed order with a pick-up scheduled, so that every function
+  # (including cancel_pickup and complete_pickup) would otherwise succeed
+  # on it.
+  defp scheduled_order do
+    %{order: order} = setup = new_order(quantity: 2)
+    scheduled = order |> confirm!() |> schedule!()
+    Map.put(setup, :order, scheduled)
+  end
+
+  # Calls every order-changing function on the order as this scope and
+  # returns the results by function name.
+  defp try_everything(scope, order, product) do
+    item = sole_item(order)
+
+    %{
+      confirm_order: Orders.confirm_order(scope, order),
+      schedule_pickup:
+        Orders.schedule_pickup(scope, order, %{
+          date: "",
+          time: "",
+          address: "Elsewhere",
+          instructions: "",
+          completion_url: "http://localhost/complete"
+        }),
+      cancel_pickup: Orders.cancel_pickup(scope, order),
+      complete_pickup: Orders.complete_pickup(scope, order, order.complete_token),
+      add_item_to_order: Orders.add_item_to_order(scope, order, product),
+      increment_order_item: Orders.increment_order_item(scope, order, item.id),
+      remove_order_item: Orders.remove_order_item(scope, order, item.id),
+      cancel_order: Orders.cancel_order(scope, order)
+    }
+  end
+
+  # The parts of an order that any of those functions would change.
+  defp order_state(order) do
+    order = Orders.get_order!(order.id)
+
+    %{
+      status: order.status,
+      pickup_address: order.pickup_address,
+      items: Enum.map(order.items, fn item -> {item.product_id, item.quantity} end)
+    }
+  end
+
+  describe "who may act" do
+    test "someone with no part in the order is refused everything, and nothing changes" do
+      %{order: order, artist: artist} = scheduled_order()
+      product = product_fixture(artist_id: artist.id)
+      before = order_state(order)
+
+      # A logged-in stranger, a vendor of another artist, and a logged-out
+      # visitor (no scope at all).
+      outsider = Scope.for_user(user_fixture())
+      other_vendor = Scope.for_user(Repo.get!(User, artist_fixture().user_id))
+
+      for scope <- [outsider, other_vendor, nil] do
+        results = try_everything(scope, order, product)
+
+        for {function, result} <- results do
+          assert {function, result} == {function, {:error, :unauthorized}}
+        end
+      end
+
+      assert order_state(order) == before
+    end
+
+    test "the buyer can't confirm the order or schedule the pick-up" do
+      %{order: order} = new_order()
+      buyer = scope_for(order, :buyer)
+
+      assert Orders.confirm_order(buyer, order) == {:error, :unauthorized}
+      assert Orders.get_order!(order.id).status == :requested
+
+      {:ok, confirmed} = Orders.confirm_order(scope_for(order, :vendor), order)
+
+      assert Orders.schedule_pickup(buyer, confirmed, %{
+               date: "",
+               time: "",
+               address: "Elsewhere",
+               instructions: "",
+               completion_url: "http://localhost/complete"
+             }) == {:error, :unauthorized}
+
+      assert Orders.get_order!(order.id).pickup_scheduled_at == nil
+    end
+
+    test "the vendor can't complete the purchase or start an order" do
+      %{order: order, conversation: conversation, product: product} = scheduled_order()
+      vendor = scope_for(order, :vendor)
+
+      assert Orders.complete_pickup(vendor, order, order.complete_token) ==
+               {:error, :unauthorized}
+
+      assert Orders.get_order!(order.id).status == :confirmed
+
+      assert Orders.create_order(vendor, conversation, [%{product: product, quantity: 1}]) ==
+               {:error, :unauthorized}
+    end
+
+    test "an admin can cancel an order; it's recorded as from the platform" do
+      %{order: order, conversation: conversation} = new_order()
+      platform = ArtsyNeighbor.platform_name()
+
+      assert {:ok, cancelled} = Orders.cancel_order(scope_for(order, :admin), order)
+      assert cancelled.status == :cancelled
+
+      [_requested, event] = Conversations.list_events_for_conversation(conversation.id)
+      assert event.actor_type == :system
+      assert event.body =~ "#{platform} cancelled the order"
+    end
+
+    # Neither of them made the change, so both are told: live, on their
+    # inbox, and through last_event_at, which the unread dot is worked out
+    # from after a reload (review finding of 2026-11-23).
+    test "an admin's change reaches both buyer's and vendor's inbox" do
+      %{order: order, conversation: conversation} = new_order()
+      vendor_user_id = Repo.get!(Artist, order.artist_id).user_id
+
+      # As if the conversation had last changed an hour ago.
+      an_hour_ago = DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.truncate(:second)
+
+      Repo.update_all(
+        from(c in Conversations.Conversation, where: c.id == ^conversation.id),
+        set: [last_event_at: an_hour_ago]
+      )
+
+      Conversations.subscribe_to_user_conversations(order.buyer_id)
+      Conversations.subscribe_to_user_conversations(vendor_user_id)
+
+      {:ok, _} = Orders.cancel_order(scope_for(order, :admin), order)
+
+      # One message per inbox: both subscriptions are in this test process.
+      assert_receive {:conversation_updated, %{actor_type: :system}}
+      assert_receive {:conversation_updated, %{actor_type: :system}}
+
+      stamped = Repo.get!(Conversations.Conversation, conversation.id).last_event_at
+      assert DateTime.compare(stamped, an_hour_ago) == :gt
+    end
+
+    test "an admin can remove items; removing the last one cancels the order" do
+      %{order: order} = new_order(quantity: 2)
+      admin = scope_for(order, :admin)
+      item = sole_item(order)
+
+      assert {:ok, _} = Orders.remove_order_item(admin, order, item.id)
+      assert sole_item(order).quantity == 1
+
+      item = sole_item(order)
+      assert {:ok, cancelled} = Orders.remove_order_item(admin, order, item.id)
+      assert cancelled.status == :cancelled
+    end
+
+    test "an admin is refused everything else" do
+      %{order: order, artist: artist} = scheduled_order()
+      product = product_fixture(artist_id: artist.id)
+      before = order_state(order)
+
+      results = try_everything(scope_for(order, :admin), order, product)
+
+      for function <- [
+            :confirm_order,
+            :schedule_pickup,
+            :cancel_pickup,
+            :complete_pickup,
+            :add_item_to_order,
+            :increment_order_item
+          ] do
+        assert {function, results[function]} == {function, {:error, :unauthorized}}
+      end
+
+      # try_everything ends with remove_order_item and cancel_order, which
+      # an admin may do, so the order is only compared before those.
+      assert order_state(order).pickup_address == before.pickup_address
+    end
+
+    test "only the conversation's buyer can start an order, and not in a system conversation" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      product = product_fixture(artist_id: artist.id)
+      {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+      items = [%{product: product, quantity: 1}]
+
+      assert Orders.create_order(Scope.for_user(user_fixture()), conversation, items) ==
+               {:error, :unauthorized}
+
+      assert Orders.create_order(nil, conversation, items) == {:error, :unauthorized}
+
+      {:ok, system_conversation} = Conversations.get_or_create_system_conversation(buyer.id)
+
+      assert Orders.create_order(Scope.for_user(buyer), system_conversation, items) ==
+               {:error, :unauthorized}
+
+      assert Orders.list_orders_for_buyer(buyer.id) == []
+    end
+  end
+
+  describe "which works can go in an order" do
+    test "a work by another artist is refused, for buyer and vendor alike" do
+      %{order: order, conversation: conversation, buyer: buyer} = new_order()
+      someone_elses_work = product_fixture(artist_id: artist_fixture().id)
+
+      for role <- [:buyer, :vendor] do
+        assert Orders.add_item_to_order(scope_for(order, role), order, someone_elses_work) ==
+                 {:error, :wrong_artist}
+      end
+
+      assert Orders.create_order(Scope.for_user(buyer), conversation, [
+               %{product: someone_elses_work, quantity: 1}
+             ]) == {:error, :wrong_artist}
+
+      assert length(Orders.get_order!(order.id).items) == 1
+    end
+
+    test "a one-of-a-kind work can't be added twice or go above quantity 1" do
+      artist = artist_fixture()
+      unique = product_fixture(artist_id: artist.id, unique_work: true)
+
+      %{order: order, buyer: buyer, conversation: conversation} =
+        new_order(artist: artist, product: unique)
+
+      item = sole_item(order)
+
+      for role <- [:buyer, :vendor] do
+        scope = scope_for(order, role)
+        assert Orders.add_item_to_order(scope, order, unique) == {:error, :unique_work}
+        assert Orders.increment_order_item(scope, order, item.id) == {:error, :unique_work}
+      end
+
+      assert sole_item(order).quantity == 1
+
+      assert Orders.create_order(Scope.for_user(buyer), conversation, [
+               %{product: unique, quantity: 2}
+             ]) == {:error, :unique_work}
+    end
+
+    test "a work that isn't for sale is refused, for buyer and vendor alike" do
+      %{order: order, conversation: conversation, buyer: buyer, artist: artist} = new_order()
+
+      draft = product_fixture(artist_id: artist.id, status: :draft)
+      paused = product_fixture(artist_id: artist.id, status: :unavailable)
+      archived = product_fixture(artist_id: artist.id, status: :archived)
+
+      for product <- [draft, paused, archived], role <- [:buyer, :vendor] do
+        assert Orders.add_item_to_order(scope_for(order, role), order, product) ==
+                 {:error, :not_available}
+      end
+
+      assert Orders.create_order(Scope.for_user(buyer), conversation, [
+               %{product: draft, quantity: 1}
+             ]) == {:error, :not_available}
+
+      assert length(Orders.get_order!(order.id).items) == 1
+    end
+
+    # A work can be :available while its artist is paused only by a path
+    # that skips the cascades; for_sale?/1 checks the artist too, like
+    # Products.only_available/1.
+    test "a work by an artist who isn't active is refused" do
+      %{order: order, artist: artist} = new_order()
+      other_work = product_fixture(artist_id: artist.id)
+
+      artist
+      |> ArtsyNeighbor.Artists.Artist.status_changeset(%{status: :inactive})
+      |> Repo.update!()
+
+      assert Orders.add_item_to_order(scope_for(order, :buyer), order, other_work) ==
+               {:error, :not_available}
+    end
+
+    test "an item whose work stopped being for sale can't go up, but can still be removed" do
+      %{order: order, product: product} = new_order(quantity: 2)
+      {:ok, _} = Products.soft_delete_product(Products.get_product!(product.id))
+      item = sole_item(order)
+      buyer = scope_for(order, :buyer)
+
+      assert Orders.increment_order_item(buyer, order, item.id) == {:error, :not_available}
+      assert {:ok, _} = Orders.remove_order_item(buyer, order, item.id)
+      assert sole_item(order).quantity == 1
+    end
+
+    test "an order with no items is refused" do
+      buyer = user_fixture()
+      artist = artist_fixture()
+      {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+
+      assert Orders.create_order(Scope.for_user(buyer), conversation, []) == {:error, :no_items}
+      assert Orders.list_orders_for_buyer(buyer.id) == []
+    end
+
+    test "an ordinary work can still go above quantity 1" do
+      %{order: order} = new_order()
+      item = sole_item(order)
+
+      assert {:ok, _} = Orders.increment_order_item(scope_for(order, :buyer), order, item.id)
+      assert sole_item(order).quantity == 2
     end
   end
 end

@@ -484,6 +484,54 @@ working.
 `fly.toml`. The `$APP-db` commands need `$APP` set in that terminal
 first (see the start of section 4).
 
+### Cancelling an order or removing an item as admin *(no page for it yet)*
+
+Until the admin pages have order tools, an admin can do this from the
+console. It's the same on the Mac (`iex -S mix` in the repo) and on Fly
+(`fly ssh console`, then `/app/bin/artsy_neighbor remote`, as in
+section 5). On Fly, **this changes real orders**. Buyer and vendor both
+see a message in their conversation from the platform, under its name
+(`ArtsyNeighbor.platform_name/0`), e.g. "<platform name> cancelled the
+order for Blue Heron — CA$110".
+
+Paste one line at a time. First, act as your admin account:
+
+```elixir
+alias ArtsyNeighbor.{Repo, Orders, Accounts, Accounts.Scope}
+```
+```elixir
+scope = Scope.for_user(Accounts.get_user_by_email("<your admin email>"))
+```
+
+Find the order: all open orders with their id, artist, buyer and total:
+
+```elixir
+import Ecto.Query; Repo.all(from o in Orders.Order, where: o.status in [:requested, :confirmed], select: {o.id, o.artist_name, o.buyer_email, o.total})
+```
+
+Cancel it (`42` is the order's id):
+
+```elixir
+Orders.cancel_order(scope, Orders.get_order!(42))
+```
+
+Or remove one unit of one item. List the order's items with their ids
+first, then remove by item id (`7`). Removing the last item cancels
+the order.
+
+```elixir
+Orders.get_order!(42).items |> Enum.map(fn item -> {item.id, item.product_title, item.quantity} end)
+```
+```elixir
+Orders.remove_order_item(scope, Orders.get_order!(42), 7)
+```
+
+`{:ok, ...}` means it worked. `{:error, :unauthorized}` means the
+scope isn't an admin's (check the email), and `{:error, :wrong_state}`
+that the order is no longer open. Admins can only cancel and remove
+items; everything else is for the order's buyer or vendor
+(`lib/artsy_neighbor/orders.ex`, "Who is acting").
+
 ### Changing the app's database password (done 2026-11-04)
 
 For the limited user the app connects as (`an_preview_g3ukxp`), e.g.

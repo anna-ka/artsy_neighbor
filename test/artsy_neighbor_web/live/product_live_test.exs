@@ -284,6 +284,30 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       assert has_element?(view, ".product-info h1")
     end
 
+    test "a logged-out visitor's hand-made clicks get a message instead of crashing the page",
+         %{conn: conn} do
+      product = product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      assert render_click(view, "request_to_buy", %{}) =~ "Please log in first."
+      assert render_click(view, "message_artist", %{}) =~ "Please log in first."
+    end
+
+    test "Request to buy is refused if the work stopped being for sale after the page opened",
+         %{conn: conn} do
+      %{conn: conn, user: buyer} = register_and_log_in_user(%{conn: conn})
+      product = product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/products/#{product}")
+
+      # The artist archives it while the buyer has the page open.
+      {:ok, _} = Products.soft_delete_product(Products.get_product!(product.id))
+
+      html = view |> element("button", "Request to buy") |> render_click()
+
+      assert html =~ "Sorry, this work is no longer for sale."
+      assert ArtsyNeighbor.Orders.list_orders_for_buyer(buyer.id) == []
+    end
+
     test "the Back link shows only when the page was opened with one", %{conn: conn} do
       product = product_fixture()
 

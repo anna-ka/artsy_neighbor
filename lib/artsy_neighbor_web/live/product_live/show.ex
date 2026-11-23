@@ -146,6 +146,14 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
     {:noreply, socket}
   end
 
+  # A logged-out visitor (current_scope nil) doesn't get these buttons,
+  # but a hand-made event would otherwise crash the page on the missing
+  # user.
+  def handle_event(event, _params, %{assigns: %{current_scope: nil}} = socket)
+      when event in ["message_artist", "request_to_buy"] do
+    {:noreply, put_flash(socket, :error, "Please log in first.")}
+  end
+
   # "Send message": finds or creates a conversation between the current
   # user (buyer) and the artist (seller), then opens it.
   def handle_event("message_artist", _params, socket) do
@@ -158,35 +166,34 @@ defmodule ArtsyNeighborWeb.ProductLive.Show do
   # "Request to buy": adds the work to the buyer's open order with this
   # artist (starting one if there is none), then opens the conversation,
   # where the two of them arrange the rest.
+  # Orders refuses a one-of-a-kind work that is already in the order
+  # ({:error, :unique_work}).
   def handle_event("request_to_buy", _params, socket) do
     product = socket.assigns.product
-    buyer = socket.assigns.current_scope.user
-    artist = product.artist
-    {:ok, conversation} = Conversations.find_or_create_conversation(buyer.id, artist.id)
+    scope = socket.assigns.current_scope
+
+    {:ok, conversation} =
+      Conversations.find_or_create_conversation(scope.user.id, product.artist_id)
 
     result =
       case Orders.get_open_order_for_conversation(conversation.id) do
         nil ->
-          Orders.create_order(conversation, buyer, artist, [%{product: product, quantity: 1}])
+          Orders.create_order(scope, conversation, [%{product: product, quantity: 1}])
 
         order ->
-          already_in_order? =
-            Enum.any?(order.items, fn item -> item.product_id == product.id end)
-
-          if product.unique_work && already_in_order? do
-            {:error, :unique_work_already_in_order}
-          else
-            Orders.add_item_to_order(order, product, :buyer)
-          end
+          Orders.add_item_to_order(scope, order, product)
       end
 
     case result do
       {:ok, _} ->
         {:noreply, push_navigate(socket, to: ~p"/messages/#{conversation.id}")}
 
-      {:error, :unique_work_already_in_order} ->
+      {:error, :unique_work} ->
         {:noreply,
          put_flash(socket, :error, "This is a unique work and it is already in your order.")}
+
+      {:error, :not_available} ->
+        {:noreply, put_flash(socket, :error, "Sorry, this work is no longer for sale.")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Something went wrong. Please try again.")}

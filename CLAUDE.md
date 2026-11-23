@@ -131,6 +131,11 @@ doesn't cost real efficiency.
   they've onboarded as a vendor.
 - `artist_id` is always injected server-side in vendor forms from
   `current_scope.artist` — never trust an `artist_id` coming from params.
+- The `Orders` functions that change an order take the caller's
+  `current_scope` as their first argument and work out the role
+  (buyer / vendor / admin) themselves, refusing anyone else with
+  `{:error, :unauthorized}`. Never pass a role in. See "Who is acting"
+  at the top of `lib/artsy_neighbor/orders.ex`.
 - Public queries for artists/products/categories always filter by status — see
   `Artists.filter_artists/1`, `Artists.list_artists/0`,
   `Products.only_available/1`, `Categories.list_categories/0`. There is no

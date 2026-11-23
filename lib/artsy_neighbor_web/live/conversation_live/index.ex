@@ -140,7 +140,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Index do
     end
   end
 
-  defp platform_name, do: Application.get_env(:artsy_neighbor, :platform_name, "Artsy Neighbour")
+  defp platform_name, do: ArtsyNeighbor.platform_name()
 
   def render(assigns) do
     ~H"""

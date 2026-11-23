@@ -485,6 +485,36 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
+  An artist's works that are for sale (only_available/1: :available,
+  with the artist :active), with their photos, by title. Used for the
+  vendor's "+ Add item" list on an open order: only works for sale can
+  go in an order.
+  """
+  def list_available_products_by_artist(artist_id) do
+    Product
+    |> where([p], p.artist_id == ^artist_id)
+    |> only_available()
+    |> order_by([p], asc: p.title)
+    |> preload(product_images: ^images_by_position())
+    |> Repo.all()
+  end
+
+  @doc """
+  True if the work with this id is for sale right now: the same rule as
+  only_available/1, checked fresh in the database (a product struct a
+  page loaded earlier may be out of date). Orders uses this before
+  putting a work in an order.
+  """
+  def for_sale?(product_id) when is_integer(product_id) do
+    Product
+    |> where([p], p.id == ^product_id)
+    |> only_available()
+    |> Repo.exists?()
+  end
+
+  def for_sale?(_no_id), do: false
+
+  @doc """
   All of an artist's products, whatever their status — for the vendor's
   own dashboard, where they need to see and manage every product they
   own, including ones they've archived (see soft_delete_product/1).

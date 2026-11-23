@@ -1,7 +1,7 @@
 defmodule ArtsyNeighbor.OrdersFixtures do
   @moduledoc """
   Test helpers for creating orders directly (bypassing the cart/checkout
-  flow in `ArtsyNeighbor.Orders.create_order/5`, which requires real
+  flow in `ArtsyNeighbor.Orders.create_order/4`, which requires real
   order items). Reviews tests only care about status, completed_at,
   buyer_id, and artist_id.
   """

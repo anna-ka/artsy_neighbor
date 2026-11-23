@@ -101,7 +101,7 @@ config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
 config :artsy_neighbor, :timezone, "America/Vancouver"
 
 # The name shown in system/admin messages and emails. Change here to rebrand.
-config :artsy_neighbor, :platform_name, "Artsy Neighbour"
+config :artsy_neighbor, :platform_name, "LocalPalette"
 
 # The home page's hero: a detail of one work, chosen by hand for now. The
 # credit on the picture (title, artist, area) comes from the work itself.

@@ -43,9 +43,17 @@ defmodule ArtsyNeighbor.Conversations do
     conversation = Repo.get!(Conversation, conversation_id) |> Repo.preload(artist: [])
 
     case event.actor_type do
-      :buyer -> broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
-      :vendor -> broadcast_to_user(conversation.buyer_id, {:conversation_updated, event})
-      _ -> :ok
+      :buyer ->
+        broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
+
+      :vendor ->
+        broadcast_to_user(conversation.buyer_id, {:conversation_updated, event})
+
+      # A change by the platform (an admin): neither of them made it, so
+      # both get told.
+      :system ->
+        broadcast_to_user(conversation.buyer_id, {:conversation_updated, event})
+        broadcast_to_user(conversation.artist.user_id, {:conversation_updated, event})
     end
   end
 
