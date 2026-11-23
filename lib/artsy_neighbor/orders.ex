@@ -645,6 +645,24 @@ defmodule ArtsyNeighbor.Orders do
     |> Repo.all()
   end
 
+  @doc """
+  Returns the order with this id only if it belongs to this conversation
+  and is still open (:requested or :confirmed), with the same preloads
+  as get_order!/1. Returns nil otherwise.
+
+  The conversation page uses this for every order button: the order id
+  comes from the browser, so it must not be able to name an order of
+  some other conversation.
+  """
+  def get_open_order_in_conversation(conversation_id, order_id) do
+    Order
+    |> where([o], o.id == ^order_id)
+    |> where([o], o.conversation_id == ^conversation_id)
+    |> where([o], o.status in [:requested, :confirmed])
+    |> preload([:buyer, :artist, items: [product: :product_images]])
+    |> Repo.one()
+  end
+
   @doc "Fetches a single order by id with items, buyer, and artist preloaded. Raises if not found."
   def get_order!(id) do
     Order

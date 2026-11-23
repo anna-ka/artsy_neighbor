@@ -286,6 +286,14 @@ defmodule ArtsyNeighbor.Products do
   """
   def get_product!(id), do: Repo.get!(Product, id)
 
+  @doc """
+  Gets a single product by id, whatever its status, or nil if there is
+  none. Like get_product!/1 but doesn't raise, for ids that come from
+  the browser. Not for public pages: those must only see :available
+  products (get_product_with_associations/1).
+  """
+  def get_product_all_status(id), do: Repo.get(Product, id)
+
   # The full set of associations a product's detail views (public, vendor,
   # admin) need preloaded. Pulled into one place so get_product_with_associations!/1,
   # get_product_with_associations/1, and get_product_with_associations_all_status/1

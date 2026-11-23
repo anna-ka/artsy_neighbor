@@ -4,11 +4,15 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   alias ArtsyNeighbor.Conversations
   alias ArtsyNeighbor.Images
   alias ArtsyNeighbor.Orders
+  alias ArtsyNeighbor.Orders.Order
   alias ArtsyNeighbor.Conversations.ConversationEvent
   alias ArtsyNeighbor.Products
+  alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Artists
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
+
+  require Logger
 
   def mount(_params, _session, socket) do
     {:ok,
@@ -381,6 +385,9 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
                           <p class="text-[11px] text-base-content/50 -mt-1">
                             Date and time are optional — leave blank if you already agreed on a time in chat.
                           </p>
+                          <%!-- Sent with the form, like the order id on every other
+                               order button; submit_schedule checks it again. --%>
+                          <input type="hidden" name="schedule[order_id]" value={order.id} />
                           <input
                             type="date"
                             name="schedule[date]"
@@ -598,7 +605,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     conversation = socket.assigns.conversation
     user_id = socket.assigns.current_scope.user.id
 
-    with {parsed_id, ""} <- Integer.parse(id),
+    with parsed_id when is_integer(parsed_id) <- parse_id(id),
          %ConversationEvent{conversation_id: conversation_id} = event <-
            Conversations.get_conv_event(parsed_id),
          true <- conversation_id == conversation.id,
@@ -609,17 +616,241 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # Order buttons
+  #
+  # Every order button sends the order's id from the browser, and anyone
+  # can send these events by hand, with any id. So no handler trusts the
+  # id: each one looks the order up again with open_order_from_event/2,
+  # which only finds a still-open order of *this* conversation. The
+  # vendor-only buttons (confirm, schedule pick-up, add item) also check
+  # vendor?/1 first, because hiding a button in the template doesn't stop
+  # its event from being sent.
+  # ---------------------------------------------------------------------------
+
   def handle_event("open_schedule_form", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :schedule_pickup_order_id, String.to_integer(id))}
+    with true <- vendor?(socket),
+         %Order{status: :confirmed} = order <- open_order_from_event(socket, id) do
+      {:noreply, assign(socket, :schedule_pickup_order_id, order.id)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not open the pick-up form.")}
+    end
   end
 
   def handle_event("cancel_schedule", _params, socket) do
     {:noreply, assign(socket, :schedule_pickup_order_id, nil)}
   end
 
+  # The order id comes from the form's hidden field. (The
+  # schedule_pickup_order_id assign only says which order's form is
+  # showing.)
   def handle_event("submit_schedule", %{"schedule" => params}, socket) do
-    order_id = socket.assigns.schedule_pickup_order_id
-    order = Enum.find(socket.assigns.open_orders, &(&1.id == order_id))
+    with true <- vendor?(socket),
+         %Order{status: :confirmed} = order <-
+           open_order_from_event(socket, params["order_id"]) do
+      schedule_pickup_from_form(socket, order, params)
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not send schedule. Please try again.")}
+    end
+  end
+
+  def handle_event("remove_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
+    actor_type = socket.assigns.current_role
+
+    with %Order{} = order <- open_order_from_event(socket, order_id),
+         parsed_item_id when is_integer(parsed_item_id) <- parse_id(item_id),
+         {:ok, _} <- Orders.remove_order_item(order, parsed_item_id, actor_type) do
+      {:noreply, reload_open_orders(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not remove item.")}
+    end
+  end
+
+  def handle_event(
+        "increment_order_item",
+        %{"order-id" => order_id, "item-id" => item_id},
+        socket
+      ) do
+    actor_type = socket.assigns.current_role
+
+    with %Order{} = order <- open_order_from_event(socket, order_id),
+         parsed_item_id when is_integer(parsed_item_id) <- parse_id(item_id),
+         {:ok, _} <- Orders.increment_order_item(order, parsed_item_id, actor_type) do
+      {:noreply, reload_open_orders(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
+    end
+  end
+
+  def handle_event("confirm_order", %{"id" => id}, socket) do
+    with true <- vendor?(socket),
+         %Order{} = order <- open_order_from_event(socket, id),
+         {:ok, confirmed_order} <- Orders.confirm_order(order) do
+      if confirmed_order.pickup_date do
+        completion_url =
+          url(
+            ~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}"
+          )
+
+        Orders.schedule_pickup(confirmed_order, %{
+          date: confirmed_order.pickup_date,
+          time: confirmed_order.pickup_time,
+          address: confirmed_order.pickup_address,
+          instructions: confirmed_order.pickup_instructions || "",
+          completion_url: completion_url
+        })
+      end
+
+      {:noreply, reload_open_orders(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not confirm order.")}
+    end
+  end
+
+  def handle_event("cancel_pickup", %{"id" => id}, socket) do
+    actor_type = socket.assigns.current_role
+
+    with %Order{} = order <- open_order_from_event(socket, id),
+         {:ok, _} <- Orders.cancel_pickup(order, actor_type) do
+      {:noreply, reload_open_orders(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not cancel pick-up.")}
+    end
+  end
+
+  def handle_event("cancel_order", %{"id" => id}, socket) do
+    actor_type = socket.assigns.current_role
+
+    with %Order{} = order <- open_order_from_event(socket, id),
+         {:ok, _order} <- Orders.cancel_order(order, actor_type) do
+      {:noreply, reload_open_orders(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not cancel order.")}
+    end
+  end
+
+  # Uses the all-status product list, not a public-scoped one
+  # (Products.only_available/1): this is the vendor managing their own
+  # open order, and a public list returns nothing at all when the
+  # vendor's own artist profile isn't :active (same reason the vendor
+  # dashboard uses the all-status version).
+  def handle_event("open_add_item_form", %{"id" => id}, socket) do
+    with true <- vendor?(socket),
+         %Order{} = order <- open_order_from_event(socket, id) do
+      products = Products.get_products_by_artist_all_status(order.artist_id)
+
+      {:noreply,
+       socket
+       |> assign(:add_item_order_id, order.id)
+       |> assign(:vendor_products, products)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not open the list of works.")}
+    end
+  end
+
+  def handle_event("cancel_add_item", _params, socket) do
+    {:noreply, assign(socket, :add_item_order_id, nil)}
+  end
+
+  # The product id comes from the browser too, so the product must be
+  # one of this order's artist's own works: a vendor can't add another
+  # artist's work to their order.
+  def handle_event(
+        "vendor_add_item",
+        %{"order-id" => order_id, "product-id" => product_id},
+        socket
+      ) do
+    with true <- vendor?(socket),
+         %Order{} = order <- open_order_from_event(socket, order_id),
+         %Product{} = product <- product_from_event(product_id),
+         true <- product.artist_id == order.artist_id,
+         {:ok, _} <- Orders.add_item_to_order(order, product, :vendor) do
+      {:noreply,
+       socket
+       |> assign(:add_item_order_id, nil)
+       |> reload_open_orders()}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not add item.")}
+    end
+  end
+
+  # Catch-all, so it must stay the last handle_event clause. It gets any
+  # event no clause above matched: an unknown name, or a known one with
+  # its fields missing (e.g. "confirm_order" without an "id"). The page's
+  # own buttons always send their fields, so only a hand-made event
+  # lands here. Without this clause such an event would crash the page.
+  # Logs only the event's name, not its fields, which may hold someone's
+  # message text.
+  def handle_event(event, _params, socket) do
+    Logger.warning("ConversationLive.Show: unexpected event #{inspect(event)}")
+
+    {:noreply, put_flash(socket, :error, "Something went wrong. Please reload the page.")}
+  end
+
+  def handle_info({:new_message, conv_event}, socket) do
+    socket =
+      if conv_event.event_type == :status_change do
+        reload_open_orders(socket)
+      else
+        socket
+      end
+
+    {:noreply, stream_insert(socket, :messages, conv_event)}
+  end
+
+  # True when the viewer is the artist of this conversation. current_role
+  # is worked out on the server in handle_params/3, never taken from the
+  # browser.
+  defp vendor?(socket) do
+    socket.assigns.current_role == :vendor
+  end
+
+  # Turns an order id sent by the browser into the order, but only if it
+  # is a still-open order of the conversation on screen; nil otherwise
+  # (a bad id, someone else's order, or one that was cancelled or
+  # completed meanwhile). Looked up fresh, not taken from @open_orders,
+  # so the buttons always act on the order's current state.
+  defp open_order_from_event(socket, raw_order_id) do
+    case parse_id(raw_order_id) do
+      nil ->
+        nil
+
+      order_id ->
+        Orders.get_open_order_in_conversation(socket.assigns.conversation.id, order_id)
+    end
+  end
+
+  # Like open_order_from_event/2, for a product id: the product, any
+  # status, or nil. The caller checks whose product it is.
+  defp product_from_event(raw_product_id) do
+    case parse_id(raw_product_id) do
+      nil -> nil
+      product_id -> Products.get_product_all_status(product_id)
+    end
+  end
+
+  # The largest number a Postgres `bigint` can hold, which is the type
+  # of every id column. A bigger number makes the database query itself
+  # fail (and crash the page), so parse_id/1 refuses it first.
+  @max_id 9_223_372_036_854_775_807
+
+  # Turns an id sent by the browser ("12") into an integer. Returns nil
+  # for anything that can't be a real id: not a whole number ("abc",
+  # "12abc"), zero or negative, or too big for the database. So a forged
+  # value gets an error message instead of crashing the page.
+  defp parse_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {parsed, ""} when parsed >= 1 and parsed <= @max_id -> parsed
+      _ -> nil
+    end
+  end
+
+  defp parse_id(_other), do: nil
+
+  # The pick-up form's fields, checked and sent. Only called once
+  # submit_schedule has checked the viewer is the vendor and the order is
+  # a confirmed order of this conversation.
+  defp schedule_pickup_from_form(socket, order, params) do
     artist = socket.assigns.current_scope.artist
 
     date_raw = String.trim(params["date"] || "")
@@ -661,130 +892,6 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
             {:noreply, put_flash(socket, :error, "Could not send schedule. Please try again.")}
         end
     end
-  end
-
-  def handle_event("remove_order_item", %{"order-id" => order_id, "item-id" => item_id}, socket) do
-    order = Orders.get_order!(order_id)
-    actor_type = socket.assigns.current_role
-
-    case Orders.remove_order_item(order, String.to_integer(item_id), actor_type) do
-      {:ok, _} -> {:noreply, reload_open_orders(socket)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove item.")}
-    end
-  end
-
-  def handle_event(
-        "increment_order_item",
-        %{"order-id" => order_id, "item-id" => item_id},
-        socket
-      ) do
-    order = Orders.get_order!(order_id)
-    actor_type = socket.assigns.current_role
-
-    case Orders.increment_order_item(order, String.to_integer(item_id), actor_type) do
-      {:ok, _} -> {:noreply, reload_open_orders(socket)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not update quantity.")}
-    end
-  end
-
-  def handle_event("confirm_order", %{"id" => id}, socket) do
-    order = Orders.get_order!(id)
-
-    case Orders.confirm_order(order) do
-      {:ok, confirmed_order} ->
-        if confirmed_order.pickup_date do
-          completion_url =
-            url(
-              ~p"/orders/#{confirmed_order.id}/complete-purchase/#{confirmed_order.complete_token}"
-            )
-
-          Orders.schedule_pickup(confirmed_order, %{
-            date: confirmed_order.pickup_date,
-            time: confirmed_order.pickup_time,
-            address: confirmed_order.pickup_address,
-            instructions: confirmed_order.pickup_instructions || "",
-            completion_url: completion_url
-          })
-        end
-
-        {:noreply, reload_open_orders(socket)}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not confirm order.")}
-    end
-  end
-
-  def handle_event("cancel_pickup", %{"id" => id}, socket) do
-    order = Orders.get_order!(id)
-    actor_type = socket.assigns.current_role
-
-    case Orders.cancel_pickup(order, actor_type) do
-      {:ok, _} -> {:noreply, reload_open_orders(socket)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not cancel pick-up.")}
-    end
-  end
-
-  def handle_event("cancel_order", %{"id" => id}, socket) do
-    order = Orders.get_order!(id)
-    actor_type = socket.assigns.current_role
-
-    case Orders.cancel_order(order, actor_type) do
-      {:ok, _order} ->
-        {:noreply, reload_open_orders(socket)}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not cancel order.")}
-    end
-  end
-
-  # Uses the all-status product list, not a public-scoped one
-  # (Products.only_available/1): this is the vendor managing their own
-  # open order, and a public list returns nothing at all when the
-  # vendor's own artist profile isn't :active (same reason the vendor
-  # dashboard uses the all-status version).
-  def handle_event("open_add_item_form", %{"id" => id}, socket) do
-    artist = socket.assigns.current_scope.artist
-    products = Products.get_products_by_artist_all_status(artist.id)
-
-    {:noreply,
-     socket
-     |> assign(:add_item_order_id, String.to_integer(id))
-     |> assign(:vendor_products, products)}
-  end
-
-  def handle_event("cancel_add_item", _params, socket) do
-    {:noreply, assign(socket, :add_item_order_id, nil)}
-  end
-
-  def handle_event(
-        "vendor_add_item",
-        %{"order-id" => order_id, "product-id" => product_id},
-        socket
-      ) do
-    order = Orders.get_order!(order_id)
-    product = Products.get_product!(product_id)
-
-    case Orders.add_item_to_order(order, product, :vendor) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:add_item_order_id, nil)
-         |> reload_open_orders()}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not add item.")}
-    end
-  end
-
-  def handle_info({:new_message, conv_event}, socket) do
-    socket =
-      if conv_event.event_type == :status_change do
-        reload_open_orders(socket)
-      else
-        socket
-      end
-
-    {:noreply, stream_insert(socket, :messages, conv_event)}
   end
 
   defp reload_open_orders(socket) do

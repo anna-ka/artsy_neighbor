@@ -354,7 +354,21 @@ which is mechanical and done once, up front.
           the browser would save only the cheap shrinking.
        The audit of 2026-11-15
        (kept locally in `docs/private/`, which git ignores)
-       is to be addressed after these.
+       is to be addressed after these. *Started 2026-11-21*, in the
+       audit's suggested order (S-1, S-2, S-3+S-4, then the crashes
+       C-1 to C-3, before anyone else uses the preview):
+          S-1 (order buttons acted on any order): *page fix DONE
+          2026-11-21*. The conversation page now looks every order up
+          within its own conversation and checks the role for the
+          vendor-only buttons. Next, in its own commit: the `Orders`
+          functions take the `current_scope` and check who is acting
+          themselves (Phoenix 1.8's convention), so no future page can
+          forget the checks. Include in that commit (from the code
+          review of the page fix): one-of-a-kind works (`unique_work`)
+          can reach quantity 2. Only the template hides them from the
+          add list, and the "+" button shows for every item, so
+          `Orders.add_item_to_order/3` and `increment_order_item/3`
+          should refuse to take a unique work above quantity 1.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
