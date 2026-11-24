@@ -168,10 +168,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     if name == "" do
       {:noreply, socket}
     else
-      all_collections = Products.list_collections_for_artist(artist.id)
-      max_pos = all_collections |> Enum.map(& &1.position) |> Enum.max(fn -> 0 end)
-
-      case Products.create_collection(%{name: name, position: max_pos + 1, artist_id: artist.id}) do
+      case Products.create_collection(artist.id, %{name: name}) do
         {:ok, new_collection} ->
           updated_collections =
             Products.list_collections_for_artist(artist.id)

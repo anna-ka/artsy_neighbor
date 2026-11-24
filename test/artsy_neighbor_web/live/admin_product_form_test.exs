@@ -137,7 +137,7 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
     test "a work can be moved to an artist who has no collections",
          %{conn: conn, artist: artist, category: category} do
       {:ok, prints} =
-        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Prints"})
 
       product =
         ArtsyNeighbor.ProductsFixtures.product_fixture(%{

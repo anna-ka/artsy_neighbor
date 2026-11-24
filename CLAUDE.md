@@ -277,6 +277,17 @@ NOTES.md:
   is a plain delete (`products.category_id` is `on_delete: :nilify_all`, and
   categories can't be flagged, so no flag cleanup is needed)
 
+**ProductCollection** (`lib/artsy_neighbor/products/product_collection.ex`)
+- `is_default` — every artist has exactly one default collection (made
+  with the profile; a unique index allows only one), where works with
+  no other collection go. It always comes last, on the dashboard and
+  on the public pages. Recognise it by `is_default`, never by
+  its name: it starts as "Uncategorized" but may be renamed. It can't be
+  deleted (`Products.delete_collection/1` refuses it).
+- The changeset takes only `name`; `Products.create_collection/2` takes
+  the owner as its own argument and works out the position. Reordering
+  goes through `position_changeset/2`.
+
 **Conversations** — `buyer_id`/`artist_id` are nullable (see migration
 `20260817000002_allow_null_participants_in_conversations`) because system
 messages need both to be nil.

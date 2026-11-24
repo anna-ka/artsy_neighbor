@@ -11,6 +11,7 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
   alias ArtsyNeighbor.Artists
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
 
   require Logger
 
@@ -849,24 +850,6 @@ defmodule ArtsyNeighborWeb.ConversationLive.Show do
       product_id -> Products.get_product_all_status(product_id)
     end
   end
-
-  # The largest number a Postgres `bigint` can hold, which is the type
-  # of every id column. A bigger number makes the database query itself
-  # fail (and crash the page), so parse_id/1 refuses it first.
-  @max_id 9_223_372_036_854_775_807
-
-  # Turns an id sent by the browser ("12") into an integer. Returns nil
-  # for anything that can't be a real id: not a whole number ("abc",
-  # "12abc"), zero or negative, or too big for the database. So a forged
-  # value gets an error message instead of crashing the page.
-  defp parse_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {parsed, ""} when parsed >= 1 and parsed <= @max_id -> parsed
-      _ -> nil
-    end
-  end
-
-  defp parse_id(_other), do: nil
 
   # The pick-up form's fields, checked and sent. Only called once
   # submit_schedule has checked the viewer is the vendor and the order is

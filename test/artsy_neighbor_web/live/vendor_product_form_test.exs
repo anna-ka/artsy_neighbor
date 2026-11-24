@@ -127,11 +127,7 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       other_artist = artist_fixture()
 
       {:ok, other_collection} =
-        Products.create_collection(%{
-          name: "Someone else's oils",
-          position: 2,
-          artist_id: other_artist.id
-        })
+        Products.create_collection(other_artist.id, %{name: "Someone else's oils"})
 
       %{other_artist: other_artist, other_collection: other_collection}
     end

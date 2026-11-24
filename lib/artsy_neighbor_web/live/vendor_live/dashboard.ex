@@ -7,6 +7,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   alias ArtsyNeighbor.Reviews
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1]
   import ArtsyNeighborWeb.OrderFormatters
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
 
   def mount(_params, _session, socket) do
     case socket.assigns.current_scope.artist do
@@ -34,6 +35,60 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
            page_title: "Artist Dashboard",
            confirming_status: false
          )}
+    end
+  end
+
+  # Deletes one of the artist's own collections; its works move to the
+  # default collection (Products.delete_collection/1).
+  defp delete_own_collection(socket, collection) do
+    case Products.delete_collection(collection) do
+      {:ok, _} ->
+        collections = Products.list_collections_for_artist(socket.assigns.artist.id)
+        default_name = default_collection_name(collections)
+
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           "Collection deleted. Its products have been moved to \"#{default_name}\"."
+         )
+         |> assign(collections: collections)}
+
+      # Only a hand-made request gets here: the page has no Delete link
+      # for the default collection.
+      {:error, :default_collection} ->
+        {:noreply,
+         put_flash(socket, :error, "This collection can't be deleted, but you can rename it.")}
+    end
+  end
+
+  # The position in `collections` of the collection with this id (as
+  # sent by the browser), or nil if it isn't one of them.
+  defp find_collection_index(collections, raw_id) do
+    id = parse_id(raw_id)
+    Enum.find_index(collections, fn collection -> collection.id == id end)
+  end
+
+  # A collection can move down unless it is the last one, or the next
+  # one is the default collection (which always stays last).
+  defp can_move_down?(collections, index) do
+    next = Enum.at(collections, index + 1)
+    next != nil and not next.is_default
+  end
+
+  defp swap_collections(socket, a, b) do
+    Products.swap_collection_positions(a, b)
+
+    {:noreply,
+     assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+  end
+
+  # The name of the artist's default collection, for messages. It starts
+  # as "Uncategorized", but the artist may have renamed it.
+  defp default_collection_name(collections) do
+    case Enum.find(collections, fn collection -> collection.is_default end) do
+      nil -> ArtsyNeighbor.Artists.default_collection_name()
+      default -> default.name
     end
   end
 
@@ -174,7 +229,14 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
               <%!-- Collection heading with product count + collection actions --%>
               <div class="flex items-center gap-4 border-b border-base-300 pb-2">
                 <%!-- Up/down arrows to reorder collections --%>
-                <div class="flex flex-col tooltip tooltip-right" data-tip="Reorder collections">
+                <%!-- The default collection always comes last (here and on
+                     the public page), so it has no arrows, and the one
+                     above it has no "down" --%>
+                <div
+                  :if={not collection.is_default}
+                  class="flex flex-col tooltip tooltip-right"
+                  data-tip="Reorder collections"
+                >
                   <button
                     :if={index > 0}
                     type="button"
@@ -185,7 +247,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                     ↑
                   </button>
                   <button
-                    :if={index < length(@collections) - 1}
+                    :if={can_move_down?(@collections, index)}
                     type="button"
                     phx-click="move_collection_down"
                     phx-value-collectionid={collection.id}
@@ -210,12 +272,13 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                   >
                     Edit collection
                   </.link>
-                  <%!-- "Uncategorized" is the protected default — disallow deletion --%>
+                  <%!-- The default collection can't be deleted
+                       (Products.delete_collection/1 refuses it too) --%>
                   <.link
-                    :if={collection.name != "Uncategorized"}
+                    :if={not collection.is_default}
                     phx-click="delete_collection"
                     phx-value-id={collection.id}
-                    data-confirm={"Delete \"#{collection.name}\"? Its products will be moved to your Uncategorized collection."}
+                    data-confirm={"Delete \"#{collection.name}\"? Its products will be moved to your \"#{default_collection_name(@collections)}\" collection."}
                     class="text-xs text-warning hover:underline"
                   >
                     Delete collection
@@ -480,55 +543,52 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     end
   end
 
+  # Moving a collection swaps it with its neighbour. Only among the
+  # artist's own collections (socket.assigns.collections), and never
+  # with the default one, which stays last (see can_move_down?/2). An id
+  # that isn't one of them (a hand-made request) does nothing.
   def handle_event("move_collection_up", %{"collectionid" => id}, socket) do
-    id = String.to_integer(id)
     collections = socket.assigns.collections
-    index = Enum.find_index(collections, fn c -> c.id == id end)
+    index = find_collection_index(collections, id)
 
-    if index && index > 0 do
-      Products.swap_collection_positions(
-        Enum.at(collections, index),
-        Enum.at(collections, index - 1)
-      )
-
-      {:noreply,
-       assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+    if (index && index > 0) and not Enum.at(collections, index).is_default do
+      swap_collections(socket, Enum.at(collections, index), Enum.at(collections, index - 1))
     else
       {:noreply, socket}
     end
   end
 
   def handle_event("move_collection_down", %{"collectionid" => id}, socket) do
-    id = String.to_integer(id)
     collections = socket.assigns.collections
-    index = Enum.find_index(collections, fn c -> c.id == id end)
+    index = find_collection_index(collections, id)
 
-    if index && index < length(collections) - 1 do
-      Products.swap_collection_positions(
-        Enum.at(collections, index),
-        Enum.at(collections, index + 1)
-      )
-
-      {:noreply,
-       assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+    if index && can_move_down?(collections, index) do
+      swap_collections(socket, Enum.at(collections, index), Enum.at(collections, index + 1))
     else
       {:noreply, socket}
     end
   end
 
   def handle_event("delete_collection", %{"id" => id}, socket) do
-    collection = Products.get_collection!(String.to_integer(id))
+    collection =
+      case parse_id(id) do
+        nil -> nil
+        parsed -> Products.get_collection(parsed)
+      end
 
-    if collection.artist_id == socket.assigns.artist.id do
-      {:ok, _} = Products.delete_collection(collection)
-      collections = Products.list_collections_for_artist(socket.assigns.artist.id)
+    cond do
+      # Gone already (e.g. deleted in another tab), or a forged id.
+      is_nil(collection) ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "That collection had already been deleted.")
+         |> assign(collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
 
-      {:noreply,
-       socket
-       |> put_flash(:info, "Collection deleted. Its products have been moved to Uncategorized.")
-       |> assign(collections: collections)}
-    else
-      {:noreply, put_flash(socket, :error, "You are not authorized to delete this collection.")}
+      collection.artist_id == socket.assigns.artist.id ->
+        delete_own_collection(socket, collection)
+
+      true ->
+        {:noreply, put_flash(socket, :error, "You are not authorized to delete this collection.")}
     end
   end
 

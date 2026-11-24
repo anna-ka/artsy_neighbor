@@ -206,7 +206,7 @@ defmodule ArtsyNeighborWeb.ArtistLive.Show do
     |> assign(:total_count, total_count)
     |> assign(:category_counts, category_counts)
     # The same collections as the Works tab's cards: none without works,
-    # no "Uncategorized".
+    # the default collection last.
     |> assign(:collections, shown_collections(socket.assigns.audience, artist))
     # Any change of filters starts again with the first page of works.
     |> assign(:shown_count, @page_size)

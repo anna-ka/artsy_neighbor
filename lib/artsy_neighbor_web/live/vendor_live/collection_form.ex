@@ -5,6 +5,7 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   alias ArtsyNeighbor.Products.ProductCollection
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
 
   @impl true
   def mount(params, _session, socket) do
@@ -14,10 +15,7 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   defp apply_action(socket, :new, _params) do
     artist = socket.assigns.current_scope.artist
 
-    collection = %ProductCollection{
-      artist_id: artist.id,
-      position: next_collection_position(artist.id)
-    }
+    collection = %ProductCollection{artist_id: artist.id}
 
     socket
     |> assign(:page_title, "Create Collection")
@@ -27,17 +25,30 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
 
   defp apply_action(socket, :edit, %{"id" => id}) do
     artist = socket.assigns.current_scope.artist
-    collection = Products.get_collection!(id)
 
-    if collection.artist_id != artist.id do
-      socket
-      |> put_flash(:error, "You are not authorized to edit this collection.")
-      |> redirect(to: ~p"/vendor")
-    else
-      socket
-      |> assign(:page_title, "Edit Collection")
-      |> assign(:collection, collection)
-      |> assign(:form, to_form(Products.change_collection(collection)))
+    collection =
+      case parse_id(id) do
+        nil -> nil
+        parsed -> Products.get_collection(parsed)
+      end
+
+    cond do
+      # Deleted meanwhile (e.g. in another tab), or a made-up address.
+      is_nil(collection) ->
+        socket
+        |> put_flash(:error, "That collection doesn't exist any more.")
+        |> redirect(to: ~p"/vendor")
+
+      collection.artist_id != artist.id ->
+        socket
+        |> put_flash(:error, "You are not authorized to edit this collection.")
+        |> redirect(to: ~p"/vendor")
+
+      true ->
+        socket
+        |> assign(:page_title, "Edit Collection")
+        |> assign(:collection, collection)
+        |> assign(:form, to_form(Products.change_collection(collection)))
     end
   end
 
@@ -53,14 +64,10 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   end
 
   defp save_collection(socket, :new, params) do
+    # The owner is always the logged-in artist, never from the params.
     artist = socket.assigns.current_scope.artist
 
-    params =
-      params
-      |> Map.put("artist_id", artist.id)
-      |> Map.put("position", next_collection_position(artist.id))
-
-    case Products.create_collection(params) do
+    case Products.create_collection(artist.id, params) do
       {:ok, _collection} ->
         {:noreply,
          socket
@@ -72,6 +79,7 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
     end
   end
 
+  # update_collection/2 takes only the name from the params (audit S-4).
   defp save_collection(socket, :edit, params) do
     case Products.update_collection(socket.assigns.collection, params) do
       {:ok, _collection} ->
@@ -83,15 +91,6 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
     end
-  end
-
-  # Returns max(position) + 1 for this artist's collections,
-  # or 1 if the artist has no collections yet.
-  # Using max rather than count avoids collisions after deletions.
-  defp next_collection_position(artist_id) do
-    collections = Products.list_collections_for_artist(artist_id)
-    max_pos = collections |> Enum.map(fn c -> c.position end) |> Enum.max(fn -> 0 end)
-    max_pos + 1
   end
 
   @impl true

@@ -913,11 +913,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       cat2 = category_fixture()
 
       {:ok, collection} =
-        Products.create_collection(%{
-          name: "Summer Series",
-          position: 2,
-          artist_id: artist.id
-        })
+        Products.create_collection(artist.id, %{name: "Summer Series"})
 
       uncategorized_collection =
         artist.id
@@ -1251,7 +1247,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       [default_collection] = Products.list_collections_for_artist(artist.id)
 
       {:ok, other} =
-        Products.create_collection(%{name: "Watercolours", position: 2, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Watercolours"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
 
@@ -1263,7 +1259,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
 
       {:ok, other} =
-        Products.create_collection(%{name: "Watercolours", position: 2, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Watercolours"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
 
@@ -1280,11 +1276,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       other_artist = artist_fixture()
 
       {:ok, other_collection} =
-        Products.create_collection(%{
-          name: "Someone else's oils",
-          position: 2,
-          artist_id: other_artist.id
-        })
+        Products.create_collection(other_artist.id, %{name: "Someone else's oils"})
 
       %{
         artist: artist,
@@ -1370,10 +1362,10 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "AdminProducts.update_product/2: a work moved without a collection goes into the new artist's default one",
          %{artist: artist, other_artist: other_artist} do
       {:ok, collection} =
-        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Prints"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: collection.id})
-      [other_default | _] = Products.list_collections_for_artist(other_artist.id)
+      other_default = Products.get_collection!(Products.default_collection_id(other_artist.id))
 
       {:ok, moved} = AdminProducts.update_product(product, %{artist_id: other_artist.id})
 
@@ -1385,10 +1377,10 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "AdminProducts.update_product/2 refuses to move a work into another of the old artist's collections",
          %{artist: artist, other_artist: other_artist} do
       {:ok, prints} =
-        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Prints"})
 
       {:ok, oils} =
-        Products.create_collection(%{name: "Oils", position: 3, artist_id: artist.id})
+        Products.create_collection(artist.id, %{name: "Oils"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: prints.id})
 
@@ -1453,129 +1445,203 @@ defmodule ArtsyNeighbor.ProductsTest do
   # ============================================================
 
   describe "product collections" do
-    test "create_collection creates a collection for an artist" do
+    test "create_collection/2 creates a collection for an artist, after their others" do
       artist = artist_fixture()
 
       assert {:ok, %ProductCollection{} = collection} =
-               Products.create_collection(%{
-                 name: "Summer Works",
-                 position: 2,
-                 artist_id: artist.id
-               })
+               Products.create_collection(artist.id, %{name: "Summer Works"})
 
       assert collection.name == "Summer Works"
       assert collection.artist_id == artist.id
+      assert collection.is_default == false
+      # The default collection made with the profile is at position 1.
+      assert collection.position == 2
     end
 
-    test "Artists.create_artist/1 automatically creates an Uncategorized collection" do
+    test "Artists.create_artist/1 creates the artist's default collection" do
       artist = artist_fixture()
-      collections = Products.list_collections_for_artist(artist.id)
-      assert Enum.any?(collections, &(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+      [collection] = Products.list_collections_for_artist(artist.id)
+
+      assert collection.is_default
+      assert collection.name == ArtsyNeighbor.Artists.default_collection_name()
+      assert Products.default_collection_id(artist.id) == collection.id
     end
 
     test "list_collections_for_artist returns collections ordered by position" do
       artist = artist_fixture()
-      # The Uncategorized collection is already at position 1 (created by create_artist)
-      {:ok, _col2} =
-        Products.create_collection(%{name: "Series B", position: 3, artist_id: artist.id})
+      {:ok, series_b} = Products.create_collection(artist.id, %{name: "Series B"})
+      {:ok, series_c} = Products.create_collection(artist.id, %{name: "Series C"})
+      {:ok, _} = Products.swap_collection_positions(series_b, series_c)
 
-      {:ok, _col3} =
-        Products.create_collection(%{name: "Series C", position: 2, artist_id: artist.id})
+      names =
+        artist.id
+        |> Products.list_collections_for_artist()
+        |> Enum.map(fn collection -> collection.name end)
 
-      results = Products.list_collections_for_artist(artist.id)
-      positions = Enum.map(results, & &1.position)
-      assert positions == Enum.sort(positions)
-
-      names = Enum.map(results, & &1.name)
-      assert "Series C" in names
-      assert "Series B" in names
-
-      assert Enum.find_index(names, &(&1 == "Series C")) <
-               Enum.find_index(names, &(&1 == "Series B"))
+      # The default collection comes last, whatever its position.
+      assert names == ["Series C", "Series B", "Uncategorized"]
     end
 
     test "list_collections_for_artist is scoped to the given artist" do
       artist1 = artist_fixture()
       artist2 = artist_fixture()
 
-      {:ok, _} =
-        Products.create_collection(%{
-          name: "Artist1 Collection",
-          position: 2,
-          artist_id: artist1.id
-        })
+      {:ok, _} = Products.create_collection(artist1.id, %{name: "Artist1 Collection"})
 
       results = Products.list_collections_for_artist(artist2.id)
-      names = Enum.map(results, & &1.name)
+      names = Enum.map(results, fn collection -> collection.name end)
       refute "Artist1 Collection" in names
     end
 
-    test "delete_collection reassigns its products to the Uncategorized collection" do
+    test "delete_collection reassigns its products to the default collection, even renamed" do
       artist = artist_fixture()
+      default_id = Products.default_collection_id(artist.id)
 
-      {:ok, target} =
-        Products.create_collection(%{name: "Temporary", position: 2, artist_id: artist.id})
+      {:ok, _} =
+        Products.update_collection(Products.get_collection!(default_id), %{name: "Other"})
 
-      fallback =
-        Products.list_collections_for_artist(artist.id)
-        |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
-
-      category = category_fixture()
-
-      product =
-        product_fixture(%{
-          artist_id: artist.id,
-          category_id: category.id,
-          collection_id: target.id
-        })
+      {:ok, target} = Products.create_collection(artist.id, %{name: "Temporary"})
+      product = product_fixture(%{artist_id: artist.id, collection_id: target.id})
 
       assert {:ok, _} = Products.delete_collection(target)
 
-      updated = Products.get_product!(product.id)
-      assert updated.collection_id == fallback.id
+      assert Products.get_product!(product.id).collection_id == default_id
     end
 
-    test "delete_collection sets collection_id to nil when Uncategorized collection is the one being deleted" do
+    test "delete_collection refuses the default collection, and its works stay in it" do
+      artist = artist_fixture()
+      default = Products.get_collection!(Products.default_collection_id(artist.id))
+      product = product_fixture(%{artist_id: artist.id, collection_id: default.id})
+
+      assert {:error, :default_collection} = Products.delete_collection(default)
+
+      assert Products.get_collection!(default.id)
+      assert Products.get_product!(product.id).collection_id == default.id
+    end
+
+    # Every artist gets a default collection with their profile; this is
+    # for one made some other way, without one.
+    test "delete_collection makes a default collection if the artist has none" do
       artist = artist_fixture()
 
-      uncategorized =
-        Products.list_collections_for_artist(artist.id)
-        |> Enum.find(&(&1.name == ArtsyNeighbor.Artists.default_collection_name()))
+      Repo.update_all(
+        from(c in ProductCollection, where: c.artist_id == ^artist.id),
+        set: [is_default: false]
+      )
 
-      category = category_fixture()
+      {:ok, target} = Products.create_collection(artist.id, %{name: "Temporary"})
+      product = product_fixture(%{artist_id: artist.id, collection_id: target.id})
 
-      product =
-        product_fixture(%{
-          artist_id: artist.id,
-          category_id: category.id,
-          collection_id: uncategorized.id
-        })
+      assert {:ok, _} = Products.delete_collection(target)
 
-      assert {:ok, _} = Products.delete_collection(uncategorized)
-
-      updated = Products.get_product!(product.id)
-      assert updated.collection_id == nil
+      new_default = Products.get_collection!(Products.default_collection_id(artist.id))
+      assert new_default.name == "Uncategorized"
+      assert Products.get_product!(product.id).collection_id == new_default.id
     end
 
     test "swap_collection_positions exchanges position values" do
       artist = artist_fixture()
-      {:ok, col_a} = Products.create_collection(%{name: "A", position: 2, artist_id: artist.id})
-      {:ok, col_b} = Products.create_collection(%{name: "B", position: 3, artist_id: artist.id})
+      {:ok, col_a} = Products.create_collection(artist.id, %{name: "A"})
+      {:ok, col_b} = Products.create_collection(artist.id, %{name: "B"})
 
       assert {:ok, _} = Products.swap_collection_positions(col_a, col_b)
 
-      assert Products.get_collection!(col_a.id).position == 3
-      assert Products.get_collection!(col_b.id).position == 2
+      assert Products.get_collection!(col_a.id).position == col_b.position
+      assert Products.get_collection!(col_b.id).position == col_a.position
     end
 
     test "update_collection changes collection attributes" do
       artist = artist_fixture()
-
-      {:ok, collection} =
-        Products.create_collection(%{name: "Old Name", position: 2, artist_id: artist.id})
+      {:ok, collection} = Products.create_collection(artist.id, %{name: "Old Name"})
 
       assert {:ok, updated} = Products.update_collection(collection, %{name: "New Name"})
       assert updated.name == "New Name"
+    end
+  end
+
+  # Audit S-4: a collection's owner, position and default flag are set
+  # by the server; only the name comes from a form.
+  describe "a collection's owner and default flag" do
+    setup do
+      %{artist: artist_fixture(), other_artist: artist_fixture()}
+    end
+
+    test "create_collection/2 takes only the name from the attrs", %{
+      artist: artist,
+      other_artist: other_artist
+    } do
+      {:ok, collection} =
+        Products.create_collection(artist.id, %{
+          name: "Prints",
+          artist_id: other_artist.id,
+          position: 99,
+          is_default: true
+        })
+
+      assert collection.artist_id == artist.id
+      assert collection.position == 2
+      refute collection.is_default
+    end
+
+    test "update_collection/2 takes only the name from the attrs", %{
+      artist: artist,
+      other_artist: other_artist
+    } do
+      {:ok, collection} = Products.create_collection(artist.id, %{name: "Prints"})
+
+      {:ok, updated} =
+        Products.update_collection(collection, %{
+          name: "Linocuts",
+          artist_id: other_artist.id,
+          position: 99,
+          is_default: true
+        })
+
+      assert updated.name == "Linocuts"
+      assert updated.artist_id == artist.id
+      assert updated.position == collection.position
+      refute updated.is_default
+    end
+
+    test "a renamed default collection still takes works with no collection", %{
+      artist: artist
+    } do
+      default = Products.get_collection!(Products.default_collection_id(artist.id))
+      {:ok, _} = Products.update_collection(default, %{name: "Odds and ends"})
+
+      {:ok, product} =
+        Products.create_product(artist.id, %{
+          title: "Small study",
+          descr: "A small study in oils",
+          details: "Unframed",
+          price: "40",
+          category_id: category_fixture().id
+        })
+
+      assert product.collection_id == default.id
+    end
+
+    # Before is_default, a second "Uncategorized" made every
+    # delete_collection/1 crash (Ecto.MultipleResultsError).
+    test "a second collection named Uncategorized is an ordinary one", %{artist: artist} do
+      default_id = Products.default_collection_id(artist.id)
+      {:ok, second} = Products.create_collection(artist.id, %{name: "Uncategorized"})
+      {:ok, other} = Products.create_collection(artist.id, %{name: "Prints"})
+
+      refute second.is_default
+      assert {:ok, _} = Products.delete_collection(other)
+      assert {:ok, _} = Products.delete_collection(second)
+      assert Products.default_collection_id(artist.id) == default_id
+    end
+
+    test "an artist can't have two default collections", %{artist: artist} do
+      result =
+        %ProductCollection{artist_id: artist.id, position: 5, is_default: true}
+        |> ProductCollection.changeset(%{name: "Second default"})
+        |> Repo.insert()
+
+      assert {:error, changeset} = result
+      assert changeset.errors[:artist_id]
     end
   end
 

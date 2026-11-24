@@ -285,13 +285,12 @@ defmodule ArtsyNeighbor.SampleData do
   defp with_uncategorized([%{name: "Uncategorized"} | _] = collections), do: collections
   defp with_uncategorized(collections), do: [%{name: "Uncategorized", works: []} | collections]
 
+  # The first collection is the artist's default one (with_uncategorized/1
+  # puts "Uncategorized" first). The owner, position and is_default go on
+  # the struct: the changeset takes only the name.
   defp insert_collection(collection, position, artist) do
-    %ProductCollection{}
-    |> ProductCollection.changeset(%{
-      name: collection.name,
-      position: position,
-      artist_id: artist.id
-    })
+    %ProductCollection{artist_id: artist.id, position: position, is_default: position == 1}
+    |> ProductCollection.changeset(%{name: collection.name})
     |> Repo.insert!()
   end
 

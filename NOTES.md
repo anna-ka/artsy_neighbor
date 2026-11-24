@@ -440,13 +440,39 @@ which is mechanical and done once, up front.
           inactive artist can be edited. Checked first: no work was in
           another artist's collection on dev or the Fly preview. Left
           for C-5: `?collection_id=abc` crashes the artist page.
-          Next: S-4 (collections: `artist_id` from the form; the
-          default collection known only by its name, decided: an
-          `is_default` column). With it: show the default collection
-          on the public artist page and Shop tab when it has works
-          for sale (it is hidden there always since 2026-10-22, the
-          opposite of item 13's old bug); its own name as the label,
-          last among the collections.
+          S-4 (a vendor could move a collection to another artist;
+          the default collection was known only by its name):
+          *DONE* 2026-11-23. A migration adds `is_default` (each
+          artist's oldest "Uncategorized"; a new one for any artist
+          without; a unique index allows one per artist) and puts
+          works with no collection into their artist's default. The
+          collection changeset takes only the name:
+          `Products.create_collection/2` takes the owner as its own
+          argument and works out the position; reordering uses
+          `position_changeset/2`. The default collection can be
+          renamed but not deleted (`delete_collection/1` refuses it,
+          not only the dashboard). With it: the public artist page
+          and Shop tab show the default collection when it has works
+          for sale, under its own name, last (item 13's old bug had
+          turned into its opposite).
+          Not done, decided: a dashboard section for works with no
+          collection (the audit's suggestion). Since the default
+          collection can't be deleted, a work can't lose its
+          collection any more; the migration fixed the old ones.
+          On dev one work stays without: id 89, "Product 1", which has
+          no artist at all (old test data, never shown publicly).
+          From the code review (fixed in the same commit): the
+          default collection stays last on the dashboard too, with no
+          arrows (and nothing moves below it); two collections made at
+          the same moment no longer get the same position (the
+          artist's row is locked); deleting a collection of an artist
+          somehow without a default makes one first; the dashboard's
+          delete and the collection form's edit page no longer crash
+          on a forged or deleted id (`parse_id/1` moved to the shared
+          `ArtsyNeighborWeb.Params`).
+          Left for the scope change below: the dashboard's other
+          handlers (moving works up/down, archiving) still crash on a
+          forged id (`String.to_integer/1`, `get_product!/1`).
           After S-4 (agreed 2026-11-23): `Products` checks the
           `current_scope` itself, like `Orders` (S-1's second
           commit), for every vendor write to products, their photos
@@ -843,6 +869,7 @@ working on the code should keep in mind.
   12. **Sales history** for sellers (now named Orders) needs a brush up. It would be good to have a way for sellers to see their reviews and summary statistics at a glance.
   13. Artists home pages (/artists/:id): the section showing collections is not wired up. Links do not link to anything. Also collection "Uncategorized" shows even when it is not empty. It also appears in the drop down box in /artists/:id/store even when it is empty. The "Uncategoriezed" collection should not show when it is empty.
       - *Done 2026-10-22 (artist-page step 3):* collection cards open the Shop tab filtered to that collection; the cards and the Shop tab's collection filter both leave out "Uncategorized" and collections with no available works (`Products.list_public_collections_for_artist/1`, and `list_collections_for_owner_preview/1` for the owner's preview).
+      - *Changed 2026-11-23 (audit S-4):* the default collection is shown after all, when it has available works: under its own name (the artist may rename it), last.
 
   14. The name of the website in the end will be LocalPalette, not ArtsyNeighbor. We need to adjust UI for that. Code can remain as is (we do not need to rename the project)
 

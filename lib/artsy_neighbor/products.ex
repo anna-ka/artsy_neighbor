@@ -590,25 +590,15 @@ defmodule ArtsyNeighbor.Products do
   end
 
   # A product with no collection chosen goes into its artist's default
-  # "Uncategorized" collection (Artists.default_collection_name/0), which
-  # every artist gets when their profile is created. Without this it
-  # would be missing from the vendor dashboard, which lists products by
-  # collection. Left as it is if the artist has no such collection.
+  # collection (is_default), which every artist gets when their profile
+  # is created. Without this it would be missing from the vendor
+  # dashboard, which lists products by collection.
   defp put_default_collection(changeset) do
     collection_id = Ecto.Changeset.get_field(changeset, :collection_id)
     artist_id = Ecto.Changeset.get_field(changeset, :artist_id)
 
     if is_nil(collection_id) and not is_nil(artist_id) do
-      default_id =
-        ProductCollection
-        |> where([c], c.artist_id == ^artist_id)
-        |> where([c], c.name == ^Artists.default_collection_name())
-        |> order_by([c], asc: c.id)
-        |> limit(1)
-        |> select([c], c.id)
-        |> Repo.one()
-
-      Ecto.Changeset.put_change(changeset, :collection_id, default_id)
+      Ecto.Changeset.put_change(changeset, :collection_id, default_collection_id(artist_id))
     else
       changeset
     end
@@ -1107,13 +1097,15 @@ defmodule ArtsyNeighbor.Products do
   # ============================================================
 
   @doc """
-  Returns all collections for an artist, ordered by position.
-  Each collection has its products preloaded (ordered by position nulls last, then title).
+  Returns all collections for an artist, ordered by position, with the
+  default collection last (as on the public pages). Each collection has
+  its products preloaded (ordered by position nulls last, then title).
   """
   def list_collections_for_artist(artist_id) do
     ProductCollection
     |> where([c], c.artist_id == ^artist_id)
-    |> order_by([c], asc: c.position)
+    # false sorts before true: the default collection comes last.
+    |> order_by([c], asc: c.is_default, asc: c.position)
     |> preload(products: ^products_by_position(artist_id))
     |> Repo.all()
   end
@@ -1123,9 +1115,10 @@ defmodule ArtsyNeighbor.Products do
   ordered by position. Each has only its available works preloaded
   (ordered like `list_collections_for_artist/1`).
 
-  Left out: collections with no available works, and the artist's
-  default "Uncategorized" collection, which is a catch-all rather than
-  a collection the artist named. For the owner's preview, use
+  Left out: collections with no available works. The artist's default
+  collection (`is_default`) is shown only when it has available works,
+  and always last: it is a catch-all rather than a collection the
+  artist made. For the owner's preview, use
   `list_collections_for_owner_preview/1`.
   """
   def list_public_collections_for_artist(artist_id) do
@@ -1159,8 +1152,8 @@ defmodule ArtsyNeighbor.Products do
 
     ProductCollection
     |> where([c], c.artist_id == ^artist_id)
-    |> where([c], c.name != ^Artists.default_collection_name())
-    |> order_by([c], asc: c.position)
+    # false sorts before true: the default collection comes last.
+    |> order_by([c], asc: c.is_default, asc: c.position)
     |> preload(products: ^available_products)
     |> Repo.all()
     |> Enum.reject(fn collection -> collection.products == [] end)
@@ -1188,16 +1181,71 @@ defmodule ArtsyNeighbor.Products do
   def get_collection!(id), do: Repo.get!(ProductCollection, id)
 
   @doc """
-  Creates a collection.
+  Gets a single collection, or nil if there is none. For ids that come
+  from the browser.
   """
-  def create_collection(attrs) do
-    %ProductCollection{}
-    |> ProductCollection.changeset(attrs)
-    |> Repo.insert()
+  def get_collection(id), do: Repo.get(ProductCollection, id)
+
+  @doc """
+  The id of the artist's default collection (`is_default`), or nil if
+  the artist has none. There is at most one: a unique index says so.
+  """
+  def default_collection_id(artist_id) do
+    ProductCollection
+    |> where([c], c.artist_id == ^artist_id and c.is_default)
+    |> select([c], c.id)
+    |> Repo.one()
   end
 
   @doc """
-  Updates a collection.
+  Creates a collection owned by the artist with id `artist_id`, after
+  the artist's other collections. Only the name is taken from `attrs`:
+  the owner is a separate argument (a vendor's form passes
+  `current_scope.artist.id`), and the position is worked out here
+  (audit S-4). Never a default collection: each artist's one is made
+  with the profile (`Artists.create_artist/1`).
+  """
+  def create_collection(artist_id, attrs) do
+    # The artist's row is locked while the position is worked out and
+    # the collection inserted, so two collections made at the same
+    # moment (two tabs) take turns and get different positions.
+    Repo.transact(fn ->
+      lock_artist(artist_id)
+
+      %ProductCollection{artist_id: artist_id, position: next_collection_position(artist_id)}
+      |> ProductCollection.changeset(attrs)
+      |> Repo.insert()
+    end)
+  end
+
+  # Locks the artist's row until the surrounding transaction ends. A
+  # missing artist locks nothing; the insert then fails on its own
+  # (assoc_constraint).
+  defp lock_artist(artist_id) do
+    Artist
+    |> where([a], a.id == ^artist_id)
+    |> lock("FOR UPDATE")
+    |> select([a], a.id)
+    |> Repo.one()
+  end
+
+  # max(position) + 1 for the artist's collections, or 1 if there are
+  # none. max rather than a count, so a deleted collection's position
+  # isn't reused while a later one still has it.
+  defp next_collection_position(artist_id) do
+    max_position =
+      ProductCollection
+      |> where([c], c.artist_id == ^artist_id)
+      |> select([c], max(c.position))
+      |> Repo.one()
+
+    (max_position || 0) + 1
+  end
+
+  @doc """
+  Renames a collection: only the name is taken from `attrs`
+  (`ProductCollection.changeset/2`). The default collection may be
+  renamed too.
   """
   def update_collection(%ProductCollection{} = collection, attrs) do
     collection
@@ -1206,28 +1254,49 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Deletes a collection and reassigns its products to the artist's "All Works"
-  collection. Both operations run in a single transaction so neither happens
-  without the other.
-  """
-  def delete_collection(%ProductCollection{} = collection) do
-    # Find the "All Works" fallback collection for this artist (if it exists and
-    # is not the collection being deleted).
-    default_id =
-      ProductCollection
-      |> where([c], c.artist_id == ^collection.artist_id)
-      |> where([c], c.name == ^ArtsyNeighbor.Artists.default_collection_name())
-      |> where([c], c.id != ^collection.id)
-      |> select([c], c.id)
-      |> Repo.one()
+  Deletes a collection and moves its products to the artist's default
+  collection, in one transaction so neither happens without the other.
 
+  The default collection itself can't be deleted: returns
+  `{:error, :default_collection}`, so works always have somewhere to go.
+  """
+  def delete_collection(%ProductCollection{is_default: true}) do
+    {:error, :default_collection}
+  end
+
+  def delete_collection(%ProductCollection{} = collection) do
     Repo.transaction(fn ->
-      # Reassign all products in this collection to the default (or nil if none).
+      default_id = ensure_default_collection(collection.artist_id)
+
       from(p in Product, where: p.collection_id == ^collection.id)
       |> Repo.update_all(set: [collection_id: default_id])
 
       Repo.delete!(collection)
     end)
+  end
+
+  # The id of the artist's default collection. Every artist gets one with
+  # their profile, so this only makes one for an artist created some
+  # other way; then a deleted collection's works still have somewhere to
+  # go instead of ending up in no collection (where the dashboard
+  # wouldn't show them).
+  defp ensure_default_collection(artist_id) do
+    case default_collection_id(artist_id) do
+      nil ->
+        lock_artist(artist_id)
+
+        %ProductCollection{
+          artist_id: artist_id,
+          position: next_collection_position(artist_id),
+          is_default: true
+        }
+        |> ProductCollection.changeset(%{name: Artists.default_collection_name()})
+        |> Repo.insert!()
+        |> Map.fetch!(:id)
+
+      default_id ->
+        default_id
+    end
   end
 
   @doc """
@@ -1243,8 +1312,14 @@ defmodule ArtsyNeighbor.Products do
   """
   def swap_collection_positions(%ProductCollection{} = a, %ProductCollection{} = b) do
     Repo.transaction(fn ->
-      {:ok, _} = update_collection(a, %{position: b.position})
-      {:ok, _} = update_collection(b, %{position: a.position})
+      {:ok, _} = update_collection_position(a, b.position)
+      {:ok, _} = update_collection_position(b, a.position)
     end)
+  end
+
+  defp update_collection_position(collection, position) do
+    collection
+    |> ProductCollection.position_changeset(%{position: position})
+    |> Repo.update()
   end
 end

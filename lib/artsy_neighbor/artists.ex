@@ -20,7 +20,11 @@ defmodule ArtsyNeighbor.Artists do
   alias ArtsyNeighbor.Reviews.BuyerReview
   alias ArtsyNeighbor.Reviews.ProductReview
 
-  @doc "The name of the default collection created for every new artist."
+  @doc """
+  The name a new artist's default collection starts with. The artist may
+  rename it: code recognises the default collection by its `is_default`
+  field, never by this name.
+  """
   def default_collection_name, do: "Uncategorized"
 
   @doc """
@@ -283,7 +287,8 @@ defmodule ArtsyNeighbor.Artists do
   end
 
   @doc """
-  Creates a new artist and atomically inserts a default "Uncategorized" collection.
+  Creates a new artist and atomically inserts their default collection
+  (`is_default`, named "Uncategorized" to start with).
   Returns {:ok, artist} or {:error, changeset}. The new artist is always
   :inactive (the changesets don't take a status); see change_status/2.
 
@@ -302,11 +307,8 @@ defmodule ArtsyNeighbor.Artists do
     Multi.new()
     |> Multi.insert(:artist, changeset)
     |> Multi.insert(:collection, fn %{artist: artist} ->
-      ProductCollection.changeset(%ProductCollection{}, %{
-        name: default_collection_name(),
-        position: 1,
-        artist_id: artist.id
-      })
+      %ProductCollection{artist_id: artist.id, position: 1, is_default: true}
+      |> ProductCollection.changeset(%{name: default_collection_name()})
     end)
     |> Repo.transaction()
     |> case do

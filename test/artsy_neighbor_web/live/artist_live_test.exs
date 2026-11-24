@@ -68,8 +68,8 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
   describe "Shop tab" do
     test "collection chips: only collections with works, each with its count", %{conn: conn} do
       artist = artist_fixture()
-      oils = collection_fixture(artist, "Oils", 2)
-      _empty = collection_fixture(artist, "Empty", 3)
+      oils = collection_fixture(artist, "Oils")
+      _empty = collection_fixture(artist, "Empty")
       product_fixture(%{artist_id: artist.id, collection_id: oils.id})
       product_fixture(%{artist_id: artist.id, collection_id: oils.id})
       product_fixture(%{artist_id: artist.id})
@@ -86,7 +86,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
     test "a chip's count leaves out works whose category was deleted, as the list does",
          %{conn: conn} do
       artist = artist_fixture()
-      oils = collection_fixture(artist, "Oils", 2)
+      oils = collection_fixture(artist, "Oils")
       product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Kept"})
       lost = product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Lost"})
 
@@ -101,7 +101,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
 
     test "a chip shows only that collection and keeps the search", %{conn: conn} do
       artist = artist_fixture()
-      oils = collection_fixture(artist, "Oils", 2)
+      oils = collection_fixture(artist, "Oils")
       product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Crow in Oil"})
       product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Otter in Oil"})
       product_fixture(%{artist_id: artist.id, title: "Crow in Ink"})
@@ -547,7 +547,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
 
     test "each collection card opens the Shop tab with only that collection", %{conn: conn} do
       artist = artist_fixture()
-      oils = collection_fixture(artist, "Oils", 2)
+      oils = collection_fixture(artist, "Oils")
       product_fixture(%{artist_id: artist.id, collection_id: oils.id})
 
       {:ok, view, _html} = live(conn, ~p"/artists/#{artist}")
@@ -559,13 +559,10 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
              )
     end
 
-    test "leaves out Uncategorized and collections with no available works", %{conn: conn} do
+    test "leaves out collections with no available works, the default one too", %{conn: conn} do
       artist = artist_fixture()
-      [uncategorized] = ArtsyNeighbor.Products.list_collections_for_artist(artist.id)
-      product_fixture(%{artist_id: artist.id, collection_id: uncategorized.id})
-
-      _empty = collection_fixture(artist, "Empty", 2)
-      sold_out = collection_fixture(artist, "Sold out", 3)
+      _empty = collection_fixture(artist, "Empty")
+      sold_out = collection_fixture(artist, "Sold out")
 
       product_fixture(%{
         artist_id: artist.id,
@@ -578,15 +575,34 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
       refute has_element?(view, ".collection-card")
       refute has_element?(view, ".section-heading", "Collections by")
     end
+
+    # Audit S-4 follow-up (2026-11-23): the default collection is shown
+    # when it has works for sale, under its own name, last.
+    test "shows the default collection when it has works for sale, last", %{conn: conn} do
+      artist = artist_fixture()
+      default_id = ArtsyNeighbor.Products.default_collection_id(artist.id)
+      product_fixture(%{artist_id: artist.id, collection_id: default_id})
+
+      oils = collection_fixture(artist, "Oils")
+      product_fixture(%{artist_id: artist.id, collection_id: oils.id})
+
+      {:ok, view, html} = live(conn, ~p"/artists/#{artist}")
+
+      assert has_element?(view, ".collection-card", "Uncategorized")
+      assert has_element?(view, ".collection-card", "Oils")
+      {oils_at, _} = :binary.match(html, "collection_id=#{oils.id}")
+      {default_at, _} = :binary.match(html, "collection_id=#{default_id}")
+      assert oils_at < default_at
+
+      {:ok, shop, _html} = live(conn, ~p"/artists/#{artist}/store")
+      assert has_element?(shop, ".filter-chip", ~r/Uncategorized\s*\(1\)/)
+    end
   end
 
-  defp collection_fixture(artist, name, position) do
+  # Placed after the artist's other collections (create_collection/2).
+  defp collection_fixture(artist, name) do
     {:ok, collection} =
-      ArtsyNeighbor.Products.create_collection(%{
-        name: name,
-        position: position,
-        artist_id: artist.id
-      })
+      ArtsyNeighbor.Products.create_collection(artist.id, %{name: name})
 
     collection
   end
@@ -709,7 +725,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
 
     test "the owner's preview shows their works on the Works and Shop tabs", %{conn: conn} do
       artist = artist_fixture(%{status: :inactive})
-      oils = collection_fixture(artist, "Oils", 2)
+      oils = collection_fixture(artist, "Oils")
       product_fixture(%{artist_id: artist.id, collection_id: oils.id, title: "Harbour"})
       product_fixture(%{artist_id: artist.id, title: "Hidden work", status: :unavailable})
       conn = log_in_user(conn, Accounts.get_user!(artist.user_id))
