@@ -26,7 +26,7 @@ defmodule ArtsyNeighbor.SampleData do
       uploads (`Images.process_upload/3`, so on Fly they end up in
       Tigris), and only then is the artist made public
       (`Artists.activate_artist/1`) and each work put up for sale
-      (`Products.publish_product/1`). Those refuse an artist or a work
+      (`Products.publish_product/2`). Those refuse an artist or a work
       without a photo, as on the site.
     * **One artist failing doesn't stop the rest.** If something goes
       wrong with an artist (a photo can't be processed, the site is too
@@ -60,6 +60,7 @@ defmodule ArtsyNeighbor.SampleData do
   import Ecto.Query, only: [from: 2]
 
   alias ArtsyNeighbor.Accounts.Admin
+  alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Accounts.User
   alias ArtsyNeighbor.Accounts.UserToken
   alias ArtsyNeighbor.Artists
@@ -236,8 +237,11 @@ defmodule ArtsyNeighbor.SampleData do
 
   defp add_artist_for(user, entry, category_ids) do
     {artist, works} = insert_drafts(user, entry, category_ids)
+    # Works are published as the artist would publish them, through
+    # their own scope (Products checks who is acting).
+    scope = Scope.for_user(user)
 
-    case add_photos_and_go_public(artist, works, entry) do
+    case add_photos_and_go_public(scope, artist, works, entry) do
       :ok ->
         IO.puts("  Added")
         :added
@@ -300,12 +304,12 @@ defmodule ArtsyNeighbor.SampleData do
       |> Map.drop([:photos, :category])
       |> Map.merge(%{
         collection_id: collection.id,
-        category_id: category_id!(category_ids, work.category),
-        position: position
+        category_id: category_id!(category_ids, work.category)
       })
 
-    # The owner goes on the struct: Product.changeset/2 doesn't take it.
-    %Product{artist_id: artist.id}
+    # The owner and position go on the struct: Product.changeset/2
+    # takes neither.
+    %Product{artist_id: artist.id, position: position}
     |> Product.changeset(attrs)
     |> Repo.insert!()
   end
@@ -319,10 +323,10 @@ defmodule ArtsyNeighbor.SampleData do
 
   # Returns :ok or {:error, reason}. The `rescue` catches anything
   # unexpected, so the caller can still remove the half-added artist.
-  defp add_photos_and_go_public(artist, works, entry) do
+  defp add_photos_and_go_public(scope, artist, works, entry) do
     with :ok <- add_artist_photos(artist, entry),
          :ok <- add_work_photos(works, entry.photo_dir),
-         :ok <- go_public(artist, works, entry) do
+         :ok <- go_public(scope, artist, works, entry) do
       :ok
     end
   rescue
@@ -340,8 +344,9 @@ defmodule ArtsyNeighbor.SampleData do
   defp add_work_photos(works, photo_dir) do
     each_until_error(works, fn {product, work} ->
       each_photo(work.photos, photo_dir, "products/#{product.id}", fn key, position ->
-        %ProductImage{}
-        |> ProductImage.changeset(%{path: key, position: position, product_id: product.id})
+        # The work goes on the struct: the changeset doesn't take it.
+        %ProductImage{product_id: product.id}
+        |> ProductImage.changeset(%{path: key, position: position})
         |> Repo.insert!()
       end)
     end)
@@ -378,9 +383,9 @@ defmodule ArtsyNeighbor.SampleData do
 
   # Makes the artist public and puts each work with a photo up for
   # sale, through the site's own functions and their rules.
-  defp go_public(artist, works, entry) do
+  defp go_public(scope, artist, works, entry) do
     with :ok <- activate(artist, entry) do
-      each_until_error(works, fn {product, work} -> publish(product, work) end)
+      each_until_error(works, fn {product, work} -> publish(scope, product, work) end)
     end
   end
 
@@ -395,10 +400,10 @@ defmodule ArtsyNeighbor.SampleData do
   end
 
   # A work without a photo stays a draft, as on the site.
-  defp publish(_product, %{photos: []}), do: :ok
+  defp publish(_scope, _product, %{photos: []}), do: :ok
 
-  defp publish(product, work) do
-    case Products.publish_product(product) do
+  defp publish(scope, product, work) do
+    case Products.publish_product(scope, product) do
       {:ok, _product} -> :ok
       {:error, reason} -> {:error, "#{work.title} could not be published (#{inspect(reason)})"}
     end

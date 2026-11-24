@@ -52,6 +52,24 @@ defmodule ArtsyNeighbor.AccountsFixtures do
     Scope.for_user(user)
   end
 
+  @doc """
+  The scope of the user behind an artist profile, as the vendor pages
+  see it when that artist is logged in.
+  """
+  def artist_scope_fixture(%ArtsyNeighbor.Artists.Artist{} = artist) do
+    user = ArtsyNeighbor.Repo.get!(Accounts.User, artist.user_id)
+    Scope.for_user(user)
+  end
+
+  @doc """
+  The scope of a new admin user (with no artist profile).
+  """
+  def admin_scope_fixture do
+    user = user_fixture()
+    ArtsyNeighbor.Repo.insert!(%ArtsyNeighbor.Accounts.Admin{user_id: user.id})
+    Scope.for_user(user)
+  end
+
   def set_password(user) do
     {:ok, {user, _expired_tokens}} =
       Accounts.update_user_password(user, %{password: valid_user_password()})

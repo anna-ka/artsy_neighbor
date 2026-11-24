@@ -99,10 +99,16 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
 
   test "a stored photo can be removed", %{conn: conn, artist: artist, category: category} do
     {:ok, product} =
-      ArtsyNeighbor.Admin.AdminProducts.create_product(product_params(artist, category))
+      ArtsyNeighbor.Admin.AdminProducts.create_product(
+        admin_scope_fixture(),
+        product_params(artist, category)
+      )
 
     {:ok, image} =
-      Products.create_product_image(%{path: "/photo.jpg", position: 1, product_id: product.id})
+      Products.create_product_image(admin_scope_fixture(), product, %{
+        path: "/photo.jpg",
+        position: 1
+      })
 
     {:ok, view, _html} = live(conn, ~p"/admin/products/#{product}/edit")
     render_click(view, "delete_image", %{"imageid" => to_string(image.id)})
@@ -112,6 +118,20 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
 
   # Choosing the artist (audit S-3 review). Works without photos, so
   # saving redirects at once.
+  # Deleted in another admin tab, after this list was loaded.
+  describe "the product list, for a product that is gone" do
+    test "Archive, Restore and Delete say so instead of crashing", %{conn: conn} do
+      product = ArtsyNeighbor.ProductsFixtures.product_fixture()
+      {:ok, view, _html} = live(conn, ~p"/admin/products")
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
+
+      for event <- ["archive", "restore", "delete"], id <- [to_string(product.id), "abc"] do
+        html = render_click(view, event, %{"id" => id})
+        assert html =~ "That product doesn&#39;t exist any more."
+      end
+    end
+  end
+
   describe "the artist of a work" do
     test "a work whose artist isn't active can still be edited",
          %{conn: conn, category: category} do
@@ -137,7 +157,7 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
     test "a work can be moved to an artist who has no collections",
          %{conn: conn, artist: artist, category: category} do
       {:ok, prints} =
-        Products.create_collection(artist.id, %{name: "Prints"})
+        Products.create_collection(artist_scope_fixture(artist), %{name: "Prints"})
 
       product =
         ArtsyNeighbor.ProductsFixtures.product_fixture(%{

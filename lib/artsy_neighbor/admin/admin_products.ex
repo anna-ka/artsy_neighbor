@@ -4,10 +4,16 @@ defmodule ArtsyNeighbor.Admin.AdminProducts do
   admin picks the owner (`artist_id`) from a form.
 
   A vendor's own form never uses these: there the owner is the logged-in
-  artist, passed separately to `Products.create_product/2` (audit S-3).
-  Everything else about products is in `ArtsyNeighbor.Products`.
+  artist (`Products.create_product/2`, audit S-3). Everything else about
+  products is in `ArtsyNeighbor.Products`.
+
+  Both writes take the caller's scope and refuse anyone but an admin
+  (`{:error, :unauthorized}`). The router already keeps everyone else
+  out of the admin pages; this is a second guard, in case a page
+  someday calls these from elsewhere.
   """
 
+  alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.Product
 
@@ -15,10 +21,14 @@ defmodule ArtsyNeighbor.Admin.AdminProducts do
   Creates a product with the artist the admin picked (`artist_id` in
   `attrs`). It starts as a draft, like every new product.
   """
-  def create_product(attrs) do
-    %Product{}
-    |> change_product(attrs)
-    |> Products.save_product()
+  def create_product(scope, attrs) do
+    if Scope.admin?(scope) do
+      %Product{}
+      |> change_product(attrs)
+      |> Products.save_product()
+    else
+      {:error, :unauthorized}
+    end
   end
 
   @doc """
@@ -26,10 +36,14 @@ defmodule ArtsyNeighbor.Admin.AdminProducts do
   changes the status. A work moved to another artist without a new
   collection goes into that artist's default collection.
   """
-  def update_product(%Product{} = product, attrs) do
-    product
-    |> change_product(attrs)
-    |> Products.save_product()
+  def update_product(scope, %Product{} = product, attrs) do
+    if Scope.admin?(scope) do
+      product
+      |> change_product(attrs)
+      |> Products.save_product()
+    else
+      {:error, :unauthorized}
+    end
   end
 
   @doc """

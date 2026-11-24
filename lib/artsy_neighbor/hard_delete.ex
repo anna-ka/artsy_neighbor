@@ -2,7 +2,7 @@ defmodule ArtsyNeighbor.HardDelete do
   @moduledoc """
   The shared transaction behind every `hard_delete_<entity>/1` that has to
   clean up `Flag` rows by hand: `Artists.hard_delete_artist/1`,
-  `Products.hard_delete_product/1`, and the three
+  `Products.hard_delete_product/2`, and the three
   `Reviews.hard_delete_*_review/1` functions.
 
   Why flags need cleaning up by hand: `Flag.subject_id` is a polymorphic

@@ -1,6 +1,8 @@
 defmodule ArtsyNeighbor.CategoriesTest do
   use ArtsyNeighbor.DataCase
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0]
+
   alias ArtsyNeighbor.Categories
   alias ArtsyNeighbor.Categories.Category
 
@@ -129,7 +131,7 @@ defmodule ArtsyNeighbor.CategoriesTest do
     test "false when the category's only products are :unavailable/:archived" do
       category = category_fixture()
       product = product_fixture(%{category_id: category.id})
-      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(admin_scope_fixture(), product)
 
       refute Categories.has_active_products?(category)
     end
@@ -155,7 +157,7 @@ defmodule ArtsyNeighbor.CategoriesTest do
     test "succeeds once the category's products are no longer :available" do
       category = category_fixture()
       product = product_fixture(%{category_id: category.id})
-      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(admin_scope_fixture(), product)
 
       assert {:ok, updated} = Categories.soft_delete_category(category)
       assert updated.status == :archived

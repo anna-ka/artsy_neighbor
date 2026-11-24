@@ -53,7 +53,9 @@ defmodule ArtsyNeighbor.ProductsTest do
         category_id: category.id
       }
 
-      assert {:ok, %Product{} = product} = Products.create_product(artist.id, valid_attrs)
+      assert {:ok, %Product{} = product} =
+               Products.create_product(owner_scope(artist), valid_attrs)
+
       assert product.title == "some title"
       assert product.details == "some details"
       assert product.descr == "some descr"
@@ -62,7 +64,9 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "create_product/2 with invalid data returns error changeset" do
       artist = artist_fixture()
-      assert {:error, %Ecto.Changeset{}} = Products.create_product(artist.id, @invalid_attrs)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Products.create_product(owner_scope(artist), @invalid_attrs)
     end
 
     test "update_product/2 with valid data updates the product" do
@@ -75,20 +79,25 @@ defmodule ArtsyNeighbor.ProductsTest do
         price: "456.7"
       }
 
-      assert {:ok, %Product{} = product} = Products.update_product(product, update_attrs)
+      assert {:ok, %Product{} = product} =
+               Products.update_product(owner_scope(product), product, update_attrs)
+
       assert product.title == "updated title"
       assert product.price == Decimal.new("456.7")
     end
 
     test "update_product/2 with invalid data returns error changeset" do
       product = product_fixture()
-      assert {:error, %Ecto.Changeset{}} = Products.update_product(product, @invalid_attrs)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Products.update_product(owner_scope(product), product, @invalid_attrs)
+
       assert product.id == Products.get_product!(product.id).id
     end
 
     test "hard_delete_product/1 deletes the product" do
       product = product_fixture()
-      assert {:ok, %Product{}} = Products.hard_delete_product(product)
+      assert {:ok, %Product{}} = Products.hard_delete_product(admin_scope_fixture(), product)
       assert_raise Ecto.NoResultsError, fn -> Products.get_product!(product.id) end
     end
 
@@ -108,7 +117,7 @@ defmodule ArtsyNeighbor.ProductsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Products.hard_delete_product(product)
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
 
       assert Repo.get(Flag, flag.id) == nil
     end
@@ -126,7 +135,7 @@ defmodule ArtsyNeighbor.ProductsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Products.hard_delete_product(product_a)
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product_a)
 
       assert Repo.get(Flag, flag_b.id) != nil
     end
@@ -137,9 +146,9 @@ defmodule ArtsyNeighbor.ProductsTest do
     # helper, Repo.delete/1 on the stale struct raised Ecto.StaleEntryError.
     test "hard_delete_product/1 returns {:error, :not_found} if the product is already gone" do
       product = product_fixture()
-      {:ok, _} = Products.hard_delete_product(product)
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
 
-      assert Products.hard_delete_product(product) == {:error, :not_found}
+      assert Products.hard_delete_product(admin_scope_fixture(), product) == {:error, :not_found}
     end
 
     # order_items.product_id is on_delete: :nothing. The resulting
@@ -162,7 +171,9 @@ defmodule ArtsyNeighbor.ProductsTest do
         })
         |> Repo.insert()
 
-      assert {:error, {:database_error, message}} = Products.hard_delete_product(product)
+      assert {:error, {:database_error, message}} =
+               Products.hard_delete_product(admin_scope_fixture(), product)
+
       assert message =~ "order_items_product_id_fkey"
       assert Repo.get(Product, product.id) != nil
     end
@@ -194,7 +205,7 @@ defmodule ArtsyNeighbor.ProductsTest do
           reporter_id: reporter.id
         })
 
-      {:ok, _} = Products.hard_delete_product(product)
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
 
       assert Repo.get(ProductReview, review.id) == nil
       assert Repo.get(Flag, flag.id) == nil
@@ -206,14 +217,14 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "soft_delete_product/1 sets status to :archived" do
       product = product_fixture()
 
-      assert {:ok, updated} = Products.soft_delete_product(product)
+      assert {:ok, updated} = Products.soft_delete_product(owner_scope(product), product)
       assert updated.status == :archived
     end
 
     test "soft_delete_product/1 does not delete the row or affect other fields" do
       product = product_fixture()
 
-      assert {:ok, updated} = Products.soft_delete_product(product)
+      assert {:ok, updated} = Products.soft_delete_product(owner_scope(product), product)
       assert updated.id == product.id
       assert updated.title == product.title
       assert Products.get_product!(product.id).status == :archived
@@ -233,9 +244,9 @@ defmodule ArtsyNeighbor.ProductsTest do
     # (see the function's own doc comment).
     test "restore_product/1 sets status to :unavailable, not :available" do
       product = product_fixture()
-      {:ok, archived} = Products.soft_delete_product(product)
+      {:ok, archived} = Products.soft_delete_product(owner_scope(product), product)
 
-      assert {:ok, restored} = Products.restore_product(archived)
+      assert {:ok, restored} = Products.restore_product(admin_scope_fixture(), archived)
       assert restored.status == :unavailable
       assert Products.get_product!(product.id).status == :unavailable
     end
@@ -247,14 +258,15 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "refuses to restore a product whose artist is :removed" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
       # soft_delete_artist/1 cascades every one of the artist's products to
       # :archived, overwriting whatever status they were at before.
       {:ok, _} = Artists.soft_delete_artist(artist)
       archived = Products.get_product!(product.id)
       assert archived.status == :archived
 
-      assert {:error, :artist_not_active} = Products.restore_product(archived)
+      assert {:error, :artist_not_active} =
+               Products.restore_product(admin_scope_fixture(), archived)
     end
 
     # restore_artist/1 only ever lands on :inactive, never :active (see its
@@ -271,7 +283,9 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert restored_artist.status == :inactive
 
       archived_product = Products.get_product!(product.id)
-      assert {:error, :artist_not_active} = Products.restore_product(archived_product)
+
+      assert {:error, :artist_not_active} =
+               Products.restore_product(admin_scope_fixture(), archived_product)
     end
 
     test "succeeds (landing on :unavailable) once the vendor has actively re-activated to :active" do
@@ -285,7 +299,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       {:ok, _} = Artists.activate_artist(Artists.get_artist!(artist.id))
 
       archived_product = Products.get_product!(product.id)
-      assert {:ok, restored_product} = Products.restore_product(archived_product)
+
+      assert {:ok, restored_product} =
+               Products.restore_product(admin_scope_fixture(), archived_product)
+
       assert restored_product.status == :unavailable
     end
 
@@ -298,12 +315,13 @@ defmodule ArtsyNeighbor.ProductsTest do
       product_with_stale_artist = Products.get_product_with_associations_all_status(product.id)
       assert product_with_stale_artist.artist.status == :active
 
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
       {:ok, _} = Artists.soft_delete_artist(artist)
 
       # product_with_stale_artist's :artist association still says :active —
       # the guard must re-check the DB, not trust it.
-      assert {:error, :artist_not_active} = Products.restore_product(product_with_stale_artist)
+      assert {:error, :artist_not_active} =
+               Products.restore_product(admin_scope_fixture(), product_with_stale_artist)
     end
 
     # Guards against restoring a product whose category has been deleted
@@ -313,13 +331,14 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture(%{status: :active})
       category = category_fixture()
       product = product_fixture(%{artist_id: artist.id, category_id: category.id})
-      {:ok, archived} = Products.soft_delete_product(product)
+      {:ok, archived} = Products.soft_delete_product(owner_scope(product), product)
 
       Repo.delete!(category)
       product_with_nil_category = Products.get_product!(product.id)
       assert product_with_nil_category.category_id == nil
 
-      assert {:error, :category_missing} = Products.restore_product(archived)
+      assert {:error, :category_missing} =
+               Products.restore_product(admin_scope_fixture(), archived)
     end
 
     test "reflects the category's current existence even if the product struct's :category was preloaded before it was deleted" do
@@ -329,10 +348,11 @@ defmodule ArtsyNeighbor.ProductsTest do
       product_with_stale_category = Products.get_product_with_associations_all_status(product.id)
       assert product_with_stale_category.category.id == category.id
 
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
       Repo.delete!(category)
 
-      assert {:error, :category_missing} = Products.restore_product(product_with_stale_category)
+      assert {:error, :category_missing} =
+               Products.restore_product(admin_scope_fixture(), product_with_stale_category)
     end
   end
 
@@ -357,25 +377,30 @@ defmodule ArtsyNeighbor.ProductsTest do
       %{valid: valid}
     end
 
-    test "requires title, descr, details, price, artist_id, category_id", %{valid: valid} do
-      for field <- [:title, :descr, :details, :price, :artist_id, :category_id] do
+    test "requires title, descr, details, price, category_id", %{valid: valid} do
+      # (The owner always comes from the scope, so it can't be missing.)
+      for field <- [:title, :descr, :details, :price, :category_id] do
         attrs = Map.delete(valid, field)
-        # The owner is its own argument; nil when :artist_id was deleted.
-        assert {:error, changeset} = Products.create_product(attrs[:artist_id], attrs)
+        assert {:error, changeset} = Products.create_product(owner_scope(valid.artist_id), attrs)
         assert changeset.errors[field], "expected error on #{field}"
       end
     end
 
+    test "Product.changeset/2 requires an owner on the struct", %{valid: valid} do
+      changeset = Product.changeset(%Product{}, valid)
+      assert changeset.errors[:artist_id]
+    end
+
     test "rejects title shorter than 3 characters", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(valid.artist_id, %{valid | title: "AB"})
+               Products.create_product(owner_scope(valid.artist_id), %{valid | title: "AB"})
 
       assert changeset.errors[:title]
     end
 
     test "rejects title longer than 100 characters", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(valid.artist_id, %{
+               Products.create_product(owner_scope(valid.artist_id), %{
                  valid
                  | title: String.duplicate("a", 101)
                })
@@ -385,55 +410,66 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "rejects descr shorter than 10 characters", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(valid.artist_id, %{valid | descr: "short"})
+               Products.create_product(owner_scope(valid.artist_id), %{valid | descr: "short"})
 
       assert changeset.errors[:descr]
     end
 
     test "rejects price of zero", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(valid.artist_id, %{valid | price: "0"})
+      assert {:error, changeset} =
+               Products.create_product(owner_scope(valid.artist_id), %{valid | price: "0"})
+
       assert changeset.errors[:price]
     end
 
     test "rejects negative price", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(valid.artist_id, %{valid | price: "-5.00"})
+               Products.create_product(owner_scope(valid.artist_id), %{valid | price: "-5.00"})
 
       assert changeset.errors[:price]
     end
 
     test "rejects invalid units", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(valid.artist_id, Map.put(valid, :units, "mm"))
+               Products.create_product(owner_scope(valid.artist_id), Map.put(valid, :units, "mm"))
 
       assert changeset.errors[:units]
     end
 
     test "accepts units 'cm' and 'in'", %{valid: valid} do
-      assert {:ok, _} = Products.create_product(valid.artist_id, Map.put(valid, :units, "cm"))
+      assert {:ok, _} =
+               Products.create_product(owner_scope(valid.artist_id), Map.put(valid, :units, "cm"))
+
       artist2 = artist_fixture()
 
       assert {:ok, _} =
-               Products.create_product(artist2.id, Map.put(valid, :units, "in"))
+               Products.create_product(owner_scope(artist2), Map.put(valid, :units, "in"))
     end
 
     test "rejects zero or negative dimensions", %{valid: valid} do
-      assert {:error, cs} = Products.create_product(valid.artist_id, Map.put(valid, :width, "0"))
+      assert {:error, cs} =
+               Products.create_product(owner_scope(valid.artist_id), Map.put(valid, :width, "0"))
+
       assert cs.errors[:width]
 
       assert {:error, cs} =
-               Products.create_product(valid.artist_id, Map.put(valid, :length, "-1"))
+               Products.create_product(
+                 owner_scope(valid.artist_id),
+                 Map.put(valid, :length, "-1")
+               )
 
       assert cs.errors[:length]
 
-      assert {:error, cs} = Products.create_product(valid.artist_id, Map.put(valid, :height, "0"))
+      assert {:error, cs} =
+               Products.create_product(owner_scope(valid.artist_id), Map.put(valid, :height, "0"))
+
       assert cs.errors[:height]
     end
 
     test "accepts product with optional dimension fields", %{valid: valid} do
       assert {:ok, product} =
                Products.create_product(
-                 valid.artist_id,
+                 owner_scope(valid.artist_id),
                  Map.merge(valid, %{
                    width: "30.0",
                    length: "40.0",
@@ -464,7 +500,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "excludes an archived product" do
       product = product_fixture()
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
       results = Products.list_products_with_associations()
       refute Enum.any?(results, &(&1.id == product.id))
     end
@@ -500,7 +536,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "leaves out works that aren't for sale" do
       archived = product_fixture()
-      {:ok, _} = Products.soft_delete_product(archived)
+      {:ok, _} = Products.soft_delete_product(owner_scope(archived), archived)
 
       assert Products.list_newest_works(8) == []
     end
@@ -526,7 +562,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
       shown = product_fixture(%{artist_id: artist.id})
       archived = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(archived)
+      {:ok, _} = Products.soft_delete_product(owner_scope(archived), archived)
 
       assert Products.list_more_by_artist(shown, 4) == []
     end
@@ -537,7 +573,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
       available = product_fixture(%{artist_id: artist.id})
       archived = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(archived)
+      {:ok, _} = Products.soft_delete_product(owner_scope(archived), archived)
 
       results = Products.get_products_by_artist_all_status(artist.id)
       ids = Enum.map(results, & &1.id)
@@ -577,7 +613,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category = category_fixture()
       shown = product_fixture(%{category_id: category.id})
       archived = product_fixture(%{category_id: category.id})
-      {:ok, _} = Products.soft_delete_product(archived)
+      {:ok, _} = Products.soft_delete_product(owner_scope(archived), archived)
 
       assert Products.list_similar_works(shown, 4) == []
     end
@@ -611,7 +647,7 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "returns nil for an archived product (regression: this used to leak to the public /products/:id page)" do
       product = product_fixture()
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
       refute Products.get_product_with_associations(product.id)
     end
 
@@ -644,7 +680,7 @@ defmodule ArtsyNeighbor.ProductsTest do
   describe "get_product_with_associations_all_status/1" do
     test "returns an archived product (the admin escape hatch)" do
       product = product_fixture()
-      {:ok, product} = Products.soft_delete_product(product)
+      {:ok, product} = Products.soft_delete_product(owner_scope(product), product)
       result = Products.get_product_with_associations_all_status(product.id)
       assert result.id == product.id
       assert result.status == :archived
@@ -859,7 +895,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category = category_fixture()
       available = product_fixture(%{artist_id: artist.id, category_id: category.id})
       archived = product_fixture(%{artist_id: artist.id, category_id: category.id})
-      {:ok, _} = Products.soft_delete_product(archived)
+      {:ok, _} = Products.soft_delete_product(owner_scope(archived), archived)
 
       all_ids = Products.filter_products_all_status(%{}) |> Enum.map(& &1.id)
       available_only_ids = Products.filter_products(%{}) |> Enum.map(& &1.id)
@@ -913,7 +949,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       cat2 = category_fixture()
 
       {:ok, collection} =
-        Products.create_collection(artist.id, %{name: "Summer Series"})
+        Products.create_collection(owner_scope(artist), %{name: "Summer Series"})
 
       uncategorized_collection =
         artist.id
@@ -954,7 +990,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     # filter at all, so an :archived product still showed up on the
     # Shop tab of the artist's public page (ArtistLive.Show).
     test "excludes an archived product", %{artist: artist, p1: p1} do
-      {:ok, _} = Products.soft_delete_product(p1)
+      {:ok, _} = Products.soft_delete_product(owner_scope(p1), p1)
 
       results = Products.filter_artist_products(artist.id, %{})
       refute p1.id in Enum.map(results, & &1.id)
@@ -997,10 +1033,9 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture()
 
       assert {:ok, %ProductImage{} = img} =
-               Products.create_product_image(%{
+               Products.create_product_image(owner_scope(product), product, %{
                  position: 1,
-                 path: "/uploads/a.jpg",
-                 product_id: product.id
+                 path: "/uploads/a.jpg"
                })
 
       assert Products.get_product_image!(img.id).path == "/uploads/a.jpg"
@@ -1010,13 +1045,22 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture()
 
       {:ok, img3} =
-        Products.create_product_image(%{position: 3, path: "/c.jpg", product_id: product.id})
+        Products.create_product_image(owner_scope(product), product, %{
+          position: 3,
+          path: "/c.jpg"
+        })
 
       {:ok, img1} =
-        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
+        Products.create_product_image(owner_scope(product), product, %{
+          position: 1,
+          path: "/a.jpg"
+        })
 
       {:ok, img2} =
-        Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
+        Products.create_product_image(owner_scope(product), product, %{
+          position: 2,
+          path: "/b.jpg"
+        })
 
       results = Products.list_images_for_product(product.id)
       assert Enum.map(results, & &1.id) == [img1.id, img2.id, img3.id]
@@ -1027,10 +1071,16 @@ defmodule ArtsyNeighbor.ProductsTest do
       product2 = product_fixture()
 
       {:ok, img1} =
-        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product1.id})
+        Products.create_product_image(owner_scope(product1), product1, %{
+          position: 1,
+          path: "/a.jpg"
+        })
 
       {:ok, _img2} =
-        Products.create_product_image(%{position: 1, path: "/b.jpg", product_id: product2.id})
+        Products.create_product_image(owner_scope(product2), product2, %{
+          position: 1,
+          path: "/b.jpg"
+        })
 
       results = Products.list_images_for_product(product1.id)
       assert length(results) == 1
@@ -1041,12 +1091,18 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture()
 
       {:ok, img_a} =
-        Products.create_product_image(%{position: 1, path: "/a.jpg", product_id: product.id})
+        Products.create_product_image(owner_scope(product), product, %{
+          position: 1,
+          path: "/a.jpg"
+        })
 
       {:ok, img_b} =
-        Products.create_product_image(%{position: 2, path: "/b.jpg", product_id: product.id})
+        Products.create_product_image(owner_scope(product), product, %{
+          position: 2,
+          path: "/b.jpg"
+        })
 
-      assert {:ok, _} = Products.swap_image_positions(img_a, img_b)
+      assert {:ok, _} = Products.swap_image_positions(owner_scope(img_a), img_a, img_b)
 
       assert Products.get_product_image!(img_a.id).position == 2
       assert Products.get_product_image!(img_b.id).position == 1
@@ -1054,12 +1110,18 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "delete_product_image removes it" do
       product_image = product_image_fixture()
-      assert {:ok, %ProductImage{}} = Products.delete_product_image(product_image)
+
+      assert {:ok, %ProductImage{}} =
+               Products.delete_product_image(owner_scope(product_image), product_image)
+
       assert_raise Ecto.NoResultsError, fn -> Products.get_product_image!(product_image.id) end
     end
 
-    test "create_product_image/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Products.create_product_image(@invalid_attrs)
+    test "create_product_image/3 with invalid data returns error changeset" do
+      product = product_fixture()
+
+      assert {:error, %Ecto.Changeset{}} =
+               Products.create_product_image(owner_scope(product), product, @invalid_attrs)
     end
   end
 
@@ -1076,7 +1138,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category = category_fixture()
 
       {:ok, product} =
-        Products.create_product(artist.id, %{
+        Products.create_product(owner_scope(artist), %{
           title: "Draft work",
           descr: "A work that isn't finished yet",
           details: "Details",
@@ -1089,10 +1151,9 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     defp add_photo(product, position \\ 1) do
       {:ok, image} =
-        Products.create_product_image(%{
+        Products.create_product_image(owner_scope(product), product, %{
           path: "/photo-#{position}.jpg",
-          position: position,
-          product_id: product.id
+          position: position
         })
 
       image
@@ -1107,7 +1168,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category = category_fixture()
 
       assert {:ok, product} =
-               Products.create_product(artist.id, %{
+               Products.create_product(owner_scope(artist), %{
                  title: "Eager work",
                  descr: "Wants to be for sale at once",
                  details: "Details",
@@ -1122,7 +1183,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "publish_product/1 refuses a product without photos" do
       product = draft_product()
 
-      assert {:error, :no_photos} = Products.publish_product(product)
+      assert {:error, :no_photos} = Products.publish_product(owner_scope(product), product)
       assert Products.get_product!(product.id).status == :draft
     end
 
@@ -1130,7 +1191,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = draft_product()
       add_photo(product)
 
-      assert {:ok, published} = Products.publish_product(product)
+      assert {:ok, published} = Products.publish_product(owner_scope(product), product)
       assert published.status == :available
     end
 
@@ -1138,23 +1199,24 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture(%{status: :unavailable})
       add_photo(product)
 
-      assert {:ok, %Product{status: :available}} = Products.publish_product(product)
+      assert {:ok, %Product{status: :available}} =
+               Products.publish_product(owner_scope(product), product)
     end
 
     test "publish_product/1 refuses an archived product" do
       product = product_fixture(%{status: :archived})
       add_photo(product)
 
-      assert {:error, :archived} = Products.publish_product(product)
+      assert {:error, :archived} = Products.publish_product(owner_scope(product), product)
     end
 
     test "publish_product/1 reads the current status, not the given struct's" do
       product = draft_product()
       add_photo(product)
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(owner_scope(product), product)
 
       # `product` still says :draft, but the database says :archived.
-      assert {:error, :archived} = Products.publish_product(product)
+      assert {:error, :archived} = Products.publish_product(owner_scope(product), product)
     end
 
     test "update_product/2 ignores a status, so it can't skip publish_product/1" do
@@ -1164,7 +1226,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       add_photo(product)
 
       assert {:ok, updated} =
-               Products.update_product(product, %{status: :available, title: "New title"})
+               Products.update_product(owner_scope(product), product, %{
+                 status: :available,
+                 title: "New title"
+               })
 
       assert updated.title == "New title"
       assert Products.get_product!(product.id).status == :archived
@@ -1173,17 +1238,17 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "delete_product_image/1 of an already removed photo returns :not_found" do
       product = draft_product()
       image = add_photo(product)
-      {:ok, _} = Products.delete_product_image(image)
+      {:ok, _} = Products.delete_product_image(owner_scope(image), image)
 
-      assert {:error, :not_found} = Products.delete_product_image(image)
+      assert {:error, :not_found} = Products.delete_product_image(owner_scope(image), image)
     end
 
     test "removing the last photo of an :available product makes it :draft" do
       product = draft_product()
       image = add_photo(product)
-      {:ok, product} = Products.publish_product(product)
+      {:ok, product} = Products.publish_product(owner_scope(product), product)
 
-      assert {:ok, %ProductImage{}} = Products.delete_product_image(image)
+      assert {:ok, %ProductImage{}} = Products.delete_product_image(owner_scope(image), image)
       assert Products.get_product!(product.id).status == :draft
     end
 
@@ -1191,9 +1256,9 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = draft_product()
       first = add_photo(product, 1)
       add_photo(product, 2)
-      {:ok, product} = Products.publish_product(product)
+      {:ok, product} = Products.publish_product(owner_scope(product), product)
 
-      assert {:ok, _} = Products.delete_product_image(first)
+      assert {:ok, _} = Products.delete_product_image(owner_scope(first), first)
       assert Products.get_product!(product.id).status == :available
     end
 
@@ -1201,7 +1266,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture(%{status: :unavailable})
       image = add_photo(product)
 
-      assert {:ok, _} = Products.delete_product_image(image)
+      assert {:ok, _} = Products.delete_product_image(owner_scope(image), image)
       assert Products.get_product!(product.id).status == :unavailable
     end
 
@@ -1230,7 +1295,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       [default_collection] = Products.list_collections_for_artist(artist.id)
 
       {:ok, product} =
-        Products.create_product(artist.id, %{
+        Products.create_product(owner_scope(artist), %{
           title: "No collection",
           descr: "A work without a collection",
           details: "Details",
@@ -1247,11 +1312,13 @@ defmodule ArtsyNeighbor.ProductsTest do
       [default_collection] = Products.list_collections_for_artist(artist.id)
 
       {:ok, other} =
-        Products.create_collection(artist.id, %{name: "Watercolours"})
+        Products.create_collection(owner_scope(artist), %{name: "Watercolours"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
 
-      {:ok, updated} = Products.update_product(product, %{collection_id: nil})
+      {:ok, updated} =
+        Products.update_product(owner_scope(product), product, %{collection_id: nil})
+
       assert updated.collection_id == default_collection.id
     end
 
@@ -1259,11 +1326,11 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
 
       {:ok, other} =
-        Products.create_collection(artist.id, %{name: "Watercolours"})
+        Products.create_collection(owner_scope(artist), %{name: "Watercolours"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: other.id})
 
-      {:ok, updated} = Products.update_product(product, %{title: "Renamed"})
+      {:ok, updated} = Products.update_product(owner_scope(product), product, %{title: "Renamed"})
       assert updated.collection_id == other.id
     end
   end
@@ -1276,7 +1343,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       other_artist = artist_fixture()
 
       {:ok, other_collection} =
-        Products.create_collection(other_artist.id, %{name: "Someone else's oils"})
+        Products.create_collection(owner_scope(other_artist), %{name: "Someone else's oils"})
 
       %{
         artist: artist,
@@ -1302,7 +1369,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       category: category
     } do
       attrs = Map.put(work_attrs(category), :artist_id, other_artist.id)
-      {:ok, product} = Products.create_product(artist.id, attrs)
+      {:ok, product} = Products.create_product(owner_scope(artist), attrs)
       assert product.artist_id == artist.id
     end
 
@@ -1311,7 +1378,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       other_artist: other_artist
     } do
       product = product_fixture(%{artist_id: artist.id})
-      {:ok, updated} = Products.update_product(product, %{artist_id: other_artist.id})
+
+      {:ok, updated} =
+        Products.update_product(owner_scope(product), product, %{artist_id: other_artist.id})
+
       assert updated.artist_id == artist.id
     end
 
@@ -1322,7 +1392,7 @@ defmodule ArtsyNeighbor.ProductsTest do
     } do
       attrs = Map.put(work_attrs(category), :collection_id, other_collection.id)
 
-      assert {:error, changeset} = Products.create_product(artist.id, attrs)
+      assert {:error, changeset} = Products.create_product(owner_scope(artist), attrs)
       assert changeset.errors[:collection_id]
       assert Products.get_products_by_artist_all_status(artist.id) == []
     end
@@ -1334,15 +1404,19 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture(%{artist_id: artist.id})
 
       assert {:error, changeset} =
-               Products.update_product(product, %{collection_id: other_collection.id})
+               Products.update_product(owner_scope(product), product, %{
+                 collection_id: other_collection.id
+               })
 
       assert changeset.errors[:collection_id]
 
-      assert {:error, changeset} = Products.update_product(product, %{collection_id: -1})
+      assert {:error, changeset} =
+               Products.update_product(owner_scope(product), product, %{collection_id: -1})
+
       assert changeset.errors[:collection_id]
     end
 
-    test "AdminProducts.update_product/2 can move a work to another artist", %{
+    test "AdminProducts.update_product/3 can move a work to another artist", %{
       artist: artist,
       other_artist: other_artist,
       other_collection: other_collection
@@ -1350,7 +1424,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       product = product_fixture(%{artist_id: artist.id})
 
       {:ok, moved} =
-        AdminProducts.update_product(product, %{
+        AdminProducts.update_product(admin_scope_fixture(), product, %{
           artist_id: other_artist.id,
           collection_id: other_collection.id
         })
@@ -1359,33 +1433,34 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert moved.collection_id == other_collection.id
     end
 
-    test "AdminProducts.update_product/2: a work moved without a collection goes into the new artist's default one",
+    test "AdminProducts.update_product/3: a work moved without a collection goes into the new artist's default one",
          %{artist: artist, other_artist: other_artist} do
       {:ok, collection} =
-        Products.create_collection(artist.id, %{name: "Prints"})
+        Products.create_collection(owner_scope(artist), %{name: "Prints"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: collection.id})
       other_default = Products.get_collection!(Products.default_collection_id(other_artist.id))
 
-      {:ok, moved} = AdminProducts.update_product(product, %{artist_id: other_artist.id})
+      {:ok, moved} =
+        AdminProducts.update_product(admin_scope_fixture(), product, %{artist_id: other_artist.id})
 
       assert other_default.name == "Uncategorized"
       assert moved.artist_id == other_artist.id
       assert moved.collection_id == other_default.id
     end
 
-    test "AdminProducts.update_product/2 refuses to move a work into another of the old artist's collections",
+    test "AdminProducts.update_product/3 refuses to move a work into another of the old artist's collections",
          %{artist: artist, other_artist: other_artist} do
       {:ok, prints} =
-        Products.create_collection(artist.id, %{name: "Prints"})
+        Products.create_collection(owner_scope(artist), %{name: "Prints"})
 
       {:ok, oils} =
-        Products.create_collection(artist.id, %{name: "Oils"})
+        Products.create_collection(owner_scope(artist), %{name: "Oils"})
 
       product = product_fixture(%{artist_id: artist.id, collection_id: prints.id})
 
       assert {:error, changeset} =
-               AdminProducts.update_product(product, %{
+               AdminProducts.update_product(admin_scope_fixture(), product, %{
                  artist_id: other_artist.id,
                  collection_id: oils.id
                })
@@ -1409,7 +1484,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       )
 
       product = Products.get_product!(product.id)
-      assert {:ok, updated} = Products.update_product(product, %{price: "75"})
+
+      assert {:ok, updated} =
+               Products.update_product(owner_scope(product), product, %{price: "75"})
+
       assert updated.price == Decimal.new("75")
     end
 
@@ -1449,7 +1527,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
 
       assert {:ok, %ProductCollection{} = collection} =
-               Products.create_collection(artist.id, %{name: "Summer Works"})
+               Products.create_collection(owner_scope(artist), %{name: "Summer Works"})
 
       assert collection.name == "Summer Works"
       assert collection.artist_id == artist.id
@@ -1469,9 +1547,9 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "list_collections_for_artist returns collections ordered by position" do
       artist = artist_fixture()
-      {:ok, series_b} = Products.create_collection(artist.id, %{name: "Series B"})
-      {:ok, series_c} = Products.create_collection(artist.id, %{name: "Series C"})
-      {:ok, _} = Products.swap_collection_positions(series_b, series_c)
+      {:ok, series_b} = Products.create_collection(owner_scope(artist), %{name: "Series B"})
+      {:ok, series_c} = Products.create_collection(owner_scope(artist), %{name: "Series C"})
+      {:ok, _} = Products.swap_collection_positions(owner_scope(series_b), series_b, series_c)
 
       names =
         artist.id
@@ -1486,7 +1564,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist1 = artist_fixture()
       artist2 = artist_fixture()
 
-      {:ok, _} = Products.create_collection(artist1.id, %{name: "Artist1 Collection"})
+      {:ok, _} = Products.create_collection(owner_scope(artist1), %{name: "Artist1 Collection"})
 
       results = Products.list_collections_for_artist(artist2.id)
       names = Enum.map(results, fn collection -> collection.name end)
@@ -1497,13 +1575,13 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist = artist_fixture()
       default_id = Products.default_collection_id(artist.id)
 
-      {:ok, _} =
-        Products.update_collection(Products.get_collection!(default_id), %{name: "Other"})
+      default = Products.get_collection!(default_id)
+      {:ok, _} = Products.update_collection(owner_scope(artist), default, %{name: "Other"})
 
-      {:ok, target} = Products.create_collection(artist.id, %{name: "Temporary"})
+      {:ok, target} = Products.create_collection(owner_scope(artist), %{name: "Temporary"})
       product = product_fixture(%{artist_id: artist.id, collection_id: target.id})
 
-      assert {:ok, _} = Products.delete_collection(target)
+      assert {:ok, _} = Products.delete_collection(owner_scope(target), target)
 
       assert Products.get_product!(product.id).collection_id == default_id
     end
@@ -1513,7 +1591,8 @@ defmodule ArtsyNeighbor.ProductsTest do
       default = Products.get_collection!(Products.default_collection_id(artist.id))
       product = product_fixture(%{artist_id: artist.id, collection_id: default.id})
 
-      assert {:error, :default_collection} = Products.delete_collection(default)
+      assert {:error, :default_collection} =
+               Products.delete_collection(owner_scope(default), default)
 
       assert Products.get_collection!(default.id)
       assert Products.get_product!(product.id).collection_id == default.id
@@ -1529,10 +1608,10 @@ defmodule ArtsyNeighbor.ProductsTest do
         set: [is_default: false]
       )
 
-      {:ok, target} = Products.create_collection(artist.id, %{name: "Temporary"})
+      {:ok, target} = Products.create_collection(owner_scope(artist), %{name: "Temporary"})
       product = product_fixture(%{artist_id: artist.id, collection_id: target.id})
 
-      assert {:ok, _} = Products.delete_collection(target)
+      assert {:ok, _} = Products.delete_collection(owner_scope(target), target)
 
       new_default = Products.get_collection!(Products.default_collection_id(artist.id))
       assert new_default.name == "Uncategorized"
@@ -1541,10 +1620,10 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "swap_collection_positions exchanges position values" do
       artist = artist_fixture()
-      {:ok, col_a} = Products.create_collection(artist.id, %{name: "A"})
-      {:ok, col_b} = Products.create_collection(artist.id, %{name: "B"})
+      {:ok, col_a} = Products.create_collection(owner_scope(artist), %{name: "A"})
+      {:ok, col_b} = Products.create_collection(owner_scope(artist), %{name: "B"})
 
-      assert {:ok, _} = Products.swap_collection_positions(col_a, col_b)
+      assert {:ok, _} = Products.swap_collection_positions(owner_scope(col_a), col_a, col_b)
 
       assert Products.get_collection!(col_a.id).position == col_b.position
       assert Products.get_collection!(col_b.id).position == col_a.position
@@ -1552,9 +1631,11 @@ defmodule ArtsyNeighbor.ProductsTest do
 
     test "update_collection changes collection attributes" do
       artist = artist_fixture()
-      {:ok, collection} = Products.create_collection(artist.id, %{name: "Old Name"})
+      {:ok, collection} = Products.create_collection(owner_scope(artist), %{name: "Old Name"})
 
-      assert {:ok, updated} = Products.update_collection(collection, %{name: "New Name"})
+      assert {:ok, updated} =
+               Products.update_collection(owner_scope(collection), collection, %{name: "New Name"})
+
       assert updated.name == "New Name"
     end
   end
@@ -1571,7 +1652,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       other_artist: other_artist
     } do
       {:ok, collection} =
-        Products.create_collection(artist.id, %{
+        Products.create_collection(owner_scope(artist), %{
           name: "Prints",
           artist_id: other_artist.id,
           position: 99,
@@ -1587,10 +1668,10 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist: artist,
       other_artist: other_artist
     } do
-      {:ok, collection} = Products.create_collection(artist.id, %{name: "Prints"})
+      {:ok, collection} = Products.create_collection(owner_scope(artist), %{name: "Prints"})
 
       {:ok, updated} =
-        Products.update_collection(collection, %{
+        Products.update_collection(owner_scope(collection), collection, %{
           name: "Linocuts",
           artist_id: other_artist.id,
           position: 99,
@@ -1607,10 +1688,12 @@ defmodule ArtsyNeighbor.ProductsTest do
       artist: artist
     } do
       default = Products.get_collection!(Products.default_collection_id(artist.id))
-      {:ok, _} = Products.update_collection(default, %{name: "Odds and ends"})
+
+      {:ok, _} =
+        Products.update_collection(owner_scope(default), default, %{name: "Odds and ends"})
 
       {:ok, product} =
-        Products.create_product(artist.id, %{
+        Products.create_product(owner_scope(artist), %{
           title: "Small study",
           descr: "A small study in oils",
           details: "Unframed",
@@ -1625,12 +1708,12 @@ defmodule ArtsyNeighbor.ProductsTest do
     # delete_collection/1 crash (Ecto.MultipleResultsError).
     test "a second collection named Uncategorized is an ordinary one", %{artist: artist} do
       default_id = Products.default_collection_id(artist.id)
-      {:ok, second} = Products.create_collection(artist.id, %{name: "Uncategorized"})
-      {:ok, other} = Products.create_collection(artist.id, %{name: "Prints"})
+      {:ok, second} = Products.create_collection(owner_scope(artist), %{name: "Uncategorized"})
+      {:ok, other} = Products.create_collection(owner_scope(artist), %{name: "Prints"})
 
       refute second.is_default
-      assert {:ok, _} = Products.delete_collection(other)
-      assert {:ok, _} = Products.delete_collection(second)
+      assert {:ok, _} = Products.delete_collection(owner_scope(other), other)
+      assert {:ok, _} = Products.delete_collection(owner_scope(second), second)
       assert Products.default_collection_id(artist.id) == default_id
     end
 
@@ -1646,20 +1729,61 @@ defmodule ArtsyNeighbor.ProductsTest do
   end
 
   # ============================================================
-  # swap_product_positions/2
+  # swap_product_positions/3
   # ============================================================
 
-  describe "swap_product_positions/2" do
-    test "exchanges position values between two products" do
+  describe "swap_product_positions/3" do
+    # A work in the artist's default collection, as the site makes them.
+    defp work_in_default(artist, attrs) do
+      collection_id = Products.default_collection_id(artist.id)
+      product_fixture(Map.merge(%{artist_id: artist.id, collection_id: collection_id}, attrs))
+    end
+
+    defp positions(works) do
+      Enum.map(works, fn work -> Products.get_product!(work.id).position end)
+    end
+
+    test "exchanges two works' places in their collection" do
       artist = artist_fixture()
-      category = category_fixture()
-      p1 = product_fixture(%{artist_id: artist.id, category_id: category.id, position: 1})
-      p2 = product_fixture(%{artist_id: artist.id, category_id: category.id, position: 2})
+      p1 = work_in_default(artist, %{position: 1})
+      p2 = work_in_default(artist, %{position: 2})
 
-      assert {:ok, _} = Products.swap_product_positions(p1, p2)
+      assert {:ok, _} = Products.swap_product_positions(owner_scope(p1), p1, p2)
+      assert positions([p1, p2]) == [2, 1]
+    end
 
-      assert Products.get_product!(p1.id).position == 2
-      assert Products.get_product!(p2.id).position == 1
+    # New works have no position, so swapping the stored numbers alone
+    # did nothing (code review, 2026-11-23).
+    test "works without positions are numbered in the dashboard's order first" do
+      artist = artist_fixture()
+      a = work_in_default(artist, %{title: "Apple"})
+      b = work_in_default(artist, %{title: "banana"})
+      c = work_in_default(artist, %{title: "Cherry"})
+
+      # Shown by title while none has a position: Apple, banana, Cherry
+      # (the database's order, which ignores case).
+      assert {:ok, _} = Products.swap_product_positions(owner_scope(a), b, c)
+      assert positions([a, b, c]) == [1, 3, 2]
+    end
+
+    test "works with the same position (e.g. from a deleted collection) move too" do
+      artist = artist_fixture()
+      a = work_in_default(artist, %{title: "Apple", position: 1})
+      b = work_in_default(artist, %{title: "Banana", position: 1})
+
+      assert {:ok, _} = Products.swap_product_positions(owner_scope(a), a, b)
+      assert positions([a, b]) == [2, 1]
+    end
+
+    test "nothing changes if the other work has moved to another collection" do
+      artist = artist_fixture()
+      a = work_in_default(artist, %{position: 1})
+      b = work_in_default(artist, %{position: 2})
+      {:ok, prints} = Products.create_collection(owner_scope(artist), %{name: "Prints"})
+      {:ok, _moved} = Products.update_product(owner_scope(b), b, %{collection_id: prints.id})
+
+      assert {:ok, _} = Products.swap_product_positions(owner_scope(a), a, b)
+      assert positions([a, b]) == [1, 2]
     end
   end
 
@@ -1676,6 +1800,382 @@ defmodule ArtsyNeighbor.ProductsTest do
       set: [status: Atom.to_string(status)]
     )
   end
+
+  # ---------------------------------------------------------------------------
+  # Who may act (2026-11-23)
+  #
+  # The Products functions that change works, photos and collections work
+  # out the caller's role from their scope ("Who is acting" in
+  # products.ex). These tests call them as the wrong person and check both
+  # the refusal and that nothing changed. (The tests above act as the
+  # owner, or as an admin for the admin-only functions.)
+  # ---------------------------------------------------------------------------
+
+  # An artist with two collections, two draft works in the first one, and
+  # two photos on the first work: enough for every function to succeed
+  # when the right person calls it.
+  defp owned_things do
+    artist = artist_fixture()
+    {:ok, prints} = Products.create_collection(owner_scope(artist), %{name: "Prints"})
+    {:ok, oils} = Products.create_collection(owner_scope(artist), %{name: "Oils"})
+
+    work =
+      product_fixture(%{
+        artist_id: artist.id,
+        collection_id: prints.id,
+        position: 1,
+        status: :draft
+      })
+
+    other_work =
+      product_fixture(%{artist_id: artist.id, collection_id: prints.id, position: 2})
+
+    photo_a = product_image_fixture(%{product_id: work.id, position: 1})
+    photo_b = product_image_fixture(%{product_id: work.id, position: 2})
+
+    %{
+      artist: artist,
+      work: work,
+      other_work: other_work,
+      photo_a: photo_a,
+      photo_b: photo_b,
+      prints: prints,
+      oils: oils
+    }
+  end
+
+  # Calls every function that changes one of those things, as this scope,
+  # and returns the results by function name. A keyword list, so they
+  # run in this order: the ones that need a photo or collection still
+  # there come before the ones that delete it. (Creating works and
+  # collections is tested on its own: it acts on the caller's own
+  # profile, so another artist would simply succeed.)
+  defp try_everything(scope, things) do
+    [
+      update_product: Products.update_product(scope, things.work, %{title: "Changed"}),
+      publish_product: Products.publish_product(scope, things.work),
+      swap_product_positions:
+        Products.swap_product_positions(scope, things.work, things.other_work),
+      create_product_image:
+        Products.create_product_image(scope, things.work, %{path: "/added.jpg", position: 3}),
+      swap_image_positions: Products.swap_image_positions(scope, things.photo_a, things.photo_b),
+      delete_product_image: Products.delete_product_image(scope, things.photo_a),
+      update_collection: Products.update_collection(scope, things.prints, %{name: "Changed"}),
+      swap_collection_positions:
+        Products.swap_collection_positions(scope, things.prints, things.oils),
+      delete_collection: Products.delete_collection(scope, things.prints),
+      soft_delete_product: Products.soft_delete_product(scope, things.work),
+      restore_product: Products.restore_product(scope, things.work)
+    ]
+  end
+
+  # The parts of those things that any of the functions would change.
+  defp state_of(things) do
+    work = Repo.get!(Product, things.work.id)
+
+    photos =
+      Repo.all(
+        from(i in ProductImage,
+          where: i.product_id == ^things.work.id,
+          order_by: i.id,
+          select: {i.path, i.position}
+        )
+      )
+
+    collections =
+      Repo.all(
+        from(c in ProductCollection,
+          where: c.artist_id == ^things.artist.id,
+          order_by: c.id,
+          select: {c.name, c.position}
+        )
+      )
+
+    %{
+      work: {work.title, work.status, work.position, work.collection_id},
+      other_work_position: Repo.get!(Product, things.other_work.id).position,
+      photos: photos,
+      collections: collections
+    }
+  end
+
+  describe "who may act" do
+    test "anyone but the owner or an admin is refused everything, and nothing changes" do
+      things = owned_things()
+      before = state_of(things)
+
+      # Another artist, a logged-in user without a profile, and a
+      # logged-out visitor (no scope at all).
+      other_artist = owner_scope(artist_fixture())
+      plain_user = user_scope_fixture()
+
+      for scope <- [other_artist, plain_user, nil] do
+        for {function, result} <- try_everything(scope, things) do
+          assert {function, result} == {function, {:error, :unauthorized}}
+        end
+
+        assert Products.hard_delete_product(scope, things.work) == {:error, :unauthorized}
+      end
+
+      assert state_of(things) == before
+    end
+
+    test "an artist whose profile was removed can't change their works or collections" do
+      things = owned_things()
+      # Made before the removal, like a page that was already open: the
+      # status is read from the database, not from the scope.
+      scope = owner_scope(things.artist)
+      {:ok, _removed} = Artists.soft_delete_artist(things.artist)
+      before = state_of(things)
+
+      for {function, result} <- try_everything(scope, things) do
+        assert {function, result} == {function, {:error, :artist_removed}}
+      end
+
+      assert Products.create_product(scope, %{title: "New"}) == {:error, :artist_removed}
+      assert Products.create_collection(scope, %{name: "New"}) == {:error, :artist_removed}
+      assert state_of(things) == before
+    end
+
+    test "an artist whose profile is only inactive can still change their works" do
+      things = owned_things()
+      {:ok, _inactive} = Artists.deactivate_artist(things.artist)
+      results = try_everything(owner_scope(things.artist), things)
+
+      # Restoring an archived work has its own rule: it needs an
+      # :active artist (restore_product/2).
+      {restore_result, others} = Keyword.pop(results, :restore_product)
+      assert restore_result == {:error, :artist_not_active}
+
+      for {function, result} <- others do
+        assert {function, match?({:ok, _}, result)} == {function, true}
+      end
+    end
+
+    test "an admin may do everything" do
+      things = owned_things()
+
+      for {function, result} <- try_everything(admin_scope_fixture(), things) do
+        assert {function, match?({:ok, _}, result)} == {function, true}
+      end
+
+      assert {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), things.work)
+    end
+
+    test "the owner can't hard delete a work; they archive it instead" do
+      things = owned_things()
+
+      assert Products.hard_delete_product(owner_scope(things.work), things.work) ==
+               {:error, :unauthorized}
+
+      assert Repo.get(Product, things.work.id)
+    end
+
+    test "works and collections can only be created for the caller's own profile" do
+      category = category_fixture()
+      attrs = %{title: "A new work", descr: "Some descr", details: "Details", price: "10"}
+      attrs = Map.put(attrs, :category_id, category.id)
+
+      # No artist profile: a plain user, an admin (who uses
+      # AdminProducts instead), a logged-out visitor.
+      for scope <- [user_scope_fixture(), admin_scope_fixture(), nil] do
+        assert Products.create_product(scope, attrs) == {:error, :unauthorized}
+        assert Products.create_collection(scope, %{name: "Prints"}) == {:error, :unauthorized}
+      end
+    end
+
+    test "a swap refuses things of two different artists, or photos of two works" do
+      things = owned_things()
+      theirs = owned_things()
+      scope = owner_scope(things.artist)
+      before = state_of(things)
+
+      assert Products.swap_product_positions(scope, things.work, theirs.work) ==
+               {:error, :unauthorized}
+
+      assert Products.swap_collection_positions(scope, things.prints, theirs.prints) ==
+               {:error, :unauthorized}
+
+      # Both works are this artist's, but the photos belong to different works.
+      photo_of_other_work = product_image_fixture(%{product_id: things.other_work.id})
+
+      assert Products.swap_image_positions(scope, things.photo_a, photo_of_other_work) ==
+               {:error, :unauthorized}
+
+      assert state_of(things) == before
+    end
+
+    test "AdminProducts refuses anyone but an admin" do
+      things = owned_things()
+      owner = owner_scope(things.artist)
+      category = category_fixture()
+
+      attrs = %{
+        title: "A new work",
+        descr: "Some descr",
+        details: "Details",
+        price: "10",
+        category_id: category.id,
+        artist_id: things.artist.id
+      }
+
+      for scope <- [owner, user_scope_fixture(), nil] do
+        assert AdminProducts.create_product(scope, attrs) == {:error, :unauthorized}
+
+        assert AdminProducts.update_product(scope, things.work, %{title: "Changed"}) ==
+                 {:error, :unauthorized}
+      end
+
+      assert Repo.get!(Product, things.work.id).title == things.work.title
+    end
+  end
+
+  # The page passes in the struct it loaded, which may be out of date.
+  # The checks use the row as it is now (code review, 2026-11-23).
+  describe "changes check the database, not the page's copy" do
+    test "the old owner can't change a work an admin has moved to another artist" do
+      things = owned_things()
+      new_owner = artist_fixture()
+      old_owner = owner_scope(things.artist)
+      # The page's copy still says it's the old owner's.
+      stale = things.work
+
+      {:ok, _moved} =
+        AdminProducts.update_product(admin_scope_fixture(), things.work, %{
+          artist_id: new_owner.id
+        })
+
+      assert Products.update_product(old_owner, stale, %{title: "Mine"}) ==
+               {:error, :unauthorized}
+
+      assert Products.publish_product(old_owner, stale) == {:error, :unauthorized}
+      assert Products.soft_delete_product(old_owner, stale) == {:error, :unauthorized}
+      assert Products.delete_product_image(old_owner, things.photo_a) == {:error, :unauthorized}
+
+      assert Products.swap_image_positions(old_owner, things.photo_a, things.photo_b) ==
+               {:error, :unauthorized}
+
+      work = Repo.get!(Product, things.work.id)
+      assert work.title == things.work.title
+      assert work.status == :draft
+    end
+
+    test "the new owner can, with the old copy" do
+      things = owned_things()
+      new_owner = artist_fixture()
+      stale = things.work
+
+      {:ok, _moved} =
+        AdminProducts.update_product(admin_scope_fixture(), things.work, %{
+          artist_id: new_owner.id
+        })
+
+      assert {:ok, updated} =
+               Products.update_product(owner_scope(new_owner), stale, %{title: "Ours"})
+
+      assert updated.title == "Ours"
+      assert updated.artist_id == new_owner.id
+    end
+
+    test "something deleted meanwhile gives :not_found, not a crash" do
+      things = owned_things()
+      scope = owner_scope(things.artist)
+      {:ok, _} = Products.delete_collection(scope, things.oils)
+
+      assert Products.update_collection(scope, things.oils, %{name: "Gone"}) ==
+               {:error, :not_found}
+
+      assert Products.delete_collection(scope, things.oils) == {:error, :not_found}
+
+      assert Products.swap_collection_positions(scope, things.prints, things.oils) ==
+               {:error, :not_found}
+
+      {:ok, _} = Products.delete_product_image(scope, things.photo_b)
+
+      assert Products.swap_image_positions(scope, things.photo_a, things.photo_b) ==
+               {:error, :not_found}
+
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), things.work)
+
+      assert Products.update_product(scope, things.work, %{title: "Gone"}) == {:error, :not_found}
+      assert Products.publish_product(scope, things.work) == {:error, :not_found}
+      assert Products.soft_delete_product(scope, things.work) == {:error, :not_found}
+      assert Products.restore_product(scope, things.work) == {:error, :not_found}
+      assert Products.delete_product_image(scope, things.photo_a) == {:error, :not_found}
+
+      assert Products.create_product_image(scope, things.work, %{path: "/x.jpg", position: 1}) ==
+               {:error, :not_found}
+
+      assert Products.swap_product_positions(scope, things.work, things.other_work) ==
+               {:error, :not_found}
+    end
+  end
+
+  describe "get_own_product/2 and get_own_collection/2" do
+    test "find the artist's own work or collection, and nothing else" do
+      things = owned_things()
+      theirs = owned_things()
+      scope = owner_scope(things.artist)
+
+      assert Products.get_own_product(scope, things.work.id).id == things.work.id
+      assert Products.get_own_collection(scope, things.prints.id).id == things.prints.id
+
+      # Someone else's, a forged id that parse_id/1 made nil, a missing
+      # one, and an admin (who has no profile: admins use the admin pages).
+      assert Products.get_own_product(scope, theirs.work.id) == nil
+      assert Products.get_own_collection(scope, theirs.prints.id) == nil
+      assert Products.get_own_product(scope, nil) == nil
+      assert Products.get_own_product(scope, -1) == nil
+      assert Products.get_own_product(admin_scope_fixture(), things.work.id) == nil
+      assert Products.get_own_collection(nil, things.prints.id) == nil
+    end
+
+    test "get_own_product/2 loads the photos, in order" do
+      things = owned_things()
+      product = Products.get_own_product(owner_scope(things.artist), things.work.id)
+
+      assert Enum.map(product.product_images, fn image -> image.id end) ==
+               [things.photo_a.id, things.photo_b.id]
+    end
+  end
+
+  describe "positions and photos only change through their own functions" do
+    test "update_product/3 ignores a position in the params" do
+      things = owned_things()
+
+      {:ok, updated} =
+        Products.update_product(owner_scope(things.work), things.work, %{position: 99})
+
+      assert updated.position == 1
+    end
+
+    test "a photo can't be moved to another work" do
+      things = owned_things()
+
+      changeset =
+        ProductImage.changeset(things.photo_a, %{product_id: things.other_work.id, position: 5})
+
+      {:ok, updated} = Repo.update(changeset)
+      assert updated.product_id == things.work.id
+      assert updated.position == 5
+    end
+  end
+
+  # The scope of the logged-in artist who owns `thing`: an artist (or
+  # an artist's id), a work, a collection or a photo. Built with
+  # Scope.for_user/1, as for a real visitor, so the tests go through
+  # the same checks as the pages ("Who is acting" in Products).
+  defp owner_scope(%ArtsyNeighbor.Artists.Artist{} = artist), do: artist_scope_fixture(artist)
+
+  defp owner_scope(artist_id) when is_integer(artist_id) do
+    owner_scope(Repo.get!(ArtsyNeighbor.Artists.Artist, artist_id))
+  end
+
+  defp owner_scope(%Product{artist_id: artist_id}), do: owner_scope(artist_id)
+  defp owner_scope(%ProductCollection{artist_id: artist_id}), do: owner_scope(artist_id)
+
+  defp owner_scope(%ProductImage{product_id: product_id}),
+    do: owner_scope(Repo.get!(Product, product_id))
 
   # Sets when the product was added, `days` ago, so "newest first" can be
   # tested without depending on the order the fixtures were made in.

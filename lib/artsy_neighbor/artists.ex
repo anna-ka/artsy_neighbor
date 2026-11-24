@@ -422,7 +422,7 @@ defmodule ArtsyNeighbor.Artists do
   profile has no photo (`needs_profile_photo_message/0`) or is :removed
   (restore_artist/1 first). Doesn't bring back products hidden when
   the profile was deactivated: each is published again on its own
-  (Products.publish_product/1).
+  (Products.publish_product/2).
   """
   def activate_artist(%Artist{} = artist) do
     Repo.transact(fn ->
@@ -572,7 +572,7 @@ defmodule ArtsyNeighbor.Artists do
 
   Does not cascade back on reactivation (activate_artist/1): a vendor's
   products stay :unavailable until each is published again
-  (Products.publish_product/1; no button for it yet, NOTES #16).
+  (Products.publish_product/2; no button for it yet, NOTES #16).
   """
   def deactivate_artist(%Artist{status: :active} = artist) do
     Repo.transact(fn ->
@@ -592,7 +592,7 @@ defmodule ArtsyNeighbor.Artists do
   it. The vendor still has to actively re-activate from their dashboard.
   Does not touch the artist's products, which stay :archived (set by
   soft_delete_artist/1) until brought back individually via
-  Products.restore_product/1 — itself gated on the artist being :active,
+  Products.restore_product/2 — itself gated on the artist being :active,
   so this alone isn't enough to make any of them visible again either.
 
   Refuses (returns {:error, :already_active}) if the artist is currently

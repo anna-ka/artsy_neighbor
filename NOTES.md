@@ -470,14 +470,39 @@ which is mechanical and done once, up front.
           delete and the collection form's edit page no longer crash
           on a forged or deleted id (`parse_id/1` moved to the shared
           `ArtsyNeighborWeb.Params`).
-          Left for the scope change below: the dashboard's other
-          handlers (moving works up/down, archiving) still crash on a
-          forged id (`String.to_integer/1`, `get_product!/1`).
-          After S-4 (agreed 2026-11-23): `Products` checks the
-          `current_scope` itself, like `Orders` (S-1's second
-          commit), for every vendor write to products, their photos
-          and collections, so no page has to remember the "is this
-          yours?" check. Then C-1 to C-3.
+          `Products` checks the `current_scope` itself, like
+          `Orders`: *DONE* (2026-11-23). Every change to a work, its
+          photos or a collection takes the scope and allows the
+          owner or an admin (hard delete: admins only).
+          Decided with it (2026-11-23):
+          - an artist whose profile is `:removed` can still see their
+            works but not change them (`{:error, :artist_removed}`,
+            with a message on the page);
+          - `AdminProducts` refuses non-admins too, as a second guard
+            behind the router;
+          - admins may also change collections, so there's one rule.
+          Same commit: the dashboard's move and archive buttons and
+          the product form's photo buttons no longer crash on a
+          forged id; the vendor pages look works and collections up
+          with `get_own_product/2` / `get_own_collection/2`; positions
+          and a photo's work can no longer be set from the params;
+          sample data publishes works as the artist.
+          From that change's code review (fixed in the same commit):
+          the checks use the row as it is now, locked, in the same
+          transaction as the change (not the page's possibly stale
+          copy); moving works on the dashboard now works for new
+          works (they had no position, so the swap did nothing); a
+          work or collection deleted meanwhile gives a message, not a
+          crash, on the vendor and admin pages; the vendor profile
+          form's photo buttons use `parse_id/1`.
+          Left for later, same review: other pages still parse ids
+          from the browser with `String.to_integer` and crash on a
+          forged one: the review steps (`review_live/of_products_step.ex`,
+          `of_buyer_step.ex`, `of_vendor_step.ex`), the buyer's order
+          page (`order_live/detail.ex`), and the admin artist form and
+          product page (`admin_artist_live/form.ex`,
+          `admin_product_live/show.ex`). Check them with C-1 to C-3.
+          NEXT: C-1 to C-3.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -1393,6 +1418,24 @@ working on the code should keep in mind.
   check when adding a second Machine: that they really connect, and
   that both share the same Erlang cookie. Otherwise a buyer and an artist on different
   Machines only see each other's messages after a reload.
+- **A pass on PubSub, to keep open pages from going stale** (noted
+  2026-11-23, after the `Products` scope change). An open page keeps
+  the copy it loaded. Since that change, a stale copy can no longer
+  cause a wrong write: `Products` checks the row as it is now. But the
+  page can still *show* old things until a reload, e.g. a vendor's
+  dashboard or product form after an admin archived, moved or deleted
+  a work, removed the profile, or deleted a photo; the admin lists
+  after a change in another tab; public pages after a work is
+  withdrawn. Only conversations and orders broadcast today. To do, as
+  one design pass: list which changes should reach which open pages,
+  and pick the topics (per artist? per product?) and the handlers.
+  Weigh the cost: each broadcast reaches every subscribed page, and
+  each page that reloads runs its queries again, so frequent small
+  changes (reordering, photo uploads) may be better left out, batched,
+  or answered with a small update instead of a full reload. Some
+  staleness is fine where the next action already gives a clear
+  message. See also "No PubSub broadcast when a message is
+  soft-deleted" above, and the clustering item just above.
 - **Postgres 17 → 18: the Mac first, then the server** (noted
   2026-11-02; the developer wants it done soon, in a session of its
   own). Today: Postgres.app 2.8.5 with only 17.6 on the Mac; Fly runs

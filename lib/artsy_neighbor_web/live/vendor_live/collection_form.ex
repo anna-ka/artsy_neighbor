@@ -24,31 +24,19 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    artist = socket.assigns.current_scope.artist
+    collection = Products.get_own_collection(socket.assigns.current_scope, parse_id(id))
 
-    collection =
-      case parse_id(id) do
-        nil -> nil
-        parsed -> Products.get_collection(parsed)
-      end
-
-    cond do
-      # Deleted meanwhile (e.g. in another tab), or a made-up address.
-      is_nil(collection) ->
-        socket
-        |> put_flash(:error, "That collection doesn't exist any more.")
-        |> redirect(to: ~p"/vendor")
-
-      collection.artist_id != artist.id ->
-        socket
-        |> put_flash(:error, "You are not authorized to edit this collection.")
-        |> redirect(to: ~p"/vendor")
-
-      true ->
-        socket
-        |> assign(:page_title, "Edit Collection")
-        |> assign(:collection, collection)
-        |> assign(:form, to_form(Products.change_collection(collection)))
+    # Deleted meanwhile (e.g. in another tab), someone else's, or a
+    # made-up address.
+    if is_nil(collection) do
+      socket
+      |> put_flash(:error, "That collection isn't one of yours, or doesn't exist any more.")
+      |> redirect(to: ~p"/vendor")
+    else
+      socket
+      |> assign(:page_title, "Edit Collection")
+      |> assign(:collection, collection)
+      |> assign(:form, to_form(Products.change_collection(collection)))
     end
   end
 
@@ -64,33 +52,34 @@ defmodule ArtsyNeighborWeb.VendorLive.CollectionForm do
   end
 
   defp save_collection(socket, :new, params) do
-    # The owner is always the logged-in artist, never from the params.
-    artist = socket.assigns.current_scope.artist
-
-    case Products.create_collection(artist.id, params) do
-      {:ok, _collection} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Collection created successfully.")
-         |> push_navigate(to: ~p"/vendor")}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
-    end
+    # The owner is always the logged-in artist (the scope's), never from
+    # the params.
+    socket.assigns.current_scope
+    |> Products.create_collection(params)
+    |> after_save(socket, "Collection created successfully.")
   end
 
-  # update_collection/2 takes only the name from the params (audit S-4).
+  # update_collection/3 takes only the name from the params (audit S-4).
   defp save_collection(socket, :edit, params) do
-    case Products.update_collection(socket.assigns.collection, params) do
-      {:ok, _collection} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Collection updated successfully.")
-         |> push_navigate(to: ~p"/vendor")}
+    socket.assigns.current_scope
+    |> Products.update_collection(socket.assigns.collection, params)
+    |> after_save(socket, "Collection updated successfully.")
+  end
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
-    end
+  defp after_save({:ok, _collection}, socket, message) do
+    {:noreply,
+     socket
+     |> put_flash(:info, message)
+     |> push_navigate(to: ~p"/vendor")}
+  end
+
+  defp after_save({:error, %Ecto.Changeset{} = changeset}, socket, _message) do
+    {:noreply, assign(socket, form: to_form(changeset))}
+  end
+
+  # :artist_removed or :unauthorized (see Products, "Who is acting")
+  defp after_save({:error, reason}, socket, _message) do
+    {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
   end
 
   @impl true

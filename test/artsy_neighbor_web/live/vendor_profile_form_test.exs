@@ -37,6 +37,21 @@ defmodule ArtsyNeighborWeb.VendorProfileFormTest do
     assert length(Artists.get_images_for_artist(artist)) == 1
   end
 
+  test "the photo buttons ignore an id that isn't a number, instead of crashing",
+       %{conn: conn} do
+    artist = artist_fixture(%{status: :inactive})
+    image = artist_image_fixture(artist)
+    conn = log_in_user(conn, Accounts.get_user!(artist.user_id))
+    {:ok, view, _html} = live(conn, ~p"/vendor/profile/edit")
+
+    for event <- ["delete_image", "move_image_up", "move_image_down"] do
+      render_click(view, event, %{"imageid" => "abc"})
+    end
+
+    assert [%{id: id}] = Artists.get_images_for_artist(artist)
+    assert id == image.id
+  end
+
   test "the last photo of a hidden profile can be removed", %{conn: conn} do
     artist = artist_fixture(%{status: :inactive})
     image = artist_image_fixture(artist)

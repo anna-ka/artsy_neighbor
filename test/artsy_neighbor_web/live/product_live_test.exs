@@ -1,6 +1,8 @@
 defmodule ArtsyNeighborWeb.ProductLiveTest do
   use ArtsyNeighborWeb.ConnCase
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0]
+
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.OrdersFixtures
@@ -33,7 +35,7 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       conn: conn
     } do
       product = product_fixture()
-      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(product)
+      {:ok, _} = ArtsyNeighbor.Products.soft_delete_product(admin_scope_fixture(), product)
 
       assert {:error, {:live_redirect, %{to: "/products", flash: flash}}} =
                live(conn, ~p"/products/#{product}")
@@ -172,10 +174,9 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
 
       for position <- 1..3 do
         {:ok, _image} =
-          Products.create_product_image(%{
+          Products.create_product_image(admin_scope_fixture(), product, %{
             path: "/uploads/work-#{position}.jpg",
-            position: position,
-            product_id: product.id
+            position: position
           })
       end
 
@@ -194,10 +195,9 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       product = product_fixture()
 
       {:ok, _image} =
-        Products.create_product_image(%{
+        Products.create_product_image(admin_scope_fixture(), product, %{
           path: "/uploads/only.jpg",
-          position: 1,
-          product_id: product.id
+          position: 1
         })
 
       {:ok, view, _html} = live(conn, ~p"/products/#{product}")
@@ -212,10 +212,9 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
 
       for position <- 1..2 do
         {:ok, _image} =
-          Products.create_product_image(%{
+          Products.create_product_image(admin_scope_fixture(), product, %{
             path: "/uploads/work-#{position}.jpg",
-            position: position,
-            product_id: product.id
+            position: position
           })
       end
 
@@ -300,7 +299,8 @@ defmodule ArtsyNeighborWeb.ProductLiveTest do
       {:ok, view, _html} = live(conn, ~p"/products/#{product}")
 
       # The artist archives it while the buyer has the page open.
-      {:ok, _} = Products.soft_delete_product(Products.get_product!(product.id))
+      {:ok, _} =
+        Products.soft_delete_product(admin_scope_fixture(), Products.get_product!(product.id))
 
       html = view |> element("button", "Request to buy") |> render_click()
 

@@ -6,6 +6,8 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
   """
   use ArtsyNeighborWeb.ConnCase
 
+  import ArtsyNeighbor.AccountsFixtures, only: [artist_scope_fixture: 1]
+
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.ProductsFixtures
@@ -48,7 +50,10 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
       artist: artist
     } do
       other_artist = artist_fixture()
-      {:ok, collection} = Products.create_collection(artist.id, %{name: "Mine"})
+
+      {:ok, collection} =
+        Products.create_collection(artist_scope_fixture(artist), %{name: "Mine"})
+
       {:ok, view, _html} = live(conn, ~p"/vendor/collections/#{collection.id}/edit")
 
       render_submit(view, "save", %{
@@ -65,12 +70,14 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
 
     test "another artist's collection can't be opened", %{conn: conn} do
       other_artist = artist_fixture()
-      {:ok, theirs} = Products.create_collection(other_artist.id, %{name: "Theirs"})
+
+      {:ok, theirs} =
+        Products.create_collection(artist_scope_fixture(other_artist), %{name: "Theirs"})
 
       assert {:error, {:redirect, %{to: "/vendor", flash: flash}}} =
                live(conn, ~p"/vendor/collections/#{theirs.id}/edit")
 
-      assert flash["error"] == "You are not authorized to edit this collection."
+      assert flash["error"] == "That collection isn't one of yours, or doesn't exist any more."
     end
 
     test "a collection that doesn't exist sends the artist back to the dashboard", %{conn: conn} do
@@ -78,7 +85,7 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
         assert {:error, {:redirect, %{to: "/vendor", flash: flash}}} =
                  live(conn, "/vendor/collections/#{id}/edit")
 
-        assert flash["error"] == "That collection doesn't exist any more."
+        assert flash["error"] == "That collection isn't one of yours, or doesn't exist any more."
       end
     end
 
@@ -104,7 +111,7 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
       artist: artist,
       default: default
     } do
-      {:ok, other} = Products.create_collection(artist.id, %{name: "Prints"})
+      {:ok, other} = Products.create_collection(artist_scope_fixture(artist), %{name: "Prints"})
       {:ok, view, _html} = live(conn, ~p"/vendor")
 
       refute has_element?(view, "[phx-click=delete_collection][phx-value-id='#{default.id}']")
@@ -128,8 +135,10 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
       artist: artist,
       default: default
     } do
-      {:ok, _} = Products.update_collection(default, %{name: "Odds and ends"})
-      {:ok, prints} = Products.create_collection(artist.id, %{name: "Prints"})
+      {:ok, _} =
+        Products.update_collection(artist_scope_fixture(artist), default, %{name: "Odds and ends"})
+
+      {:ok, prints} = Products.create_collection(artist_scope_fixture(artist), %{name: "Prints"})
       product = product_fixture(%{artist_id: artist.id, collection_id: prints.id})
       {:ok, view, _html} = live(conn, ~p"/vendor")
 
@@ -147,7 +156,7 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
 
       for id <- ["abc", "999999999", "99999999999999999999"] do
         html = render_click(view, "delete_collection", %{"id" => id})
-        assert html =~ "That collection had already been deleted."
+        assert html =~ "That collection isn&#39;t one of yours, or doesn&#39;t exist any more."
       end
     end
 
@@ -156,8 +165,8 @@ defmodule ArtsyNeighborWeb.VendorCollectionsTest do
       artist: artist,
       default: default
     } do
-      {:ok, prints} = Products.create_collection(artist.id, %{name: "Prints"})
-      {:ok, oils} = Products.create_collection(artist.id, %{name: "Oils"})
+      {:ok, prints} = Products.create_collection(artist_scope_fixture(artist), %{name: "Prints"})
+      {:ok, oils} = Products.create_collection(artist_scope_fixture(artist), %{name: "Oils"})
       {:ok, view, _html} = live(conn, ~p"/vendor")
 
       refute has_element?(

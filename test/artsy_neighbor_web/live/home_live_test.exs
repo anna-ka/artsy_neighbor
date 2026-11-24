@@ -3,6 +3,8 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
   # shared by the whole app while they run.
   use ArtsyNeighborWeb.ConnCase, async: false
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0]
+
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.CategoriesFixtures
@@ -235,7 +237,7 @@ defmodule ArtsyNeighborWeb.HomeLiveTest do
 
     test "leaves out works that aren't for sale", %{conn: conn} do
       work = product_fixture(%{title: "Sold Out Seascape"})
-      {:ok, _} = Products.soft_delete_product(work)
+      {:ok, _} = Products.soft_delete_product(admin_scope_fixture(), work)
 
       {:ok, live, _html} = live(conn, ~p"/")
 

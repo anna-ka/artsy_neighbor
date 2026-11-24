@@ -75,7 +75,7 @@ defmodule ArtsyNeighbor.Admin.AdminCategories do
   instead, which is reversible. Stays a bare Repo.delete: products.category_id
   is on_delete: :nilify_all, and Category is never a Flag.subject_type, so
   this doesn't need the Multi+rescue+flag-cleanup treatment
-  hard_delete_artist/1 and hard_delete_product/1 require.
+  hard_delete_artist/1 and hard_delete_product/2 require.
 
   Refuses (returns {:error, :has_active_products}) if the category still
   has :available products, same guard and criteria as

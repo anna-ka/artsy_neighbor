@@ -473,7 +473,7 @@ defmodule ArtsyNeighbor.SampleDataTest do
 
         for collection <- entry.collections, work <- collection.works do
           work_attrs = Map.drop(work, [:photos, :category])
-          work_changeset = Product.changeset(%Product{}, Map.put(work_attrs, :position, 1))
+          work_changeset = Product.changeset(%Product{}, work_attrs)
 
           assert errors_without_ids(work_changeset) == [],
                  "#{work.title}: #{inspect(work_changeset.errors)}"

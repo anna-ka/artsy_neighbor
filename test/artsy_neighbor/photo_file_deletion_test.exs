@@ -10,6 +10,8 @@ defmodule ArtsyNeighbor.PhotoFileDeletionTest do
   """
   use ArtsyNeighbor.DataCase, async: true
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0]
+
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.ProductsFixtures
 
@@ -60,7 +62,10 @@ defmodule ArtsyNeighbor.PhotoFileDeletionTest do
     key = store_photo("products/#{product.id}")
 
     {:ok, image} =
-      Products.create_product_image(%{product_id: product.id, path: key, position: position})
+      Products.create_product_image(admin_scope_fixture(), product, %{
+        path: key,
+        position: position
+      })
 
     image
   end
@@ -71,7 +76,7 @@ defmodule ArtsyNeighbor.PhotoFileDeletionTest do
       image = add_product_photo(product)
       assert files_exist?(image.path)
 
-      assert {:ok, _} = Products.delete_product_image(image)
+      assert {:ok, _} = Products.delete_product_image(admin_scope_fixture(), image)
       assert files_gone?(image.path)
     end
 
@@ -102,7 +107,7 @@ defmodule ArtsyNeighbor.PhotoFileDeletionTest do
       first = add_product_photo(product, 1)
       second = add_product_photo(product, 2)
 
-      assert {:ok, _} = Products.hard_delete_product(product)
+      assert {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
       assert files_gone?(first.path)
       assert files_gone?(second.path)
     end
@@ -125,7 +130,7 @@ defmodule ArtsyNeighbor.PhotoFileDeletionTest do
     product = product_fixture()
     image = add_product_photo(product)
 
-    assert {:ok, _} = Products.soft_delete_product(product)
+    assert {:ok, _} = Products.soft_delete_product(admin_scope_fixture(), product)
     assert files_exist?(image.path)
   end
 

@@ -11,6 +11,8 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
   """
   use ArtsyNeighborWeb.ConnCase
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0, artist_scope_fixture: 1]
+
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ArtistsFixtures
   import ArtsyNeighbor.CategoriesFixtures
@@ -40,14 +42,13 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
   # A draft made the way the form makes one, plus `photo_count` photos.
   defp draft_product(artist, category, photo_count) do
     {:ok, product} =
-      Products.create_product(artist.id, new_product_params(category))
+      Products.create_product(artist_scope_fixture(artist), new_product_params(category))
 
     for position <- Enum.to_list(1..photo_count//1) do
       {:ok, _} =
-        Products.create_product_image(%{
+        Products.create_product_image(admin_scope_fixture(), product, %{
           path: "/photo-#{position}.jpg",
-          position: position,
-          product_id: product.id
+          position: position
         })
     end
 
@@ -56,7 +57,10 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
 
   defp add_photo(product) do
     {:ok, image} =
-      Products.create_product_image(%{path: "/photo.jpg", position: 1, product_id: product.id})
+      Products.create_product_image(admin_scope_fixture(), product, %{
+        path: "/photo.jpg",
+        position: 1
+      })
 
     image
   end
@@ -127,7 +131,9 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       other_artist = artist_fixture()
 
       {:ok, other_collection} =
-        Products.create_collection(other_artist.id, %{name: "Someone else's oils"})
+        Products.create_collection(artist_scope_fixture(other_artist), %{
+          name: "Someone else's oils"
+        })
 
       %{other_artist: other_artist, other_collection: other_collection}
     end
@@ -291,7 +297,7 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
 
       # Removed elsewhere (e.g. another browser tab) after the page opened.
-      {:ok, _} = Products.delete_product_image(image)
+      {:ok, _} = Products.delete_product_image(artist_scope_fixture(artist), image)
 
       html =
         view
@@ -299,6 +305,142 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
         |> render_click()
 
       assert html =~ "That photo had already been removed."
+    end
+  end
+
+  describe "a work deleted while its page is open" do
+    test "Remove on a photo goes back to the dashboard, instead of crashing",
+         %{conn: conn, artist: artist} do
+      product = product_fixture(%{artist_id: artist.id})
+      image = add_photo(product)
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
+
+      # By an admin, from /admin/products.
+      {:ok, _} = Products.hard_delete_product(admin_scope_fixture(), product)
+
+      result =
+        view
+        |> element("button[phx-click=delete_image][phx-value-imageid='#{image.id}']")
+        |> render_click()
+
+      assert {:error, {:live_redirect, %{to: "/vendor"}}} = result
+      {:ok, _dashboard, html} = follow_redirect(result, conn)
+      assert html =~ "This work doesn&#39;t exist any more."
+    end
+  end
+
+  # Hand-made requests with ids that aren't the artist's, or aren't
+  # numbers. Until 2026-11-23 several of these crashed the page.
+  describe "bad or someone else's ids" do
+    setup %{artist: artist} do
+      default_id = Products.default_collection_id(artist.id)
+      first = product_fixture(%{artist_id: artist.id, collection_id: default_id, position: 1})
+      second = product_fixture(%{artist_id: artist.id, collection_id: default_id, position: 2})
+      theirs = product_fixture()
+      %{default_id: default_id, first: first, second: second, theirs: theirs}
+    end
+
+    test "moving a work does nothing, and doesn't crash",
+         %{conn: conn, default_id: default_id, first: first, second: second, theirs: theirs} do
+      {:ok, view, _html} = live(conn, ~p"/vendor")
+      own_collection = to_string(default_id)
+      their_collection = to_string(theirs.collection_id)
+
+      for {product_id, collection_id} <- [
+            {"abc", own_collection},
+            {to_string(second.id), "abc"},
+            {"99999999999999999999", own_collection},
+            {to_string(theirs.id), own_collection},
+            {to_string(theirs.id), their_collection}
+          ],
+          event <- ["move_product_up", "move_product_down"] do
+        render_click(view, event, %{"productid" => product_id, "collectionid" => collection_id})
+      end
+
+      assert Products.get_product!(first.id).position == 1
+      assert Products.get_product!(second.id).position == 2
+      assert Products.get_product!(theirs.id).position == theirs.position
+    end
+
+    test "archiving someone else's work, or a bad id, is refused with a message",
+         %{conn: conn, theirs: theirs} do
+      {:ok, view, _html} = live(conn, ~p"/vendor")
+
+      for id <- ["abc", "99999999999999999999", to_string(theirs.id)] do
+        html = render_click(view, "archive_product", %{"id" => id})
+        assert html =~ "That work isn&#39;t one of yours."
+      end
+
+      assert Products.get_product!(theirs.id).status == :available
+    end
+
+    test "someone else's work, or a made-up address, can't be opened for editing",
+         %{conn: conn, theirs: theirs} do
+      for id <- [to_string(theirs.id), "999999999", "abc"] do
+        assert {:error, {:redirect, %{to: "/vendor", flash: flash}}} =
+                 live(conn, "/vendor/products/#{id}/edit")
+
+        assert flash["error"] == "That work isn't one of yours, or doesn't exist any more."
+      end
+    end
+
+    test "the photo buttons ignore an id that isn't one of the work's photos",
+         %{conn: conn, first: first} do
+      photo = add_photo(first)
+      someone_elses_photo = product_image_fixture()
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{first}/edit")
+
+      for id <- ["abc", "99999999999999999999", to_string(someone_elses_photo.id)],
+          event <- ["delete_image", "move_image_up", "move_image_down"] do
+        render_click(view, event, %{"imageid" => id})
+      end
+
+      assert ArtsyNeighbor.Repo.get(ArtsyNeighbor.Products.ProductImage, photo.id)
+      assert ArtsyNeighbor.Repo.get(ArtsyNeighbor.Products.ProductImage, someone_elses_photo.id)
+    end
+  end
+
+  # Removed by an admin while the artist's page was open: the pages
+  # still show their works, but every change is refused, with a message
+  # that says why (Products, "Who is acting").
+  describe "an artist whose profile was removed" do
+    test "can't save changes to a work",
+         %{conn: conn, artist: artist, category: category} do
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
+      {:ok, _removed} = ArtsyNeighbor.Artists.soft_delete_artist(artist)
+
+      html =
+        render_submit(view, "save", %{
+          "product" => %{
+            "title" => "A new title",
+            "descr" => product.descr,
+            "details" => product.details,
+            "price" => "10",
+            "category_id" => to_string(category.id)
+          },
+          "save_action" => "save"
+        })
+
+      assert html =~ "Your artist profile has been removed"
+      assert Products.get_product!(product.id).title == product.title
+    end
+
+    test "can't move works or collections on the dashboard", %{conn: conn, artist: artist} do
+      default_id = Products.default_collection_id(artist.id)
+      first = product_fixture(%{artist_id: artist.id, collection_id: default_id, position: 1})
+      second = product_fixture(%{artist_id: artist.id, collection_id: default_id, position: 2})
+      {:ok, view, _html} = live(conn, ~p"/vendor")
+      {:ok, _removed} = ArtsyNeighbor.Artists.soft_delete_artist(artist)
+
+      html =
+        view
+        |> element("[phx-click=move_product_down][phx-value-productid='#{first.id}']")
+        |> render_click()
+
+      assert html =~ "Your artist profile has been removed"
+      assert Products.get_product!(first.id).position == 1
+      assert Products.get_product!(second.id).position == 2
     end
   end
 

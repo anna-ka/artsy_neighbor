@@ -37,7 +37,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Index do
   # Artists.restore_artist/1. Lands on :inactive, not :active (the vendor
   # still has to activate their own profile), and does not touch the
   # artist's products (still :archived from soft_delete_artist/1) — those
-  # wait on Products.restore_product/1, itself gated on the artist being
+  # wait on Products.restore_product/2, itself gated on the artist being
   # :active, so there's no "restore artist -> products instantly visible"
   # shortcut here.
   #

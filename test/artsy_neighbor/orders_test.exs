@@ -607,7 +607,8 @@ defmodule ArtsyNeighbor.OrdersTest do
       %{order: order, product: product} = new_order(price: "50.00")
       item = sole_item(order)
 
-      {:ok, _same_product} = Products.update_product(product, %{price: "999.00"})
+      {:ok, _same_product} =
+        Products.update_product(admin_scope_fixture(), product, %{price: "999.00"})
 
       {:ok, updated} = Orders.increment_order_item(scope_for(order, :buyer), order, item.id)
       new_item = sole_item(updated)
@@ -1307,7 +1308,10 @@ defmodule ArtsyNeighbor.OrdersTest do
 
     test "an item whose work stopped being for sale can't go up, but can still be removed" do
       %{order: order, product: product} = new_order(quantity: 2)
-      {:ok, _} = Products.soft_delete_product(Products.get_product!(product.id))
+
+      {:ok, _} =
+        Products.soft_delete_product(admin_scope_fixture(), Products.get_product!(product.id))
+
       item = sole_item(order)
       buyer = scope_for(order, :buyer)
 

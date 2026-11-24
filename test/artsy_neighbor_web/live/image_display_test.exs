@@ -12,6 +12,8 @@ defmodule ArtsyNeighborWeb.ImageDisplayTest do
   """
   use ArtsyNeighborWeb.ConnCase
 
+  import ArtsyNeighbor.AccountsFixtures, only: [admin_scope_fixture: 0]
+
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.ProductsFixtures
   import ArtsyNeighbor.ArtistsFixtures
@@ -26,7 +28,7 @@ defmodule ArtsyNeighborWeb.ImageDisplayTest do
     key = "products/#{product.id}/#{Ecto.UUID.generate()}"
 
     {:ok, _image} =
-      Products.create_product_image(%{path: key, position: 1, product_id: product.id})
+      Products.create_product_image(admin_scope_fixture(), product, %{path: key, position: 1})
 
     {product, key}
   end
@@ -57,10 +59,9 @@ defmodule ArtsyNeighborWeb.ImageDisplayTest do
       product = product_fixture()
 
       {:ok, _image} =
-        Products.create_product_image(%{
+        Products.create_product_image(admin_scope_fixture(), product, %{
           path: "/images/seed/old-photo.jpg",
-          position: 1,
-          product_id: product.id
+          position: 1
         })
 
       {:ok, view, _html} = live(conn, ~p"/products/#{product}")
@@ -110,10 +111,9 @@ defmodule ArtsyNeighborWeb.ImageDisplayTest do
 
       # A second photo with a higher position, inserted after the cover.
       {:ok, _image} =
-        Products.create_product_image(%{
+        Products.create_product_image(admin_scope_fixture(), product, %{
           path: "/images/not-the-cover.jpg",
-          position: 2,
-          product_id: product.id
+          position: 2
         })
 
       product = ArtsyNeighbor.Repo.preload(product, :product_images)

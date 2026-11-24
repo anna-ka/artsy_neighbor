@@ -17,7 +17,7 @@ defmodule ArtsyNeighbor.Products.Product do
     field :position, :integer
     field :unique_work, :boolean, default: false
     # :draft — not finished yet (e.g. no photo); hidden from the public.
-    # New products start here. Only Products.publish_product/1 makes a
+    # New products start here. Only Products.publish_product/2 makes a
     # product :available, and it refuses while it has no photos.
     field :status, Ecto.Enum,
       values: [:draft, :available, :unavailable, :archived],
@@ -45,7 +45,8 @@ defmodule ArtsyNeighbor.Products.Product do
       # admin form, which picks it on purpose (audit S-3).
       :category_id,
       :collection_id,
-      :position,
+      # Not :position: the order of works changes only through
+      # Products.swap_product_positions/3 (position_changeset/2).
       :width,
       :length,
       :height,
@@ -54,8 +55,8 @@ defmodule ArtsyNeighbor.Products.Product do
       :unique_work
       # Not :status: the forms send their fields straight here, so a
       # hand-made request could otherwise set any status. Status changes
-      # only through Products.publish_product/1, soft_delete_product/1,
-      # restore_product/1 and delete_product_image/1, which apply the
+      # only through Products.publish_product/2, soft_delete_product/2,
+      # restore_product/2 and delete_product_image/2, which apply the
       # rules (see status_changeset/2).
     ])
     |> validate_required([:title, :descr, :details, :price, :artist_id, :category_id])
@@ -94,7 +95,7 @@ defmodule ArtsyNeighbor.Products.Product do
   end
 
   @doc """
-  Changeset for status-only updates (e.g. Products.soft_delete_product/1). Scoped
+  Changeset for status-only updates (e.g. Products.soft_delete_product/2). Scoped
   to just :status so archiving/restoring a product never risks re-running
   the full-profile validations above against fields that aren't changing.
   """
@@ -102,5 +103,13 @@ defmodule ArtsyNeighbor.Products.Product do
     product
     |> cast(attrs, [:status])
     |> validate_required([:status])
+  end
+
+  @doc """
+  Changes only the position, for reordering works on the vendor
+  dashboard (`Products.swap_product_positions/3`).
+  """
+  def position_changeset(product, attrs) do
+    cast(product, attrs, [:position])
   end
 end

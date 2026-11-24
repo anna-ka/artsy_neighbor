@@ -602,7 +602,7 @@ defmodule ArtsyNeighborWeb.ArtistLiveTest do
   # Placed after the artist's other collections (create_collection/2).
   defp collection_fixture(artist, name) do
     {:ok, collection} =
-      ArtsyNeighbor.Products.create_collection(artist.id, %{name: name})
+      ArtsyNeighbor.Products.create_collection(artist_scope_fixture(artist), %{name: name})
 
     collection
   end

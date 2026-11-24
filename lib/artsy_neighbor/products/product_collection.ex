@@ -8,7 +8,7 @@ defmodule ArtsyNeighbor.Products.ProductCollection do
     # The artist's default collection: works with no other collection go
     # here. Every artist has exactly one, made with the profile
     # (Artists.create_artist/1); it can be renamed but not deleted
-    # (Products.delete_collection/1). Set only on the struct, never from
+    # (Products.delete_collection/2). Set only on the struct, never from
     # params (audit S-4).
     field :is_default, :boolean, default: false
 
@@ -39,7 +39,7 @@ defmodule ArtsyNeighbor.Products.ProductCollection do
 
   @doc """
   Changes only the position, for reordering collections on the vendor
-  dashboard (`Products.swap_collection_positions/2`).
+  dashboard (`Products.swap_collection_positions/3`).
   """
   def position_changeset(collection, attrs) do
     collection

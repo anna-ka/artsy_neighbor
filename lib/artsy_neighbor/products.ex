@@ -6,6 +6,7 @@ defmodule ArtsyNeighbor.Products do
   import Ecto.Query, warn: false
   alias ArtsyNeighbor.Repo
 
+  alias ArtsyNeighbor.Accounts.Scope
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.HardDelete
@@ -15,6 +16,155 @@ defmodule ArtsyNeighbor.Products do
   alias ArtsyNeighbor.Products.ProductImage
   alias ArtsyNeighbor.Products.ProductCollection
   alias ArtsyNeighbor.Reviews.ProductReview
+
+  # ---------------------------------------------------------------------------
+  # Who is acting
+  #
+  # Every function that changes a work, its photos or a collection takes
+  # the caller's scope (`socket.assigns.current_scope`) as its first
+  # argument, as in `Orders`, and works out from it who is acting:
+  #
+  #   :owner - the user's artist profile owns the work or collection
+  #   :admin - the user is an admin
+  #
+  # Each function lists the roles it allows. Anyone else gets
+  # {:error, :unauthorized}. An owner whose profile has been removed
+  # (Artists.soft_delete_artist/1) gets {:error, :artist_removed}: they
+  # can still see their works, but no longer change them.
+  #
+  # Both are checked on the database as it is now, not on what the page
+  # loaded: the struct a page passes in may be stale (an admin may have
+  # moved the work to another artist since), and so may the scope. Each
+  # change locks the row it changes (with_locked_product/4,
+  # with_locked_collection/4) and checks the owner of the locked row, in
+  # the same transaction as the change. The artist's status is read
+  # with a shared lock (artist_removed?/1), so a removal can't happen
+  # between the check and the change. A thing that no longer exists
+  # gives {:error, :not_found}.
+  #
+  # Lock order, to avoid deadlocks: the row being changed first, then
+  # the artist. Artists.soft_delete_artist/1 and deactivate_artist/1
+  # also take the products first, then the artist.
+  #
+  # So pages never check "is this yours?" themselves, and a new page
+  # can't forget to. Vendor pages look works and collections up with
+  # get_own_product/2 and get_own_collection/2.
+  # ---------------------------------------------------------------------------
+
+  # {:ok, role} if the caller may act on something owned by the artist
+  # with id `artist_id` in one of `allowed_roles`, otherwise
+  # {:error, :unauthorized} or {:error, :artist_removed}.
+  #
+  # An admin who also owns the work counts as its owner, unless their
+  # profile is removed: then they can still act as an admin, where the
+  # function allows admins.
+  defp authorize(scope, artist_id, allowed_roles) do
+    acts_as_owner? = :owner in allowed_roles and owner?(scope, artist_id)
+    acts_as_admin? = :admin in allowed_roles and Scope.admin?(scope)
+
+    cond do
+      acts_as_owner? and not artist_removed?(artist_id) -> {:ok, :owner}
+      acts_as_admin? -> {:ok, :admin}
+      acts_as_owner? -> {:error, :artist_removed}
+      true -> {:error, :unauthorized}
+    end
+  end
+
+  # True if the scope's artist profile is the artist with this id. False
+  # for no scope (a logged-out visitor) or a user without a profile.
+  defp owner?(%Scope{artist: %Artist{id: id}}, artist_id), do: id == artist_id
+  defp owner?(_scope, _artist_id), do: false
+
+  # Read with FOR SHARE: until the surrounding transaction ends, nobody
+  # can change the artist's status (a removal waits for this change to
+  # finish, then happens).
+  defp artist_removed?(artist_id) do
+    status =
+      Artist
+      |> where([a], a.id == ^artist_id)
+      |> select([a], a.status)
+      |> lock("FOR SHARE")
+      |> Repo.one()
+
+    status == :removed
+  end
+
+  # Runs `change` with the product as it is now, locked until the
+  # transaction ends, if the caller may act on it. `change` gets the
+  # locked product and returns {:ok, result} or {:error, reason};
+  # an error undoes everything.
+  defp with_locked_product(scope, product_id, allowed_roles, change) do
+    Repo.transact(fn ->
+      case lock_product(product_id) do
+        nil ->
+          {:error, :not_found}
+
+        locked ->
+          with {:ok, _role} <- authorize(scope, locked.artist_id, allowed_roles) do
+            change.(locked)
+          end
+      end
+    end)
+  end
+
+  # The same for a collection.
+  defp with_locked_collection(scope, collection_id, allowed_roles, change) do
+    Repo.transact(fn ->
+      case lock_collection(collection_id) do
+        nil ->
+          {:error, :not_found}
+
+        locked ->
+          with {:ok, _role} <- authorize(scope, locked.artist_id, allowed_roles) do
+            change.(locked)
+          end
+      end
+    end)
+  end
+
+  @doc """
+  The logged-in artist's own work with this id, with its photos and
+  other associations loaded, or nil if it isn't theirs, doesn't exist,
+  or `id` is nil (a forged id that `ArtsyNeighborWeb.Params.parse_id/1`
+  turned into nil). Any status. For the vendor pages.
+  """
+  def get_own_product(%Scope{artist: %Artist{id: artist_id}}, id) when is_integer(id) do
+    Product
+    |> where([p], p.id == ^id and p.artist_id == ^artist_id)
+    |> preload(^product_associations())
+    |> Repo.one()
+  end
+
+  def get_own_product(_scope, _id), do: nil
+
+  @doc """
+  The logged-in artist's own collection with this id, or nil if it
+  isn't theirs, doesn't exist, or `id` is nil. For the vendor pages.
+  """
+  def get_own_collection(%Scope{artist: %Artist{id: artist_id}}, id) when is_integer(id) do
+    ProductCollection
+    |> where([c], c.id == ^id and c.artist_id == ^artist_id)
+    |> Repo.one()
+  end
+
+  def get_own_collection(_scope, _id), do: nil
+
+  @doc """
+  What a page tells the artist when a change was refused, for the two
+  reasons in "Who is acting" above.
+  """
+  def refused_message(:artist_removed) do
+    "Your artist profile has been removed, so your works and collections " <>
+      "can't be changed. Please contact us if you think this is a mistake."
+  end
+
+  def refused_message(:unauthorized) do
+    "That isn't one of your works or collections, so it can't be changed."
+  end
+
+  def refused_message(:not_found) do
+    "That doesn't exist any more. It may have just been removed."
+  end
 
   @doc """
   Returns the list of products.
@@ -64,7 +214,7 @@ defmodule ArtsyNeighbor.Products do
 
   @doc """
   Same as filter_products/1 but not scoped to :available — for admin use,
-  so an archived/unavailable product (see soft_delete_product/1) stays visible
+  so an archived/unavailable product (see soft_delete_product/2) stays visible
   and manageable in the admin product list instead of silently
   disappearing the moment it's archived.
   """
@@ -517,7 +667,7 @@ defmodule ArtsyNeighbor.Products do
   @doc """
   All of an artist's products, whatever their status — for the vendor's
   own dashboard, where they need to see and manage every product they
-  own, including ones they've archived (see soft_delete_product/1).
+  own, including ones they've archived (see soft_delete_product/2).
   """
   def get_products_by_artist_all_status(artist_id) do
     Product
@@ -527,48 +677,67 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Creates a product owned by the artist with id `artist_id`.
+  Creates a product owned by the logged-in artist (`scope.artist`).
 
-  The owner is a separate argument, never taken from `attrs`: a
-  vendor's form passes `current_scope.artist.id`, so a hand-made
-  request can't put the work on another artist's page (audit S-3). The
-  admin form, which picks the artist, uses
-  `AdminProducts.create_product/1`.
+  The owner is never taken from `attrs`, so a hand-made request can't
+  put the work on another artist's page (audit S-3). The admin form,
+  which picks the artist, uses `AdminProducts.create_product/2`.
+
+  Returns `{:error, :unauthorized}` for a scope without an artist
+  profile, and `{:error, :artist_removed}` if that profile is removed
+  (see "Who is acting" at the top).
 
   ## Examples
 
-      iex> create_product(artist.id, %{field: value})
+      iex> create_product(scope, %{field: value})
       {:ok, %Product{}}
 
-      iex> create_product(artist.id, %{field: bad_value})
+      iex> create_product(scope, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_product(artist_id, attrs) do
-    # New products always start as :draft (Product.changeset/2 doesn't
-    # take a status); see "Publishing and photos" below.
-    %Product{artist_id: artist_id}
-    |> Product.changeset(attrs)
-    |> save_product()
+  def create_product(%Scope{artist: %Artist{id: artist_id}} = scope, attrs) do
+    # In a transaction, so the artist can't be removed between the check
+    # and the insert (see "Who is acting").
+    Repo.transact(fn ->
+      with {:ok, _role} <- authorize(scope, artist_id, [:owner]) do
+        # New products always start as :draft (Product.changeset/2 doesn't
+        # take a status); see "Publishing and photos" below.
+        %Product{artist_id: artist_id}
+        |> Product.changeset(attrs)
+        |> save_product()
+      end
+    end)
   end
 
+  def create_product(_scope, _attrs), do: {:error, :unauthorized}
+
   @doc """
-  Updates a product. Never changes its owner or its status
-  (`Product.changeset/2` takes neither).
+  Updates a product, for its owner or an admin. Never changes its
+  owner or its status (`Product.changeset/2` takes neither).
+
+  The changes are applied to the product as it is now in the database
+  (only the changed fields are written). Returns that product, without
+  its associations loaded, or `{:error, :not_found}` if it was deleted.
 
   ## Examples
 
-      iex> update_product(product, %{field: new_value})
+      iex> update_product(scope, product, %{field: new_value})
       {:ok, %Product{}}
 
-      iex> update_product(product, %{field: bad_value})
+      iex> update_product(scope, product, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
+      iex> update_product(someone_elses_scope, product, %{field: new_value})
+      {:error, :unauthorized}
+
   """
-  def update_product(%Product{} = product, attrs) do
-    product
-    |> Product.changeset(attrs)
-    |> save_product()
+  def update_product(scope, %Product{} = product, attrs) do
+    with_locked_product(scope, product.id, [:owner, :admin], fn locked ->
+      locked
+      |> Product.changeset(attrs)
+      |> save_product()
+    end)
   end
 
   @doc """
@@ -578,9 +747,10 @@ defmodule ArtsyNeighbor.Products do
   artist is refused.
 
   Takes a changeset, never a map of params: the owner is whatever the
-  changeset says, so the caller must have chosen it.
-  `create_product/2` and `update_product/2` are the usual way in;
-  `AdminProducts` builds its changesets with `Product.admin_changeset/2`.
+  changeset says, so the caller must have chosen it. It doesn't check
+  who is acting, so pages never call it: they use `create_product/2`
+  and `update_product/3`, or `AdminProducts`, which builds its
+  changesets with `Product.admin_changeset/2` and checks for an admin.
   """
   def save_product(%Ecto.Changeset{} = changeset) do
     changeset
@@ -651,11 +821,11 @@ defmodule ArtsyNeighbor.Products do
   # The rule: a product can only be :available (for sale, shown to the
   # public) while it has at least one photo. Kept here, in the context,
   # so every form and any future code follows it:
-  #   * the general create_product/2 and update_product/2 can't change
+  #   * the general create_product/2 and update_product/3 can't change
   #     the status at all; new products start as :draft;
-  #   * publish_product/1 is the only way to :available, and refuses a
+  #   * publish_product/2 is the only way to :available, and refuses a
   #     product without a photo;
-  #   * delete_product_image/1 moves an :available product back to
+  #   * delete_product_image/2 moves an :available product back to
   #     :draft when its last photo is removed.
   # (Seeds and test fixtures insert published products directly, as
   # stand-ins for existing data.)
@@ -666,16 +836,15 @@ defmodule ArtsyNeighbor.Products do
   @doc """
   Makes a product :available (for sale), if it has at least one photo.
 
-  Works from :draft and :unavailable. Returns `{:ok, product}`, or
-  `{:error, :no_photos}`, or `{:error, :archived}` for an archived
-  product (that one needs restore_product/1 first). An already
+  Works from :draft and :unavailable, for the work's owner or an
+  admin. Returns `{:ok, product}`, or `{:error, :no_photos}`, or
+  `{:error, :archived}` for an archived product (that one needs
+  restore_product/2 first), or `{:error, :unauthorized}`. An already
   :available product is returned unchanged.
   """
-  def publish_product(%Product{} = product) do
-    Repo.transact(fn ->
-      # Re-read under the lock: the struct we were given may be stale.
-      locked = lock_product(product.id)
-
+  def publish_product(scope, %Product{} = product) do
+    # Under the product's lock, so a photo can't be removed meanwhile.
+    with_locked_product(scope, product.id, [:owner, :admin], fn locked ->
       cond do
         locked.status == :available ->
           {:ok, locked}
@@ -701,26 +870,117 @@ defmodule ArtsyNeighbor.Products do
   end
 
   # Locks the product's row until the surrounding transaction ends and
-  # returns the product as it is now. Publishing a product and removing
-  # its photos both take this lock first, so they can't overlap (e.g.
-  # the last photo removed while the product is being published).
+  # returns the product as it is now, or nil if it no longer exists.
+  # Every change to a product or its photos takes this lock first, so
+  # they can't overlap (e.g. the last photo removed while the product is
+  # being published).
   defp lock_product(product_id) do
     Product
     |> where([p], p.id == ^product_id)
     |> lock("FOR UPDATE")
-    |> Repo.one!()
+    |> Repo.one()
   end
 
   @doc """
-  Assigns sequential positions (1, 2, 3…) to a list of products in the given
-  order, in a single transaction. Used to reorder products within a collection.
-  Works correctly even when some or all products currently have nil positions.
+  Swaps two works of the same collection in its order, for moving a
+  work up or down on the vendor dashboard. For the works' owner or an
+  admin; two works of different artists are refused
+  (`{:error, :unauthorized}`).
+
+  The collection's works are first numbered 1, 2, 3, ... in the order
+  the dashboard shows them (products_by_position/1). New works have no
+  position yet, and a deleted collection's works keep theirs when they
+  move to the default one, so swapping the stored numbers alone could
+  do nothing.
+
+  Returns `{:ok, works_in_new_order}`. If one of the two has meanwhile
+  moved to another collection or been deleted, nothing changes and the
+  result is `{:ok, works_in_current_order}`: the page then shows the
+  current order.
   """
-  def swap_product_positions(%Product{} = a, %Product{} = b) do
-    Repo.transaction(fn ->
-      {:ok, _} = update_product(a, %{position: b.position})
-      {:ok, _} = update_product(b, %{position: a.position})
+  def swap_product_positions(scope, %Product{} = a, %Product{} = b) do
+    Repo.transact(fn ->
+      works = lock_collection_works(a.id)
+      fresh_a = Enum.find(works, fn work -> work.id == a.id end)
+      fresh_b = Enum.find(works, fn work -> work.id == b.id end)
+
+      if is_nil(fresh_a) do
+        {:error, :not_found}
+      else
+        with {:ok, _role} <- authorize(scope, fresh_a.artist_id, [:owner, :admin]) do
+          cond do
+            fresh_b != nil -> renumber_works(swap_in_list(works, fresh_a, fresh_b))
+            someone_elses_work?(b.id, fresh_a.artist_id) -> {:error, :unauthorized}
+            # b has moved to another collection, or is gone: no change.
+            true -> {:ok, works}
+          end
+        end
+      end
     end)
+  end
+
+  # True if the work with this id exists and belongs to another artist.
+  defp someone_elses_work?(product_id, artist_id) do
+    case product_artist_id(product_id) do
+      nil -> false
+      owner_id -> owner_id != artist_id
+    end
+  end
+
+  # Locks all the works in the collection the work with this id is in,
+  # and returns them in the dashboard's order (products_by_position/1;
+  # sorted by the database, which compares titles the same way there).
+  # [] if the work is gone. One statement, so two moves at the same
+  # moment take turns instead of each waiting for a row the other holds.
+  defp lock_collection_works(product_id) do
+    collection_id =
+      Product
+      |> where([p], p.id == ^product_id)
+      |> select([p], p.collection_id)
+      |> Repo.one()
+
+    if is_nil(collection_id) do
+      []
+    else
+      Product
+      |> where([p], p.collection_id == ^collection_id)
+      |> order_by([p], asc_nulls_last: p.position, asc: p.title, asc: p.id)
+      |> lock("FOR UPDATE")
+      |> Repo.all()
+    end
+  end
+
+  # The list with `a` and `b` in each other's place.
+  defp swap_in_list(works, a, b) do
+    Enum.map(works, fn work ->
+      cond do
+        work.id == a.id -> b
+        work.id == b.id -> a
+        true -> work
+      end
+    end)
+  end
+
+  # Gives the works positions 1, 2, 3, ... in this order, writing only
+  # the ones that change.
+  defp renumber_works(works) do
+    renumbered =
+      for {work, position} <- Enum.with_index(works, 1) do
+        if work.position == position do
+          work
+        else
+          {:ok, updated} = update_product_position(work, position)
+          updated
+        end
+      end
+
+    {:ok, renumbered}
+  end
+
+  defp update_product_position(product, position) do
+    product
+    |> Product.position_changeset(%{position: position})
+    |> Repo.update()
   end
 
   @doc """
@@ -728,22 +988,26 @@ defmodule ArtsyNeighbor.Products do
   action a vendor takes to pull down their own listing; the product row and
   its data are kept, just hidden from public queries (see only_available/1).
   For permanent admin/testing cleanup that also removes dependent `Flag`
-  rows, see hard_delete_product/1 instead, which is irreversible.
+  rows, see hard_delete_product/2 instead, which is irreversible.
+
+  For the work's owner or an admin.
   """
-  def soft_delete_product(%Product{} = product) do
-    product
-    |> Product.status_changeset(%{status: :archived})
-    |> Repo.update()
+  def soft_delete_product(scope, %Product{} = product) do
+    with_locked_product(scope, product.id, [:owner, :admin], fn locked ->
+      locked
+      |> Product.status_changeset(%{status: :archived})
+      |> Repo.update()
+    end)
   end
 
   @doc """
-  Reverses soft_delete_product/1. Lands on :unavailable, not :available —
+  Reverses soft_delete_product/2. Lands on :unavailable, not :available —
   an "un-archived, not yet republished" state, mirroring
   Artists.restore_artist/1 landing on :inactive.
 
   Restoring alone does not make a product purchasable again: that is a
-  separate step, publish_product/1 (:unavailable -> :available, needs a
-  photo). publish_product/1 refuses :archived products on purpose, so
+  separate step, publish_product/2 (:unavailable -> :available, needs a
+  photo). publish_product/2 refuses :archived products on purpose, so
   coming back from archive always goes through the checks below first.
   Neither vendors nor admins have a button for that second step yet
   (NOTES #16).
@@ -759,14 +1023,22 @@ defmodule ArtsyNeighbor.Products do
   no longer exists (products.category_id is on_delete: :nilify_all, so
   AdminCategories.hard_delete_category/1 leaves it nil). It checks only
   that the category exists, not that it is :active.
+
+  For the work's owner or an admin (`{:error, :unauthorized}` otherwise).
+  Returns the product as it is now, with only `:artist` and `:category`
+  loaded.
   """
-  def restore_product(%Product{} = product) do
-    # force: true — a caller may pass in a product whose :artist/:category
-    # associations were preloaded before a since-changed status (e.g.
-    # fetched, then the artist was restored/removed, or the category
-    # deleted, in between); these checks have to reflect current DB state,
-    # not whatever the struct already carries.
-    product = Repo.preload(product, [:artist, :category], force: true)
+  def restore_product(scope, %Product{} = product) do
+    with_locked_product(scope, product.id, [:owner, :admin], fn locked ->
+      restore_checked(locked)
+    end)
+  end
+
+  defp restore_checked(product) do
+    # Read fresh, under the product's lock: the artist may have been
+    # restored or removed, or the category deleted, since the page
+    # loaded the product.
+    product = Repo.preload(product, [:artist, :category])
 
     cond do
       is_nil(product.artist) or product.artist.status != :active ->
@@ -800,16 +1072,25 @@ defmodule ArtsyNeighbor.Products do
   `{:error, {:database_error, message}}`. See
   `HardDelete.delete_with_flags/3` for the full list of error reasons.
 
+  Admins only (`{:error, :unauthorized}` for anyone else, the work's
+  owner too: vendors archive their works with soft_delete_product/2).
+
   ## Examples
 
-      iex> hard_delete_product(product)
+      iex> hard_delete_product(admin_scope, product)
       {:ok, %Product{}}
 
-      iex> hard_delete_product(previously_ordered_product)
+      iex> hard_delete_product(admin_scope, previously_ordered_product)
       {:error, {:database_error, "..."}}
 
   """
-  def hard_delete_product(%Product{} = product) do
+  def hard_delete_product(scope, %Product{} = product) do
+    with {:ok, _role} <- authorize(scope, product.artist_id, [:admin]) do
+      delete_with_flags(product)
+    end
+  end
+
+  defp delete_with_flags(product) do
     HardDelete.delete_with_flags(product, fn repo, locked_product ->
       product_review_ids =
         repo.all(
@@ -887,39 +1168,25 @@ defmodule ArtsyNeighbor.Products do
   def get_product_image!(id), do: Repo.get!(ProductImage, id)
 
   @doc """
-  Creates a product_image.
+  Adds a photo row to `product`, for the work's owner or an admin. Only
+  `path` and `position` are taken from `attrs`; the photo always
+  belongs to `product`.
 
   ## Examples
 
-      iex> create_product_image(%{field: value})
+      iex> create_product_image(scope, product, %{path: key, position: 1})
       {:ok, %ProductImage{}}
 
-      iex> create_product_image(%{field: bad_value})
+      iex> create_product_image(scope, product, %{path: nil})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_product_image(attrs) do
-    %ProductImage{}
-    |> ProductImage.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  @doc """
-  Updates a product_image.
-
-  ## Examples
-
-      iex> update_product_image(product_image, %{field: new_value})
-      {:ok, %ProductImage{}}
-
-      iex> update_product_image(product_image, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def update_product_image(%ProductImage{} = product_image, attrs) do
-    product_image
-    |> ProductImage.changeset(attrs)
-    |> Repo.update()
+  def create_product_image(scope, %Product{} = product, attrs) do
+    with_locked_product(scope, product.id, [:owner, :admin], fn locked ->
+      %ProductImage{product_id: locked.id}
+      |> ProductImage.changeset(attrs)
+      |> Repo.insert()
+    end)
   end
 
   @doc """
@@ -927,8 +1194,9 @@ defmodule ArtsyNeighbor.Products do
   product, the product goes back to :draft (it can't be for sale
   without a photo); callers can re-read the product to tell the artist.
 
-  Returns `{:ok, %ProductImage{}}`, or `{:error, :not_found}` if the
-  photo was already removed (e.g. in another browser tab).
+  For the work's owner or an admin. Returns `{:ok, %ProductImage{}}`,
+  `{:error, :not_found}` if the photo (or its whole work) was already
+  removed (e.g. in another browser tab), or `{:error, :unauthorized}`.
 
   Once the row is deleted, the photo's files are deleted from storage
   too, in the background (`Images.delete_files_of_deleted_row/1`):
@@ -936,19 +1204,17 @@ defmodule ArtsyNeighbor.Products do
   that already showed it may keep its own copy for a while.
 
   """
-  def delete_product_image(%ProductImage{} = product_image) do
-    product_image
-    |> delete_product_image_row()
+  def delete_product_image(scope, %ProductImage{} = product_image) do
+    scope
+    |> delete_product_image_row(product_image)
     |> Images.delete_files_of_deleted_row()
   end
 
-  defp delete_product_image_row(product_image) do
-    Repo.transact(fn ->
-      product = lock_product(product_image.product_id)
-
-      # Read the photo again under the lock: it may already be gone, e.g.
-      # removed in another browser tab. (Deleting a row that no longer
-      # exists would raise.)
+  defp delete_product_image_row(scope, product_image) do
+    with_locked_product(scope, product_image.product_id, [:owner, :admin], fn product ->
+      # The photo is read again, under the product's lock: it may
+      # already be gone, e.g. removed in another browser tab. (Deleting
+      # a row that no longer exists would raise.)
       case Repo.get(ProductImage, product_image.id) do
         nil ->
           {:error, :not_found}
@@ -975,14 +1241,45 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Swaps the position values of two ProductImage records in a single transaction.
-  Used to move images up or down in the display order.
+  Swaps the positions of two photos of the same work, in one
+  transaction. Used to move a photo up or down on the product forms.
+  For the work's owner or an admin; photos of two different works are
+  refused (`{:error, :unauthorized}`), and `{:error, :not_found}` if
+  either photo was removed meanwhile.
   """
-  def swap_image_positions(%ProductImage{} = a, %ProductImage{} = b) do
-    Repo.transaction(fn ->
-      {:ok, _} = update_product_image(a, %{position: b.position})
-      {:ok, _} = update_product_image(b, %{position: a.position})
+  def swap_image_positions(scope, %ProductImage{} = a, %ProductImage{} = b) do
+    with_locked_product(scope, a.product_id, [:owner, :admin], fn product ->
+      # Read again under the product's lock (see delete_product_image/2).
+      fresh_a = Repo.get(ProductImage, a.id)
+      fresh_b = Repo.get(ProductImage, b.id)
+
+      cond do
+        is_nil(fresh_a) or is_nil(fresh_b) ->
+          {:error, :not_found}
+
+        fresh_a.product_id != product.id or fresh_b.product_id != product.id ->
+          {:error, :unauthorized}
+
+        true ->
+          {:ok, _} = update_image_position(fresh_a, fresh_b.position)
+          {:ok, _} = update_image_position(fresh_b, fresh_a.position)
+          {:ok, [fresh_a.id, fresh_b.id]}
+      end
     end)
+  end
+
+  # The owner of the work with this id, read from the database.
+  defp product_artist_id(product_id) do
+    Product
+    |> where([p], p.id == ^product_id)
+    |> select([p], p.artist_id)
+    |> Repo.one()
+  end
+
+  defp update_image_position(product_image, position) do
+    product_image
+    |> ProductImage.position_changeset(%{position: position})
+    |> Repo.update()
   end
 
   @doc """
@@ -1166,7 +1463,9 @@ defmodule ArtsyNeighbor.Products do
   defp products_by_position(artist_id) do
     from(p in Product,
       where: p.artist_id == ^artist_id,
-      order_by: [asc_nulls_last: p.position, asc: p.title],
+      # The same order as lock_collection_works/1, which moving a work
+      # relies on; the id makes it the same even for equal titles.
+      order_by: [asc_nulls_last: p.position, asc: p.title, asc: p.id],
       preload: [
         :artist,
         :category,
@@ -1198,25 +1497,33 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Creates a collection owned by the artist with id `artist_id`, after
-  the artist's other collections. Only the name is taken from `attrs`:
-  the owner is a separate argument (a vendor's form passes
-  `current_scope.artist.id`), and the position is worked out here
+  Creates a collection owned by the logged-in artist (`scope.artist`),
+  after their other collections. Only the name is taken from `attrs`:
+  the owner comes from the scope, and the position is worked out here
   (audit S-4). Never a default collection: each artist's one is made
   with the profile (`Artists.create_artist/1`).
+
+  Returns `{:error, :unauthorized}` for a scope without an artist
+  profile, and `{:error, :artist_removed}` if that profile is removed.
   """
-  def create_collection(artist_id, attrs) do
+  def create_collection(%Scope{artist: %Artist{id: artist_id}} = scope, attrs) do
     # The artist's row is locked while the position is worked out and
     # the collection inserted, so two collections made at the same
-    # moment (two tabs) take turns and get different positions.
+    # moment (two tabs) take turns and get different positions. It is
+    # locked before the check, so the check's shared lock doesn't have
+    # to be turned into this one while another tab holds it too.
     Repo.transact(fn ->
       lock_artist(artist_id)
 
-      %ProductCollection{artist_id: artist_id, position: next_collection_position(artist_id)}
-      |> ProductCollection.changeset(attrs)
-      |> Repo.insert()
+      with {:ok, _role} <- authorize(scope, artist_id, [:owner]) do
+        %ProductCollection{artist_id: artist_id, position: next_collection_position(artist_id)}
+        |> ProductCollection.changeset(attrs)
+        |> Repo.insert()
+      end
     end)
   end
+
+  def create_collection(_scope, _attrs), do: {:error, :unauthorized}
 
   # Locks the artist's row until the surrounding transaction ends. A
   # missing artist locks nothing; the insert then fails on its own
@@ -1245,34 +1552,51 @@ defmodule ArtsyNeighbor.Products do
   @doc """
   Renames a collection: only the name is taken from `attrs`
   (`ProductCollection.changeset/2`). The default collection may be
-  renamed too.
+  renamed too. For the collection's owner or an admin.
   """
-  def update_collection(%ProductCollection{} = collection, attrs) do
-    collection
-    |> ProductCollection.changeset(attrs)
-    |> Repo.update()
+  def update_collection(scope, %ProductCollection{} = collection, attrs) do
+    with_locked_collection(scope, collection.id, [:owner, :admin], fn locked ->
+      locked
+      |> ProductCollection.changeset(attrs)
+      |> Repo.update()
+    end)
+  end
+
+  # Locks the collection's row until the surrounding transaction ends
+  # and returns it as it is now, or nil if it no longer exists.
+  defp lock_collection(collection_id) do
+    ProductCollection
+    |> where([c], c.id == ^collection_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
   end
 
   @doc """
   Deletes a collection and moves its products to the artist's default
   collection, in one transaction so neither happens without the other.
+  For the collection's owner or an admin.
 
   The default collection itself can't be deleted: returns
   `{:error, :default_collection}`, so works always have somewhere to go.
   """
-  def delete_collection(%ProductCollection{is_default: true}) do
+  def delete_collection(scope, %ProductCollection{} = collection) do
+    with_locked_collection(scope, collection.id, [:owner, :admin], fn locked ->
+      delete_unless_default(locked)
+    end)
+  end
+
+  defp delete_unless_default(%ProductCollection{is_default: true}) do
     {:error, :default_collection}
   end
 
-  def delete_collection(%ProductCollection{} = collection) do
-    Repo.transaction(fn ->
-      default_id = ensure_default_collection(collection.artist_id)
+  # Runs inside with_locked_collection/4's transaction.
+  defp delete_unless_default(%ProductCollection{} = collection) do
+    default_id = ensure_default_collection(collection.artist_id)
 
-      from(p in Product, where: p.collection_id == ^collection.id)
-      |> Repo.update_all(set: [collection_id: default_id])
+    from(p in Product, where: p.collection_id == ^collection.id)
+    |> Repo.update_all(set: [collection_id: default_id])
 
-      Repo.delete!(collection)
-    end)
+    Repo.delete(collection)
   end
 
   # The id of the artist's default collection. Every artist gets one with
@@ -1307,13 +1631,40 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Swaps the position values of two ProductCollection records in a single transaction.
-  Used to reorder collections on the vendor dashboard.
+  Swaps the positions of two collections of the same artist, in one
+  transaction. Used to reorder collections on the vendor dashboard. For
+  the collections' owner or an admin; collections of two different
+  artists are refused (`{:error, :unauthorized}`), and
+  `{:error, :not_found}` if either was deleted meanwhile.
   """
-  def swap_collection_positions(%ProductCollection{} = a, %ProductCollection{} = b) do
-    Repo.transaction(fn ->
-      {:ok, _} = update_collection_position(a, b.position)
-      {:ok, _} = update_collection_position(b, a.position)
+  def swap_collection_positions(scope, %ProductCollection{} = a, %ProductCollection{} = b) do
+    Repo.transact(fn ->
+      # Both rows in one statement, in id order, so two swaps at the same
+      # moment take turns instead of each waiting for a row the other holds.
+      locked =
+        ProductCollection
+        |> where([c], c.id in ^[a.id, b.id])
+        |> order_by([c], asc: c.id)
+        |> lock("FOR UPDATE")
+        |> Repo.all()
+
+      fresh_a = Enum.find(locked, fn collection -> collection.id == a.id end)
+      fresh_b = Enum.find(locked, fn collection -> collection.id == b.id end)
+
+      cond do
+        is_nil(fresh_a) or is_nil(fresh_b) ->
+          {:error, :not_found}
+
+        fresh_a.artist_id != fresh_b.artist_id ->
+          {:error, :unauthorized}
+
+        true ->
+          with {:ok, _role} <- authorize(scope, fresh_a.artist_id, [:owner, :admin]) do
+            {:ok, _} = update_collection_position(fresh_a, fresh_b.position)
+            {:ok, _} = update_collection_position(fresh_b, fresh_a.position)
+            {:ok, [fresh_a.id, fresh_b.id]}
+          end
+      end
     end)
   end
 

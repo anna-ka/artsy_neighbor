@@ -6,6 +6,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
   alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
 
   @impl true
   def mount(params, _session, socket) do
@@ -117,7 +118,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   @impl true
   def handle_event("move_image_up", %{"imageid" => id}, socket) do
-    id = String.to_integer(id)
+    id = parse_id(id)
     images = socket.assigns.existing_profile_images
     index = Enum.find_index(images, fn img -> img.id == id end)
 
@@ -131,7 +132,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   @impl true
   def handle_event("move_image_down", %{"imageid" => id}, socket) do
-    id = String.to_integer(id)
+    id = parse_id(id)
     images = socket.assigns.existing_profile_images
     index = Enum.find_index(images, fn img -> img.id == id end)
 
@@ -145,7 +146,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
   @impl true
   def handle_event("delete_image", %{"imageid" => id}, socket) do
-    id = String.to_integer(id)
+    id = parse_id(id)
     images = socket.assigns.existing_profile_images
     image = Enum.find(images, fn img -> img.id == id end)
 

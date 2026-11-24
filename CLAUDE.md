@@ -138,6 +138,18 @@ doesn't cost real efficiency.
   (buyer / vendor / admin) themselves, refusing anyone else with
   `{:error, :unauthorized}`. Never pass a role in. See "Who is acting"
   at the top of `lib/artsy_neighbor/orders.ex`.
+- `Products` works the same way for every change to a work, its photos
+  or a collection: the scope comes first, and the role is the owner
+  (the scope's artist profile) or an admin. An owner whose profile is
+  `:removed` gets `{:error, :artist_removed}` (they can still see their
+  works). The check uses the row as it is now, locked in the change's
+  own transaction, never the struct the page passed in (it may be
+  stale); something deleted meanwhile gives `{:error, :not_found}`.
+  Vendor pages look things up with `Products.get_own_product/2`
+  and `get_own_collection/2` (nil for someone else's) and parse ids
+  with `ArtsyNeighborWeb.Params.parse_id/1`, never `String.to_integer`.
+  `AdminProducts` refuses non-admins too. See "Who is acting" at the top
+  of `lib/artsy_neighbor/products.ex`.
 - Public queries for artists/products/categories always filter by status — see
   `Artists.filter_artists/1`, `Artists.list_artists/0`,
   `Products.only_available/1`, `Categories.list_categories/0`. There is no
@@ -239,16 +251,20 @@ NOTES.md:
 **Product** (`lib/artsy_neighbor/products/product.ex`)
 - `status` — `:draft` | `:available` | `:unavailable` | `:archived`, default
   `:draft`. `Product.changeset` does NOT cast `status`; only
-  `publish_product/1`, `soft_delete_product/1`, `restore_product/1` and
-  `delete_product_image/1` change it. A product needs at least one photo to be
+  `publish_product/2`, `soft_delete_product/2`, `restore_product/2` and
+  `delete_product_image/2` change it. A product needs at least one photo to be
   `:available`; removing its last photo moves it back to `:draft`.
 - Owner: `Product.changeset` does NOT cast `artist_id` either.
-  `Products.create_product/2` takes the owner as its own argument
-  (vendor form: `current_scope.artist.id`); `update_product/2` never
-  changes it. Only `Product.admin_changeset/2` takes it, used only
-  through `AdminProducts` (the admin product form). Both go through
+  `Products.create_product/2` takes the owner from the scope
+  (`scope.artist`); `update_product/3` never changes it. Only
+  `Product.admin_changeset/2` takes it, used only through
+  `AdminProducts` (the admin product form). Both go through
   `Products.save_product/1`, which puts a product with no collection
   into the default one and refuses another artist's collection.
+- Positions: `Product.changeset` doesn't cast `position`, and
+  `ProductImage.changeset` doesn't cast `product_id` (set on the
+  struct). Reordering goes through the `swap_*_positions/3` functions
+  and each schema's `position_changeset/2`.
 - When an artist is soft-deleted (`Artists.soft_delete_artist/1`), all their
   products go `:archived` — not deleted, and unconditionally (even ones
   already `:archived` individually). When an artist transitions from
@@ -260,7 +276,7 @@ NOTES.md:
   pause that leaves already-`:archived` products alone. Neither
   transition reverses automatically — restoring the artist doesn't restore
   their products; that's a separate, still-manual step
-  (`Products.restore_product/1`, itself gated on the artist being `:active`).
+  (`Products.restore_product/2`, itself gated on the artist being `:active`).
 - `only_available/1` requires `status == :available`, `artist_id` not nil,
   AND the owning artist's own `status == :active` (checked via a subquery,
   not a join, since callers sometimes already join `:artist` themselves) —
@@ -283,9 +299,9 @@ NOTES.md:
   no other collection go. It always comes last, on the dashboard and
   on the public pages. Recognise it by `is_default`, never by
   its name: it starts as "Uncategorized" but may be renamed. It can't be
-  deleted (`Products.delete_collection/1` refuses it).
+  deleted (`Products.delete_collection/2` refuses it).
 - The changeset takes only `name`; `Products.create_collection/2` takes
-  the owner as its own argument and works out the position. Reordering
+  the owner from the scope and works out the position. Reordering
   goes through `position_changeset/2`.
 
 **Conversations** — `buyer_id`/`artist_id` are nullable (see migration

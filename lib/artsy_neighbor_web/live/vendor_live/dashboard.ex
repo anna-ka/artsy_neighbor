@@ -39,9 +39,9 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   end
 
   # Deletes one of the artist's own collections; its works move to the
-  # default collection (Products.delete_collection/1).
+  # default collection (Products.delete_collection/2).
   defp delete_own_collection(socket, collection) do
-    case Products.delete_collection(collection) do
+    case Products.delete_collection(socket.assigns.current_scope, collection) do
       {:ok, _} ->
         collections = Products.list_collections_for_artist(socket.assigns.artist.id)
         default_name = default_collection_name(collections)
@@ -59,6 +59,10 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
       {:error, :default_collection} ->
         {:noreply,
          put_flash(socket, :error, "This collection can't be deleted, but you can rename it.")}
+
+      # :artist_removed or :unauthorized (see Products, "Who is acting")
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
     end
   end
 
@@ -77,10 +81,44 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   end
 
   defp swap_collections(socket, a, b) do
-    Products.swap_collection_positions(a, b)
+    socket.assigns.current_scope
+    |> Products.swap_collection_positions(a, b)
+    |> after_reordering(socket)
+  end
 
+  defp swap_products(socket, a, b) do
+    socket.assigns.current_scope
+    |> Products.swap_product_positions(a, b)
+    |> after_reordering(socket)
+  end
+
+  # After moving a work or a collection: show the new order, or say why
+  # it was refused.
+  defp after_reordering({:ok, _}, socket) do
     {:noreply,
      assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+  end
+
+  # :artist_removed or :unauthorized (see Products, "Who is acting")
+  defp after_reordering({:error, reason}, socket) do
+    {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
+  end
+
+  # The works of one of the artist's collections on this page, and the
+  # position among them of the work with this id (both as sent by the
+  # browser). {[], nil} if either isn't there (a hand-made request).
+  defp find_product_index(collections, raw_collection_id, raw_product_id) do
+    collection_id = parse_id(raw_collection_id)
+    product_id = parse_id(raw_product_id)
+
+    case Enum.find(collections, fn collection -> collection.id == collection_id end) do
+      nil ->
+        {[], nil}
+
+      collection ->
+        index = Enum.find_index(collection.products, fn p -> p.id == product_id end)
+        {collection.products, index}
+    end
   end
 
   # The name of the artist's default collection, for messages. It starts
@@ -273,7 +311,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
                     Edit collection
                   </.link>
                   <%!-- The default collection can't be deleted
-                       (Products.delete_collection/1 refuses it too) --%>
+                       (Products.delete_collection/2 refuses it too) --%>
                   <.link
                     :if={not collection.is_default}
                     phx-click="delete_collection"
@@ -509,35 +547,24 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
     end
   end
 
+  # Moving a work swaps it with its neighbour in the same collection.
+  # Only among the works on this page (socket.assigns.collections); an
+  # id that isn't one of them (a hand-made request) does nothing.
   def handle_event("move_product_up", %{"productid" => pid, "collectionid" => cid}, socket) do
-    product_id = String.to_integer(pid)
-    coll_id = String.to_integer(cid)
-    collection = Enum.find(socket.assigns.collections, fn c -> c.id == coll_id end)
-    products = collection.products
-    index = Enum.find_index(products, fn p -> p.id == product_id end)
+    {products, index} = find_product_index(socket.assigns.collections, cid, pid)
 
     if index && index > 0 do
-      Products.swap_product_positions(Enum.at(products, index), Enum.at(products, index - 1))
-
-      {:noreply,
-       assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+      swap_products(socket, Enum.at(products, index), Enum.at(products, index - 1))
     else
       {:noreply, socket}
     end
   end
 
   def handle_event("move_product_down", %{"productid" => pid, "collectionid" => cid}, socket) do
-    product_id = String.to_integer(pid)
-    coll_id = String.to_integer(cid)
-    collection = Enum.find(socket.assigns.collections, fn c -> c.id == coll_id end)
-    products = collection.products
-    index = Enum.find_index(products, fn p -> p.id == product_id end)
+    {products, index} = find_product_index(socket.assigns.collections, cid, pid)
 
     if index && index < length(products) - 1 do
-      Products.swap_product_positions(Enum.at(products, index), Enum.at(products, index + 1))
-
-      {:noreply,
-       assign(socket, collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
+      swap_products(socket, Enum.at(products, index), Enum.at(products, index + 1))
     else
       {:noreply, socket}
     end
@@ -570,41 +597,42 @@ defmodule ArtsyNeighborWeb.VendorLive.Dashboard do
   end
 
   def handle_event("delete_collection", %{"id" => id}, socket) do
-    collection =
-      case parse_id(id) do
-        nil -> nil
-        parsed -> Products.get_collection(parsed)
-      end
-
-    cond do
-      # Gone already (e.g. deleted in another tab), or a forged id.
-      is_nil(collection) ->
+    case Products.get_own_collection(socket.assigns.current_scope, parse_id(id)) do
+      # Gone already (e.g. deleted in another tab), or a forged id
+      # (someone else's collection, or not a number).
+      nil ->
         {:noreply,
          socket
-         |> put_flash(:info, "That collection had already been deleted.")
+         |> put_flash(:error, "That collection isn't one of yours, or doesn't exist any more.")
          |> assign(collections: Products.list_collections_for_artist(socket.assigns.artist.id))}
 
-      collection.artist_id == socket.assigns.artist.id ->
+      collection ->
         delete_own_collection(socket, collection)
-
-      true ->
-        {:noreply, put_flash(socket, :error, "You are not authorized to delete this collection.")}
     end
   end
 
   # Soft removal — vendors archive their own listings rather than hard
-  # deleting them. A true, irreversible delete (Products.hard_delete_product/1)
+  # deleting them. A true, irreversible delete (Products.hard_delete_product/2)
   # is admin-only, same split as Artists.soft_delete_artist/1 vs. hard_delete_artist/1.
   def handle_event("archive_product", %{"id" => id}, socket) do
-    product = Products.get_product!(String.to_integer(id))
+    scope = socket.assigns.current_scope
 
-    if product.artist_id == socket.assigns.artist.id do
-      {:ok, _} = Products.soft_delete_product(product)
-      products = Products.get_products_by_artist_all_status(socket.assigns.artist.id)
-      collections = Products.list_collections_for_artist(socket.assigns.artist.id)
-      {:noreply, assign(socket, products: products, collections: collections)}
-    else
-      {:noreply, put_flash(socket, :error, "You are not authorized to archive this product.")}
+    case Products.get_own_product(scope, parse_id(id)) do
+      # Someone else's work, a deleted one, or not a number.
+      nil ->
+        {:noreply, put_flash(socket, :error, "That work isn't one of yours.")}
+
+      product ->
+        case Products.soft_delete_product(scope, product) do
+          {:ok, _} ->
+            products = Products.get_products_by_artist_all_status(socket.assigns.artist.id)
+            collections = Products.list_collections_for_artist(socket.assigns.artist.id)
+            {:noreply, assign(socket, products: products, collections: collections)}
+
+          # :artist_removed (see Products, "Who is acting")
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
+        end
     end
   end
 

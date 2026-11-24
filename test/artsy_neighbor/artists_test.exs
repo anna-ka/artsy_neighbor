@@ -255,7 +255,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "leaves an already-:archived product alone" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(admin_scope_fixture(), product)
       assert Products.get_product!(product.id).status == :archived
 
       {:ok, _} = Artists.deactivate_artist(artist)
@@ -306,7 +306,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
     test "leaves an already-:archived product alone on that same transition" do
       artist = artist_fixture(%{status: :active})
       product = product_fixture(%{artist_id: artist.id})
-      {:ok, _} = Products.soft_delete_product(product)
+      {:ok, _} = Products.soft_delete_product(admin_scope_fixture(), product)
 
       {:ok, _} = Artists.change_status(artist, :inactive)
 
@@ -1678,7 +1678,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       give_reviews(all_archived, [5, 5, 5])
 
       for product <- Products.get_products_by_artist_all_status(all_archived.id) do
-        {:ok, _} = Products.soft_delete_product(product)
+        {:ok, _} = Products.soft_delete_product(admin_scope_fixture(), product)
       end
 
       inactive = artist_fixture(%{status: :inactive})

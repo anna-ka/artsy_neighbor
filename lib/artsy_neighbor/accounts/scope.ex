@@ -35,4 +35,11 @@ defmodule ArtsyNeighbor.Accounts.Scope do
   end
 
   def for_user(nil), do: nil
+
+  @doc """
+  True if the scope is an admin's. False for anyone else, and for no
+  scope at all (a logged-out visitor).
+  """
+  def admin?(%__MODULE__{admin: true}), do: true
+  def admin?(_scope), do: false
 end

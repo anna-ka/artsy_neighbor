@@ -8,6 +8,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
 
   @impl true
   def mount(params, _session, socket) do
@@ -46,14 +47,13 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    artist = socket.assigns.current_scope.artist
-    # get_product_with_associations! preloads product_images so we can
-    # display them in the form (the plain get_product! does not preload)
-    product = Products.get_product_with_associations!(id)
+    # Only the artist's own works, with their photos loaded for the
+    # form. nil for anyone else's, a deleted one, or a made-up address.
+    product = Products.get_own_product(socket.assigns.current_scope, parse_id(id))
 
-    if product.artist_id != artist.id do
+    if is_nil(product) do
       socket
-      |> put_flash(:error, "You are not authorized to edit this product.")
+      |> put_flash(:error, "That work isn't one of yours, or doesn't exist any more.")
       |> redirect(to: ~p"/vendor")
     else
       socket
@@ -115,40 +115,25 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   # edited (already checked to be this artist's) can be removed.
   @impl true
   def handle_event("delete_image", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     image = Enum.find(socket.assigns.existing_images, fn img -> img.id == image_id end)
 
     if image do
       was_available = socket.assigns.product.status == :available
-      result = Products.delete_product_image(image)
+      scope = socket.assigns.current_scope
+      result = Products.delete_product_image(scope, image)
 
-      # Either way, show the photos as they are now.
-      product = Products.get_product_with_associations!(socket.assigns.product.id)
+      # Either way, show the photos as they are now; or, if the whole work
+      # was deleted meanwhile (by an admin), go back to the dashboard.
+      case Products.get_own_product(scope, socket.assigns.product.id) do
+        nil ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "This work doesn't exist any more.")
+           |> push_navigate(to: ~p"/vendor")}
 
-      socket =
-        socket
-        |> assign(:product, product)
-        |> assign(:existing_images, product.product_images)
-
-      case result do
-        {:ok, _deleted} ->
-          # Products.delete_product_image/1 makes a product without
-          # photos a draft (it can't be for sale without one).
-          if was_available and product.status == :draft do
-            {:noreply,
-             put_flash(
-               socket,
-               :info,
-               "That was the last photo, so this work is now a draft and hidden from buyers. " <>
-                 "Add a photo and publish it again."
-             )}
-          else
-            {:noreply, socket}
-          end
-
-        # e.g. already removed in another browser tab
-        {:error, :not_found} ->
-          {:noreply, put_flash(socket, :info, "That photo had already been removed.")}
+        product ->
+          after_photo_removed(socket, product, result, was_available)
       end
     else
       {:noreply, socket}
@@ -162,13 +147,14 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   @impl true
   def handle_event("save_new_collection", %{"name" => name}, socket) do
-    artist = socket.assigns.current_scope.artist
+    scope = socket.assigns.current_scope
+    artist = scope.artist
     name = String.trim(name)
 
     if name == "" do
       {:noreply, socket}
     else
-      case Products.create_collection(artist.id, %{name: name}) do
+      case Products.create_collection(scope, %{name: name}) do
         {:ok, new_collection} ->
           updated_collections =
             Products.list_collections_for_artist(artist.id)
@@ -185,8 +171,11 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
            |> assign(:form, to_form(updated_changeset))
            |> assign(:new_collection_form_open, false)}
 
-        {:error, _} ->
+        {:error, %Ecto.Changeset{}} ->
           {:noreply, put_flash(socket, :error, "Could not create collection.")}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
       end
     end
   end
@@ -201,14 +190,13 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   @impl true
   def handle_event("move_image_up", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     # already sorted by position
     images = socket.assigns.existing_images
     index = Enum.find_index(images, fn img -> img.id == image_id end)
 
     if index && index > 0 do
-      Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index - 1))
-      {:noreply, reload_existing_images(socket)}
+      swap_images(socket, Enum.at(images, index), Enum.at(images, index - 1))
     else
       # already first, nothing to do
       {:noreply, socket}
@@ -217,16 +205,59 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   @impl true
   def handle_event("move_image_down", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     images = socket.assigns.existing_images
     index = Enum.find_index(images, fn img -> img.id == image_id end)
 
     if index && index < length(images) - 1 do
-      Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index + 1))
-      {:noreply, reload_existing_images(socket)}
+      swap_images(socket, Enum.at(images, index), Enum.at(images, index + 1))
     else
       # already last, nothing to do
       {:noreply, socket}
+    end
+  end
+
+  defp swap_images(socket, a, b) do
+    case Products.swap_image_positions(socket.assigns.current_scope, a, b) do
+      {:ok, _} ->
+        {:noreply, reload_existing_images(socket)}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
+    end
+  end
+
+  # After "Remove" on a photo: show the work's photos as they are now,
+  # and say what happened.
+  defp after_photo_removed(socket, product, result, was_available) do
+    socket =
+      socket
+      |> assign(:product, product)
+      |> assign(:existing_images, product.product_images)
+
+    case result do
+      {:ok, _deleted} ->
+        # Products.delete_product_image/2 makes a product without
+        # photos a draft (it can't be for sale without one).
+        if was_available and product.status == :draft do
+          {:noreply,
+           put_flash(
+             socket,
+             :info,
+             "That was the last photo, so this work is now a draft and hidden from buyers. " <>
+               "Add a photo and publish it again."
+           )}
+        else
+          {:noreply, socket}
+        end
+
+      # e.g. already removed in another browser tab
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :info, "That photo had already been removed.")}
+
+      # :artist_removed or :unauthorized (see Products, "Who is acting")
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
     end
   end
 
@@ -239,27 +270,31 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
 
   defp save_product(socket, :new, product_params, save_action) do
     # A new product starts as a draft (Products.create_product/2); it
-    # becomes :available only through publish_product/1, below.
-    # The owner is always the logged-in artist, never from the params.
-    artist_id = socket.assigns.current_scope.artist.id
-
-    case Products.create_product(artist_id, product_params) do
-      {:ok, product} ->
-        save_photos(socket, product, save_action)
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
-    end
+    # becomes :available only through publish_product/2, below.
+    # The owner is always the logged-in artist (the scope's), never
+    # from the params.
+    socket.assigns.current_scope
+    |> Products.create_product(product_params)
+    |> after_product_saved(socket, save_action)
   end
 
   defp save_product(socket, :edit, product_params, save_action) do
-    case Products.update_product(socket.assigns.product, product_params) do
-      {:ok, product} ->
-        save_photos(socket, product, save_action)
+    socket.assigns.current_scope
+    |> Products.update_product(socket.assigns.product, product_params)
+    |> after_product_saved(socket, save_action)
+  end
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
-    end
+  defp after_product_saved({:ok, product}, socket, save_action) do
+    save_photos(socket, product, save_action)
+  end
+
+  defp after_product_saved({:error, %Ecto.Changeset{} = changeset}, socket, _save_action) do
+    {:noreply, assign(socket, form: to_form(changeset))}
+  end
+
+  # :artist_removed or :unauthorized (see Products, "Who is acting")
+  defp after_product_saved({:error, reason}, socket, _save_action) do
+    {:noreply, put_flash(socket, :error, Products.refused_message(reason))}
   end
 
   # The text is saved; now the photos. They are processed in the
@@ -272,8 +307,10 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
     # New photos go after the ones already there.
     first_position = length(socket.assigns.existing_images) + 1
 
+    scope = socket.assigns.current_scope
+
     create_row = fn key, position ->
-      Products.create_product_image(%{path: key, position: position, product_id: product.id})
+      Products.create_product_image(scope, product, %{path: key, position: position})
     end
 
     case PhotoUploads.start_processing(socket, :images, folder, first_position, create_row) do
@@ -349,7 +386,7 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   end
 
   defp after_save(socket, product, "publish", photo_outcome) do
-    case Products.publish_product(product) do
+    case Products.publish_product(socket.assigns.current_scope, product) do
       {:ok, _published} ->
         finish_on_dashboard_or_edit(socket, product, published_message(product), photo_outcome)
 

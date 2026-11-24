@@ -9,6 +9,10 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   import ArtsyNeighborWeb.CustomComponents,
     only: [button_artsy: 1, form_table: 1, back: 1, status_actions: 1]
 
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
+
+  @msg_product_gone "That product doesn't exist any more. It may have just been deleted in another tab."
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok, socket}
@@ -43,26 +47,33 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   # product. Mirrors AdminArtistLive.Index's "mark removed" vs "delete" split.
   @impl true
   def handle_event("archive", %{"id" => id}, socket) do
-    product = Products.get_product_with_associations!(id)
-    {:ok, updated_product} = Products.soft_delete_product(product)
+    case find_product(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, @msg_product_gone)}
 
-    message = "Product \"#{product.title}\" has been archived."
+      product ->
+        socket =
+          case Products.soft_delete_product(socket.assigns.current_scope, product) do
+            {:ok, _archived} ->
+              socket
+              |> stream_insert(:products, find_product(product.id))
+              |> put_flash(:info, "Product \"#{product.title}\" has been archived.")
 
-    socket =
-      socket
-      |> stream_insert(:products, updated_product)
-      |> put_flash(:info, message)
+            {:error, reason} ->
+              put_flash(socket, :error, refused_message(product, reason))
+          end
 
-    {:noreply, socket}
+        {:noreply, socket}
+    end
   end
 
-  # Reverses "archive" — see Products.restore_product/1. Lands on
+  # Reverses "archive" — see Products.restore_product/2. Lands on
   # :unavailable, not :available: making it available again is a separate
-  # step (Products.publish_product/1) with no admin button yet, so
+  # step (Products.publish_product/2) with no admin button yet, so
   # restoring here is a real but incomplete step, not a full undo of
   # "archive".
   #
-  # restore_product/1 can return {:error, :artist_not_active} (the owning
+  # restore_product/2 can return {:error, :artist_not_active} (the owning
   # artist isn't currently :active — only_available/1 would hide the
   # product regardless, so restoring it would leave a product with an
   # unreachable seller once it's published again) or
@@ -73,16 +84,29 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
   # a flash for each rather than a MatchError.
   @impl true
   def handle_event("restore", %{"id" => id}, socket) do
-    product = Products.get_product_with_associations!(id)
+    case find_product(id) do
+      nil -> {:noreply, put_flash(socket, :error, @msg_product_gone)}
+      product -> restore(socket, product)
+    end
+  end
 
+  @impl true
+  def handle_event("delete", %{"id" => id}, socket) do
+    case find_product(id) do
+      nil -> {:noreply, put_flash(socket, :error, @msg_product_gone)}
+      product -> hard_delete(socket, product)
+    end
+  end
+
+  defp restore(socket, product) do
     socket =
-      case Products.restore_product(product) do
-        {:ok, updated_product} ->
+      case Products.restore_product(socket.assigns.current_scope, product) do
+        {:ok, _restored} ->
           message =
             "Product \"#{product.title}\" has been restored to unavailable. There's no admin button yet to publish it again."
 
           socket
-          |> stream_insert(:products, updated_product)
+          |> stream_insert(:products, find_product(product.id))
           |> put_flash(:info, message)
 
         {:error, :artist_not_active} ->
@@ -99,6 +123,9 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
             "Could not restore \"#{product.title}\" — its category no longer exists."
           )
 
+        {:error, reason} when reason in [:unauthorized, :not_found] ->
+          put_flash(socket, :error, refused_message(product, reason))
+
         {:error, _reason} ->
           put_flash(
             socket,
@@ -110,16 +137,16 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
     {:noreply, socket}
   end
 
-  @impl true
-  def handle_event("delete", %{"id" => id}, socket) do
-    product = Products.get_product!(id)
-
+  defp hard_delete(socket, product) do
     socket =
-      case Products.hard_delete_product(product) do
+      case Products.hard_delete_product(socket.assigns.current_scope, product) do
         {:ok, _} ->
           socket
           |> stream_delete(:products, product)
           |> put_flash(:info, "Product \"#{product.title}\" deleted successfully.")
+
+        {:error, :unauthorized} ->
+          put_flash(socket, :error, refused_message(product, :unauthorized))
 
         {:error, reason} ->
           put_flash(
@@ -130,6 +157,24 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Index do
       end
 
     {:noreply, socket}
+  end
+
+  # The product with this id (from the browser, or our own), with
+  # everything the list shows loaded, or nil if there is none.
+  defp find_product(id) do
+    case parse_id(id) do
+      nil -> nil
+      parsed -> Products.get_product_with_associations_all_status(parsed)
+    end
+  end
+
+  # For a refusal from Products (see "Who is acting" there). On this
+  # page it can only mean a non-admin got in, or a product deleted in
+  # another tab.
+  defp refused_message(_product, :not_found), do: @msg_product_gone
+
+  defp refused_message(product, :unauthorized) do
+    "Only admins can change \"#{product.title}\"."
   end
 
   @impl true

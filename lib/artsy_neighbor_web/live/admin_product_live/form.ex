@@ -9,6 +9,11 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   alias ArtsyNeighborWeb.PhotoUploads
 
   import ArtsyNeighborWeb.CustomComponents, only: [button_artsy: 1, back: 1]
+  import ArtsyNeighborWeb.Params, only: [parse_id: 1]
+
+  # A refusal from Products or AdminProducts: on this page it can only
+  # mean someone who isn't an admin got in.
+  @msg_admins_only "Only admins can change products here."
 
   @impl true
   def mount(params, _session, socket) do
@@ -80,7 +85,8 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
   @impl true
   def handle_event("artist_changed", %{"product" => %{"artist_id" => artist_id}}, socket) do
-    artist_id = if artist_id == "", do: nil, else: String.to_integer(artist_id)
+    # nil for "no artist chosen" ("") and for anything that isn't an id.
+    artist_id = parse_id(artist_id)
     collections = collections_for(artist_id)
     changeset = AdminProducts.change_product(socket.assigns.product, %{"artist_id" => artist_id})
 
@@ -112,28 +118,41 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   end
 
   # "Remove" next to a stored photo (PhotoUploads.stored_photos/1).
-  # Products.delete_product_image/1 makes a product without photos a
+  # Products.delete_product_image/2 makes a product without photos a
   # draft.
   @impl true
   def handle_event("delete_image", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     image = Enum.find(socket.assigns.existing_images, fn img -> img.id == image_id end)
 
     if image do
-      result = Products.delete_product_image(image)
-      product = Products.get_product_with_associations!(socket.assigns.product.id)
+      result = Products.delete_product_image(socket.assigns.current_scope, image)
 
-      socket =
-        socket
-        |> assign(:product, product)
-        |> assign(:existing_images, product.product_images)
+      # Either way, show the photos as they are now; or, if the whole
+      # product was deleted meanwhile (another tab), go back to the list.
+      case Products.get_product_with_associations_all_status(socket.assigns.product.id) do
+        nil ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "This product was deleted, so its photos are gone too.")
+           |> push_navigate(to: ~p"/admin/products")}
 
-      case result do
-        {:ok, _deleted} ->
-          {:noreply, socket}
+        product ->
+          socket =
+            socket
+            |> assign(:product, product)
+            |> assign(:existing_images, product.product_images)
 
-        {:error, :not_found} ->
-          {:noreply, put_flash(socket, :info, "That photo had already been removed.")}
+          case result do
+            {:ok, _deleted} ->
+              {:noreply, socket}
+
+            {:error, :not_found} ->
+              {:noreply, put_flash(socket, :info, "That photo had already been removed.")}
+
+            {:error, :unauthorized} ->
+              {:noreply, put_flash(socket, :error, @msg_admins_only)}
+          end
       end
     else
       {:noreply, socket}
@@ -142,12 +161,17 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
   @impl true
   def handle_event("move_image_up", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     images = socket.assigns.existing_images
     index = Enum.find_index(images, fn img -> img.id == image_id end)
 
     if index && index > 0 do
-      Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index - 1))
+      Products.swap_image_positions(
+        socket.assigns.current_scope,
+        Enum.at(images, index),
+        Enum.at(images, index - 1)
+      )
+
       {:noreply, reload_existing_images(socket)}
     else
       {:noreply, socket}
@@ -156,12 +180,17 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
   @impl true
   def handle_event("move_image_down", %{"imageid" => image_id}, socket) do
-    image_id = String.to_integer(image_id)
+    image_id = parse_id(image_id)
     images = socket.assigns.existing_images
     index = Enum.find_index(images, fn img -> img.id == image_id end)
 
     if index && index < length(images) - 1 do
-      Products.swap_image_positions(Enum.at(images, index), Enum.at(images, index + 1))
+      Products.swap_image_positions(
+        socket.assigns.current_scope,
+        Enum.at(images, index),
+        Enum.at(images, index + 1)
+      )
+
       {:noreply, reload_existing_images(socket)}
     else
       {:noreply, socket}
@@ -174,7 +203,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   end
 
   defp save_product(socket, :new, product_params) do
-    case AdminProducts.create_product(product_params) do
+    case AdminProducts.create_product(socket.assigns.current_scope, product_params) do
       {:ok, product} ->
         # Remembered so that the product is still published when the
         # admin saves again after a photo was refused (the page has
@@ -184,16 +213,26 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
+
+      # Only if this page were opened by someone who isn't an admin.
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, @msg_admins_only)}
     end
   end
 
   defp save_product(socket, :edit, product_params) do
-    case AdminProducts.update_product(socket.assigns.product, product_params) do
+    scope = socket.assigns.current_scope
+
+    case AdminProducts.update_product(scope, socket.assigns.product, product_params) do
       {:ok, product} ->
         save_photos(socket, product)
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
+
+      # Only if this page were opened by someone who isn't an admin.
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, @msg_admins_only)}
     end
   end
 
@@ -205,8 +244,10 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     # New photos go after the ones already there.
     first_position = length(socket.assigns.existing_images) + 1
 
+    scope = socket.assigns.current_scope
+
     create_row = fn key, position ->
-      Products.create_product_image(%{path: key, position: position, product_id: product.id})
+      Products.create_product_image(scope, product, %{path: key, position: position})
     end
 
     case PhotoUploads.start_processing(socket, :images, folder, first_position, create_row) do
@@ -254,7 +295,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     end
   end
 
-  # New products start as :draft (AdminProducts.create_product/1). An
+  # New products start as :draft (AdminProducts.create_product/2). An
   # admin-created product is published straight away, as before —
   # unless it has no photo, which publishing requires. "Created here"
   # rather than live_action == :new: after a refused photo the page has
@@ -262,12 +303,16 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   defp finish_save(socket, product) do
     message =
       if socket.assigns[:created_here] do
-        case Products.publish_product(product) do
+        case Products.publish_product(socket.assigns.current_scope, product) do
           {:ok, _published} ->
             "Product created successfully."
 
           {:error, :no_photos} ->
             "Product created as a draft: it needs at least one photo to be published."
+
+          # e.g. archived or deleted in another tab meanwhile.
+          {:error, _reason} ->
+            "Product saved, but it couldn't be published. Check its status in the list."
         end
       else
         "Product updated successfully."
