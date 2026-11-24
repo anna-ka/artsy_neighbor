@@ -40,7 +40,9 @@ defmodule ArtsyNeighbor.Products.Product do
       :descr,
       :details,
       :price,
-      :artist_id,
+      # Not :artist_id: the owner is set on the struct by the server
+      # (Products.create_product/2), or by admin_changeset/2 for the
+      # admin form, which picks it on purpose (audit S-3).
       :category_id,
       :collection_id,
       :position,
@@ -74,6 +76,21 @@ defmodule ArtsyNeighbor.Products.Product do
     |> validate_number(:width, greater_than: 0)
     |> validate_number(:length, greater_than: 0)
     |> validate_number(:height, greater_than: 0)
+  end
+
+  @doc """
+  Like `changeset/2`, but also takes the owner (`artist_id`) from
+  `attrs`. Only for the admin product form, which picks the artist on
+  purpose, through `ArtsyNeighbor.Admin.AdminProducts`. Never use it
+  with a vendor's form params (audit S-3).
+  """
+  def admin_changeset(product, attrs) do
+    # artist_id is cast first, so that changeset/2's validate_required
+    # sees it.
+    product
+    |> cast(attrs, [:artist_id])
+    |> changeset(attrs)
+    |> assoc_constraint(:artist)
   end
 
   @doc """

@@ -300,13 +300,13 @@ defmodule ArtsyNeighbor.SampleData do
       work
       |> Map.drop([:photos, :category])
       |> Map.merge(%{
-        artist_id: artist.id,
         collection_id: collection.id,
         category_id: category_id!(category_ids, work.category),
         position: position
       })
 
-    %Product{}
+    # The owner goes on the struct: Product.changeset/2 doesn't take it.
+    %Product{artist_id: artist.id}
     |> Product.changeset(attrs)
     |> Repo.insert!()
   end

@@ -419,8 +419,39 @@ which is mechanical and done once, up front.
           `test/artsy_neighbor_web/live/conversation_live/index_test.exs`;
           and a `UserLive.Settings` test logs a `FunctionClauseError` on
           `{:email, ...}` (the tests pass).
-          Next: S-3 + S-4 (a vendor can put works on another artist's
-          page).
+          S-3 (a vendor could put a work on another artist's page,
+          or in another artist's collection): *DONE* 2026-11-23, the
+          S-2 way. `Product.changeset/2` no longer takes `artist_id`:
+          `Products.create_product/2` takes the owner as its own
+          argument (the vendor form passes `current_scope.artist.id`),
+          and `update_product/2` can't change it.
+          `Product.admin_changeset/2` takes an owner, used only
+          through the new `AdminProducts` (the admin product form).
+          Every product save (`Products.save_product/1`) refuses a
+          collection that isn't the product's own artist's, so the
+          admin form can't leave a moved work in the old artist's
+          collection either. As a backstop, the collection lists only
+          load the artist's own works.
+          From the code review (fixed in the same commit): the check
+          runs only for a new work or when its collection or owner
+          changes; an admin moving a work without choosing a
+          collection puts it in the new artist's default one; the
+          admin form lists artists of every status, so a work of an
+          inactive artist can be edited. Checked first: no work was in
+          another artist's collection on dev or the Fly preview. Left
+          for C-5: `?collection_id=abc` crashes the artist page.
+          Next: S-4 (collections: `artist_id` from the form; the
+          default collection known only by its name, decided: an
+          `is_default` column). With it: show the default collection
+          on the public artist page and Shop tab when it has works
+          for sale (it is hidden there always since 2026-10-22, the
+          opposite of item 13's old bug); its own name as the label,
+          last among the collections.
+          After S-4 (agreed 2026-11-23): `Products` checks the
+          `current_scope` itself, like `Orders` (S-1's second
+          commit), for every vendor write to products, their photos
+          and collections, so no page has to remember the "is this
+          yours?" check. Then C-1 to C-3.
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`
@@ -1299,6 +1330,14 @@ working on the code should keep in mind.
       browser can tell from the file's first bytes (3c reads them for
       WebP already); GIF isn't accepted, AVIF can also be moving
       (rare). Best done with #43 or 3b, which change the upload box.
+
+  45. **Archived works on the vendor dashboard** (added 2026-11-23).
+      Archiving artists' own products and also viewing products in the
+      Artist's dashboard. First off, only available and draft products
+      should be visible by default. Archived products should be
+      hidden. However, we need to add a filter button or tool which
+      allows seeing all (or particular) types of products including
+      :archived.
 
 
 

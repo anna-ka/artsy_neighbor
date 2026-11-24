@@ -242,6 +242,13 @@ NOTES.md:
   `publish_product/1`, `soft_delete_product/1`, `restore_product/1` and
   `delete_product_image/1` change it. A product needs at least one photo to be
   `:available`; removing its last photo moves it back to `:draft`.
+- Owner: `Product.changeset` does NOT cast `artist_id` either.
+  `Products.create_product/2` takes the owner as its own argument
+  (vendor form: `current_scope.artist.id`); `update_product/2` never
+  changes it. Only `Product.admin_changeset/2` takes it, used only
+  through `AdminProducts` (the admin product form). Both go through
+  `Products.save_product/1`, which puts a product with no collection
+  into the default one and refuses another artist's collection.
 - When an artist is soft-deleted (`Artists.soft_delete_artist/1`), all their
   products go `:archived` — not deleted, and unconditionally (even ones
   already `:archived` individually). When an artist transitions from

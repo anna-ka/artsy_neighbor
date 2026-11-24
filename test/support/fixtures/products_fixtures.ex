@@ -8,31 +8,31 @@ defmodule ArtsyNeighbor.ProductsFixtures do
   A product, `:available` unless `attrs` says otherwise.
 
   Inserted directly (like the seeds), not through
-  `Products.create_product/1`: that always makes a draft, and
+  `Products.create_product/2`: that always makes a draft, and
   publishing needs a photo, but most tests just need an existing
   product for sale. Tests of the photo rule itself use
-  `create_product/1`, `publish_product/1` etc.
+  `create_product/2`, `publish_product/1` etc.
   """
   def product_fixture(attrs \\ %{}) do
     artist = ArtsyNeighbor.ArtistsFixtures.artist_fixture()
     category = ArtsyNeighbor.CategoriesFixtures.category_fixture()
 
     attrs = Map.new(attrs)
-    # Product.changeset/2 doesn't take a status, so it's set on the
-    # struct instead.
+    # Product.changeset/2 takes neither the status nor the owner, so
+    # they are set on the struct instead.
     status = Map.get(attrs, :status, :available)
+    artist_id = Map.get(attrs, :artist_id, artist.id)
 
     full_attrs =
-      Enum.into(Map.delete(attrs, :status), %{
+      Enum.into(Map.drop(attrs, [:status, :artist_id]), %{
         descr: "some descr",
         details: "some details",
         price: "120.5",
         title: "some title",
-        artist_id: artist.id,
         category_id: category.id
       })
 
-    %ArtsyNeighbor.Products.Product{status: status}
+    %ArtsyNeighbor.Products.Product{status: status, artist_id: artist_id}
     |> ArtsyNeighbor.Products.Product.changeset(full_attrs)
     |> ArtsyNeighbor.Repo.insert!()
   end

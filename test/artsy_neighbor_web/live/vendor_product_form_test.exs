@@ -40,7 +40,7 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
   # A draft made the way the form makes one, plus `photo_count` photos.
   defp draft_product(artist, category, photo_count) do
     {:ok, product} =
-      Products.create_product(Map.put(new_product_params(category), :artist_id, artist.id))
+      Products.create_product(artist.id, new_product_params(category))
 
     for position <- Enum.to_list(1..photo_count//1) do
       {:ok, _} =
@@ -115,6 +115,95 @@ defmodule ArtsyNeighborWeb.VendorProductFormTest do
       html = press(view, "draft", %{title: ""})
 
       assert html =~ "can&#39;t be blank"
+      assert Products.get_products_by_artist_all_status(artist.id) == []
+    end
+  end
+
+  # Audit S-3: a request made by hand (not by the page's own fields)
+  # must not put a work on another artist's page. render_submit/3 with
+  # an event name sends the params as given, like such a request would.
+  describe "hand-made requests" do
+    setup do
+      other_artist = artist_fixture()
+
+      {:ok, other_collection} =
+        Products.create_collection(%{
+          name: "Someone else's oils",
+          position: 2,
+          artist_id: other_artist.id
+        })
+
+      %{other_artist: other_artist, other_collection: other_collection}
+    end
+
+    defp edit_params(product, category, extra) do
+      Map.merge(
+        %{
+          "title" => product.title,
+          "descr" => product.descr,
+          "details" => product.details,
+          "price" => "10",
+          "category_id" => to_string(category.id)
+        },
+        extra
+      )
+    end
+
+    test "an artist_id in the params doesn't move a work to another artist",
+         %{conn: conn, artist: artist, other_artist: other_artist, category: category} do
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
+
+      render_submit(view, "save", %{
+        "product" => edit_params(product, category, %{"artist_id" => to_string(other_artist.id)}),
+        "save_action" => "save"
+      })
+
+      assert Products.get_product!(product.id).artist_id == artist.id
+      assert Products.get_products_by_artist_all_status(other_artist.id) == []
+    end
+
+    test "editing: another artist's collection is refused", %{
+      conn: conn,
+      artist: artist,
+      other_artist: other_artist,
+      other_collection: other_collection,
+      category: category
+    } do
+      product = product_fixture(%{artist_id: artist.id, category_id: category.id})
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/#{product}/edit")
+
+      html =
+        render_submit(view, "save", %{
+          "product" =>
+            edit_params(product, category, %{
+              "title" => "Moved work",
+              "collection_id" => to_string(other_collection.id)
+            }),
+          "save_action" => "save"
+        })
+
+      assert html =~ "Please choose one of this artist&#39;s own collections."
+      unchanged = Products.get_product!(product.id)
+      assert unchanged.title == product.title
+      assert unchanged.collection_id == product.collection_id
+
+      shown = Products.list_collections_for_artist(other_artist.id)
+      assert Enum.all?(shown, fn collection -> collection.products == [] end)
+    end
+
+    test "a new work: another artist's collection is refused, and nothing is saved",
+         %{conn: conn, artist: artist, other_collection: other_collection, category: category} do
+      {:ok, view, _html} = live(conn, ~p"/vendor/products/new")
+
+      params =
+        category
+        |> new_product_params()
+        |> Map.put(:collection_id, other_collection.id)
+
+      html = render_submit(view, "save", %{"product" => params, "save_action" => "draft"})
+
+      assert html =~ "Please choose one of this artist&#39;s own collections."
       assert Products.get_products_by_artist_all_status(artist.id) == []
     end
   end

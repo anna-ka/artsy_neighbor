@@ -1,6 +1,7 @@
 defmodule ArtsyNeighbor.ProductsTest do
   use ArtsyNeighbor.DataCase
 
+  alias ArtsyNeighbor.Admin.AdminProducts
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.{Product, ProductImage, ProductCollection}
@@ -40,7 +41,7 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert_raise Ecto.NoResultsError, fn -> Products.get_product!(0) end
     end
 
-    test "create_product/1 with valid data creates a product" do
+    test "create_product/2 with valid data creates a product" do
       artist = artist_fixture()
       category = category_fixture()
 
@@ -49,19 +50,19 @@ defmodule ArtsyNeighbor.ProductsTest do
         details: "some details",
         descr: "some descr",
         price: "120.5",
-        artist_id: artist.id,
         category_id: category.id
       }
 
-      assert {:ok, %Product{} = product} = Products.create_product(valid_attrs)
+      assert {:ok, %Product{} = product} = Products.create_product(artist.id, valid_attrs)
       assert product.title == "some title"
       assert product.details == "some details"
       assert product.descr == "some descr"
       assert product.price == Decimal.new("120.5")
     end
 
-    test "create_product/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Products.create_product(@invalid_attrs)
+    test "create_product/2 with invalid data returns error changeset" do
+      artist = artist_fixture()
+      assert {:error, %Ecto.Changeset{}} = Products.create_product(artist.id, @invalid_attrs)
     end
 
     test "update_product/2 with valid data updates the product" do
@@ -359,65 +360,80 @@ defmodule ArtsyNeighbor.ProductsTest do
     test "requires title, descr, details, price, artist_id, category_id", %{valid: valid} do
       for field <- [:title, :descr, :details, :price, :artist_id, :category_id] do
         attrs = Map.delete(valid, field)
-        assert {:error, changeset} = Products.create_product(attrs)
+        # The owner is its own argument; nil when :artist_id was deleted.
+        assert {:error, changeset} = Products.create_product(attrs[:artist_id], attrs)
         assert changeset.errors[field], "expected error on #{field}"
       end
     end
 
     test "rejects title shorter than 3 characters", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(%{valid | title: "AB"})
+      assert {:error, changeset} =
+               Products.create_product(valid.artist_id, %{valid | title: "AB"})
+
       assert changeset.errors[:title]
     end
 
     test "rejects title longer than 100 characters", %{valid: valid} do
       assert {:error, changeset} =
-               Products.create_product(%{valid | title: String.duplicate("a", 101)})
+               Products.create_product(valid.artist_id, %{
+                 valid
+                 | title: String.duplicate("a", 101)
+               })
 
       assert changeset.errors[:title]
     end
 
     test "rejects descr shorter than 10 characters", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(%{valid | descr: "short"})
+      assert {:error, changeset} =
+               Products.create_product(valid.artist_id, %{valid | descr: "short"})
+
       assert changeset.errors[:descr]
     end
 
     test "rejects price of zero", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(%{valid | price: "0"})
+      assert {:error, changeset} = Products.create_product(valid.artist_id, %{valid | price: "0"})
       assert changeset.errors[:price]
     end
 
     test "rejects negative price", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(%{valid | price: "-5.00"})
+      assert {:error, changeset} =
+               Products.create_product(valid.artist_id, %{valid | price: "-5.00"})
+
       assert changeset.errors[:price]
     end
 
     test "rejects invalid units", %{valid: valid} do
-      assert {:error, changeset} = Products.create_product(Map.put(valid, :units, "mm"))
+      assert {:error, changeset} =
+               Products.create_product(valid.artist_id, Map.put(valid, :units, "mm"))
+
       assert changeset.errors[:units]
     end
 
     test "accepts units 'cm' and 'in'", %{valid: valid} do
-      assert {:ok, _} = Products.create_product(Map.put(valid, :units, "cm"))
+      assert {:ok, _} = Products.create_product(valid.artist_id, Map.put(valid, :units, "cm"))
       artist2 = artist_fixture()
 
       assert {:ok, _} =
-               Products.create_product(Map.merge(valid, %{units: "in", artist_id: artist2.id}))
+               Products.create_product(artist2.id, Map.put(valid, :units, "in"))
     end
 
     test "rejects zero or negative dimensions", %{valid: valid} do
-      assert {:error, cs} = Products.create_product(Map.put(valid, :width, "0"))
+      assert {:error, cs} = Products.create_product(valid.artist_id, Map.put(valid, :width, "0"))
       assert cs.errors[:width]
 
-      assert {:error, cs} = Products.create_product(Map.put(valid, :length, "-1"))
+      assert {:error, cs} =
+               Products.create_product(valid.artist_id, Map.put(valid, :length, "-1"))
+
       assert cs.errors[:length]
 
-      assert {:error, cs} = Products.create_product(Map.put(valid, :height, "0"))
+      assert {:error, cs} = Products.create_product(valid.artist_id, Map.put(valid, :height, "0"))
       assert cs.errors[:height]
     end
 
     test "accepts product with optional dimension fields", %{valid: valid} do
       assert {:ok, product} =
                Products.create_product(
+                 valid.artist_id,
                  Map.merge(valid, %{
                    width: "30.0",
                    length: "40.0",
@@ -1057,19 +1073,18 @@ defmodule ArtsyNeighbor.ProductsTest do
   # ============================================================
 
   describe "publishing and photos" do
-    # A product made the way the forms make it: through create_product/1,
+    # A product made the way the forms make it: through create_product/2,
     # so it starts as :draft.
     defp draft_product do
       artist = artist_fixture()
       category = category_fixture()
 
       {:ok, product} =
-        Products.create_product(%{
+        Products.create_product(artist.id, %{
           title: "Draft work",
           descr: "A work that isn't finished yet",
           details: "Details",
           price: "50",
-          artist_id: artist.id,
           category_id: category.id
         })
 
@@ -1091,17 +1106,16 @@ defmodule ArtsyNeighbor.ProductsTest do
       assert draft_product().status == :draft
     end
 
-    test "create_product/1 ignores a status: a new product is always a draft" do
+    test "create_product/2 ignores a status: a new product is always a draft" do
       artist = artist_fixture()
       category = category_fixture()
 
       assert {:ok, product} =
-               Products.create_product(%{
+               Products.create_product(artist.id, %{
                  title: "Eager work",
                  descr: "Wants to be for sale at once",
                  details: "Details",
                  price: "50",
-                 artist_id: artist.id,
                  category_id: category.id,
                  status: :available
                })
@@ -1220,12 +1234,11 @@ defmodule ArtsyNeighbor.ProductsTest do
       [default_collection] = Products.list_collections_for_artist(artist.id)
 
       {:ok, product} =
-        Products.create_product(%{
+        Products.create_product(artist.id, %{
           title: "No collection",
           descr: "A work without a collection",
           details: "Details",
           price: "50",
-          artist_id: artist.id,
           category_id: category.id
         })
 
@@ -1256,6 +1269,182 @@ defmodule ArtsyNeighbor.ProductsTest do
 
       {:ok, updated} = Products.update_product(product, %{title: "Renamed"})
       assert updated.collection_id == other.id
+    end
+  end
+
+  # Audit S-3: a work belongs to one artist, and can only be in that
+  # artist's collections.
+  describe "a product's owner and collection" do
+    setup do
+      artist = artist_fixture()
+      other_artist = artist_fixture()
+
+      {:ok, other_collection} =
+        Products.create_collection(%{
+          name: "Someone else's oils",
+          position: 2,
+          artist_id: other_artist.id
+        })
+
+      %{
+        artist: artist,
+        other_artist: other_artist,
+        other_collection: other_collection,
+        category: category_fixture()
+      }
+    end
+
+    defp work_attrs(category) do
+      %{
+        title: "Kelp forest",
+        descr: "A linocut of a kelp forest",
+        details: "Printed on washi paper",
+        price: "90",
+        category_id: category.id
+      }
+    end
+
+    test "create_product/2 ignores an artist_id in the attrs", %{
+      artist: artist,
+      other_artist: other_artist,
+      category: category
+    } do
+      attrs = Map.put(work_attrs(category), :artist_id, other_artist.id)
+      {:ok, product} = Products.create_product(artist.id, attrs)
+      assert product.artist_id == artist.id
+    end
+
+    test "update_product/2 ignores an artist_id in the attrs", %{
+      artist: artist,
+      other_artist: other_artist
+    } do
+      product = product_fixture(%{artist_id: artist.id})
+      {:ok, updated} = Products.update_product(product, %{artist_id: other_artist.id})
+      assert updated.artist_id == artist.id
+    end
+
+    test "create_product/2 refuses another artist's collection", %{
+      artist: artist,
+      other_collection: other_collection,
+      category: category
+    } do
+      attrs = Map.put(work_attrs(category), :collection_id, other_collection.id)
+
+      assert {:error, changeset} = Products.create_product(artist.id, attrs)
+      assert changeset.errors[:collection_id]
+      assert Products.get_products_by_artist_all_status(artist.id) == []
+    end
+
+    test "update_product/2 refuses another artist's collection, or one that doesn't exist", %{
+      artist: artist,
+      other_collection: other_collection
+    } do
+      product = product_fixture(%{artist_id: artist.id})
+
+      assert {:error, changeset} =
+               Products.update_product(product, %{collection_id: other_collection.id})
+
+      assert changeset.errors[:collection_id]
+
+      assert {:error, changeset} = Products.update_product(product, %{collection_id: -1})
+      assert changeset.errors[:collection_id]
+    end
+
+    test "AdminProducts.update_product/2 can move a work to another artist", %{
+      artist: artist,
+      other_artist: other_artist,
+      other_collection: other_collection
+    } do
+      product = product_fixture(%{artist_id: artist.id})
+
+      {:ok, moved} =
+        AdminProducts.update_product(product, %{
+          artist_id: other_artist.id,
+          collection_id: other_collection.id
+        })
+
+      assert moved.artist_id == other_artist.id
+      assert moved.collection_id == other_collection.id
+    end
+
+    test "AdminProducts.update_product/2: a work moved without a collection goes into the new artist's default one",
+         %{artist: artist, other_artist: other_artist} do
+      {:ok, collection} =
+        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+
+      product = product_fixture(%{artist_id: artist.id, collection_id: collection.id})
+      [other_default | _] = Products.list_collections_for_artist(other_artist.id)
+
+      {:ok, moved} = AdminProducts.update_product(product, %{artist_id: other_artist.id})
+
+      assert other_default.name == "Uncategorized"
+      assert moved.artist_id == other_artist.id
+      assert moved.collection_id == other_default.id
+    end
+
+    test "AdminProducts.update_product/2 refuses to move a work into another of the old artist's collections",
+         %{artist: artist, other_artist: other_artist} do
+      {:ok, prints} =
+        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+
+      {:ok, oils} =
+        Products.create_collection(%{name: "Oils", position: 3, artist_id: artist.id})
+
+      product = product_fixture(%{artist_id: artist.id, collection_id: prints.id})
+
+      assert {:error, changeset} =
+               AdminProducts.update_product(product, %{
+                 artist_id: other_artist.id,
+                 collection_id: oils.id
+               })
+
+      assert changeset.errors[:collection_id]
+      assert Products.get_product!(product.id).artist_id == artist.id
+    end
+
+    # The check runs only for a new work or when the collection or owner
+    # changes (an edit that changes neither can't break the rule).
+    test "an edit that changes neither the collection nor the owner isn't checked", %{
+      artist: artist,
+      other_collection: other_collection
+    } do
+      product = product_fixture(%{artist_id: artist.id})
+
+      # Bad data made directly in the database, which saving refuses.
+      Repo.update_all(
+        from(p in Product, where: p.id == ^product.id),
+        set: [collection_id: other_collection.id]
+      )
+
+      product = Products.get_product!(product.id)
+      assert {:ok, updated} = Products.update_product(product, %{price: "75"})
+      assert updated.price == Decimal.new("75")
+    end
+
+    # Defence in depth: even if another artist's work got into a
+    # collection some other way, the collection lists don't show it.
+    test "the collection lists leave out works by other artists", %{
+      artist: artist,
+      other_artist: other_artist,
+      other_collection: other_collection
+    } do
+      intruder = product_fixture(%{artist_id: artist.id, title: "Intruder"})
+      own = product_fixture(%{artist_id: other_artist.id, title: "Own work"})
+
+      Repo.update_all(
+        from(p in Product, where: p.id in ^[intruder.id, own.id]),
+        set: [collection_id: other_collection.id]
+      )
+
+      for collections <- [
+            Products.list_collections_for_artist(other_artist.id),
+            Products.list_public_collections_for_artist(other_artist.id),
+            Products.list_collections_for_owner_preview(other_artist.id)
+          ] do
+        titles = for c <- collections, p <- c.products, do: p.title
+        assert "Own work" in titles
+        refute "Intruder" in titles
+      end
     end
   end
 

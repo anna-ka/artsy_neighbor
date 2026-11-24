@@ -527,28 +527,34 @@ defmodule ArtsyNeighbor.Products do
   end
 
   @doc """
-  Creates a product.
+  Creates a product owned by the artist with id `artist_id`.
+
+  The owner is a separate argument, never taken from `attrs`: a
+  vendor's form passes `current_scope.artist.id`, so a hand-made
+  request can't put the work on another artist's page (audit S-3). The
+  admin form, which picks the artist, uses
+  `AdminProducts.create_product/1`.
 
   ## Examples
 
-      iex> create_product(%{field: value})
+      iex> create_product(artist.id, %{field: value})
       {:ok, %Product{}}
 
-      iex> create_product(%{field: bad_value})
+      iex> create_product(artist.id, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_product(attrs) do
+  def create_product(artist_id, attrs) do
     # New products always start as :draft (Product.changeset/2 doesn't
     # take a status); see "Publishing and photos" below.
-    %Product{}
+    %Product{artist_id: artist_id}
     |> Product.changeset(attrs)
-    |> put_default_collection()
-    |> Repo.insert()
+    |> save_product()
   end
 
   @doc """
-  Updates a product.
+  Updates a product. Never changes its owner or its status
+  (`Product.changeset/2` takes neither).
 
   ## Examples
 
@@ -560,11 +566,27 @@ defmodule ArtsyNeighbor.Products do
 
   """
   def update_product(%Product{} = product, attrs) do
-    # Doesn't change the status (Product.changeset/2 doesn't take one).
     product
     |> Product.changeset(attrs)
+    |> save_product()
+  end
+
+  @doc """
+  Inserts or updates a product from a changeset, after the checks every
+  product save needs: a product with no collection chosen goes into its
+  artist's default collection, and a collection belonging to another
+  artist is refused.
+
+  Takes a changeset, never a map of params: the owner is whatever the
+  changeset says, so the caller must have chosen it.
+  `create_product/2` and `update_product/2` are the usual way in;
+  `AdminProducts` builds its changesets with `Product.admin_changeset/2`.
+  """
+  def save_product(%Ecto.Changeset{} = changeset) do
+    changeset
     |> put_default_collection()
-    |> Repo.update()
+    |> validate_collection_owner()
+    |> Repo.insert_or_update()
   end
 
   # A product with no collection chosen goes into its artist's default
@@ -592,12 +614,54 @@ defmodule ArtsyNeighbor.Products do
     end
   end
 
+  # A product may only be in one of its own artist's collections.
+  # Otherwise a hand-made request from the vendor form could show a work
+  # inside another artist's collection, on their page (audit S-3). It
+  # also catches the admin form moving a work to another artist while
+  # leaving it in the old artist's collection. A collection id that
+  # doesn't exist is refused the same way.
+  #
+  # Checked only for a new product, or when its collection or owner
+  # changes: an edit that changes neither (the price, the order of works)
+  # can't break the rule, so it doesn't need the extra query.
+  defp validate_collection_owner(changeset) do
+    collection_id = Ecto.Changeset.get_field(changeset, :collection_id)
+    artist_id = Ecto.Changeset.get_field(changeset, :artist_id)
+
+    new_product? = changeset.data.__meta__.state == :built
+
+    needs_check? =
+      new_product? or
+        Ecto.Changeset.changed?(changeset, :collection_id) or
+        Ecto.Changeset.changed?(changeset, :artist_id)
+
+    if is_nil(collection_id) or not needs_check? do
+      changeset
+    else
+      collection_artist_id =
+        ProductCollection
+        |> where([c], c.id == ^collection_id)
+        |> select([c], c.artist_id)
+        |> Repo.one()
+
+      if collection_artist_id != nil and collection_artist_id == artist_id do
+        changeset
+      else
+        Ecto.Changeset.add_error(
+          changeset,
+          :collection_id,
+          "Please choose one of this artist's own collections."
+        )
+      end
+    end
+  end
+
   # --- Publishing and photos ------------------------------------------
   #
   # The rule: a product can only be :available (for sale, shown to the
   # public) while it has at least one photo. Kept here, in the context,
   # so every form and any future code follows it:
-  #   * the general create_product/1 and update_product/2 can't change
+  #   * the general create_product/2 and update_product/2 can't change
   #     the status at all; new products start as :draft;
   #   * publish_product/1 is the only way to :available, and refuses a
   #     product without a photo;
@@ -1050,7 +1114,7 @@ defmodule ArtsyNeighbor.Products do
     ProductCollection
     |> where([c], c.artist_id == ^artist_id)
     |> order_by([c], asc: c.position)
-    |> preload(products: ^products_by_position())
+    |> preload(products: ^products_by_position(artist_id))
     |> Repo.all()
   end
 
@@ -1085,6 +1149,10 @@ defmodule ArtsyNeighbor.Products do
     available_products =
       Product
       |> shown_products(audience)
+      # Only the artist's own works, even if a work from someone else
+      # ever ended up in one of their collections (audit S-3; saving a
+      # product already refuses that).
+      |> where([p], p.artist_id == ^artist_id)
       |> where([p], not is_nil(p.category_id))
       |> order_by([p], asc_nulls_last: p.position, asc: p.title)
       |> preload(product_images: ^images_by_position())
@@ -1098,9 +1166,13 @@ defmodule ArtsyNeighbor.Products do
     |> Enum.reject(fn collection -> collection.products == [] end)
   end
 
-  # Returns a query for products ordered by position (nulls last), then title.
-  defp products_by_position do
+  # Returns a query for the artist's products, ordered by position
+  # (nulls last), then title. Only the artist's own works, even if a
+  # work from someone else ever ended up in one of their collections
+  # (audit S-3; saving a product already refuses that).
+  defp products_by_position(artist_id) do
     from(p in Product,
+      where: p.artist_id == ^artist_id,
       order_by: [asc_nulls_last: p.position, asc: p.title],
       preload: [
         :artist,

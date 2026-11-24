@@ -1,6 +1,7 @@
 defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   use ArtsyNeighborWeb, :live_view
 
+  alias ArtsyNeighbor.Admin.AdminProducts
   alias ArtsyNeighbor.Products
   alias ArtsyNeighbor.Products.Product
   alias ArtsyNeighbor.Artists
@@ -31,7 +32,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     |> assign(:page_title, "Edit Product")
     |> assign(:product, product)
     |> assign(:existing_images, product.product_images)
-    |> assign(:form, to_form(Products.change_product(product)))
+    |> assign(:form, to_form(AdminProducts.change_product(product)))
     |> assign_selects(product.artist_id)
   end
 
@@ -40,12 +41,18 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     |> assign(:page_title, "New Product")
     |> assign(:product, %Product{})
     |> assign(:existing_images, [])
-    |> assign(:form, to_form(Products.change_product(%Product{})))
+    |> assign(:form, to_form(AdminProducts.change_product(%Product{})))
     |> assign_selects(nil)
   end
 
   defp assign_selects(socket, artist_id) do
-    artists = Artists.list_artists() |> Enum.map(fn a -> {a.nickname, a.id} end)
+    # All statuses, so a work whose artist isn't :active can still be
+    # edited (its owner must be in the list, or the form sends no
+    # artist). Like the categories below.
+    artists =
+      Artists.list_artists_all_status()
+      |> Enum.map(fn artist -> artist_option(artist) end)
+
     categories = Categories.list_categories_all_status() |> Enum.map(fn c -> {c.name, c.id} end)
     collections = collections_for(artist_id)
 
@@ -53,6 +60,15 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     |> assign(:artists, artists)
     |> assign(:categories, categories)
     |> assign(:collections, collections)
+  end
+
+  # "Nickname", or "Nickname (inactive)" for an artist who isn't :active.
+  defp artist_option(artist) do
+    if artist.status == :active do
+      {artist.nickname, artist.id}
+    else
+      {"#{artist.nickname} (#{artist.status})", artist.id}
+    end
   end
 
   defp collections_for(nil), do: []
@@ -66,7 +82,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   def handle_event("artist_changed", %{"product" => %{"artist_id" => artist_id}}, socket) do
     artist_id = if artist_id == "", do: nil, else: String.to_integer(artist_id)
     collections = collections_for(artist_id)
-    changeset = Products.change_product(socket.assigns.product, %{"artist_id" => artist_id})
+    changeset = AdminProducts.change_product(socket.assigns.product, %{"artist_id" => artist_id})
 
     {:noreply,
      socket
@@ -76,7 +92,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
 
   @impl true
   def handle_event("validate", %{"product" => product_params}, socket) do
-    changeset = Products.change_product(socket.assigns.product, product_params)
+    changeset = AdminProducts.change_product(socket.assigns.product, product_params)
     {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
   end
 
@@ -158,7 +174,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   end
 
   defp save_product(socket, :new, product_params) do
-    case Products.create_product(product_params) do
+    case AdminProducts.create_product(product_params) do
       {:ok, product} ->
         # Remembered so that the product is still published when the
         # admin saves again after a photo was refused (the page has
@@ -172,7 +188,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
   end
 
   defp save_product(socket, :edit, product_params) do
-    case Products.update_product(socket.assigns.product, product_params) do
+    case AdminProducts.update_product(socket.assigns.product, product_params) do
       {:ok, product} ->
         save_photos(socket, product)
 
@@ -226,7 +242,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
       |> assign(:page_title, "Edit Product")
       |> assign(:product, product)
       |> assign(:existing_images, product.product_images)
-      |> assign(:form, to_form(Products.change_product(product)))
+      |> assign(:form, to_form(AdminProducts.change_product(product)))
       |> put_flash(:error, PhotoUploads.problem_flash(socket, "The product is saved."))
 
     # Switch a new product's page to its edit address, so saving again
@@ -238,7 +254,7 @@ defmodule ArtsyNeighborWeb.AdminProductLive.Form do
     end
   end
 
-  # New products start as :draft (Products.create_product/1). An
+  # New products start as :draft (AdminProducts.create_product/1). An
   # admin-created product is published straight away, as before —
   # unless it has no photo, which publishing requires. "Created here"
   # rather than live_action == :new: after a refused photo the page has

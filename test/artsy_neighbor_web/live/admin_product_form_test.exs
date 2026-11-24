@@ -99,7 +99,7 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
 
   test "a stored photo can be removed", %{conn: conn, artist: artist, category: category} do
     {:ok, product} =
-      Products.create_product(product_params(artist, category))
+      ArtsyNeighbor.Admin.AdminProducts.create_product(product_params(artist, category))
 
     {:ok, image} =
       Products.create_product_image(%{path: "/photo.jpg", position: 1, product_id: product.id})
@@ -108,5 +108,64 @@ defmodule ArtsyNeighborWeb.AdminProductFormTest do
     render_click(view, "delete_image", %{"imageid" => to_string(image.id)})
 
     assert Products.get_product_with_associations!(product.id).product_images == []
+  end
+
+  # Choosing the artist (audit S-3 review). Works without photos, so
+  # saving redirects at once.
+  describe "the artist of a work" do
+    test "a work whose artist isn't active can still be edited",
+         %{conn: conn, category: category} do
+      inactive = artist_fixture(%{status: :inactive})
+
+      product =
+        ArtsyNeighbor.ProductsFixtures.product_fixture(%{
+          artist_id: inactive.id,
+          category_id: category.id
+        })
+
+      {:ok, view, html} = live(conn, ~p"/admin/products/#{product}/edit")
+      assert html =~ "#{inactive.nickname} (inactive)"
+
+      view |> form("#product-form", product: %{price: "77"}) |> render_submit()
+
+      assert_redirect(view, ~p"/admin/products", @wait)
+      updated = Products.get_product!(product.id)
+      assert Decimal.equal?(updated.price, "77")
+      assert updated.artist_id == inactive.id
+    end
+
+    test "a work can be moved to an artist who has no collections",
+         %{conn: conn, artist: artist, category: category} do
+      {:ok, prints} =
+        Products.create_collection(%{name: "Prints", position: 2, artist_id: artist.id})
+
+      product =
+        ArtsyNeighbor.ProductsFixtures.product_fixture(%{
+          artist_id: artist.id,
+          category_id: category.id,
+          collection_id: prints.id
+        })
+
+      new_artist = artist_fixture()
+
+      for collection <- Products.list_collections_for_artist(new_artist.id) do
+        Repo.delete!(collection)
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/admin/products/#{product}/edit")
+
+      # Picking the artist empties and disables the collection field, so
+      # the form then sends no collection at all.
+      view
+      |> element("#product-form select[name='product[artist_id]']")
+      |> render_change(%{"product" => %{"artist_id" => to_string(new_artist.id)}})
+
+      view |> form("#product-form") |> render_submit()
+
+      assert_redirect(view, ~p"/admin/products", @wait)
+      moved = Products.get_product!(product.id)
+      assert moved.artist_id == new_artist.id
+      assert moved.collection_id == nil
+    end
   end
 end

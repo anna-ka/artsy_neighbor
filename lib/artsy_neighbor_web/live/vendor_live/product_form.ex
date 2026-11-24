@@ -241,12 +241,12 @@ defmodule ArtsyNeighborWeb.VendorLive.ProductForm do
   end
 
   defp save_product(socket, :new, product_params, save_action) do
-    # A new product starts as a draft (Products.create_product/1); it
+    # A new product starts as a draft (Products.create_product/2); it
     # becomes :available only through publish_product/1, below.
+    # The owner is always the logged-in artist, never from the params.
     artist_id = socket.assigns.current_scope.artist.id
-    product_params = Map.put(product_params, "artist_id", artist_id)
 
-    case Products.create_product(product_params) do
+    case Products.create_product(artist_id, product_params) do
       {:ok, product} ->
         save_photos(socket, product, save_action)
 
