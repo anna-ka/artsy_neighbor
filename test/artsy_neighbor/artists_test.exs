@@ -2,6 +2,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
   use ArtsyNeighbor.DataCase
 
   alias ArtsyNeighbor.Accounts
+  alias ArtsyNeighbor.Admin.AdminArtists
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Products
@@ -376,7 +377,7 @@ defmodule ArtsyNeighbor.ArtistsTest do
       user = ArtsyNeighbor.AccountsFixtures.user_fixture()
 
       assert {:ok, artist} =
-               Artists.create_artist(%{
+               AdminArtists.create_artist(%{
                  nickname: "eager-artist",
                  first_name: "Eager",
                  last_name: "Artist",
@@ -709,15 +710,14 @@ defmodule ArtsyNeighbor.ArtistsTest do
       user = user_fixture()
 
       changeset =
-        Artists.registration_change_artist(%Artist{}, %{
+        Artists.registration_change_artist(%Artist{user_id: user.id}, %{
           nickname: "Newbie",
           first_name: "Test",
           last_name: "Artist",
           phone: "416-555-1234",
           email: "newbie@example.com",
           street_address: "100 Test St",
-          area_code: "M5H 2N2",
-          user_id: user.id
+          area_code: "M5H 2N2"
         })
 
       assert {:ok, artist} = Artists.save_onboarding_progress(changeset, 1)
@@ -731,15 +731,14 @@ defmodule ArtsyNeighbor.ArtistsTest do
       user = user_fixture()
 
       changeset =
-        Artists.registration_change_artist(%Artist{}, %{
+        Artists.registration_change_artist(%Artist{user_id: user.id}, %{
           nickname: "Steppy",
           first_name: "Test",
           last_name: "Artist",
           phone: "416-555-1234",
           email: "steppy@example.com",
           street_address: "100 Test St",
-          area_code: "M5H 2N2",
-          user_id: user.id
+          area_code: "M5H 2N2"
         })
 
       assert {:ok, artist} = Artists.save_onboarding_progress(changeset, 1)
@@ -779,15 +778,14 @@ defmodule ArtsyNeighbor.ArtistsTest do
       user = user_fixture()
 
       changeset =
-        Artists.registration_change_artist(%Artist{}, %{
+        Artists.registration_change_artist(%Artist{user_id: user.id}, %{
           nickname: "EarlyBird",
           first_name: "Test",
           last_name: "Artist",
           phone: "416-555-1234",
           email: "early@example.com",
           street_address: "100 Test St",
-          area_code: "M5H 2N2",
-          user_id: user.id
+          area_code: "M5H 2N2"
         })
 
       assert changeset.valid?
@@ -888,23 +886,78 @@ defmodule ArtsyNeighbor.ArtistsTest do
   #
   # This boolean is what distinguishes "profile being set up" from "profile
   # is live and can be edited freely." It defaults to false and is only set
-  # to true explicitly by save_artist(:edit) at the end of onboarding.
+  # to true by the server, at the last step's save (the vendor profile
+  # form's save_artist/2).
   # ---------------------------------------------------------------------------
   describe "onboarding flow — onboarding_complete field" do
     test "defaults to false on a new artist" do
       changeset = Artist.activation_changeset(%Artist{}, @valid_attrs)
       assert Ecto.Changeset.get_field(changeset, :onboarding_complete) == false
     end
+  end
 
-    test "activation_changeset accepts onboarding_complete: true" do
-      attrs = Map.put(@valid_attrs, :onboarding_complete, true)
-      changeset = Artist.activation_changeset(%Artist{}, attrs)
-      assert Ecto.Changeset.get_field(changeset, :onboarding_complete) == true
+  # ---------------------------------------------------------------------------
+  # Fields only the server sets (audit S-2)
+  #
+  # The vendor profile form sends its fields straight to
+  # activation_changeset/2 and registration_changeset/2, so a hand-made
+  # request could send anything. Neither takes the owner (user_id) or the
+  # onboarding state. Only admin_changeset/2 takes an owner: it's for the
+  # admin form and test fixtures, both through AdminArtists. (Sample data
+  # sets the owner on the struct instead.)
+  # ---------------------------------------------------------------------------
+  describe "fields only the server sets" do
+    @server_only %{user_id: 12_345, onboarding_step: 3, onboarding_complete: true}
+
+    test "activation_changeset ignores user_id, onboarding_step and onboarding_complete" do
+      changeset = Artist.activation_changeset(%Artist{}, Map.merge(@valid_attrs, @server_only))
+
+      assert Ecto.Changeset.get_change(changeset, :user_id) == nil
+      assert Ecto.Changeset.get_change(changeset, :onboarding_step) == nil
+      assert Ecto.Changeset.get_change(changeset, :onboarding_complete) == nil
     end
 
-    test "registration_changeset also accepts onboarding_complete" do
-      changeset = Artists.registration_change_artist(%Artist{}, %{onboarding_complete: true})
-      assert Ecto.Changeset.get_field(changeset, :onboarding_complete) == true
+    test "registration_changeset ignores user_id, onboarding_step and onboarding_complete" do
+      changeset =
+        Artists.registration_change_artist(%Artist{}, Map.merge(@valid_attrs, @server_only))
+
+      assert Ecto.Changeset.get_change(changeset, :user_id) == nil
+      assert Ecto.Changeset.get_change(changeset, :onboarding_step) == nil
+      assert Ecto.Changeset.get_change(changeset, :onboarding_complete) == nil
+    end
+
+    test "admin_changeset takes an owner, but not the onboarding state" do
+      changeset = Artist.admin_changeset(%Artist{}, Map.merge(@valid_attrs, @server_only))
+
+      assert Ecto.Changeset.get_change(changeset, :user_id) == 12_345
+      assert Ecto.Changeset.get_change(changeset, :onboarding_step) == nil
+      assert Ecto.Changeset.get_change(changeset, :onboarding_complete) == nil
+    end
+
+    test "AdminArtists.create_artist/1 refuses a second profile for the same user, with a form error" do
+      existing = artist_fixture()
+
+      attrs = Map.merge(@valid_attrs, %{user_id: existing.user_id, email: "second@example.com"})
+      assert {:error, changeset} = AdminArtists.create_artist(attrs)
+      assert "already has an artist profile" in errors_on(changeset).user_id
+    end
+
+    test "a second profile for the same user is refused on the onboarding path too" do
+      existing = artist_fixture()
+
+      changeset =
+        Artists.registration_change_artist(%Artist{user_id: existing.user_id}, %{
+          nickname: "Second",
+          first_name: "Test",
+          last_name: "Artist",
+          phone: "416-555-1234",
+          email: "second@example.com",
+          street_address: "100 Test St",
+          area_code: "M5H 2N2"
+        })
+
+      assert {:error, changeset} = Artists.save_onboarding_progress(changeset, 1)
+      assert errors_on(changeset).user_id != []
     end
   end
 
@@ -1033,24 +1086,27 @@ defmodule ArtsyNeighbor.ArtistsTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Artists.create_artist/1
+  # Creating an artist: AdminArtists.create_artist/1 (from a map, owner
+  # included), which goes through Artists.create_artist/1 (a changeset
+  # only, audit S-2: a page handing it a form's params would crash with
+  # a FunctionClauseError rather than set an owner from them).
   # ---------------------------------------------------------------------------
-  describe "Artists.create_artist/1" do
+  describe "creating an artist" do
     test "creates artist and default Uncategorized collection atomically" do
-      assert {:ok, artist} = Artists.create_artist(@valid_attrs)
+      assert {:ok, artist} = AdminArtists.create_artist(@valid_attrs)
       collections = Products.list_collections_for_artist(artist.id)
       assert length(collections) == 1
       assert hd(collections).name == "Uncategorized"
     end
 
     test "returns error changeset when artist attrs are invalid" do
-      assert {:error, %Ecto.Changeset{}} = Artists.create_artist(%{nickname: nil})
+      assert {:error, %Ecto.Changeset{}} = AdminArtists.create_artist(%{nickname: nil})
     end
 
     # New artists start inactive so they can finish onboarding before going live.
     # An admin or the onboarding completion step sets them to active.
     test "new artist defaults to inactive status" do
-      {:ok, artist} = Artists.create_artist(@valid_attrs)
+      {:ok, artist} = AdminArtists.create_artist(@valid_attrs)
       assert artist.status == :inactive
     end
   end

@@ -219,7 +219,7 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
 
     # A profile photo isn't required to save: the profile just can't be
     # made public (activated) without one — see Artists.update_artist/2.
-    save_artist(socket, socket.assigns.live_action, artist_params)
+    save_artist(socket, artist_params)
   end
 
   @impl true
@@ -284,7 +284,22 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
         end
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+        if Keyword.has_key?(changeset.errors, :user_id) do
+          # Step 1 of a new profile, but this user has one already: made
+          # in another tab since this page opened (one profile per user,
+          # see Artist.registration_changeset/2). The form has no field
+          # to show that error on, so open their profile instead.
+          {:noreply,
+           socket
+           |> put_flash(
+             :info,
+             "You already have an artist profile, so we opened it for you. " <>
+               "What you just typed on this page was not saved."
+           )
+           |> push_navigate(to: ~p"/vendor/profile/edit")}
+        else
+          {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+        end
     end
   end
 
@@ -367,38 +382,22 @@ defmodule ArtsyNeighborWeb.VendorLive.Profile.Form do
     end
   end
 
-  defp save_artist(socket, :edit, artist_params) do
-    artist_params = Map.put(artist_params, "onboarding_complete", true)
+  # The last step's save (step 3). Only ever on the edit page: on a new
+  # profile, step 1's save creates it and moves on to the edit page.
+  defp save_artist(socket, artist_params) do
+    changeset =
+      socket.assigns.artist
+      |> Artists.change_artist(artist_params)
+      # Set by the server: the changeset doesn't take it from the form
+      # (audit S-2), so a hand-made request can't skip the steps.
+      |> Ecto.Changeset.put_change(:onboarding_complete, true)
 
-    case Artists.update_artist(socket.assigns.artist, artist_params) do
+    case Artists.update_artist(changeset) do
       {:ok, _artist} ->
         # Photos were already saved on step 2 (save_photos/2).
         {:noreply,
          socket
          |> put_flash(:info, "Artist profile is updated successfully.")
-         |> push_navigate(to: ~p"/vendor")}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, :form, to_form(changeset))}
-    end
-  end
-
-  defp save_artist(socket, :new, artist_params) do
-    artist_params = Map.put(artist_params, "user_id", socket.assigns.current_scope.user.id)
-
-    result =
-      if socket.assigns.artist.id do
-        Artists.update_artist(socket.assigns.artist, artist_params)
-      else
-        Artists.create_artist(artist_params)
-      end
-
-    case result do
-      {:ok, _artist} ->
-        # Photos were already saved on step 2 (save_photos/2).
-        {:noreply,
-         socket
-         |> put_flash(:info, "Artist profile is created successfully.")
          |> push_navigate(to: ~p"/vendor")}
 
       {:error, %Ecto.Changeset{} = changeset} ->

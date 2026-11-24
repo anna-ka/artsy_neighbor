@@ -1,6 +1,7 @@
 defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   use ArtsyNeighborWeb, :live_view
 
+  alias ArtsyNeighbor.Admin.AdminArtists
   alias ArtsyNeighbor.Artists
   alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Accounts
@@ -35,7 +36,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
         end
       end)
 
-    changeset = Artists.change_artist(artist_with_string_medium)
+    changeset = AdminArtists.change_artist(artist_with_string_medium)
 
     socket
     |> assign(:page_title, "Edit Artist Profile")
@@ -46,7 +47,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp apply_action(socket, :new, _params) do
-    changeset = Artists.change_artist(%Artist{}, %{})
+    changeset = AdminArtists.change_artist(%Artist{}, %{})
 
     socket
     |> assign(:page_title, "New Artist")
@@ -139,7 +140,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
 
     # Parse comma-separated medium string into array for validation
     artist_params = parse_medium_field(artist_params)
-    changeset = Artists.change_artist(socket.assigns.artist, artist_params)
+    changeset = AdminArtists.change_artist(socket.assigns.artist, artist_params)
 
     # Convert medium back to string for form display
     changeset =
@@ -166,7 +167,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   #      Artists.change_status/2, which applies the rules (e.g. a public
   #      profile needs a photo, so the photos must be saved first).
   defp save_artist(socket, :edit, artist_params) do
-    case Artists.update_artist(socket.assigns.artist, artist_params) do
+    case AdminArtists.update_artist(socket.assigns.artist, artist_params) do
       {:ok, artist} ->
         save_photos(
           socket,
@@ -181,7 +182,7 @@ defmodule ArtsyNeighborWeb.AdminArtistLive.Form do
   end
 
   defp save_artist(socket, :new, artist_params) do
-    case Artists.create_artist(artist_params) do
+    case AdminArtists.create_artist(artist_params) do
       {:ok, artist} ->
         save_photos(
           socket,

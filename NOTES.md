@@ -397,8 +397,30 @@ which is mechanical and done once, up front.
           - With audit S-15: other public pages' handlers that assume
             a logged-in user (only the product page's two buttons
             were fixed).
-          Next: S-2 (an artist profile's owner can be set from the
-          browser).
+          S-2 (an artist profile's owner could be set from the
+          browser): *DONE* 2026-11-23. The vendor changesets no longer
+          take `user_id`, `onboarding_step` or `onboarding_complete`;
+          the server sets them. `Artist.admin_changeset/2` takes an
+          owner, used only through `AdminArtists` (admin form,
+          fixtures). Creating a profile from a map of params is now
+          only `AdminArtists.create_artist/1`; `Artists.create_artist/1`
+          takes a changeset, so the name says "admin" wherever an
+          owner comes from params. `artists.user_id` is now a unique index, so a second
+          profile for one user is a form error, not a site-wide
+          lock-out (checked first: no duplicates on dev or the Fly
+          preview). The vendor form's unreachable
+          `save_artist(socket, :new, …)` was removed.
+          If step 1 of a new profile is saved when the user already
+          has one (made in another tab meanwhile), the form now opens
+          that profile with a message, instead of showing an error on
+          a field it doesn't have.
+          Noticed meanwhile (not from the audit): `mix test` prints an
+          unused-default warning for `insert_conversation/3` in
+          `test/artsy_neighbor_web/live/conversation_live/index_test.exs`;
+          and a `UserLive.Settings` test logs a `FunctionClauseError` on
+          `{:email, ...}` (the tests pass).
+          Next: S-3 + S-4 (a vendor can put works on another artist's
+          page).
 3. **Buyer + vendor features** — artist-page collections and the empty
    "Uncategorized" fix (#13), purchase history (#11), vendor tools and
    product status (#16; leaning towards leaving visible-but-`:unavailable`

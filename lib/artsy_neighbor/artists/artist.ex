@@ -53,15 +53,16 @@ defmodule ArtsyNeighbor.Artists.Artist do
       :phone,
       :bio,
       :medium,
-      :user_id,
       :delivery_options,
       :delivery_info,
-      :onboarding_step,
-      :onboarding_complete,
-      # Not :status: the forms send their fields straight here, so a
-      # hand-made request could otherwise set any status. Status changes
-      # only through Artists.change_status/2 (and the functions it
-      # uses), which apply the rules — see status_changeset/2.
+      # Not :status, :user_id, :onboarding_step or :onboarding_complete:
+      # the vendor form sends its fields straight here, so a hand-made
+      # request could otherwise set them (audit S-2: giving a profile to
+      # another user, or a second profile to someone, which locks them
+      # out of the site). The server sets them instead: status through
+      # Artists.change_status/2 (see status_changeset/2), the owner on
+      # the struct before the first save or through admin_changeset/2,
+      # the onboarding state with put_change.
       :homepage,
       :instagram,
       :facebook,
@@ -112,14 +113,13 @@ defmodule ArtsyNeighbor.Artists.Artist do
       :apt_info,
       :area_code,
       :phone,
-      :user_id,
+      # Not :user_id, :onboarding_step or :onboarding_complete: see the
+      # comment in activation_changeset/2.
       :homepage,
       :instagram,
       :facebook,
       :announcement,
-      :announcement_active,
-      :onboarding_step,
-      :onboarding_complete
+      :announcement_active
     ])
     |> validate_required([
       :nickname,
@@ -134,7 +134,29 @@ defmodule ArtsyNeighbor.Artists.Artist do
     |> validate_email()
     |> assoc_constraint(:user)
     |> unique_constraint(:email)
-    |> unique_constraint(:user_id)
+    # The owner is set by the server, but two tabs saving step 1 at the
+    # same moment could still both try to insert a profile.
+    |> unique_constraint(:user_id, message: "already has an artist profile")
+  end
+
+  @doc """
+  The full profile changeset plus the profile's owner (`user_id`).
+
+  Only for callers that choose the owner on purpose: the admin artist
+  form and the test fixtures, both through
+  `ArtsyNeighbor.Admin.AdminArtists`. Never for the vendor's own form:
+  there the owner is the logged-in user, set by the server.
+
+  A user may own only one profile (a unique index on `artists.user_id`).
+  Picking a user who already has one gives an error on `:user_id`
+  instead of a crash.
+  """
+  def admin_changeset(artist, attrs) do
+    artist
+    |> activation_changeset(attrs)
+    |> cast(attrs, [:user_id])
+    |> assoc_constraint(:user)
+    |> unique_constraint(:user_id, message: "already has an artist profile")
   end
 
   @doc """

@@ -3,16 +3,19 @@ defmodule ArtsyNeighborWeb.AdminArtistFormTest do
   The admin artist form's status dropdown goes through
   `Artists.change_status/2` after the profile and photos are saved, so
   its rules apply (a public profile needs a photo) and a photo uploaded
-  in the same save counts.
+  in the same save counts. Also: the owner it picks can't already have
+  a profile.
   """
   use ArtsyNeighborWeb.ConnCase
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
   import ArtsyNeighbor.AccountsFixtures
   import ArtsyNeighbor.ArtistsFixtures
 
   alias ArtsyNeighbor.Accounts.Admin
   alias ArtsyNeighbor.Artists
+  alias ArtsyNeighbor.Artists.Artist
   alias ArtsyNeighbor.Repo
 
   # A small real photo shipped with the site.
@@ -96,5 +99,67 @@ defmodule ArtsyNeighborWeb.AdminArtistFormTest do
     assert html =~ "Add a profile photo before making your profile public."
     artist = Artists.get_artist_by_user_id(owner.id)
     assert artist.status == :inactive
+  end
+
+  # Audit S-2: a user may own only one artist profile. With two, every
+  # page that user opens would crash (Accounts.Scope looks their profile
+  # up on every request).
+  describe "the profile's owner" do
+    @new_artist_fields %{
+      nickname: "Second Profile",
+      first_name: "Second",
+      last_name: "Profile",
+      email: "second.profile@example.com",
+      phone: "250-555-1234",
+      street_address: "1 Fort Street",
+      area_code: "V8W 1A1",
+      bio: String.duplicate("A painter of the coast. ", 5),
+      medium: "Watercolour"
+    }
+
+    test "a new profile for a user who already has one is refused with a form error",
+         %{conn: conn} do
+      existing = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/admin/artists/new")
+
+      html =
+        view
+        |> form("#artist_form", artist: Map.put(@new_artist_fields, :user_id, existing.user_id))
+        |> render_submit()
+
+      assert html =~ "already has an artist profile"
+      assert profiles_owned_by(existing.user_id) == 1
+    end
+
+    test "moving a profile to a user who already has one is refused with a form error",
+         %{conn: conn} do
+      existing = artist_fixture()
+      artist = artist_fixture()
+      {:ok, view, _html} = live(conn, ~p"/admin/artists/#{artist}/edit")
+
+      html =
+        view
+        |> form("#artist_form", artist: %{user_id: existing.user_id})
+        |> render_submit()
+
+      assert html =~ "already has an artist profile"
+      assert Artists.get_artist!(artist.id).user_id == artist.user_id
+    end
+
+    test "an admin can still move a profile to a user without one", %{conn: conn} do
+      artist = artist_fixture()
+      new_owner = user_fixture()
+      {:ok, view, _html} = live(conn, ~p"/admin/artists/#{artist}/edit")
+
+      view
+      |> form("#artist_form", artist: %{user_id: new_owner.id})
+      |> render_submit()
+
+      assert Artists.get_artist!(artist.id).user_id == new_owner.id
+    end
+  end
+
+  defp profiles_owned_by(user_id) do
+    Repo.aggregate(from(a in Artist, where: a.user_id == ^user_id), :count)
   end
 end

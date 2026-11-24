@@ -287,13 +287,16 @@ defmodule ArtsyNeighbor.Artists do
   Returns {:ok, artist} or {:error, changeset}. The new artist is always
   :inactive (the changesets don't take a status); see change_status/2.
 
-  Two calling conventions:
-  - create_artist(attrs) — builds the changeset using activation_changeset (full validation).
-    Used by the admin form and seeds.
-  - create_artist(changeset) — accepts a pre-built changeset, e.g. from registration_changeset
-    (step 1 only validation). Used by save_onboarding_progress/2.
+  Takes a changeset, never a map of params: the owner (`user_id`) is
+  whatever the changeset says, so the caller must have chosen it. The
+  vendor's onboarding (save_onboarding_progress/2) builds it with
+  registration_changeset on `%Artist{user_id: ...}`, the owner set by
+  the server. To create a profile with an owner picked from a form
+  (the admin form, test fixtures), use `AdminArtists.create_artist/1`,
+  whose name says it's for admins (audit S-2).
 
-  In both cases the Multi transaction is identical: artist insert + collection insert.
+  A user who already has a profile gets `{:error, changeset}` with an
+  error on `:user_id` (one profile per user).
   """
   def create_artist(%Ecto.Changeset{} = changeset) do
     Multi.new()
@@ -311,10 +314,6 @@ defmodule ArtsyNeighbor.Artists do
       {:error, :artist, changeset, _} -> {:error, changeset}
       {:error, :collection, _changeset, _} -> {:error, :collection_creation_failed}
     end
-  end
-
-  def create_artist(attrs) when is_map(attrs) do
-    create_artist(Artist.activation_changeset(%Artist{}, attrs))
   end
 
   @doc """

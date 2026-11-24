@@ -255,11 +255,11 @@ defmodule ArtsyNeighbor.SampleData do
   defp insert_drafts(user, entry, category_ids) do
     {:ok, result} =
       Repo.transact(fn ->
+        # The owner and onboarding state are set on the struct: the
+        # changeset doesn't take them from a map (audit S-2).
         artist =
-          %Artist{}
-          |> Artist.activation_changeset(
-            Map.merge(entry.artist, %{user_id: user.id, onboarding_complete: true})
-          )
+          %Artist{user_id: user.id, onboarding_complete: true}
+          |> Artist.activation_changeset(entry.artist)
           |> Repo.insert!()
 
         collections = Enum.with_index(with_uncategorized(entry.collections), 1)

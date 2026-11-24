@@ -131,6 +131,8 @@ doesn't cost real efficiency.
   they've onboarded as a vendor.
 - `artist_id` is always injected server-side in vendor forms from
   `current_scope.artist` — never trust an `artist_id` coming from params.
+  Likewise an artist profile's owner (`user_id`) and onboarding state are
+  never cast by the vendor changesets; see Artist below.
 - The `Orders` functions that change an order take the caller's
   `current_scope` as their first argument and work out the role
   (buyer / vendor / admin) themselves, refusing anyone else with
@@ -212,8 +214,19 @@ NOTES.md:
   `delivery_info` — map, keys match `delivery_options`, values are note strings
 - `onboarding_complete` — bool, set true on final profile save
 - `homepage`, `instagram`, `facebook` — optional URL strings
-- Three changesets: `registration_changeset` (step 1 only), `activation_changeset`
-  (full profile, does NOT cast `status`), `status_changeset` (status only)
+- Four changesets: `registration_changeset` (step 1 only), `activation_changeset`
+  (full profile), `admin_changeset` (full profile + owner), `status_changeset`
+  (status only). The vendor-facing two do NOT cast `status`, `user_id`,
+  `onboarding_step` or `onboarding_complete`: the server sets those
+  (owner on the struct, onboarding with `put_change`). Only
+  `admin_changeset` takes `user_id`, used only through `AdminArtists`
+  (the admin form, test fixtures). `Artists.create_artist/1` takes a
+  changeset only; creating a profile from a map of params with an owner
+  is `AdminArtists.create_artist/1`. Never give either a vendor form's
+  params.
+- One profile per user: `artists.user_id` is a unique index (several
+  `NULL`s are allowed). `Artists.get_artist_by_user_id/1` runs on every
+  request (`Accounts.Scope`) and would crash on a duplicate.
 - Status changes go through `Artists` functions, not `update_artist/2`:
   `activate_artist/1` (refused without a profile photo),
   `deactivate_artist/1`, `soft_delete_artist/1`, or the dispatcher
@@ -232,12 +245,12 @@ NOTES.md:
 - When an artist is soft-deleted (`Artists.soft_delete_artist/1`), all their
   products go `:archived` — not deleted, and unconditionally (even ones
   already `:archived` individually). When an artist transitions from
-  `:active` to `:inactive` — via `Artists.deactivate_artist/1` (the vendor
-  dashboard's own toggle) or via the general `Artists.update_artist/2`
-  (e.g. the admin edit form's own status dropdown) — only their
+  `:active` to `:inactive` — only ever through `Artists.deactivate_artist/1`,
+  which the vendor dashboard's toggle calls directly and the admin edit
+  form's status dropdown reaches through `Artists.change_status/2`
+  (`Artists.update_artist/2` never changes the status) — only their
   `:available` products go `:unavailable`, a lighter, reversible-in-spirit
-  pause that leaves already-`:archived` products alone. Both functions
-  share this cascade so it holds regardless of entry point. Neither
+  pause that leaves already-`:archived` products alone. Neither
   transition reverses automatically — restoring the artist doesn't restore
   their products; that's a separate, still-manual step
   (`Products.restore_product/1`, itself gated on the artist being `:active`).

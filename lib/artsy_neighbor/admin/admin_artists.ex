@@ -31,15 +31,28 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
     Artists.list_artists_all_status()
   end
 
+  @doc """
+  Creates an artist profile with the owner the admin picked
+  (`user_id` in `attrs`), plus its default collection
+  (`Artists.create_artist/1`).
+
+  The only function that creates a profile from a map of params with an
+  owner in it, so it lives here, in the admin context: never call it
+  from a vendor's page, where the owner is the logged-in user (audit
+  S-2). The test fixtures use it too.
+  """
   def create_artist(attrs \\ %{}) do
-    Artists.create_artist(attrs)
+    %Artist{}
+    |> change_artist(attrs)
+    |> Artists.create_artist()
   end
 
   @doc """
-  A helper function to get a changeset for an artist.
+  A changeset for the admin artist form. Unlike the vendor's own form,
+  it takes the profile's owner (`user_id`): see `Artist.admin_changeset/2`.
   """
   def change_artist(%Artist{} = artist, attrs \\ %{}) do
-    Artist.activation_changeset(artist, attrs)
+    Artist.admin_changeset(artist, attrs)
   end
 
   def get_artist!(id) do
@@ -47,12 +60,14 @@ defmodule ArtsyNeighbor.Admin.AdminArtists do
   end
 
   @doc """
-  Updates an artist. Delegates to Artists.update_artist/2 so the
-  :active -> :inactive product cascade always runs; don't replace this
-  with a direct Repo.update/1.
+  Updates an artist's profile fields and its owner, for the admin form.
+  Never changes the status (see `Artists.update_artist/2`): the form does
+  that afterwards through `Artists.change_status/2`.
   """
   def update_artist(%Artist{} = artist, attrs \\ %{}) do
-    Artists.update_artist(artist, attrs)
+    artist
+    |> change_artist(attrs)
+    |> Artists.update_artist()
   end
 
   @doc """
